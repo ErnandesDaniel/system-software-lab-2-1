@@ -91,7 +91,6 @@ mod tests {
             let mut parser = crate::parser::Parser::new(source);
             parser.parse()
         };
-        eprintln!("Result: {:?}", result);
         let program = result.unwrap();
         assert_eq!(program.items.len(), 1);
     }
