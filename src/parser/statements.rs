@@ -20,6 +20,47 @@ impl<'source> Parser<'source> {
         let (_name, span) = self.expect(Token::Identifier)?;
         let var_name = self.get_text(&span).to_string();
 
+        // Check if this is a slice assignment: identifier[expr] = expr
+        if self.current_token() == Some(&Token::LBracket) {
+            self.expect(Token::LBracket)?;
+            let index = self.parse_expression(0)?;
+            self.expect(Token::RBracket)?;
+
+            // Create slice expression: arr[0]
+            let slice = Expr::Slice(SliceExpr {
+                array: Box::new(Expr::Identifier(Identifier {
+                    name: var_name.clone(),
+                    span,
+                })),
+                ranges: vec![Range {
+                    start: index,
+                    end: None,
+                    span: Span::new(0, 0),
+                }],
+                span: span.merge(self.current_span()),
+            });
+
+            // Now check for assignment
+            if self.current_token() == Some(&Token::Assign) {
+                self.expect(Token::Assign)?;
+                let right = self.parse_expression(0)?;
+                if self.current_token() == Some(&Token::Semi) {
+                    self.expect(Token::Semi)?;
+                }
+                let end_span = self.current_span();
+                return Ok(Statement::Expression(ExpressionStatement {
+                    expr: Expr::Binary(BinaryExpr {
+                        left: Box::new(slice),
+                        operator: BinaryOp::Assign,
+                        right: Box::new(right),
+                        span: span.merge(end_span),
+                    }),
+                    span: span.merge(end_span),
+                }));
+            }
+        }
+
+        // Regular identifier handling
         if self.current_token() == Some(&Token::Assign) {
             self.expect(Token::Assign)?;
             let expr = self.parse_expression(0)?;
@@ -30,7 +71,7 @@ impl<'source> Parser<'source> {
             Ok(Statement::Expression(ExpressionStatement {
                 expr: Expr::Binary(BinaryExpr {
                     left: Box::new(Expr::Identifier(Identifier {
-                        name: var_name,
+                        name: var_name.clone(),
                         span,
                     })),
                     operator: BinaryOp::Assign,

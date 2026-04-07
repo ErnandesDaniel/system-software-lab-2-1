@@ -20,41 +20,31 @@ N9["if"]
 N8 --> N9
 N10["expr"]
 N8 --> N10
-N11["expr"]
+N11["literal"]
 N10 --> N11
-N12["literal"]
+N12["dec: 5"]
 N11 --> N12
-N13["dec: 5"]
-N12 --> N13
-N14["then"]
-N8 --> N14
-N15["statement"]
-N8 --> N15
-N16["expression_statement"]
+N13["statement"]
+N8 --> N13
+N14["expression_statement"]
+N13 --> N14
+N15["expr"]
+N14 --> N15
+N16["binary_expr"]
 N15 --> N16
 N17["expr"]
 N16 --> N17
-N18["binary_expr"]
+N18["identifier: i"]
 N17 --> N18
-N19["expr"]
-N17 --> N19
+N19["="]
+N16 --> N19
 N20["expr"]
-N19 --> N20
-N21["identifier: i"]
+N16 --> N20
+N21["literal"]
 N20 --> N21
-N22["="]
-N17 --> N22
-N23["expr"]
-N17 --> N23
-N24["expr"]
-N23 --> N24
-N25["literal"]
-N24 --> N25
-N26["dec: 1"]
-N25 --> N26
-N27[";"]
-N16 --> N27
-N28["end"]
-N8 --> N28
-N29["end"]
-N1 --> N29
+N22["dec: 1"]
+N21 --> N22
+N23[";"]
+N14 --> N23
+N24["end"]
+N1 --> N24

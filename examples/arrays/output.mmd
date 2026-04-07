@@ -17,46 +17,34 @@ N1 --> N7
 N8["expression_statement"]
 N7 --> N8
 N9["expr"]
-N7 --> N9
+N8 --> N9
 N10["binary_expr"]
 N9 --> N10
 N11["expr"]
-N9 --> N11
-N12["expr"]
+N10 --> N11
+N12["slice_expr"]
 N11 --> N12
-N13["slice_expr"]
+N13["expr"]
 N12 --> N13
-N14["expr"]
-N12 --> N14
-N15["expr"]
-N14 --> N15
-N16["identifier: arr"]
+N14["identifier: arr"]
+N13 --> N14
+N15["range"]
+N12 --> N15
+N16["expr"]
 N15 --> N16
-N17["["]
-N12 --> N17
-N18["range"]
-N12 --> N18
-N19["expr"]
-N18 --> N19
+N17["literal"]
+N16 --> N17
+N18["dec: 0"]
+N17 --> N18
+N19["="]
+N10 --> N19
 N20["expr"]
-N19 --> N20
+N10 --> N20
 N21["literal"]
 N20 --> N21
-N22["dec: 0"]
+N22["dec: 1"]
 N21 --> N22
-N23["]"]
-N12 --> N23
-N24["="]
-N9 --> N24
-N25["expr"]
-N9 --> N25
-N26["expr"]
-N25 --> N26
-N27["literal"]
-N26 --> N27
-N28["dec: 1"]
-N27 --> N28
-N29[";"]
-N7 --> N29
-N30["end"]
-N1 --> N30
+N23[";"]
+N8 --> N23
+N24["end"]
+N1 --> N24
