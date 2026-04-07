@@ -13,11 +13,10 @@ fn main() {
 
     if args.len() < 2 {
         eprintln!(
-            "Usage: {} <source_file> [-o|--output <output_file>] [--format json|mermaid]",
+            "Usage: {} <source_file> [-o|--output <output_file>]",
             args[0]
         );
         eprintln!("  -o, --output <file>  Output file (default: stdout)");
-        eprintln!("  --format <format>   Output format: json, mermaid (default: mermaid)");
         std::process::exit(1);
     }
 
@@ -40,7 +39,6 @@ fn main() {
     };
 
     let mut output_file: Option<String> = None;
-    let mut format = "mermaid";
 
     let mut i = 2;
     while i < args.len() {
@@ -54,15 +52,6 @@ fn main() {
                     std::process::exit(1);
                 }
             }
-            "--format" => {
-                if i + 1 < args.len() {
-                    format = &args[i + 1];
-                    i += 2;
-                } else {
-                    eprintln!("Error: --format requires an argument");
-                    std::process::exit(1);
-                }
-            }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
                 std::process::exit(1);
@@ -70,17 +59,8 @@ fn main() {
         }
     }
 
-    let output = match format {
-        "json" => serde_json::to_string_pretty(&ast).unwrap(),
-        "mermaid" => {
-            let mut generator = mermaid::MermaidGenerator::new();
-            generator.generate(&ast)
-        }
-        _ => {
-            eprintln!("Unknown format: {}", format);
-            std::process::exit(1);
-        }
-    };
+    let mut generator = mermaid::MermaidGenerator::new();
+    let output = generator.generate(&ast);
 
     match output_file {
         Some(path) => {
