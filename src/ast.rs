@@ -239,28 +239,3 @@ impl From<std::ops::Range<usize>> for Span {
         Span::new(r.start, r.end)
     }
 }
-
-impl Identifier {
-    pub fn span(&self) -> Span {
-        self.span
-    }
-}
-
-impl TypeRef {
-    pub fn span(&self) -> Span {
-        match self {
-            TypeRef::BuiltinType(bt) => match bt {
-                BuiltinType::Bool => Span::new(0, 4),
-                BuiltinType::Byte => Span::new(0, 4),
-                BuiltinType::Int => Span::new(0, 3),
-                BuiltinType::Uint => Span::new(0, 4),
-                BuiltinType::Long => Span::new(0, 4),
-                BuiltinType::Ulong => Span::new(0, 5),
-                BuiltinType::Char => Span::new(0, 4),
-                BuiltinType::String => Span::new(0, 6),
-            },
-            TypeRef::Custom(id) => id.span,
-            TypeRef::Array { span, .. } => *span,
-        }
-    }
-}
