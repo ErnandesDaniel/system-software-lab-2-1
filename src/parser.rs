@@ -327,41 +327,20 @@ impl<'source> Parser<'source> {
         match self.current_token() {
             Some(Token::Return) => self.parse_return(),
             Some(Token::If) => self.parse_if(),
-            Some(Token::While) => self.parse_while(),
+            Some(Token::While) | Some(Token::Until) => self.parse_while(),
             Some(Token::Break) => self.parse_break(),
             Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
-            Some(Token::Identifier) => self.parse_identifier_statement(),
-            Some(Token::Assign) => self.parse_assignment_statement(),
+            Some(Token::Identifier) => {
+                // Peek ahead to see if this is an assignment
+                self.parse_identifier_based_statement()
+            }
             _ => self.parse_expression_statement(),
         }
     }
 
-    fn parse_assignment_statement(&mut self) -> Result<Statement, String> {
-        let start = self.current_span();
-        self.expect(Token::Assign)?;
-        let expr = self.parse_expression(5)?;
-        if self.current_token() == Some(&Token::Semi) {
-            self.expect(Token::Semi)?;
-        }
-        let span = start.merge(self.current_span());
-        Ok(Statement::Expression(ExpressionStatement {
-            expr: Expr::Binary(BinaryExpr {
-                left: Box::new(Expr::Identifier(Identifier {
-                    name: String::new(),
-                    span: start,
-                })),
-                operator: BinaryOp::Assign,
-                right: Box::new(expr),
-                span,
-            }),
-            span,
-        }))
-    }
-
-    fn parse_identifier_statement(&mut self) -> Result<Statement, String> {
-        // Currently at Identifier, need to check if next is Assign
-        // Save current position by consuming identifier
+    fn parse_identifier_based_statement(&mut self) -> Result<Statement, String> {
+        // Save the current position
         let (_name, span) = self.expect(Token::Identifier)?;
         let var_name = self.get_text(&span).to_string();
 
@@ -386,10 +365,7 @@ impl<'source> Parser<'source> {
                 span: span.merge(end_span),
             }))
         } else {
-            // It's not an assignment, so treat as expression
-            // We already consumed the identifier, so parse_expression will continue from there
-            // But we need to handle this differently - let's create an identifier expression
-            // and continue parsing as an expression
+            // It's not an assignment, so treat as expression starting with identifier
             let mut left = Expr::Identifier(Identifier {
                 name: var_name,
                 span,
@@ -398,6 +374,21 @@ impl<'source> Parser<'source> {
             // Continue parsing infix operators
             while let Some(token) = self.current_token() {
                 if matches!(token, Token::Assign) {
+                    break;
+                }
+                if matches!(
+                    token,
+                    Token::End
+                        | Token::Semi
+                        | Token::Then
+                        | Token::Else
+                        | Token::Do
+                        | Token::While
+                        | Token::Until
+                        | Token::Comma
+                        | Token::RParen
+                        | Token::RBracket
+                ) {
                     break;
                 }
                 let token_copy = *token;
@@ -472,7 +463,8 @@ impl<'source> Parser<'source> {
             _ => return Err("Expected 'while' or 'until'".to_string()),
         };
 
-        let condition = self.parse_expression(0)?;
+        // Parse condition - we need to parse until we hit End or the start of a statement
+        let condition = self.parse_condition_expression()?;
 
         let mut body = Vec::new();
         while let Some(tok) = self.current_token() {
@@ -500,6 +492,52 @@ impl<'source> Parser<'source> {
             body,
             span,
         }))
+    }
+
+    fn parse_condition_expression(&mut self) -> Result<Expr, String> {
+        let mut left = self.parse_prefix()?;
+
+        while let Some(token) = self.current_token() {
+            // Stop on statement-level keywords or tokens that start new statements
+            if matches!(
+                token,
+                Token::End
+                    | Token::Semi
+                    | Token::Then
+                    | Token::Else
+                    | Token::Do
+                    | Token::While
+                    | Token::Until
+                    | Token::Comma
+                    | Token::RParen
+                    | Token::RBracket
+            ) {
+                eprintln!(
+                    "DEBUG: parse_condition_expression stopping on token {:?}",
+                    token
+                );
+                break;
+            }
+            // Stop if we see an assignment operator - this is the key fix!
+            if matches!(token, Token::Assign) {
+                eprintln!("DEBUG: parse_condition_expression stopping on Assign");
+                break;
+            }
+            let token_copy = *token;
+            let prec = Self::get_precedence(&token_copy);
+            // Stop if precedence is 0 (not an infix operator)
+            if prec == 0 {
+                eprintln!(
+                    "DEBUG: parse_condition_expression stopping on prec 0, token {:?}",
+                    token
+                );
+                break;
+            }
+            self.advance();
+            left = self.parse_infix(left, token_copy, prec)?;
+        }
+
+        Ok(left)
     }
 
     fn parse_repeat(&mut self) -> Result<Statement, String> {
@@ -588,16 +626,87 @@ impl<'source> Parser<'source> {
     }
 
     fn parse_expression_statement(&mut self) -> Result<Statement, String> {
-        eprintln!(
-            "DEBUG: parse_expression_statement start, current = {:?}",
-            self.current_token()
-        );
+        let start = self.current_span();
+
+        // Check if we start with identifier followed by assignment
+        if let Some(Token::Identifier) = self.current_token() {
+            let (_name, span) = self.expect(Token::Identifier)?;
+            let var_name = self.get_text(&span).to_string();
+
+            if self.current_token() == Some(&Token::Assign) {
+                self.expect(Token::Assign)?;
+                let expr = self.parse_expression(0)?;
+                if self.current_token() == Some(&Token::Semi) {
+                    self.expect(Token::Semi)?;
+                }
+                let end_span = self.current_span();
+                return Ok(Statement::Expression(ExpressionStatement {
+                    expr: Expr::Binary(BinaryExpr {
+                        left: Box::new(Expr::Identifier(Identifier {
+                            name: var_name,
+                            span,
+                        })),
+                        operator: BinaryOp::Assign,
+                        right: Box::new(expr),
+                        span: span.merge(end_span),
+                    }),
+                    span: span.merge(end_span),
+                }));
+            } else {
+                // It's not an assignment - treat as expression starting with identifier
+                let mut left = Expr::Identifier(Identifier {
+                    name: var_name,
+                    span,
+                });
+
+                // Continue parsing infix operators
+                while let Some(token) = self.current_token() {
+                    if matches!(token, Token::Assign) {
+                        break;
+                    }
+                    if matches!(
+                        token,
+                        Token::End
+                            | Token::Semi
+                            | Token::Then
+                            | Token::Else
+                            | Token::Do
+                            | Token::While
+                            | Token::Until
+                            | Token::Comma
+                            | Token::RParen
+                            | Token::RBracket
+                    ) {
+                        break;
+                    }
+                    let token_copy = *token;
+                    let prec = Self::get_precedence(&token_copy);
+                    if prec == 0 {
+                        break;
+                    }
+                    self.advance();
+                    left = self.parse_infix(left, token_copy, prec)?;
+                }
+
+                // Semi is optional
+                if self.current_token() == Some(&Token::Semi) {
+                    self.expect(Token::Semi)?;
+                }
+
+                let end_span = self.current_span();
+                return Ok(Statement::Expression(ExpressionStatement {
+                    expr: left,
+                    span: span.merge(end_span),
+                }));
+            }
+        }
+
+        // Otherwise parse as regular expression
         let expr = self.parse_expression(0)?;
-        // Semi is optional to allow block statements without trailing semicolon
         if self.current_token() == Some(&Token::Semi) {
             self.expect(Token::Semi)?;
         }
-        let span = expr.span();
+        let span = start.merge(self.current_span());
         Ok(Statement::Expression(ExpressionStatement { expr, span }))
     }
 

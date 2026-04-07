@@ -1,56 +1,152 @@
 graph TD;
 N0["source"]
-N1["func_definition"]
+N1["source_item"]
 N0 --> N1
-N2["func_signature"]
+N2["def"]
 N1 --> N2
-N3["identifier: main"]
+N3["func_signature"]
 N2 --> N3
-N4["loop_statement"]
-N1 --> N4
-N5["Less"]
-N4 --> N5
-N6["i"]
-N5 --> N6
-N7["5"]
-N5 --> N7
-N8["expression_statement"]
-N4 --> N8
-N9["Assign"]
+N4["identifier: main"]
+N3 --> N4
+N5["("]
+N3 --> N5
+N6[")"]
+N3 --> N6
+N7["statement"]
+N2 --> N7
+N8["loop_statement"]
+N7 --> N8
+N9["while"]
 N8 --> N9
-N10[""]
-N9 --> N10
-N11["Add"]
-N9 --> N11
-N12["i"]
+N10["expr"]
+N8 --> N10
+N11["binary_expr"]
+N10 --> N11
+N12["expr"]
 N11 --> N12
-N13["1"]
-N11 --> N13
-N14["expression_statement"]
-N1 --> N14
-N15["Assign"]
-N14 --> N15
-N16["a"]
+N13["identifier: i"]
+N12 --> N13
+N14["<"]
+N11 --> N14
+N15["expr"]
+N11 --> N15
+N16["literal"]
 N15 --> N16
-N17["fasdfadsf"]
-N15 --> N17
-N18["expression_statement"]
-N1 --> N18
-N19["Assign"]
+N17["dec: 5"]
+N16 --> N17
+N18["statement"]
+N8 --> N18
+N19["expression_statement"]
 N18 --> N19
-N20[""]
+N20["expr"]
 N19 --> N20
-N21["Add"]
-N19 --> N21
-N22["Add"]
+N21["binary_expr"]
+N20 --> N21
+N22["expr"]
 N21 --> N22
-N23["1"]
+N23["identifier: i"]
 N22 --> N23
-N24["Multiply"]
-N22 --> N24
-N25["5"]
-N24 --> N25
-N26["2"]
-N24 --> N26
-N27["4"]
-N21 --> N27
+N24["="]
+N21 --> N24
+N25["expr"]
+N21 --> N25
+N26["binary_expr"]
+N25 --> N26
+N27["expr"]
+N26 --> N27
+N28["identifier: i"]
+N27 --> N28
+N29["+"]
+N26 --> N29
+N30["expr"]
+N26 --> N30
+N31["literal"]
+N30 --> N31
+N32["dec: 1"]
+N31 --> N32
+N33[";"]
+N19 --> N33
+N34["end"]
+N8 --> N34
+N35["statement"]
+N2 --> N35
+N36["expression_statement"]
+N35 --> N36
+N37["expr"]
+N36 --> N37
+N38["binary_expr"]
+N37 --> N38
+N39["expr"]
+N38 --> N39
+N40["identifier: a"]
+N39 --> N40
+N41["="]
+N38 --> N41
+N42["expr"]
+N38 --> N42
+N43["literal"]
+N42 --> N43
+N44["str: "fasdfadsf""]
+N43 --> N44
+N45[";"]
+N36 --> N45
+N46["statement"]
+N2 --> N46
+N47["expression_statement"]
+N46 --> N47
+N48["expr"]
+N47 --> N48
+N49["binary_expr"]
+N48 --> N49
+N50["expr"]
+N49 --> N50
+N51["identifier: b"]
+N50 --> N51
+N52["="]
+N49 --> N52
+N53["expr"]
+N49 --> N53
+N54["binary_expr"]
+N53 --> N54
+N55["expr"]
+N54 --> N55
+N56["binary_expr"]
+N55 --> N56
+N57["expr"]
+N56 --> N57
+N58["literal"]
+N57 --> N58
+N59["dec: 1"]
+N58 --> N59
+N60["+"]
+N56 --> N60
+N61["expr"]
+N56 --> N61
+N62["binary_expr"]
+N61 --> N62
+N63["expr"]
+N62 --> N63
+N64["literal"]
+N63 --> N64
+N65["dec: 5"]
+N64 --> N65
+N66["*"]
+N62 --> N66
+N67["expr"]
+N62 --> N67
+N68["literal"]
+N67 --> N68
+N69["dec: 2"]
+N68 --> N69
+N70["+"]
+N54 --> N70
+N71["expr"]
+N54 --> N71
+N72["literal"]
+N71 --> N72
+N73["dec: 4"]
+N72 --> N73
+N74[";"]
+N47 --> N74
+N75["end"]
+N1 --> N75
