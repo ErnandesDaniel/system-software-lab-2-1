@@ -54,6 +54,7 @@ impl MermaidGenerator {
                 self.generate_func_declaration(f, output, Some(&format!("N{}", id)));
             }
             SourceItem::FuncDefinition(f) => {
+                // Pass source_item ID as parent for def/end, but also connect source_item to func_signature
                 self.generate_func_definition(f, output, Some(&format!("N{}", id)));
             }
         }
@@ -72,7 +73,7 @@ impl MermaidGenerator {
             output.push_str(&format!("{} --> N{}\n", p, id));
         }
 
-        self.generate_func_signature(&f.signature, output, Some(&format!("N{}", id)));
+        self.generate_func_signature(&f.signature, output, parent_id);
     }
 
     fn generate_func_definition(
@@ -88,10 +89,11 @@ impl MermaidGenerator {
             output.push_str(&format!("{} --> N{}\n", p, id));
         }
 
-        self.generate_func_signature(&f.signature, output, Some(&format!("N{}", id)));
+        // func_signature is child of def, but also connected to source_item
+        self.generate_func_signature(&f.signature, output, parent_id);
 
         for stmt in &f.body {
-            self.generate_statement(stmt, output, Some(&format!("N{}", id)));
+            self.generate_statement(stmt, output, parent_id);
         }
 
         let end_id = self.next_id();
@@ -110,10 +112,12 @@ impl MermaidGenerator {
         let id = self.next_id();
         output.push_str(&format!("N{}[\"func_signature\"]\n", id));
 
+        // Add edge from parent (source_item) to func_signature
         if let Some(p) = parent_id {
             output.push_str(&format!("{} --> N{}\n", p, id));
         }
 
+        // Children of func_signature connect to func_signature
         self.generate_identifier(&sig.name, output, Some(&format!("N{}", id)));
 
         let lparen_id = self.next_id();
