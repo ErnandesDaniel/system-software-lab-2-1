@@ -1,0 +1,7 @@
+def add(a of int, b of int) of int
+return a + b;
+end
+
+def main()
+x = add(1, 2);
+end
