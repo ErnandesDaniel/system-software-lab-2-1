@@ -129,33 +129,36 @@ impl<'source> Parser<'source> {
             if let Statement::Block(block) = block_stmt {
                 body = block.body;
             }
-            // After the block ends (e.g., 'end' after 'begin ... end'),
-            // we need to consume the function's closing 'end'
-            if self.current_token() == Some(&Token::End) {
-                self.expect(Token::End)?;
-            }
         } else {
-            // Single statement without begin/end
+            // Parse statements until we hit 'end'
             while let Some(tok) = self.current_token() {
                 if tok == &Token::End {
                     self.expect(Token::End)?;
                     break;
                 }
-                if tok == &Token::Return {
-                    let stmt = self.parse_statement()?;
-                    body.push(stmt);
-                } else {
-                    // Skip unknown tokens
+
+                // Skip semicolons at statement level
+                if tok == &Token::Semi {
+                    self.advance();
+                    continue;
+                }
+
+                // Parse a statement
+                let stmt = self.parse_statement()?;
+                body.push(stmt);
+
+                // Skip any trailing semicolons
+                while self.current_token() == Some(&Token::Semi) {
                     self.advance();
                 }
 
-                // Safety check - don't loop forever
-                if body.len() > 10 {
+                // Safety check
+                if body.len() > 100 {
                     break;
                 }
             }
 
-            // If we exited loop but didn't see End, try to consume it
+            // Consume trailing 'end' if not already consumed
             if self.current_token() == Some(&Token::End) {
                 self.expect(Token::End)?;
             }
@@ -329,9 +332,31 @@ impl<'source> Parser<'source> {
             Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
             Some(Token::Identifier) => self.parse_identifier_statement(),
-            Some(Token::Assign) => Err("Unexpected assignment without variable".to_string()),
+            Some(Token::Assign) => self.parse_assignment_statement(),
             _ => self.parse_expression_statement(),
         }
+    }
+
+    fn parse_assignment_statement(&mut self) -> Result<Statement, String> {
+        let start = self.current_span();
+        self.expect(Token::Assign)?;
+        let expr = self.parse_expression(5)?;
+        if self.current_token() == Some(&Token::Semi) {
+            self.expect(Token::Semi)?;
+        }
+        let span = start.merge(self.current_span());
+        Ok(Statement::Expression(ExpressionStatement {
+            expr: Expr::Binary(BinaryExpr {
+                left: Box::new(Expr::Identifier(Identifier {
+                    name: String::new(),
+                    span: start,
+                })),
+                operator: BinaryOp::Assign,
+                right: Box::new(expr),
+                span,
+            }),
+            span,
+        }))
     }
 
     fn parse_identifier_statement(&mut self) -> Result<Statement, String> {
@@ -435,14 +460,44 @@ impl<'source> Parser<'source> {
 
     fn parse_while(&mut self) -> Result<Statement, String> {
         let start = self.current_span();
-        self.expect(Token::While)?;
+        let keyword = match self.current_token() {
+            Some(Token::While) => {
+                self.advance();
+                LoopKeyword::While
+            }
+            Some(Token::Until) => {
+                self.advance();
+                LoopKeyword::Until
+            }
+            _ => return Err("Expected 'while' or 'until'".to_string()),
+        };
+
         let condition = self.parse_expression(0)?;
-        let _body = Box::new(self.parse_statement()?);
+
+        let mut body = Vec::new();
+        while let Some(tok) = self.current_token() {
+            if tok == &Token::End {
+                self.expect(Token::End)?;
+                break;
+            }
+            // Skip semicolons
+            if tok == &Token::Semi {
+                self.advance();
+                continue;
+            }
+            let stmt = self.parse_statement()?;
+            body.push(stmt);
+            // Skip trailing semicolons
+            while self.current_token() == Some(&Token::Semi) {
+                self.advance();
+            }
+        }
+
         let span = start.merge(self.current_span());
         Ok(Statement::Loop(LoopStatement {
-            keyword: LoopKeyword::While,
+            keyword,
             condition,
-            body: vec![],
+            body,
             span,
         }))
     }
@@ -550,6 +605,22 @@ impl<'source> Parser<'source> {
         let mut left = self.parse_prefix()?;
 
         while let Some(token) = self.current_token() {
+            // Stop on statement-level keywords
+            if matches!(
+                token,
+                Token::End
+                    | Token::Semi
+                    | Token::Then
+                    | Token::Else
+                    | Token::Do
+                    | Token::While
+                    | Token::Until
+                    | Token::Comma
+                    | Token::RParen
+                    | Token::RBracket
+            ) {
+                break;
+            }
             // Stop if we see an assignment operator - handle it at statement level
             if matches!(token, Token::Assign) {
                 break;
