@@ -13,7 +13,7 @@ impl CfgMermaidGenerator {
 
     pub fn generate(&mut self, program: &IrProgram) -> String {
         self.output.clear();
-        self.output.push_str("flowchart TD\n");
+        self.output.push_str("graph TD\n");
 
         for func in &program.functions {
             self.generate_function(func);
@@ -23,37 +23,32 @@ impl CfgMermaidGenerator {
     }
 
     fn generate_function(&mut self, func: &IrFunction) {
-        self.output
-            .push_str(&format!("\n subgraph {}\n", func.name));
-
         for block in &func.blocks {
             self.generate_block(block);
         }
 
-        self.output.push_str(" end\n");
-
         for block in &func.blocks {
             for succ in &block.successors {
-                self.output
-                    .push_str(&format!("{} --> {}\n", block.id, succ));
+                self.output.push_str(&format!(
+                    "{} --> {}\n",
+                    self.format_block_id(&block.id),
+                    self.format_block_id(succ)
+                ));
             }
         }
     }
 
+    fn format_block_id(&self, id: &str) -> String {
+        id.replace("BB", "BB_")
+    }
+
     fn generate_block(&mut self, block: &IrBlock) {
-        self.output
-            .push_str(&format!("    {}[\"{}\"]\n", block.id, block.id));
+        let formatted_id = self.format_block_id(&block.id);
+        let instructions = self.format_block_instructions(block);
 
-        if block.instructions.is_empty() {
-            return;
-        }
-
-        self.output
-            .push_str(&format!("    {} --> {}_inst\n", block.id, block.id));
         self.output.push_str(&format!(
-            "    {}_inst{{\"\\n{} \\n\"}}\n",
-            block.id,
-            self.format_block_instructions(block)
+            "    {}[\"{}\\n{}\"]\n",
+            formatted_id, block.id, instructions
         ));
     }
 
@@ -90,27 +85,51 @@ impl CfgMermaidGenerator {
             }
             IrOpcode::Eq => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} == {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, "==")
+                )
             }
             IrOpcode::Ne => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} != {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, "!=")
+                )
             }
             IrOpcode::Lt => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} < {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, "<")
+                )
             }
             IrOpcode::Gt => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} > {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, ">")
+                )
             }
             IrOpcode::Le => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} <= {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, "<=")
+                )
             }
             IrOpcode::Ge => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} >= {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                format!(
+                    "{} = ({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    self.format_cmp(&a, &b, ">=")
+                )
             }
             IrOpcode::And => {
                 let (a, b) = self.get_operands(inst);
@@ -137,8 +156,16 @@ impl CfgMermaidGenerator {
                 format!("{} = ~{}", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::Assign => {
-                let a = self.get_single_operand(inst);
-                format!("{} = {}", inst.result.as_deref().unwrap_or("?"), a)
+                if let Some(ref result) = inst.result {
+                    if let Some(op) = inst.operands.first() {
+                        let a = self.format_operand(op);
+                        if a == *result {
+                            return format!("{}", a);
+                        }
+                        return format!("{} = {}", result, a);
+                    }
+                }
+                "=".to_string()
             }
             IrOpcode::Call => {
                 let target = inst.jump_target.as_deref().unwrap_or("?");
@@ -157,15 +184,15 @@ impl CfgMermaidGenerator {
             }
             IrOpcode::Jump => {
                 let target = inst.jump_target.as_deref().unwrap_or("?");
-                format!("jump {}", target)
+                format!("goto {}", self.format_block_id(target))
             }
             IrOpcode::CondBr => {
                 let cond = self.get_single_operand(inst);
                 format!(
-                    "br {} ? {} : {}",
+                    "if {} goto {} else {}",
                     cond,
-                    inst.true_target.as_deref().unwrap_or("?"),
-                    inst.false_target.as_deref().unwrap_or("?")
+                    self.format_block_id(inst.true_target.as_deref().unwrap_or("?")),
+                    self.format_block_id(inst.false_target.as_deref().unwrap_or("?"))
                 )
             }
             IrOpcode::Ret => {
@@ -212,9 +239,24 @@ impl CfgMermaidGenerator {
             }
             IrOpcode::BitAnd | IrOpcode::BitOr => {
                 let (a, b) = self.get_operands(inst);
-                format!("{} = {} | {}", inst.result.as_deref().unwrap_or("?"), a, b)
+                let op = if matches!(inst.opcode, IrOpcode::BitAnd) {
+                    "&"
+                } else {
+                    "|"
+                };
+                format!(
+                    "{} = {} {} {}",
+                    inst.result.as_deref().unwrap_or("?"),
+                    a,
+                    op,
+                    b
+                )
             }
         }
+    }
+
+    fn format_cmp(&self, a: &str, b: &str, op: &str) -> String {
+        format!("{} {} {}", a, op, b)
     }
 
     fn get_operands(&self, inst: &IrInstruction) -> (String, String) {

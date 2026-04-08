@@ -21,14 +21,13 @@ fn main() {
 
     if args.len() < 2 {
         eprintln!(
-            "Usage: {} <source_file> -o <output_dir> [--ast <ast_file>] [--ir <ir_file>] [--cfg <cfg_file>]",
+            "Usage: {} <source_file> -o <output_dir> [--ast <ast_file>] [--cfg <cfg_file>]",
             args[0]
         );
         eprintln!("Options:");
-        eprintln!("  -o, --output <dir>       Output directory (required)");
-        eprintln!("  --ast <file>             Save AST to file");
-        eprintln!("  --ir <file>              Save IR to file");
-        eprintln!("  --cfg <file>             Save CFG (Mermaid diagram) to file");
+        eprintln!("  -o, --output <dir>    Output directory (required)");
+        eprintln!("  --ast <file>          Save AST to Mermaid file");
+        eprintln!("  --cfg <file>         Save CFG to Mermaid file");
         std::process::exit(1);
     }
 
@@ -43,7 +42,6 @@ fn main() {
 
     let mut output_dir: Option<String> = None;
     let mut ast_file: Option<String> = None;
-    let mut ir_file: Option<String> = None;
     let mut cfg_file: Option<String> = None;
 
     let mut i = 2;
@@ -64,15 +62,6 @@ fn main() {
                     i += 2;
                 } else {
                     eprintln!("Error: --ast requires an argument");
-                    std::process::exit(1);
-                }
-            }
-            "--ir" => {
-                if i + 1 < args.len() {
-                    ir_file = Some(args[i + 1].clone());
-                    i += 2;
-                } else {
-                    eprintln!("Error: --ir requires an argument");
                     std::process::exit(1);
                 }
             }
@@ -112,7 +101,9 @@ fn main() {
 
     // Save AST to file if requested
     if let Some(ref path) = ast_file {
-        match fs::write(path, serde_json::to_string_pretty(&ast).unwrap()) {
+        let mut mermaid_gen = mermaid::MermaidGenerator::new();
+        let ast_diagram = mermaid_gen.generate(&ast);
+        match fs::write(path, ast_diagram) {
             Ok(_) => println!("AST written to: {}", path),
             Err(e) => eprintln!("Failed to write AST: {}", e),
         }
@@ -130,14 +121,6 @@ fn main() {
     // Generate IR
     let mut ir_gen = ir_generator::IrGenerator::new();
     let ir_program = ir_gen.generate(&ast);
-
-    // Save IR to file if requested
-    if let Some(ref path) = ir_file {
-        match fs::write(path, serde_json::to_string_pretty(&ir_program).unwrap()) {
-            Ok(_) => println!("IR written to: {}", path),
-            Err(e) => eprintln!("Failed to write IR: {}", e),
-        }
-    }
 
     // Save CFG to file if requested
     if let Some(ref path) = cfg_file {
