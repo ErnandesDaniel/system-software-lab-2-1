@@ -99,12 +99,7 @@ impl AsmGenerator {
 
         // First pass: collect all locals and count temps
         // Regular locals go to locals map, temps go to temps map
-        eprintln!("DEBUG: Processing {} locals from IR", func.locals.len());
         for local in &func.locals {
-            eprintln!(
-                "DEBUG:   local: name='{}', stack_offset={:?}",
-                local.name, local.stack_offset
-            );
             let offset = local.stack_offset.unwrap_or_else(|| {
                 // Assign offset for locals without one
                 let off = -8 * (self.locals.len() as i32 + self.temps.len() as i32 + 1);
@@ -118,12 +113,6 @@ impl AsmGenerator {
                 self.locals.insert(local.name.clone(), offset);
             }
         }
-
-        eprintln!(
-            "DEBUG: After processing - locals={:?}, temps={:?}",
-            self.locals.keys().collect::<Vec<_>>(),
-            self.temps.keys().collect::<Vec<_>>()
-        );
 
         // Count temp variables (t0, t1, etc.) used in instructions
         for block in &func.blocks {
@@ -143,7 +132,7 @@ impl AsmGenerator {
         self.param_registers.clear();
         for (i, param) in func.parameters.iter().enumerate() {
             if i < 4 {
-                let reg = match i {
+                let _ = match i {
                     0 => "rcx",
                     1 => "rdx",
                     2 => "r8",
@@ -412,21 +401,12 @@ impl AsmGenerator {
     }
 
     fn generate_ret(&mut self, inst: &IrInstruction) {
-        eprintln!("DEBUG generate_ret: operands={:?}", inst.operands);
         if let Some(operand) = inst.operands.first() {
-            eprintln!("DEBUG: operand type: {:?}", std::mem::discriminant(operand));
             match operand {
                 IrOperand::Constant(c) => {
-                    eprintln!("DEBUG: Handling constant");
                     self.load_constant(c, "eax");
                 }
                 IrOperand::Variable(name, ty) => {
-                    eprintln!(
-                        "DEBUG: generate_ret for variable '{}', temps={:?}, locals={:?}",
-                        name,
-                        self.temps.keys().collect::<Vec<_>>(),
-                        self.locals.keys().collect::<Vec<_>>()
-                    );
                     let is_pointer = ty.is_pointer();
                     // First check temps, then locals, then params
                     if let Some(offset) = self.temps.get(name) {
@@ -447,9 +427,6 @@ impl AsmGenerator {
                         self.output
                             .push_str(&format!("    mov eax, {}  ; from param\n", src_reg));
                     } else {
-                        eprintln!("DEBUG: Variable '{}' NOT FOUND in any map!", name);
-                        self.output
-                            .push_str("    ; DEBUG: variable not found, using load_operand\n");
                         self.load_operand(operand, "eax", is_pointer);
                     }
                 }

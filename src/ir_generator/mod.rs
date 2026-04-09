@@ -61,18 +61,15 @@ impl IrGenerator {
         let mut locals = HashMap::new();
 
         if let Some(ref params) = def.signature.parameters {
-            for (i, arg) in params.iter().enumerate() {
+            for (_i, arg) in params.iter().enumerate() {
                 let ty = match &arg.ty {
                     Some(t) => self.convert_type(t),
                     None => IrType::Int,
                 };
 
-                let reg = if i < 4 { Some(i as u8) } else { None };
-
                 parameters.push(IrParameter {
                     name: arg.name.name.clone(),
                     ty: ty.clone(),
-                    register: reg,
                 });
 
                 locals.insert(
@@ -140,11 +137,12 @@ impl IrGenerator {
             TypeRef::Custom(_) => IrType::Int,
             TypeRef::Array {
                 element_type, size, ..
-            } => IrType::Array(Box::new(self.convert_type(element_type)), *size as u32),
+            } => IrType::Array(Box::new(self.convert_type(element_type)), *size as usize),
         }
     }
 }
 
+#[allow(dead_code)]
 impl Span {
     fn span(&self) -> Span {
         *self

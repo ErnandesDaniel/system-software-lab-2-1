@@ -63,8 +63,10 @@ cargo build --release
 
 ## Использование
 
+### Сборка и запуск компилятора
+
 ```bash
-mylang-parser <source_file> -o <output_dir> [options]
+cargo run -- <source_file> -o <output_dir> [options]
 ```
 
 ### Опции
@@ -80,7 +82,7 @@ mylang-parser <source_file> -o <output_dir> [options]
 #### Компиляция в executable
 
 ```bash
-mylang-parser input.mylang -o output
+cargo run -- input.mylang -o output
 ```
 
 Создаст в `output`:
@@ -91,13 +93,13 @@ mylang-parser input.mylang -o output
 #### Компиляция с сохранением AST и CFG
 
 ```bash
-mylang-parser input.mylang -o output --ast ast.mmd --cfg cfg/main.mmd
+cargo run -- input.mylang -o output --ast ast.mmd --cfg cfg/main.mmd
 ```
 
 #### Сохранение только CFG (с отдельными файлами для каждой функции)
 
 ```bash
-mylang-parser input.mylang -o output --cfg cfg/main.mmd
+cargo run -- input.mylang -o output --cfg cfg/main.mmd
 ```
 
 Создаст:

@@ -1,6 +1,7 @@
 pub use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum SemanticType {
     Int,
     Bool,
@@ -10,6 +11,7 @@ pub enum SemanticType {
     Unknown,
 }
 
+#[allow(dead_code)]
 impl SemanticType {
     pub fn is_array(&self) -> bool {
         matches!(self, SemanticType::Array(_, _))
@@ -24,6 +26,7 @@ impl SemanticType {
 }
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct Symbol {
     pub name: String,
     pub ty: SemanticType,
@@ -52,12 +55,16 @@ impl SymbolTable {
         }
     }
 
-    pub fn insert(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
+    pub fn add(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
         if self.symbols.contains_key(&name) {
             return Err(format!("Symbol '{}' already exists", name));
         }
         self.symbols.insert(name.clone(), Symbol::new(name, ty));
         Ok(())
+    }
+
+    pub fn insert(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
+        self.add(name, ty)
     }
 
     pub fn lookup(&self, name: &str) -> Option<&Symbol> {
@@ -68,6 +75,7 @@ impl SymbolTable {
         self.lookup(name)
     }
 
+    #[allow(dead_code)]
     pub fn contains(&self, name: &str) -> bool {
         self.symbols.contains_key(name)
     }

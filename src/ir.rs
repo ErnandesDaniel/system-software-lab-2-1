@@ -20,7 +20,6 @@ pub struct IrFunction {
 pub struct IrParameter {
     pub name: String,
     pub ty: IrType,
-    pub register: Option<u8>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,22 +29,24 @@ pub struct IrLocal {
     pub stack_offset: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(dead_code)]
 pub enum IrType {
     Void,
     Bool,
     Int,
     String,
-    Array(Box<IrType>, u32),
+    Array(Box<IrType>, usize),
 }
 
 impl IrType {
+    #[allow(dead_code)]
     pub fn size(&self) -> u32 {
         match self {
             IrType::Void => 0,
             IrType::Bool | IrType::Int => 4,
             IrType::String => 8,
-            IrType::Array(elem, size) => elem.size() * size,
+            IrType::Array(elem, size) => elem.size() * *size as u32,
         }
     }
 
@@ -73,6 +74,7 @@ pub struct IrInstruction {
     pub span: Span,
 }
 
+#[allow(dead_code)]
 impl IrInstruction {
     pub fn new(opcode: IrOpcode) -> Self {
         Self {
@@ -87,12 +89,14 @@ impl IrInstruction {
         }
     }
 
+    #[allow(dead_code)]
     pub fn with_result(mut self, result: String, ty: IrType) -> Self {
         self.result = Some(result);
         self.result_type = Some(ty);
         self
     }
 
+    #[allow(dead_code)]
     pub fn with_operand(mut self, operand: IrOperand) -> Self {
         self.operands.push(operand);
         self
@@ -146,6 +150,7 @@ pub enum Constant {
     Char(u8),
 }
 
+#[allow(dead_code)]
 impl IrOperand {
     pub fn get_type(&self) -> IrType {
         match self {
@@ -159,18 +164,22 @@ impl IrOperand {
         }
     }
 
+    #[allow(dead_code)]
     pub fn int(value: i64) -> Self {
         IrOperand::Constant(Constant::Int(value))
     }
 
+    #[allow(dead_code)]
     pub fn bool(value: bool) -> Self {
         IrOperand::Constant(Constant::Bool(value))
     }
 
+    #[allow(dead_code)]
     pub fn string(value: impl Into<String>) -> Self {
         IrOperand::Constant(Constant::String(value.into()))
     }
 
+    #[allow(dead_code)]
     pub fn variable(name: impl Into<String>, ty: IrType) -> Self {
         IrOperand::Variable(name.into(), ty)
     }

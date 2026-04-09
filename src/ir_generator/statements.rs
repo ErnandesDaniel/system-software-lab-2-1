@@ -188,7 +188,7 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        let mut exit_block = IrBlock {
+        let exit_block = IrBlock {
             id: exit_id.clone(),
             instructions: Vec::new(),
             successors: Vec::new(),
@@ -275,7 +275,7 @@ impl IrGenerator {
         header_block.successors.push(false_target);
         block_stack.push(header_block);
 
-        let mut exit_block = IrBlock {
+        let exit_block = IrBlock {
             id: exit_id.clone(),
             instructions: Vec::new(),
             successors: Vec::new(),

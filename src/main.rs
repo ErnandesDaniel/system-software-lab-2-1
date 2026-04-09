@@ -161,16 +161,11 @@ fn main() {
         eprintln!("Failed to create output directory: {}", e);
     }
 
-    // Generate Assembly - generate separate files for each function
-    let mut asm_gen = codegen::AsmGenerator::new();
-    let assembly = asm_gen.generate(&ir_program);
-
     // Write main assembly file
     let asm_path = std::path::Path::new(&output_dir).join("program.asm");
     if let Err(e) = fs::write(&asm_path, &assembly) {
         eprintln!("Failed to write assembly: {}", e);
     }
-    println!("Assembly written to: {}", asm_path.display());
 
     // Also generate separate assembly files for each function
     let assembler_dir = std::path::Path::new(&output_dir).join("assembler-code");
