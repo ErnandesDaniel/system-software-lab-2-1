@@ -22,6 +22,13 @@ impl CfgMermaidGenerator {
         std::mem::take(&mut self.output)
     }
 
+    pub fn generate_function_only(&mut self, func: &IrFunction) -> String {
+        self.output.clear();
+        self.output.push_str("graph TD\n");
+        self.generate_function(func);
+        std::mem::take(&mut self.output)
+    }
+
     fn generate_function(&mut self, func: &IrFunction) {
         for block in &func.blocks {
             self.generate_block(block);

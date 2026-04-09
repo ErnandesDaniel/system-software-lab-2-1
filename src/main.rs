@@ -122,33 +122,71 @@ fn main() {
     let mut ir_gen = ir_generator::IrGenerator::new();
     let ir_program = ir_gen.generate(&ast);
 
-    // Save CFG to file if requested
+    // Save CFG to file if requested - generate separate CFG for each function
     if let Some(ref path) = cfg_file {
+        let cfg_dir = std::path::Path::new(path)
+            .parent()
+            .unwrap_or(std::path::Path::new("."));
+        if let Err(e) = fs::create_dir_all(cfg_dir) {
+            eprintln!("Failed to create CFG directory: {}", e);
+        }
+
         let mut cfg_gen = cfg_mermaid::CfgMermaidGenerator::new();
+
+        // Generate combined CFG first
         let cfg_diagram = cfg_gen.generate(&ir_program);
-        match fs::write(path, cfg_diagram) {
+        match fs::write(path, &cfg_diagram) {
             Ok(_) => println!("CFG written to: {}", path),
             Err(e) => eprintln!("Failed to write CFG: {}", e),
         }
+
+        // Also generate separate CFG files for each function
+        for func in &ir_program.functions {
+            let func_cfg_path = cfg_dir.join(format!("{}.mmd", func.name));
+            let mut func_cfg_gen = cfg_mermaid::CfgMermaidGenerator::new();
+            let func_cfg_diagram = func_cfg_gen.generate_function_only(func);
+            match fs::write(&func_cfg_path, &func_cfg_diagram) {
+                Ok(_) => println!("Function CFG written to: {}", func_cfg_path.display()),
+                Err(e) => eprintln!("Failed to write function CFG: {}", e),
+            }
+        }
     }
 
-    // Generate Assembly
+    // Generate Assembly - generate separate files for each function
     let mut asm_gen = codegen::AsmGenerator::new();
     let assembly = asm_gen.generate(&ir_program);
 
     // Create output directory if needed
     if let Err(e) = fs::create_dir_all(&output_dir) {
         eprintln!("Failed to create output directory: {}", e);
-        std::process::exit(1);
     }
 
-    // Write assembly file
+    // Generate Assembly - generate separate files for each function
+    let mut asm_gen = codegen::AsmGenerator::new();
+    let assembly = asm_gen.generate(&ir_program);
+
+    // Write main assembly file
     let asm_path = std::path::Path::new(&output_dir).join("program.asm");
     if let Err(e) = fs::write(&asm_path, &assembly) {
         eprintln!("Failed to write assembly: {}", e);
-        std::process::exit(1);
     }
     println!("Assembly written to: {}", asm_path.display());
+
+    // Also generate separate assembly files for each function
+    let assembler_dir = std::path::Path::new(&output_dir).join("assembler-code");
+    if let Err(e) = fs::create_dir_all(&assembler_dir) {
+        eprintln!("Failed to create assembler directory: {}", e);
+    }
+
+    for func in &ir_program.functions {
+        let mut func_asm_gen = codegen::AsmGenerator::new();
+        let func_asm = func_asm_gen.generate_single_function(&func);
+        let func_asm_path = assembler_dir.join(format!("{}.asm", func.name));
+        if let Err(e) = fs::write(&func_asm_path, &func_asm) {
+            eprintln!("Failed to write function assembly: {}", e);
+        }
+        println!("Function assembly written to: {}", func_asm_path.display());
+    }
 
     // Assemble and link to .exe
     let exe_path = std::path::Path::new(&output_dir).join("program.exe");
@@ -192,30 +230,24 @@ fn assemble_and_link(asm_file: &std::path::Path, exe_file: &std::path::Path) -> 
         }
     }
 
-    // Link with GoLink
-    let output = Command::new("GoLink.exe")
-        .args(["/console", "/entry:main", obj_file.to_str().unwrap()])
+    // Link with GCC
+    let output = Command::new("gcc")
+        .args([obj_file.to_str().unwrap(), "-o", exe_file.to_str().unwrap()])
         .output();
 
     match output {
         Ok(out) => {
             if !out.status.success() {
                 let stderr = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("Linker error: {}. Is GoLink installed?", stderr));
+                return Err(format!("GCC linker error: {}", stderr));
             }
         }
         Err(e) => {
-            return Err(format!("Failed to run linker: {}. Is GoLink installed?", e));
+            return Err(format!(
+                "Failed to run GCC linker: {}. Is GCC installed?",
+                e
+            ));
         }
-    }
-
-    // Rename a.exe to program.exe if needed
-    let a_exe = dir.join("a.exe");
-    if a_exe.exists() {
-        if exe_file.exists() {
-            let _ = fs::remove_file(exe_file);
-        }
-        fs::rename(&a_exe, exe_file).map_err(|e| format!("Failed to rename exe: {}", e))?;
     }
 
     Ok(())

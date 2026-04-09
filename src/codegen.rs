@@ -53,7 +53,7 @@ impl AsmGenerator {
         }
 
         for func in &program.functions {
-            self.generate_function(func);
+            self.generate_function_internal(func);
         }
 
         if !self.data_section.is_empty() {
@@ -64,7 +64,34 @@ impl AsmGenerator {
         self.output.clone()
     }
 
-    fn generate_function(&mut self, func: &IrFunction) {
+    pub fn generate_single_function(&mut self, func: &IrFunction) -> String {
+        self.output.clear();
+        self.string_counter = 0;
+        self.data_section.clear();
+
+        self.output.push_str("bits 64\n");
+        self.output.push_str("default rel\n");
+        self.output.push_str("section .text\n\n");
+
+        // Generate extern declarations for this function's used external functions
+        for ext_func in &func.used_functions {
+            self.output.push_str(&format!("extern {}\n", ext_func));
+        }
+        if !func.used_functions.is_empty() {
+            self.output.push_str("\n");
+        }
+
+        self.generate_function_internal(func);
+
+        if !self.data_section.is_empty() {
+            self.output.push_str("\nsection .data\n");
+            self.output.push_str(&self.data_section);
+        }
+
+        std::mem::take(&mut self.output)
+    }
+
+    fn generate_function_internal(&mut self, func: &IrFunction) {
         self.current_function = Some(func.name.clone());
         self.locals.clear();
         self.temps.clear();
@@ -163,7 +190,12 @@ impl AsmGenerator {
     }
 
     fn generate_block(&mut self, block: &IrBlock) {
-        self.output.push_str(&format!("{}:\n", block.id));
+        let label = if block.id.starts_with("BB") {
+            format!("BB_{}", block.id.trim_start_matches("BB"))
+        } else {
+            block.id.clone()
+        };
+        self.output.push_str(&format!("{}:\n", label));
 
         for inst in &block.instructions {
             self.generate_instruction(inst);
@@ -233,7 +265,9 @@ impl AsmGenerator {
             IrOpcode::Call => self.generate_call(inst),
             IrOpcode::Jump => {
                 if let Some(ref target) = inst.jump_target {
-                    self.output.push_str(&format!("    jmp {}\n", target));
+                    let formatted_target = self.format_block_label(target);
+                    self.output
+                        .push_str(&format!("    jmp {}\n", formatted_target));
                 }
             }
             IrOpcode::CondBr => self.generate_cond_br(inst),
@@ -367,8 +401,12 @@ impl AsmGenerator {
             self.output.push_str("    test eax, eax\n");
 
             if let (Some(ref true_t), Some(ref false_t)) = (&inst.true_target, &inst.false_target) {
-                self.output.push_str(&format!("    jne {}\n", true_t));
-                self.output.push_str(&format!("    jmp {}\n", false_t));
+                let formatted_true = self.format_block_label(true_t);
+                let formatted_false = self.format_block_label(false_t);
+                self.output
+                    .push_str(&format!("    jne {}\n", formatted_true));
+                self.output
+                    .push_str(&format!("    jmp {}\n", formatted_false));
             }
         }
     }
@@ -609,6 +647,14 @@ impl AsmGenerator {
         }
 
         result
+    }
+
+    fn format_block_label(&self, id: &str) -> String {
+        if id.starts_with("BB") {
+            format!("BB_{}", id.trim_start_matches("BB"))
+        } else {
+            id.to_string()
+        }
     }
 
     fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
