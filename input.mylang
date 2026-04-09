@@ -1,0 +1,73 @@
+
+//Получить символ из консоли по его ASCII коду в виде числа
+extern def getchar() of int end
+
+// инициализировать генератор случайных чисел
+extern def srand(seed of int) end
+
+// получить текущее время как число
+extern def time(dummy of int) of int end
+
+//получить случайное число
+extern def rand() of int end
+
+//Напечатать символ по его ASCII коду
+extern def putchar(c of int) of int end
+
+//Напечатать строку
+extern def puts(s of string) end
+
+//Вывести число в консоль
+extern def printf(format of string, value of int) end
+
+//Умножить два числа
+def square(x of int) of int
+    return x * x;
+end
+
+def main () of int
+
+i=1;
+
+while i<5 {
+
+i=i+1;
+
+}
+
+loop_end
+
+t = time(0);      // получить текущее время как число
+srand(t);        // инициализировать генератор
+r = rand();    //получить случайное число
+
+putchar(65); //Выводим английскую букву 'А'
+
+putchar(10);      // выводим перевод строки (\n)
+
+c = getchar();     // читаем символ (программа ждёт ввод!)
+putchar(c);        // выводим его
+putchar(10);      // выводим перевод строки (\n)
+
+s = "Hello, World!"; //Присваиваем переменной строку
+
+puts(s); //Выводим строку в консоль
+
+printf("%d", 10); // Выводим число в консоль
+
+putchar(10);      // выводим перевод строки (\n)
+
+printf("%c\n", 65); // Выводим символ в консоль
+
+printf("%d", 65); // Выводим число в консоль
+
+return r;
+
+end
+
+
+
+
+
+
+
