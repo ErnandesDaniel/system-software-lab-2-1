@@ -4,6 +4,7 @@ pub struct CfgMermaidGenerator {
     output: String,
 }
 
+#[allow(dead_code)]
 impl CfgMermaidGenerator {
     pub fn new() -> Self {
         Self {
@@ -14,11 +15,9 @@ impl CfgMermaidGenerator {
     pub fn generate(&mut self, program: &IrProgram) -> String {
         self.output.clear();
         self.output.push_str("graph TD\n");
-
         for func in &program.functions {
             self.generate_function(func);
         }
-
         std::mem::take(&mut self.output)
     }
 

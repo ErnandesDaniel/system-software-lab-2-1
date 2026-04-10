@@ -139,18 +139,4 @@ impl MermaidGenerator {
             self.generate_expr(end, output, Some(&format!("N{}", id)));
         }
     }
-
-    pub fn generate_identifier(
-        &mut self,
-        id: &Identifier,
-        output: &mut String,
-        parent_id: Option<&str>,
-    ) {
-        let node_id = self.next_id();
-        output.push_str(&format!("N{}[\"identifier: {}\"]\n", node_id, id.name));
-
-        if let Some(p) = parent_id {
-            output.push_str(&format!("{} --> N{}\n", p, node_id));
-        }
-    }
 }

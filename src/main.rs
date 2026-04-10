@@ -20,14 +20,9 @@ fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!(
-            "Usage: {} <source_file> -o <output_dir> [--ast <ast_file>] [--cfg <cfg_file>]",
-            args[0]
-        );
+        eprintln!("Usage: {} <source_file> -o <output_dir>", args[0]);
         eprintln!("Options:");
         eprintln!("  -o, --output <dir>    Output directory (required)");
-        eprintln!("  --ast <file>          Save AST to Mermaid file");
-        eprintln!("  --cfg <file>         Save CFG to Mermaid file");
         std::process::exit(1);
     }
 
@@ -41,8 +36,6 @@ fn main() {
     };
 
     let mut output_dir: Option<String> = None;
-    let mut ast_file: Option<String> = None;
-    let mut cfg_file: Option<String> = None;
 
     let mut i = 2;
     while i < args.len() {
@@ -53,24 +46,6 @@ fn main() {
                     i += 2;
                 } else {
                     eprintln!("Error: -o requires an argument");
-                    std::process::exit(1);
-                }
-            }
-            "--ast" => {
-                if i + 1 < args.len() {
-                    ast_file = Some(args[i + 1].clone());
-                    i += 2;
-                } else {
-                    eprintln!("Error: --ast requires an argument");
-                    std::process::exit(1);
-                }
-            }
-            "--cfg" => {
-                if i + 1 < args.len() {
-                    cfg_file = Some(args[i + 1].clone());
-                    i += 2;
-                } else {
-                    eprintln!("Error: --cfg requires an argument");
                     std::process::exit(1);
                 }
             }

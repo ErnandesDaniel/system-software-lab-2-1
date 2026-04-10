@@ -59,7 +59,14 @@ impl<'source> Parser<'source> {
             Some(Token::StringLiteral) => {
                 let (_tok, span) = self.expect(Token::StringLiteral)?;
                 let s = self.get_text(&span);
-                Ok(Expr::Literal(Literal::Str(s[1..s.len() - 1].to_string())))
+                let unquoted = &s[1..s.len() - 1];
+                let processed = unquoted
+                    .replace("\\n", "\n")
+                    .replace("\\r", "\r")
+                    .replace("\\t", "\t")
+                    .replace("\\\\", "\\")
+                    .replace("\\\"", "\"");
+                Ok(Expr::Literal(Literal::Str(processed)))
             }
             Some(Token::CharLiteral) => {
                 let (_tok, span) = self.expect(Token::CharLiteral)?;
