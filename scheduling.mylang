@@ -2,7 +2,7 @@ extern def puts(s of string) end
 extern def putchar(c of int) of int end
 extern def sleep(seconds of int) end
 
-def print_ones()
+def print_once()
     while 1 == 1 {
         putchar(49)
         sleep(1)
@@ -10,7 +10,7 @@ def print_ones()
     loop_end
 end
 
-def print_twos()
+def print_two()
     while 1 == 1 {
         putchar(50)
         sleep(1)
@@ -19,7 +19,7 @@ def print_twos()
 end
 
 def main()
-    puts("Test start")
-    createThread(print_ones, "FCFS")
-    createThread(print_twos, "FCFS")
+    puts("Start")
+    createThread(print_once, "FCFS")
+    createThread(print_two, "FCFS")
 end
