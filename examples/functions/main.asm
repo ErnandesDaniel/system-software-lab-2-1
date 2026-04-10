@@ -14,8 +14,10 @@ BB_0:
     mov [rbp + -16], eax
     mov eax, 2
     mov [rbp + -24], eax
-    mov ecx, [rbp + -16]
-    mov edx, [rbp + -24]
+    mov eax, [rbp + -16]
+    mov ecx, eax
+    mov eax, [rbp + -24]
+    mov edx, eax
     sub rsp, 32
     call add
     add rsp, 32

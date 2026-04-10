@@ -17,7 +17,8 @@ BB_1:
     mov eax, 5
     mov [rbp + -24], eax
     mov eax, [rbp + -8]
-    mov ebx, [rbp + -24]
+    mov eax, [rbp + -24]
+    mov ebx, eax
     cmp eax, ebx
     setl al
     movzx eax, al
@@ -30,7 +31,8 @@ BB_2:
     mov eax, 1
     mov [rbp + -40], eax
     mov eax, [rbp + -8]
-    mov ebx, [rbp + -40]
+    mov eax, [rbp + -40]
+    mov ebx, eax
     add eax, ebx
     mov [rbp + -48], eax
     mov eax, [rbp + -48]
@@ -40,6 +42,3 @@ BB_3:
     mov eax, 0
     mov [rbp + -56], eax
     mov eax, [rbp + -56]
-; Очистка стека и возврат
-    leave       ; эквивалент: mov rsp, rbp; pop rbp
-    ret         ; возвращаем eax как результат

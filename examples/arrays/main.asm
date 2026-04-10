@@ -10,9 +10,10 @@ main:
 BB_0:
     mov eax, 0
     mov [rbp + -16], eax
-    mov eax, 0
-    mov ebx, [rbp + -16]
-    mov eax, [eax + ebx * 4]
+    mov rax, 0
+    mov eax, [rbp + -16]
+    mov ebx, eax
+    mov eax, [rax + rbx * 4]
     mov [rbp + -8], eax
     mov eax, 1
     mov [rbp + -32], eax

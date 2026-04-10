@@ -21,7 +21,8 @@ BB_2:
     mov eax, 0
     mov [rbp + -40], eax
     mov eax, [rbp + -8]
-    mov ebx, [rbp + -40]
+    mov eax, [rbp + -40]
+    mov ebx, eax
     cmp eax, ebx
     setg al
     movzx eax, al

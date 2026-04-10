@@ -99,13 +99,20 @@ fn main() {
         }
     };
 
-    // Save AST to file if requested
-    if let Some(ref path) = ast_file {
-        let mut mermaid_gen = mermaid::MermaidGenerator::new();
-        let ast_diagram = mermaid_gen.generate(&ast);
-        match fs::write(path, ast_diagram) {
-            Ok(_) => println!("AST written to: {}", path),
-            Err(e) => eprintln!("Failed to write AST: {}", e),
+    // Generate AST for each function
+    for item in &ast.items {
+        match item {
+            ast::SourceItem::FuncDefinition(func) => {
+                let func_ast_path = std::path::Path::new(&output_dir)
+                    .join(format!("{}-ast.mmd", func.signature.name.name));
+                let mut mermaid_gen = mermaid::MermaidGenerator::new();
+                let func_ast_diagram = mermaid_gen.generate_function(&func);
+                match fs::write(&func_ast_path, &func_ast_diagram) {
+                    Ok(_) => println!("Function AST written to: {}", func_ast_path.display()),
+                    Err(e) => eprintln!("Failed to write function AST: {}", e),
+                }
+            }
+            _ => {}
         }
     }
 
@@ -122,33 +129,15 @@ fn main() {
     let mut ir_gen = ir_generator::IrGenerator::new();
     let ir_program = ir_gen.generate(&ast);
 
-    // Save CFG to file if requested - generate separate CFG for each function
-    if let Some(ref path) = cfg_file {
-        let cfg_dir = std::path::Path::new(path)
-            .parent()
-            .unwrap_or(std::path::Path::new("."));
-        if let Err(e) = fs::create_dir_all(cfg_dir) {
-            eprintln!("Failed to create CFG directory: {}", e);
-        }
-
-        let mut cfg_gen = cfg_mermaid::CfgMermaidGenerator::new();
-
-        // Generate combined CFG first
-        let cfg_diagram = cfg_gen.generate(&ir_program);
-        match fs::write(path, &cfg_diagram) {
-            Ok(_) => println!("CFG written to: {}", path),
-            Err(e) => eprintln!("Failed to write CFG: {}", e),
-        }
-
-        // Also generate separate CFG files for each function
-        for func in &ir_program.functions {
-            let func_cfg_path = cfg_dir.join(format!("{}.mmd", func.name));
-            let mut func_cfg_gen = cfg_mermaid::CfgMermaidGenerator::new();
-            let func_cfg_diagram = func_cfg_gen.generate_function_only(func);
-            match fs::write(&func_cfg_path, &func_cfg_diagram) {
-                Ok(_) => println!("Function CFG written to: {}", func_cfg_path.display()),
-                Err(e) => eprintln!("Failed to write function CFG: {}", e),
-            }
+    // Generate CFG for each function
+    for func in &ir_program.functions {
+        let func_cfg_path =
+            std::path::Path::new(&output_dir).join(format!("{}-cfg.mmd", func.name));
+        let mut func_cfg_gen = cfg_mermaid::CfgMermaidGenerator::new();
+        let func_cfg_diagram = func_cfg_gen.generate_function_only(func);
+        match fs::write(&func_cfg_path, &func_cfg_diagram) {
+            Ok(_) => println!("Function CFG written to: {}", func_cfg_path.display()),
+            Err(e) => eprintln!("Failed to write function CFG: {}", e),
         }
     }
 

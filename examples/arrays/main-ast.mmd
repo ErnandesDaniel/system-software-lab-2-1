@@ -1,0 +1,36 @@
+graph TD;
+N0["function: main"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["binary_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["slice_expr"]
+N5 --> N6
+N7["expr"]
+N6 --> N7
+N8["identifier: arr"]
+N7 --> N8
+N9["range"]
+N6 --> N9
+N10["expr"]
+N9 --> N10
+N11["literal"]
+N10 --> N11
+N12["dec: 0"]
+N11 --> N12
+N13["="]
+N4 --> N13
+N14["expr"]
+N4 --> N14
+N15["literal"]
+N14 --> N15
+N16["dec: 1"]
+N15 --> N16
+N17[";"]
+N2 --> N17

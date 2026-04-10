@@ -192,4 +192,19 @@ impl MermaidGenerator {
         self.id_counter += 1;
         id
     }
+
+    pub fn generate_function(&mut self, func: &FuncDefinition) -> String {
+        let mut output = String::from("graph TD;\n");
+        let id = self.next_id();
+        output.push_str(&format!(
+            "N{}[\"function: {}\"]\n",
+            id, func.signature.name.name
+        ));
+
+        for (_, stmt) in func.body.iter().enumerate() {
+            self.generate_statement(stmt, &mut output, Some(&format!("N{}", id)));
+        }
+
+        output
+    }
 }
