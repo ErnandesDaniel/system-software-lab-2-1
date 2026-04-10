@@ -58,7 +58,7 @@ gcc -v
 ## Сборка
 
 ```bash
-cargo build --release
+cargo build
 ```
 
 ## Использование

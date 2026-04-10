@@ -1,15 +1,19 @@
 def main ()
 
-while i<5
+i=1;
+
+while i<5 {
 
 i=i+1;
 
-end
+}
 
+loop_end
 
 a="fasdfadsf";
 
 b=1+5*2+4;
 
+return 0;
 
 end

@@ -57,15 +57,19 @@ impl IrGenerator {
                     span: expr.span,
                 });
 
-                // Add the actual target variable to locals, not the temp
-                self.locals.insert(
-                    target_name.clone(),
-                    IrLocal {
-                        name: target_name,
-                        ty: IrType::Int,
-                        stack_offset: None,
-                    },
-                );
+                // Add to locals only if it's a new variable (implicit declaration)
+                // Only add if not already declared (as parameter or earlier assignment)
+                if !self.declared_vars.contains(&target_name) {
+                    self.locals.insert(
+                        target_name.clone(),
+                        IrLocal {
+                            name: target_name.clone(),
+                            ty: IrType::Int,
+                            stack_offset: None,
+                        },
+                    );
+                    self.declared_vars.insert(target_name);
+                }
                 return (right_temp, IrType::Int);
             }
         };

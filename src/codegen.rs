@@ -69,19 +69,80 @@ impl AsmGenerator {
         self.string_counter = 0;
         self.data_section.clear();
 
+        // Collect unique extern functions for this function
+        let mut unique_externs: std::collections::HashSet<String> =
+            std::collections::HashSet::new();
+        for ext_func in &func.used_functions {
+            unique_externs.insert(ext_func.clone());
+        }
+
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
         self.output.push_str("section .text\n\n");
 
-        // Generate extern declarations for this function's used external functions
-        for ext_func in &func.used_functions {
+        // Generate global and extern declarations
+        self.output.push_str(&format!("global {}\n", func.name));
+
+        // Collect unique externs in sorted order for consistency
+        let mut externs: Vec<_> = unique_externs.into_iter().collect();
+        externs.sort();
+        for ext_func in &externs {
             self.output.push_str(&format!("extern {}\n", ext_func));
         }
-        if !func.used_functions.is_empty() {
+
+        if !externs.is_empty() {
             self.output.push_str("\n");
         }
 
-        self.generate_function_internal(func);
+        // Setup locals and temps tracking
+        self.current_function = Some(func.name.clone());
+        self.locals.clear();
+        self.temps.clear();
+        self.temp_counter = 0;
+
+        // Assign offsets to LOCAL variables (starting from -8)
+        let mut local_counter: i32 = 1;
+        for local in &func.locals {
+            let offset = -8 * local_counter;
+            local_counter += 1;
+            self.locals.insert(local.name.clone(), offset);
+        }
+
+        // Track temp variables for code generation
+        // They don't use stack space, so use negative offsets starting after locals
+        let mut temp_offset: i32 = -(8 * local_counter);
+        for block in &func.blocks {
+            for inst in &block.instructions {
+                if let Some(ref result) = inst.result {
+                    if result.starts_with('t') && !self.temps.contains_key(result) {
+                        self.temps.insert(result.clone(), temp_offset);
+                        temp_offset -= 8;
+                    }
+                }
+            }
+        }
+
+        // Calculate stack size: from -8 to the most negative temp
+        let total_vars = local_counter + ((-temp_offset / 8) - local_counter);
+        let stack_size = -8 * total_vars;
+        let abs_stack = if stack_size < 0 {
+            -stack_size
+        } else {
+            stack_size
+        };
+        let aligned = ((abs_stack + 15) / 16) * 16;
+        let final_stack = aligned.max(16);
+
+        self.output.push_str(&format!("{}:\n", func.name));
+        self.output.push_str("    push rbp\n");
+        self.output.push_str("    mov rbp, rsp\n");
+        self.output
+            .push_str(&format!("    sub rsp, {}\n", final_stack));
+
+        // Generate all blocks
+        for block in &func.blocks {
+            self.generate_block(block);
+        }
 
         if !self.data_section.is_empty() {
             self.output.push_str("\nsection .data\n");
@@ -196,8 +257,8 @@ impl AsmGenerator {
             IrOpcode::Assign => {
                 if let Some(ref result) = inst.result {
                     if let Some(operand) = inst.operands.first() {
-                        self.load_operand(operand, "rax", false);
-                        self.store_variable(result, "rax", false);
+                        self.load_operand(operand, "eax", false);
+                        self.store_variable(result, "eax", false);
                     }
                 }
             }
@@ -269,8 +330,16 @@ impl AsmGenerator {
                 if let Some(ref result) = inst.result {
                     if let Some(operand) = inst.operands.first() {
                         let is_pointer = operand.get_type().is_pointer();
-                        self.load_operand(operand, "rax", is_pointer);
-                        self.store_variable(result, "rax", is_pointer);
+                        self.load_operand(
+                            operand,
+                            if is_pointer { "rax" } else { "eax" },
+                            is_pointer,
+                        );
+                        self.store_variable(
+                            result,
+                            if is_pointer { "rax" } else { "eax" },
+                            is_pointer,
+                        );
                     }
                 }
             }
@@ -411,10 +480,10 @@ impl AsmGenerator {
                     // First check temps, then locals, then params
                     if let Some(offset) = self.temps.get(name) {
                         self.output
-                            .push_str(&format!("    mov eax, [rbp + {}]  ; from temps\n", offset));
+                            .push_str(&format!("    mov eax, [rbp + {}]\n", offset));
                     } else if let Some(offset) = self.locals.get(name) {
                         self.output
-                            .push_str(&format!("    mov eax, [rbp + {}]  ; from locals\n", offset));
+                            .push_str(&format!("    mov eax, [rbp + {}]\n", offset));
                     } else if self.param_registers.contains(name) {
                         let idx = self.param_registers.iter().position(|r| r == name).unwrap();
                         let src_reg = match idx {
@@ -424,36 +493,42 @@ impl AsmGenerator {
                             3 => "r9d",
                             _ => "ecx",
                         };
-                        self.output
-                            .push_str(&format!("    mov eax, {}  ; from param\n", src_reg));
+                        self.output.push_str(&format!("    mov eax, {}\n", src_reg));
                     } else {
                         self.load_operand(operand, "eax", is_pointer);
                     }
                 }
             }
         }
-        self.output.push_str("    leave\n");
-        self.output.push_str("    ret\n");
+        self.output.push_str("; Очистка стека и возврат\n");
+        self.output
+            .push_str("    leave       ; эквивалент: mov rsp, rbp; pop rbp\n");
+        self.output
+            .push_str("    ret         ; возвращаем eax как результат\n");
     }
 
     fn generate_load(&mut self, inst: &IrInstruction) {
         if let (Some(result), Some(base), Some(index)) =
             (&inst.result, inst.operands.get(0), inst.operands.get(1))
         {
-            self.load_operand(base, "rax", true);
+            self.load_operand(base, "eax", true);
             self.load_operand(index, "ebx", false);
-            self.output.push_str("    mov eax, [rax + ebx * 4]\n");
+            self.output.push_str("    mov eax, [eax + ebx * 4]\n");
             self.store_variable(result, "eax", false);
         }
     }
 
     fn generate_store(&mut self, inst: &IrInstruction) {
-        if let (Some(dest), Some(src), Some(_value)) =
+        if let (Some(dest_name), Some(src), Some(_value)) =
             (&inst.result, inst.operands.get(0), inst.operands.get(1))
         {
-            let dest_name = dest.clone();
+            // Load source value into ebx
             self.load_operand(src, "ebx", false);
-            if let Some(offset) = self.locals.get(&dest_name) {
+            // Store to destination - look up offset from locals/temps
+            if let Some(offset) = self.locals.get(dest_name) {
+                self.output
+                    .push_str(&format!("    mov [rbp + {}], ebx\n", offset));
+            } else if let Some(offset) = self.temps.get(dest_name) {
                 self.output
                     .push_str(&format!("    mov [rbp + {}], ebx\n", offset));
             }
@@ -461,8 +536,13 @@ impl AsmGenerator {
     }
 
     fn generate_slice(&mut self, inst: &IrInstruction) {
-        if let Some(result) = &inst.result {
-            self.store_variable(result, "rax", false);
+        if let (Some(result), Some(base), Some(index)) =
+            (&inst.result, inst.operands.get(0), inst.operands.get(1))
+        {
+            self.load_operand(base, "eax", true);
+            self.load_operand(index, "ebx", false);
+            self.output.push_str("    mov eax, [eax + ebx * 4]\n");
+            self.store_variable(result, "eax", false);
         }
     }
 
@@ -558,8 +638,10 @@ impl AsmGenerator {
                     .push_str(&format!("    lea {}, [{}]\n", dest, label));
             }
             Constant::Char(c) => {
+                // For char, use 32-bit register if dest is eax
+                let reg = if dest == "eax" { "eax" } else { dest };
                 self.output
-                    .push_str(&format!("    mov {}, {}\n", dest, *c as i64));
+                    .push_str(&format!("    mov {}, {}\n", reg, *c as i32));
             }
         }
     }

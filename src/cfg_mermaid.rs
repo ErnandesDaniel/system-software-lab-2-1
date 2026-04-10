@@ -60,12 +60,24 @@ impl CfgMermaidGenerator {
     }
 
     fn format_block_instructions(&self, block: &IrBlock) -> String {
-        block
+        let raw = block
             .instructions
             .iter()
             .map(|inst| self.format_instruction(inst))
             .collect::<Vec<_>>()
-            .join("\\n")
+            .join("\n");
+
+        // Escape special characters for Mermaid diagram
+        // Note: don't escape parentheses () as they work fine in mermaid node text
+        raw.replace('\\', "\\\\")
+            .replace('"', "\\\"")
+            .replace('\n', "\\n")
+            .replace('\r', "\\r")
+            .replace('\t', "\\t")
+            .replace('[', "\\[")
+            .replace(']', "\\]")
+            .replace('{', "\\{")
+            .replace('}', "\\}")
     }
 
     fn format_instruction(&self, inst: &IrInstruction) -> String {
@@ -293,7 +305,11 @@ impl CfgMermaidGenerator {
             IrOperand::Constant(c) => match c {
                 Constant::Int(n) => n.to_string(),
                 Constant::Bool(b) => b.to_string(),
-                Constant::String(s) => format!("\"{}\"", s),
+                Constant::String(s) => s
+                    .replace('\\', "\\\\")
+                    .replace('\n', "\\n")
+                    .replace('\r', "\\r")
+                    .replace('\t', "\\t"),
                 Constant::Char(c) => format!("'{}'", *c as char),
             },
         }

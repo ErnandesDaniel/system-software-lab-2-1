@@ -1,6 +1,6 @@
 use crate::ast::*;
 use crate::ir::*;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod expressions;
 mod statements;
@@ -8,7 +8,8 @@ mod statements;
 pub struct IrGenerator {
     pub temp_counter: usize,
     pub block_counter: usize,
-    pub locals: HashMap<String, IrLocal>,
+    pub locals: HashMap<String, IrLocal>, // Real local variables only (not temps)
+    pub declared_vars: HashSet<String>,   // Track which variables were explicitly declared
     pub used_functions: Vec<String>,
     pub loop_exit_stack: Vec<String>,
     pub loop_depth: usize,
@@ -20,6 +21,7 @@ impl IrGenerator {
             temp_counter: 0,
             block_counter: 0,
             locals: HashMap::new(),
+            declared_vars: HashSet::new(),
             used_functions: Vec::new(),
             loop_exit_stack: Vec::new(),
             loop_depth: 0,
@@ -43,6 +45,9 @@ impl IrGenerator {
 
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
+                // Reset block counter and declared vars for each function
+                self.block_counter = 0;
+                self.declared_vars.clear();
                 let ir_func = self.generate_function(def);
                 functions.push(ir_func);
             }
@@ -80,6 +85,9 @@ impl IrGenerator {
                         stack_offset: None,
                     },
                 );
+
+                // Track declared variables
+                self.declared_vars.insert(arg.name.name.clone());
             }
         }
 
@@ -99,11 +107,44 @@ impl IrGenerator {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
 
-        // Add the main block first, then all the other blocks in order
-        blocks.push(current_block);
+        // After processing all statements:
+        // - current_block contains post-loop code
+        // - block_stack contains: [header, body, init_jmp, exit] (in that order from visit_loop_statement)
+        //
+        // We want final order: init_jmp (BB_0), header (BB_1), body (BB_2), post_loop (BB_3)
+        // Exit block is empty and gets merged with post-loop code
+        //
+        // block_stack[0] = header (contains CondBr)
+        // block_stack[1] = body (contains body code + Jump to header)
+        // block_stack[2] = init_jmp (old current_block with Jump to header)
+        // block_stack[3] = exit (empty - merge with post-loop)
 
-        // Add all blocks from stack
-        blocks.extend(block_stack);
+        // Add init_jmp block first (BB_0) - it's at index 2 in stack
+        if block_stack.len() >= 3 {
+            let init_jmp_block = block_stack.remove(2);
+            blocks.push(init_jmp_block);
+        }
+
+        // Add header block (BB_1)
+        if !block_stack.is_empty() {
+            let header_block = block_stack.remove(0);
+            blocks.push(header_block);
+        }
+
+        // Add body block (BB_2)
+        if !block_stack.is_empty() {
+            let body_block = block_stack.remove(0);
+            blocks.push(body_block);
+        }
+
+        // Exit block is at index 0 now - just remove it (empty), don't add as separate block
+        if !block_stack.is_empty() {
+            block_stack.remove(0); // discard empty exit block
+        }
+
+        // Add post-loop code with fixed ID (next available is BB_3)
+        current_block.id = format!("BB{}", blocks.len());
+        blocks.push(current_block);
 
         IrFunction {
             name: def.signature.name.name.clone(),

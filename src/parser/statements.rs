@@ -180,6 +180,10 @@ impl<'source> Parser<'source> {
 
         let mut body = Vec::new();
         while let Some(tok) = self.current_token() {
+            if tok == &Token::LoopEnd {
+                self.expect(Token::LoopEnd)?;
+                break;
+            }
             if tok == &Token::End {
                 self.expect(Token::End)?;
                 break;

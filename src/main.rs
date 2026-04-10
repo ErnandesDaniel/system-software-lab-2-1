@@ -154,96 +154,83 @@ fn main() {
 
     // Generate Assembly - generate separate files for each function
     let mut asm_gen = codegen::AsmGenerator::new();
-    let assembly = asm_gen.generate(&ir_program);
+    let _assembly = asm_gen.generate(&ir_program);
 
     // Create output directory if needed
     if let Err(e) = fs::create_dir_all(&output_dir) {
         eprintln!("Failed to create output directory: {}", e);
     }
 
-    // Write main assembly file
-    let asm_path = std::path::Path::new(&output_dir).join("program.asm");
-    if let Err(e) = fs::write(&asm_path, &assembly) {
-        eprintln!("Failed to write assembly: {}", e);
-    }
-
-    // Also generate separate assembly files for each function
-    let assembler_dir = std::path::Path::new(&output_dir).join("assembler-code");
-    if let Err(e) = fs::create_dir_all(&assembler_dir) {
-        eprintln!("Failed to create assembler directory: {}", e);
-    }
-
+    // Generate separate assembly files for each function in output dir
     for func in &ir_program.functions {
         let mut func_asm_gen = codegen::AsmGenerator::new();
         let func_asm = func_asm_gen.generate_single_function(&func);
-        let func_asm_path = assembler_dir.join(format!("{}.asm", func.name));
+        let func_asm_path = std::path::Path::new(&output_dir).join(format!("{}.asm", func.name));
         if let Err(e) = fs::write(&func_asm_path, &func_asm) {
             eprintln!("Failed to write function assembly: {}", e);
         }
         println!("Function assembly written to: {}", func_asm_path.display());
     }
 
-    // Assemble and link to .exe
+    // Assemble and link all .asm files to .exe
     let exe_path = std::path::Path::new(&output_dir).join("program.exe");
-    match assemble_and_link(&asm_path, &exe_path) {
-        Ok(_) => println!("Successfully built: {}", exe_path.display()),
+
+    // Assemble each function
+    let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
+    for func in &ir_program.functions {
+        let asm_path = std::path::Path::new(&output_dir).join(format!("{}.asm", func.name));
+        let obj_path = std::path::Path::new(&output_dir).join(format!("{}.obj", func.name));
+
+        let output = Command::new("nasm")
+            .args([
+                "-f",
+                "win64",
+                "-o",
+                obj_path.to_str().unwrap(),
+                asm_path.to_str().unwrap(),
+            ])
+            .output();
+
+        match output {
+            Ok(out) => {
+                if !out.status.success() {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    eprintln!("NASM assembly failed: {}", stderr);
+                    std::process::exit(1);
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to run NASM: {}", e);
+                std::process::exit(1);
+            }
+        }
+
+        obj_files.push(obj_path);
+    }
+
+    // Link all .obj files
+    let mut link_args: Vec<String> = Vec::new();
+    for obj in &obj_files {
+        link_args.push(obj.to_string_lossy().to_string());
+    }
+    link_args.push("-o".to_string());
+    link_args.push(exe_path.to_string_lossy().to_string());
+
+    let output = Command::new("gcc").args(&link_args).output();
+
+    match output {
+        Ok(out) => {
+            if !out.status.success() {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("GCC linking failed: {}", stderr);
+                std::process::exit(1);
+            }
+        }
         Err(e) => {
-            eprintln!("Assembly/linking failed: {}", e);
+            eprintln!("Failed to run GCC: {}", e);
             std::process::exit(1);
         }
     }
-}
 
-fn assemble_and_link(asm_file: &std::path::Path, exe_file: &std::path::Path) -> Result<(), String> {
-    let dir = asm_file.parent().unwrap_or(std::path::Path::new("."));
-    let stem = asm_file
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("program");
-    let obj_file = dir.join(format!("{}.obj", stem));
-
-    // Assemble with NASM
-    let output = Command::new("nasm")
-        .args([
-            "-f",
-            "win64",
-            "-o",
-            obj_file.to_str().unwrap(),
-            asm_file.to_str().unwrap(),
-        ])
-        .output();
-
-    match output {
-        Ok(out) => {
-            if !out.status.success() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("NASM error: {}", stderr));
-            }
-        }
-        Err(e) => {
-            return Err(format!("Failed to run NASM: {}. Is NASM installed?", e));
-        }
-    }
-
-    // Link with GCC
-    let output = Command::new("gcc")
-        .args([obj_file.to_str().unwrap(), "-o", exe_file.to_str().unwrap()])
-        .output();
-
-    match output {
-        Ok(out) => {
-            if !out.status.success() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                return Err(format!("GCC linker error: {}", stderr));
-            }
-        }
-        Err(e) => {
-            return Err(format!(
-                "Failed to run GCC linker: {}. Is GCC installed?",
-                e
-            ));
-        }
-    }
-
-    Ok(())
+    println!("Successfully built: {}", exe_path.display());
 }
