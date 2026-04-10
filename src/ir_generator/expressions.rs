@@ -20,8 +20,8 @@ impl IrGenerator {
         block: &mut IrBlock,
         expr: &BinaryExpr,
     ) -> (String, IrType) {
-        let (left_temp, _) = self.visit_expr(block, &expr.left);
-        let (right_temp, _) = self.visit_expr(block, &expr.right);
+        let left_temp = self.visit_expr(block, &expr.left).0;
+        let (right_temp, right_type) = self.visit_expr(block, &expr.right);
 
         let result_temp = self.generate_temp();
 
@@ -46,11 +46,14 @@ impl IrGenerator {
                     _ => left_temp.clone(),
                 };
 
+                // Use right_type instead of always Int
+                let right_type = right_type.clone();
+
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Assign,
                     result: Some(target_name.clone()),
-                    result_type: None,
-                    operands: vec![IrOperand::Variable(right_temp.clone(), IrType::Int)],
+                    result_type: Some(right_type.clone()),
+                    operands: vec![IrOperand::Variable(right_temp.clone(), right_type.clone())],
                     jump_target: None,
                     true_target: None,
                     false_target: None,
@@ -64,13 +67,13 @@ impl IrGenerator {
                         target_name.clone(),
                         IrLocal {
                             name: target_name.clone(),
-                            ty: IrType::Int,
+                            ty: right_type.clone(),
                             stack_offset: None,
                         },
                     );
                     self.declared_vars.insert(target_name);
                 }
-                return (right_temp, IrType::Int);
+                return (right_temp, right_type);
             }
         };
 
@@ -125,8 +128,8 @@ impl IrGenerator {
 
         let mut args = Vec::new();
         for arg in &expr.arguments {
-            let (temp, _) = self.visit_expr(block, arg);
-            args.push(IrOperand::Variable(temp, IrType::Int));
+            let (temp, arg_type) = self.visit_expr(block, arg);
+            args.push(IrOperand::Variable(temp, arg_type));
         }
 
         let result_temp = self.generate_temp();

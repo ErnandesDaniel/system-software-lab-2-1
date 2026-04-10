@@ -257,8 +257,16 @@ impl AsmGenerator {
             IrOpcode::Assign => {
                 if let Some(ref result) = inst.result {
                     if let Some(operand) = inst.operands.first() {
-                        self.load_operand(operand, "eax", false);
-                        self.store_variable(result, "eax", false);
+                        // Check if operand type is pointer (string)
+                        let is_pointer = operand.get_type().is_pointer();
+                        // Always use rax for pointers to preserve full 64-bit address
+                        if is_pointer {
+                            self.load_operand(operand, "rax", true);
+                            self.store_variable(result, "rax", true);
+                        } else {
+                            self.load_operand(operand, "eax", false);
+                            self.store_variable(result, "eax", false);
+                        }
                     }
                 }
             }
@@ -400,10 +408,17 @@ impl AsmGenerator {
         if let Some(ref func_name) = inst.jump_target {
             self.used_functions.push(func_name.clone());
 
+            // For function calls, determine parameter registers
+            // Pointers go in rcx, rdx, r8, r9
+            // Integers go in ecx, edx, r8d, r9d
+
+            // First, load all arguments into appropriate registers
             for (i, arg) in inst.operands.iter().enumerate() {
                 if i < 4 {
                     let is_pointer = arg.get_type().is_pointer();
-                    let reg = match i {
+
+                    // Choose 64-bit register for pointer, 32-bit for integer
+                    let load_reg = match i {
                         0 => {
                             if is_pointer {
                                 "rcx"
@@ -434,7 +449,41 @@ impl AsmGenerator {
                         }
                         _ => "ecx",
                     };
-                    self.load_operand(arg, reg, is_pointer);
+
+                    // Load operand into the register
+                    // If pointer, we need 64-bit register for address
+                    if is_pointer {
+                        // Load directly into 64-bit register
+                        match arg {
+                            IrOperand::Constant(Constant::String(s)) => {
+                                let label = format!("str_{}", self.string_counter);
+                                self.string_counter += 1;
+                                self.emit_string_data(&label, s);
+                                self.output
+                                    .push_str(&format!("    lea {}, [{}]\n", load_reg, label));
+                            }
+                            IrOperand::Variable(name, _) => {
+                                // For string variables, load address using rax then mov to load_reg
+                                if let Some(offset) = self.locals.get(name) {
+                                    self.output
+                                        .push_str(&format!("    mov rax, [rbp + {}]\n", offset));
+                                    self.output
+                                        .push_str(&format!("    mov {}, rax\n", load_reg));
+                                } else if let Some(offset) = self.temps.get(name) {
+                                    self.output
+                                        .push_str(&format!("    mov rax, [rbp + {}]\n", offset));
+                                    self.output
+                                        .push_str(&format!("    mov {}, rax\n", load_reg));
+                                }
+                            }
+                            _ => {
+                                self.load_operand(arg, load_reg, true);
+                            }
+                        }
+                    } else {
+                        // Integer argument - use 32-bit register
+                        self.load_operand(arg, load_reg, false);
+                    }
                 }
             }
 
@@ -448,7 +497,9 @@ impl AsmGenerator {
                     .as_ref()
                     .map(|t| t.is_pointer())
                     .unwrap_or(false);
-                self.store_variable(result, "eax", is_pointer);
+                // For pointer results, use rax; for int results, use eax
+                let reg = if is_pointer { "rax" } else { "eax" };
+                self.store_variable(result, reg, is_pointer);
             }
         }
     }
@@ -539,9 +590,10 @@ impl AsmGenerator {
         if let (Some(result), Some(base), Some(index)) =
             (&inst.result, inst.operands.get(0), inst.operands.get(1))
         {
-            self.load_operand(base, "eax", true);
+            // Base is a pointer (array), use rax for it
+            self.load_operand(base, "rax", true);
             self.load_operand(index, "ebx", false);
-            self.output.push_str("    mov eax, [eax + ebx * 4]\n");
+            self.output.push_str("    mov eax, [rax + ebx * 4]\n");
             self.store_variable(result, "eax", false);
         }
     }
@@ -553,21 +605,13 @@ impl AsmGenerator {
                 if let Some(offset) = self.locals.get(name) {
                     self.output.push_str(&format!(
                         "    mov {}, [rbp + {}]\n",
-                        if is_ptr {
-                            dest.replace("e", "")
-                        } else {
-                            dest.to_string()
-                        },
+                        if is_ptr { "rax" } else { dest },
                         offset
                     ));
                 } else if let Some(offset) = self.temps.get(name) {
                     self.output.push_str(&format!(
                         "    mov {}, [rbp + {}]\n",
-                        if is_ptr {
-                            dest.replace("e", "")
-                        } else {
-                            dest.to_string()
-                        },
+                        if is_ptr { "rax" } else { dest },
                         offset
                     ));
                 } else if self.param_registers.contains(name) {
@@ -634,11 +678,12 @@ impl AsmGenerator {
                 let label = format!("str_{}", self.string_counter);
                 self.string_counter += 1;
                 self.emit_string_data(&label, s);
+                // For strings (pointers), use 64-bit register
+                let reg = if dest == "eax" { "rax" } else { dest };
                 self.output
-                    .push_str(&format!("    lea {}, [{}]\n", dest, label));
+                    .push_str(&format!("    lea {}, [{}]\n", reg, label));
             }
             Constant::Char(c) => {
-                // For char, use 32-bit register if dest is eax
                 let reg = if dest == "eax" { "eax" } else { dest };
                 self.output
                     .push_str(&format!("    mov {}, {}\n", reg, *c as i32));

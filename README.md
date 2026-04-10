@@ -90,6 +90,25 @@ cargo run -- input.mylang -o output
 - `program.exe` — исполняемый файл
 - `assembler-code/` — папка с отдельными asm-файлами для каждой функции
 
+**Проверка работы программы:**
+
+Для запуска с выводом на экран используйте одну из команд:
+```powershell
+# Windows PowerShell
+.\output\program.exe
+
+# Или через cmd
+output\program.exe
+
+# Проверить код возврата
+echo $LASTEXITCODE   # PowerShell
+echo %ERRORLEVEL%    # cmd
+```
+
+**Примечание:** Для вывода на консоль (printf, puts, putchar) требуется C runtime. 
+На Windows программа может запускаться без видимого вывода, если runtime не доступен.
+Для полноценного вывода установите MSYS2 с MinGW-w64 (см. раздел требований).
+
 #### Компиляция с сохранением AST и CFG
 
 ```bash
