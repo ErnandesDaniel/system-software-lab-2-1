@@ -11,6 +11,7 @@ impl<'source> Parser<'source> {
             Some(Token::Break) => self.parse_break(),
             Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
+            Some(Token::CreateThread) => self.parse_expression_statement(),
             Some(Token::Identifier) => self.parse_identifier_based_statement(),
             _ => self.parse_expression_statement(),
         }
@@ -102,6 +103,7 @@ impl<'source> Parser<'source> {
                         | Token::Comma
                         | Token::RParen
                         | Token::RBracket
+                        | Token::CreateThread
                 ) {
                     break;
                 }
@@ -129,12 +131,15 @@ impl<'source> Parser<'source> {
     pub(crate) fn parse_return(&mut self) -> Result<Statement, String> {
         let start = self.current_span();
         self.expect(Token::Return)?;
-        let expr = if self.current_token().is_some() && self.current_token() != Some(&Token::Semi) {
+        let expr = if self.current_token().is_some()
+            && self.current_token() != Some(&Token::Semi)
+            && self.current_token() != Some(&Token::End)
+        {
             Some(self.parse_expression(0)?)
         } else {
             None
         };
-        if self.current_token().is_some() {
+        if self.current_token() == Some(&Token::Semi) {
             self.expect(Token::Semi)?;
         }
         let span = start.merge(self.current_span());
@@ -224,6 +229,8 @@ impl<'source> Parser<'source> {
                     | Token::Comma
                     | Token::RParen
                     | Token::RBracket
+                    | Token::CreateThread
+                    | Token::LBrace
             ) {
                 break;
             }

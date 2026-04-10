@@ -35,6 +35,44 @@ impl AsmGenerator {
         }
     }
 
+    pub fn generate_create_thread(&mut self, inst: &IrInstruction) {
+        // createThread теперь только регистрирует поток, не вызывает его
+        // Вызов функции потока происходит в планировщике
+        eprintln!(
+            "DEBUG: generate_create_thread called, operands: {:?}",
+            inst.operands
+        );
+
+        if inst.operands.len() >= 2 {
+            let func_name = &inst.operands[0];
+            let scheduler = &inst.operands[1];
+
+            match func_name {
+                IrOperand::Constant(Constant::String(name)) => {
+                    if name.is_empty() {
+                        return;
+                    }
+
+                    // Отмечаем, что есть createThread - значит нужен планировщик
+                    self.has_create_thread = true;
+
+                    // Просто комментарий - регистрация потока
+                    match scheduler {
+                        IrOperand::Constant(Constant::String(sched)) => {
+                            self.output.push_str(&format!(
+                                "    ; createThread({}, {}) - registered\n",
+                                name, sched
+                            ));
+                        }
+                        _ => {}
+                    }
+                    // НЕ вызываем функцию сразу - это делает планировщик
+                }
+                _ => {}
+            }
+        }
+    }
+
     fn get_param_register(&self, i: usize, is_pointer: bool) -> String {
         match i {
             0 => {
@@ -249,5 +287,12 @@ impl AsmGenerator {
             self.output
                 .push_str(&format!("    mov [rbp + {}], {}\n", offset, src));
         }
+    }
+
+    pub fn generate_yield(&mut self, _inst: &IrInstruction) {
+        // Yield передаёт управление планировщику
+        // Просто вызываем внешнюю функцию yieldThread
+        self.used_functions.push("yieldThread".to_string());
+        self.output.push_str("    call yieldThread\n");
     }
 }

@@ -68,6 +68,24 @@ impl MermaidGenerator {
                     self.generate_expr(arg, output, Some(&format!("N{}", call_id)));
                 }
             }
+            Expr::CreateThread(ct) => {
+                let ct_id = self.next_id();
+                output.push_str(&format!("N{}[\"createThread\"]\n", ct_id));
+                output.push_str(&format!("N{} --> N{}\n", id, ct_id));
+
+                let func_id = self.next_id();
+                output.push_str(&format!(
+                    "N{}[\"func: {}\"]\n",
+                    func_id, ct.function_name.name
+                ));
+                output.push_str(&format!("N{} --> N{}\n", ct_id, func_id));
+
+                if let Some(ref sched) = ct.scheduler {
+                    let sched_id = self.next_id();
+                    output.push_str(&format!("N{}[\"scheduler: {}\"]\n", sched_id, sched.name));
+                    output.push_str(&format!("N{} --> N{}\n", ct_id, sched_id));
+                }
+            }
             Expr::Slice(s) => {
                 let slice_id = self.next_id();
                 output.push_str(&format!("N{}[\"slice_expr\"]\n", slice_id));

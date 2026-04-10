@@ -4,11 +4,13 @@ use crate::ir::*;
 
 impl IrGenerator {
     pub fn visit_expr(&mut self, block: &mut IrBlock, expr: &Expr) -> (String, IrType) {
+        eprintln!("DEBUG IR: visit_expr called with expr: {:?}", expr);
         match expr {
             Expr::Binary(bin) => self.visit_binary_expr(block, bin),
             Expr::Unary(un) => self.visit_unary_expr(block, un),
             Expr::Parenthesized(inner) => self.visit_expr(block, inner),
             Expr::Call(call) => self.visit_call_expr(block, call),
+            Expr::CreateThread(ct) => self.visit_create_thread_expr(block, ct),
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
             Expr::Identifier(id) => (id.name.clone(), self.get_ident_type(id)),
             Expr::Literal(lit) => self.visit_literal_expr(block, lit),
@@ -123,6 +125,7 @@ impl IrGenerator {
     pub fn visit_call_expr(&mut self, block: &mut IrBlock, expr: &CallExpr) -> (String, IrType) {
         let func_name = match *expr.function.clone() {
             Expr::Identifier(id) => id.name,
+            Expr::CreateThread(ct) => ct.function_name.name,
             _ => String::new(),
         };
 
@@ -145,7 +148,21 @@ impl IrGenerator {
             span: expr.span,
         });
 
-        self.used_functions.push(func_name);
+        self.used_functions.push(func_name.clone());
+
+        // Если вызываемая функция - поток, добавляем Yield после вызова
+        if self.is_thread_function(&func_name) {
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Yield,
+                result: None,
+                result_type: None,
+                operands: vec![],
+                jump_target: None,
+                true_target: None,
+                false_target: None,
+                span: expr.span,
+            });
+        }
 
         (result_temp, IrType::Int)
     }
@@ -282,5 +299,46 @@ impl IrGenerator {
                 (result_temp, IrType::String)
             }
         }
+    }
+
+    pub fn visit_create_thread_expr(
+        &mut self,
+        block: &mut IrBlock,
+        expr: &CreateThreadExpr,
+    ) -> (String, IrType) {
+        eprintln!(
+            "DEBUG IR: visit_create_thread_expr called for {}",
+            expr.function_name.name
+        );
+
+        let scheduler = expr
+            .scheduler
+            .as_ref()
+            .map(|s| s.name.clone())
+            .unwrap_or_else(|| "FCFS".to_string());
+
+        // Запоминаем что функция - поток и какой планировщик
+        self.thread_functions
+            .insert(expr.function_name.name.clone());
+        self.scheduler_type
+            .insert(expr.function_name.name.clone(), scheduler.clone());
+
+        eprintln!("DEBUG IR: Adding CreateThread instruction to block");
+
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::CreateThread,
+            result: None,
+            result_type: Some(IrType::Void),
+            operands: vec![
+                IrOperand::Constant(Constant::String(expr.function_name.name.clone())),
+                IrOperand::Constant(Constant::String(scheduler)),
+            ],
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: expr.span,
+        });
+
+        (String::new(), IrType::Void)
     }
 }

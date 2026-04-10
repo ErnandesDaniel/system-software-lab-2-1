@@ -1,5 +1,6 @@
 use crate::ast::*;
 use crate::semantics::types::{SemanticType, SymbolTable};
+use crate::stdlib::StdLib;
 
 #[derive(Debug)]
 pub struct FunctionSig {
@@ -68,6 +69,16 @@ impl SemanticsAnalyzer {
                     });
                 }
                 SourceItem::FuncDeclaration(decl) => {
+                    let func_name = decl.signature.name.name.clone();
+
+                    // Check if the function is in the standard library
+                    if !StdLib::is_stdlib(&func_name) {
+                        self.errors.push(format!(
+                            "Error: '{}' is not a standard library function. Only C standard library functions can be declared as extern.",
+                            func_name
+                        ));
+                    }
+
                     let return_type = decl
                         .signature
                         .return_type
@@ -275,6 +286,9 @@ impl SemanticsAnalyzer {
                 }
 
                 return Ok(sig.return_type.clone());
+            }
+            Expr::CreateThread(_) => {
+                return Ok(SemanticType::Void);
             }
             Expr::Slice(slice) => {
                 let array_type = self.check_expression(scope, &slice.array)?;

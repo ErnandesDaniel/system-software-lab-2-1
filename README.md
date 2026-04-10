@@ -255,3 +255,94 @@ BB_1:
 section .data
 str_0 db 72, 101, 108, 108, 111, 44, 32, 87, 111, 114, 108, 100, 33, 0
 ```
+
+## Планировщик потоков (Thread Scheduling)
+
+Компилятор поддерживает создание потоков с алгоритмами планирования FCFS (First Come First Serve) и SPN (Shortest Process Next).
+
+### Синтаксис
+
+```mylang
+createThread(function_name, "FCFS")   # создать поток с планировщиком FCFS
+createThread(function_name, "SPN")    # создать поток с планировщиком SPN
+```
+
+### Как это работает
+
+1. При вызове `createThread(function_name, "scheduler")` функция помечается как поток
+2. Для функций-потоков после каждой инструкции автоматически вставляется вызов `yieldThread`
+3. Планировщик (реализуется отдельно в runtime) переключает между потоками после каждого yield
+
+### Пример тестовой программы
+
+Создайте файл `scheduling.mylang`:
+
+```mylang
+extern def puts(s of string) end
+extern def putchar(c of int) of int end
+extern def printf(format of string, value of int) end
+
+def print_ones() of int
+    putchar(49)
+    return 0
+end
+
+def print_twos() of int
+    putchar(50)
+    return 0
+end
+
+def main() of int
+    puts("Test start")
+    createThread(print_ones, "FCFS")
+    createThread(print_twos, "FCFS")
+    puts("Test end")
+    return 0
+end
+```
+
+### Компиляция и запуск
+
+```bash
+# Компиляция
+cargo run scheduling.mylang -o output
+
+# Запуск (через MSYS2 MinGW x64)
+./output/program.exe
+```
+
+### Результат компиляции
+
+После компиляции в `output/main.asm`:
+
+```nasm
+; main - обычные вызовы без yield
+call puts
+; createThread(print_ones, "FCFS") - вызов потока
+call print_ones
+call yieldThread
+; createThread(print_twos, "FCFS") - вызов потока
+call print_twos
+call yieldThread
+call puts
+```
+
+В `output/print_ones.asm` (функция-поток):
+
+```nasm
+print_ones:
+    mov eax, 49
+    mov [rbp + -8], eax
+    call yieldThread     ; yield после каждой инструкции
+    mov ecx, eax
+    call putchar
+    call yieldThread
+    mov eax, 0
+    call yieldThread
+```
+
+### Важные особенности
+
+- Функции, объявленные как `extern def` (внешние функции), **не** разбиваются на точки с yield
+- Только функции, переданные в `createThread`, получают точки прерывания после каждой инструкции
+- Обычные вызовы функций без createThread выполняются как обычно без yield

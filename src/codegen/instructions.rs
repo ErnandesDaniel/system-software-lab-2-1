@@ -23,6 +23,11 @@ impl AsmGenerator {
             IrOpcode::Neg => self.generate_neg(inst),
             IrOpcode::Jump => self.generate_jump(inst),
             IrOpcode::Call => self.generate_call(inst),
+            IrOpcode::CreateThread => self.generate_create_thread(inst),
+            IrOpcode::Yield => self.generate_yield(inst),
+            IrOpcode::CoroutineCreate => self.generate_coroutine_create(inst),
+            IrOpcode::CoroutineYield => self.generate_coroutine_yield(inst),
+            IrOpcode::CoroutineResume => self.generate_coroutine_resume(inst),
             IrOpcode::Ret => self.generate_ret(inst),
             IrOpcode::CondBr => self.generate_cond_br(inst),
             IrOpcode::Load => self.generate_load(inst),
@@ -189,6 +194,72 @@ impl AsmGenerator {
                 self.load_operand(operand, "eax", false);
                 self.store_variable(result, "eax", false);
             }
+        }
+    }
+
+    fn generate_coroutine_create(&mut self, inst: &IrInstruction) {
+        // CoroutineCreate - создание корутины с отдельным стеком
+        // Генерирует код для выделения стека и инициализации
+        if let Some(IrOperand::Constant(Constant::String(name))) = inst.operands.first() {
+            self.output
+                .push_str(&format!("    ; CoroutineCreate: {}\n", name));
+            // TODO: выделение стека для корутины
+        }
+    }
+
+    fn generate_coroutine_yield(&mut self, inst: &IrInstruction) {
+        // CoroutineYield - передача управления планировщику с сохранением контекста
+        self.output
+            .push_str("    ; CoroutineYield - save context and switch\n");
+        // Сохраняем все регистры
+        self.output.push_str("    push rax\n");
+        self.output.push_str("    push rbx\n");
+        self.output.push_str("    push rcx\n");
+        self.output.push_str("    push rdx\n");
+        self.output.push_str("    push rbp\n");
+        self.output.push_str("    push rsi\n");
+        self.output.push_str("    push rdi\n");
+        self.output.push_str("    push r8\n");
+        self.output.push_str("    push r9\n");
+        self.output.push_str("    push r10\n");
+        self.output.push_str("    push r11\n");
+        self.output.push_str("    push r12\n");
+        self.output.push_str("    push r13\n");
+        self.output.push_str("    push r14\n");
+        self.output.push_str("    push r15\n");
+
+        // Сохраняем RSP в структуру текущей корутины
+        self.output.push_str("    mov [current_sp], rsp\n");
+
+        // Вызываем планировщик
+        self.output.push_str("    call scheduler\n");
+
+        // Восстанавливаем контекст новой корутины
+        self.output.push_str("    mov rsp, [current_sp]\n");
+
+        // Восстанавливаем регистры
+        self.output.push_str("    pop r15\n");
+        self.output.push_str("    pop r14\n");
+        self.output.push_str("    pop r13\n");
+        self.output.push_str("    pop r12\n");
+        self.output.push_str("    pop r11\n");
+        self.output.push_str("    pop r10\n");
+        self.output.push_str("    pop r9\n");
+        self.output.push_str("    pop r8\n");
+        self.output.push_str("    pop rdi\n");
+        self.output.push_str("    pop rsi\n");
+        self.output.push_str("    pop rbp\n");
+        self.output.push_str("    pop rdx\n");
+        self.output.push_str("    pop rcx\n");
+        self.output.push_str("    pop rbx\n");
+        self.output.push_str("    pop rax\n");
+    }
+
+    fn generate_coroutine_resume(&mut self, inst: &IrInstruction) {
+        // CoroutineResume - возобновление корутины
+        if let Some(IrOperand::Constant(Constant::Int(id))) = inst.operands.first() {
+            self.output
+                .push_str(&format!("    ; CoroutineResume: coroutine {}\n", id));
         }
     }
 }

@@ -138,6 +138,7 @@ pub enum Expr {
     Unary(UnaryExpr),
     Parenthesized(Box<Expr>),
     Call(CallExpr),
+    CreateThread(CreateThreadExpr),
     Slice(SliceExpr),
     Identifier(Identifier),
     Literal(Literal),
@@ -188,6 +189,13 @@ pub enum UnaryOp {
 pub struct CallExpr {
     pub function: Box<Expr>,
     pub arguments: Vec<Expr>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CreateThreadExpr {
+    pub function_name: Identifier,
+    pub scheduler: Option<Identifier>,
     pub span: Span,
 }
 

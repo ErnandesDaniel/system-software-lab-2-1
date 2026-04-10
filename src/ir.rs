@@ -14,6 +14,7 @@ pub struct IrFunction {
     pub blocks: Vec<IrBlock>,
     pub locals: Vec<IrLocal>,
     pub used_functions: Vec<String>,
+    pub is_thread: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -126,6 +127,11 @@ pub enum IrOpcode {
     Pos,
     Assign,
     Call,
+    CreateThread,
+    Yield,
+    CoroutineCreate,
+    CoroutineYield,
+    CoroutineResume,
     Jump,
     CondBr,
     Ret,

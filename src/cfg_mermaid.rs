@@ -270,6 +270,17 @@ impl CfgMermaidGenerator {
                     b
                 )
             }
+            IrOpcode::CreateThread => {
+                format!(
+                    "create_thread({:?}, {:?})",
+                    inst.operands.get(0).map(|o| format!("{:?}", o)),
+                    inst.operands.get(1).map(|o| format!("{:?}", o))
+                )
+            }
+            IrOpcode::Yield => "yield".to_string(),
+            IrOpcode::CoroutineCreate => "coroutine_create".to_string(),
+            IrOpcode::CoroutineYield => "coroutine_yield".to_string(),
+            IrOpcode::CoroutineResume => "coroutine_resume".to_string(),
         }
     }
 

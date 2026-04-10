@@ -16,10 +16,21 @@ impl<'source> Parser<'source> {
                     | Token::Do
                     | Token::While
                     | Token::Until
-                    | Token::Comma
                     | Token::RParen
                     | Token::RBracket
+                    | Token::CreateThread
             ) {
+                break;
+            }
+            // Don't break on LParen when the left side is an identifier (function call)
+            if matches!(token, Token::LParen) {
+                if let Expr::Identifier(_) = left {
+                    // Continue to parse function call
+                } else {
+                    break;
+                }
+            }
+            if matches!(token, Token::Semi) {
                 break;
             }
             if matches!(token, Token::Assign) {
@@ -27,7 +38,7 @@ impl<'source> Parser<'source> {
             }
             let token_copy = *token;
             let prec = Self::get_precedence(&token_copy);
-            if prec < min_prec {
+            if prec < min_prec || matches!(token_copy, Token::CreateThread) {
                 break;
             }
             self.advance();
@@ -39,6 +50,62 @@ impl<'source> Parser<'source> {
 
     pub(crate) fn parse_prefix(&mut self) -> Result<Expr, String> {
         match self.current_token() {
+            Some(Token::CreateThread) => {
+                let start = self.current_span();
+                self.advance();
+                self.expect(Token::LParen)?;
+                let (_tok, span) = self.expect(Token::Identifier)?;
+                let func_name = Identifier {
+                    name: self.get_text(&span).to_string(),
+                    span,
+                };
+                let mut scheduler = None;
+                if self.current_token() == Some(&Token::Comma) {
+                    self.advance();
+                    // Parse string literal for scheduler: "FCFS" or "SPN"
+                    let sched_name = match self.current_token() {
+                        Some(Token::StringLiteral) => {
+                            let (_tok, span) = self.expect(Token::StringLiteral)?;
+                            let s = self.get_text(&span);
+                            let unquoted = &s[1..s.len() - 1];
+                            unquoted.to_string()
+                        }
+                        Some(Token::Fcfs) => {
+                            self.advance();
+                            "FCFS".to_string()
+                        }
+                        Some(Token::Spn) => {
+                            self.advance();
+                            "SPN".to_string()
+                        }
+                        Some(Token::Identifier) => {
+                            let (_tok, span) = self.expect(Token::Identifier)?;
+                            let name = self.get_text(&span).to_string();
+                            if name == "FCFS" || name == "SPN" {
+                                name
+                            } else {
+                                return Err("Expected FCFS or SPN".to_string());
+                            }
+                        }
+                        _ => {
+                            return Err(
+                                "Expected scheduler (FCFS, SPN, or \"FCFS\", \"SPN\")".to_string()
+                            );
+                        }
+                    };
+                    scheduler = Some(Identifier {
+                        name: sched_name,
+                        span: Span::new(0, 0),
+                    });
+                }
+                self.expect(Token::RParen)?;
+                let span = start.merge(self.current_span());
+                Ok(Expr::CreateThread(CreateThreadExpr {
+                    function_name: func_name,
+                    scheduler,
+                    span,
+                }))
+            }
             Some(Token::DecLiteral) => {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
                 let value = self.get_text(&span).parse::<u64>().unwrap_or(0);
@@ -217,6 +284,58 @@ impl<'source> Parser<'source> {
                     span,
                 }))
             }
+            Token::CreateThread => {
+                let start = self.current_span();
+                self.expect(Token::LParen)?;
+                let (_tok, span) = self.expect(Token::Identifier)?;
+                let func_name = Identifier {
+                    name: self.get_text(&span).to_string(),
+                    span,
+                };
+                let mut scheduler = None;
+                if self.current_token() == Some(&Token::Comma) {
+                    self.advance();
+                    let sched_name = match self.current_token() {
+                        Some(Token::StringLiteral) => {
+                            let (_tok, span) = self.expect(Token::StringLiteral)?;
+                            let s = self.get_text(&span);
+                            let unquoted = &s[1..s.len() - 1];
+                            unquoted.to_string()
+                        }
+                        Some(Token::Fcfs) => {
+                            self.advance();
+                            "FCFS".to_string()
+                        }
+                        Some(Token::Spn) => {
+                            self.advance();
+                            "SPN".to_string()
+                        }
+                        Some(Token::Identifier) => {
+                            let (_tok, span) = self.expect(Token::Identifier)?;
+                            let name = self.get_text(&span).to_string();
+                            if name == "FCFS" || name == "SPN" {
+                                name
+                            } else {
+                                return Err("Expected FCFS or SPN".to_string());
+                            }
+                        }
+                        _ => {
+                            return Err("Expected scheduler".to_string());
+                        }
+                    };
+                    scheduler = Some(Identifier {
+                        name: sched_name,
+                        span: Span::new(0, 0),
+                    });
+                }
+                self.expect(Token::RParen)?;
+                let span = start.merge(self.current_span());
+                return Ok(Expr::CreateThread(CreateThreadExpr {
+                    function_name: func_name,
+                    scheduler,
+                    span,
+                }));
+            }
             _ => Ok(left),
         }
     }
@@ -231,6 +350,7 @@ impl<'source> Parser<'source> {
             Token::Star | Token::Slash | Token::Percent => 60,
             Token::Assign => 5,
             Token::LParen => 70,
+            Token::CreateThread => 80,
             _ => 0,
         }
     }
@@ -243,6 +363,7 @@ impl Expr {
             Expr::Unary(e) => e.span,
             Expr::Parenthesized(e) => e.span(),
             Expr::Call(e) => e.span,
+            Expr::CreateThread(e) => e.span,
             Expr::Slice(e) => e.span,
             Expr::Identifier(e) => e.span,
             Expr::Literal(_) => Span::new(0, 0),

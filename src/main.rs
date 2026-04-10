@@ -8,6 +8,7 @@ mod lexer_iter;
 mod mermaid;
 mod parser;
 mod semantics;
+mod stdlib;
 mod tests;
 
 use std::env;
@@ -116,15 +117,6 @@ fn main() {
         }
     }
 
-    // Generate Assembly - generate separate files for each function
-    let mut asm_gen = codegen::AsmGenerator::new();
-    let _assembly = asm_gen.generate(&ir_program);
-
-    // Create output directory if needed
-    if let Err(e) = fs::create_dir_all(&output_dir) {
-        eprintln!("Failed to create output directory: {}", e);
-    }
-
     // Generate separate assembly files for each function in output dir
     for func in &ir_program.functions {
         let mut func_asm_gen = codegen::AsmGenerator::new();
@@ -159,42 +151,46 @@ fn main() {
             Ok(out) => {
                 if !out.status.success() {
                     let stderr = String::from_utf8_lossy(&out.stderr);
-                    eprintln!("NASM assembly failed: {}", stderr);
-                    std::process::exit(1);
+                    eprintln!("NASM assembly failed for {}: {}", func.name, stderr);
+                } else {
+                    obj_files.push(obj_path);
                 }
             }
             Err(e) => {
                 eprintln!("Failed to run NASM: {}", e);
-                std::process::exit(1);
             }
         }
-
-        obj_files.push(obj_path);
     }
+
+    // Assemble and link all .asm files to .exe
+    let exe_path = std::path::Path::new(&output_dir).join("program.exe");
 
     // Link all .obj files
     let mut link_args: Vec<String> = Vec::new();
     for obj in &obj_files {
         link_args.push(obj.to_string_lossy().to_string());
     }
-    link_args.push("-o".to_string());
-    link_args.push(exe_path.to_string_lossy().to_string());
 
-    let output = Command::new("gcc").args(&link_args).output();
+    /* Не компилируем runtime - планировщик генерируется в IR */
 
-    match output {
-        Ok(out) => {
-            if !out.status.success() {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                eprintln!("GCC linking failed: {}", stderr);
-                std::process::exit(1);
+    if !link_args.is_empty() {
+        link_args.push("-o".to_string());
+        link_args.push(exe_path.to_string_lossy().to_string());
+
+        let output = Command::new("gcc").args(&link_args).output();
+
+        match output {
+            Ok(out) => {
+                if !out.status.success() {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    eprintln!("GCC linking failed: {}", stderr);
+                } else {
+                    println!("Successfully built: {}", exe_path.display());
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to run GCC: {}", e);
             }
         }
-        Err(e) => {
-            eprintln!("Failed to run GCC: {}", e);
-            std::process::exit(1);
-        }
     }
-
-    println!("Successfully built: {}", exe_path.display());
 }
