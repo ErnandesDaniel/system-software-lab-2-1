@@ -15,6 +15,7 @@ pub struct AsmGenerator {
 }
 
 impl AsmGenerator {
+    #[allow(dead_code)]
     pub fn new() -> Self {
         Self {
             output: String::new(),
@@ -35,6 +36,7 @@ impl AsmGenerator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn generate(&mut self, program: &IrProgram) -> String {
         self.has_create_thread = false; // Reset before generating
         self.output.push_str("bits 64\n");
@@ -115,14 +117,14 @@ impl AsmGenerator {
             .iter()
             .flat_map(|b| &b.instructions)
             .any(|i| matches!(i.opcode, IrOpcode::CreateThread));
-        let needs_yield_stub = func
+        let _needs_yield_stub = func
             .blocks
             .iter()
             .flat_map(|b| &b.instructions)
             .any(|i| matches!(i.opcode, IrOpcode::Yield));
         let is_thread_function = func.is_thread;
-        let main_needs_stub = has_create_thread && func.name == "main";
-        let thread_func_needs_stub = is_thread_function && func.name == "main";
+        let _main_needs_stub = has_create_thread && func.name == "main";
+        let _thread_func_needs_stub = is_thread_function && func.name == "main";
 
         // Don't add data section here - we'll put coroutine table in text section
         // if needed
@@ -193,7 +195,7 @@ impl AsmGenerator {
         }
 
         // For functions that have yieldThread calls, we need to provide a stub
-        let needs_yield_stub = func
+        let _needs_yield_stub = func
             .blocks
             .iter()
             .flat_map(|b| &b.instructions)
@@ -287,7 +289,7 @@ impl AsmGenerator {
 
         // Thread functions (print_ones, print_twos) call yieldThread but don't define it
         // Main should define yieldThread stub because it orchestrates thread execution
-        let needs_yield_stub = func
+        let _needs_yield_stub = func
             .blocks
             .iter()
             .flat_map(|b| &b.instructions)

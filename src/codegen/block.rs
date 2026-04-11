@@ -3,6 +3,7 @@ use crate::ir::*;
 use super::AsmGenerator;
 
 impl AsmGenerator {
+    #[allow(dead_code)]
     pub fn generate_function_internal(&mut self, func: &IrFunction) {
         self.current_function = Some(func.name.clone());
         self.locals.clear();
@@ -82,6 +83,7 @@ impl AsmGenerator {
         self.output.push_str("    ret\n");
     }
 
+    #[allow(dead_code)]
     pub fn calculate_frame_size(&self, func: &IrFunction) -> i32 {
         let mut size = 0;
         for local in &func.locals {

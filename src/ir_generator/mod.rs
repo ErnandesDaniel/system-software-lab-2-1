@@ -7,6 +7,7 @@ mod expressions;
 mod statements;
 
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 pub struct CoroutineInfo {
     pub name: String,
     pub scheduler: String,
@@ -50,6 +51,7 @@ impl IrGenerator {
         self.thread_functions.contains(name)
     }
 
+    #[allow(dead_code)]
     pub fn get_scheduler(&self, name: &str) -> String {
         self.scheduler_type
             .get(name)
@@ -101,15 +103,12 @@ impl IrGenerator {
             }
         }
 
-        eprintln!(
-            "DEBUG: thread_functions after first pass: {:?}",
-            self.thread_functions
-        );
-
         // Generate scheduler function if there are coroutines
-        let mut scheduler_func = None;
+        let _scheduler_func;
         if !self.coroutines.is_empty() {
-            scheduler_func = Some(self.generate_scheduler_function());
+            _scheduler_func = Some(self.generate_scheduler_function());
+        } else {
+            _scheduler_func = None;
         }
 
         for item in &program.items {
@@ -159,7 +158,6 @@ impl IrGenerator {
     fn find_create_thread_in_expr(&mut self, expr: &Expr) {
         match expr {
             Expr::CreateThread(ct) => {
-                eprintln!("DEBUG: Found createThread for {}", ct.function_name.name);
                 self.thread_functions.insert(ct.function_name.name.clone());
                 let scheduler = ct
                     .scheduler
@@ -373,7 +371,7 @@ impl IrGenerator {
         // Генерируем loop для round-robin
         let loop_header_id = self.generate_block_id();
         let loop_body_id = self.generate_block_id();
-        let loop_end_id = self.generate_block_id();
+        let _loop_end_id = self.generate_block_id();
 
         // Entry: инициализация
         entry_block.instructions.push(IrInstruction {

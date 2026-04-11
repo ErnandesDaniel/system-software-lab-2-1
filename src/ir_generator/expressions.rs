@@ -4,7 +4,6 @@ use crate::ir::*;
 
 impl IrGenerator {
     pub fn visit_expr(&mut self, block: &mut IrBlock, expr: &Expr) -> (String, IrType) {
-        eprintln!("DEBUG IR: visit_expr called with expr: {:?}", expr);
         match expr {
             Expr::Binary(bin) => self.visit_binary_expr(block, bin),
             Expr::Unary(un) => self.visit_unary_expr(block, un),
@@ -322,8 +321,6 @@ impl IrGenerator {
             .insert(expr.function_name.name.clone());
         self.scheduler_type
             .insert(expr.function_name.name.clone(), scheduler.clone());
-
-        eprintln!("DEBUG IR: Adding CreateThread instruction to block");
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CreateThread,

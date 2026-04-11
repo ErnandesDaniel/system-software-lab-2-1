@@ -52,6 +52,7 @@ impl StdLib {
         Self::all().contains(name)
     }
 
+    #[allow(dead_code)]
     pub fn generate_extern_decls() -> Vec<(&'static str, &'static str, &'static str)> {
         vec![
             // (name, params, return_type)

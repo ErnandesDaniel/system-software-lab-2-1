@@ -19,6 +19,7 @@ impl<'source> Parser<'source> {
                     | Token::RParen
                     | Token::RBracket
                     | Token::CreateThread
+                    | Token::Comma
             ) {
                 break;
             }

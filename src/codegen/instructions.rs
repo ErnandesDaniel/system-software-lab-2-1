@@ -207,7 +207,7 @@ impl AsmGenerator {
         }
     }
 
-    fn generate_coroutine_yield(&mut self, inst: &IrInstruction) {
+    fn generate_coroutine_yield(&mut self, _inst: &IrInstruction) {
         // CoroutineYield - передача управления планировщику с сохранением контекста
         self.output
             .push_str("    ; CoroutineYield - save context and switch\n");

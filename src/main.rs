@@ -65,6 +65,11 @@ fn main() {
         }
     };
 
+    if let Err(e) = fs::create_dir_all(&output_dir) {
+        eprintln!("Failed to create output directory: {}", e);
+        std::process::exit(1);
+    }
+
     // Parse
     let mut parser = parser::Parser::new(&source);
     let ast = match parser.parse() {
@@ -129,7 +134,7 @@ fn main() {
     }
 
     // Assemble and link all .asm files to .exe
-    let exe_path = std::path::Path::new(&output_dir).join("program.exe");
+    let _exe_path = std::path::Path::new(&output_dir).join("program.exe");
 
     // Assemble each function
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
