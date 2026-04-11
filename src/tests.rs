@@ -124,6 +124,39 @@ mod tests {
     }
 
     #[test]
+    fn test_extern_short_form() {
+        let source = "extern puts";
+        let program = parse(source);
+        assert_eq!(program.items.len(), 1);
+    }
+
+    #[test]
+    fn test_extern_short_form_semantics() {
+        use crate::semantics::SemanticsAnalyzer;
+        let source = "extern puts def main() puts(\"hello\"); end";
+        let program = parse(source);
+        let mut analyzer = SemanticsAnalyzer::new();
+        let result = analyzer.analyze(&program);
+        assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+    }
+
+    #[test]
+    fn test_extern_short_form_codegen() {
+        use crate::codegen::AsmGenerator;
+        use crate::ir_generator::IrGenerator;
+        let source = "extern puts def main() puts(\"hello\"); end";
+        let program = parse(source);
+        let mut ir_gen = IrGenerator::new();
+        let ir = ir_gen.generate(&program);
+        let mut asm_gen = AsmGenerator::new();
+        let asm = asm_gen.generate(&ir);
+        assert!(
+            asm.contains("extern puts"),
+            "Expected 'extern puts' in asm output"
+        );
+    }
+
+    #[test]
     fn test_binary_expressions() {
         let source = "def foo() x = 1 + 2 * 3; end";
         let program = parse(source);

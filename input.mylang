@@ -1,24 +1,23 @@
-
 //Получить символ из консоли по его ASCII коду в виде числа
-extern def getchar() of int end
+extern getchar
 
 // инициализировать генератор случайных чисел
-extern def srand(seed of int) end
+extern srand
 
 // получить текущее время как число
-extern def time(dummy of int) of int end
+extern time
 
 //получить случайное число
-extern def rand() of int end
+extern rand
 
 //Напечатать символ по его ASCII коду
-extern def putchar(c of int) of int end
+extern putchar
 
 //Напечатать строку
-extern def puts(s of string) end
+extern puts
 
 //Вывести число в консоль
-extern def printf(format of string, value of int) end
+extern printf
 
 //Умножить два числа
 def square(x of int) of int
@@ -64,10 +63,6 @@ printf("%d", 65); // Выводим число в консоль
 return r;
 
 end
-
-
-
-
 
 
 

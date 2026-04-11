@@ -1,6 +1,6 @@
-extern def puts(s of string) end
-extern def putchar(c of int) of int end
-extern def sleep(seconds of int) end
+extern puts
+extern putchar
+extern sleep
 
 def print_once()
     while 1 == 1 {

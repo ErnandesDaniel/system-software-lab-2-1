@@ -58,6 +58,26 @@ impl<'source> Parser<'source> {
         let start = self.current_span();
         self.expect(Token::Extern)?;
 
+        // Check if it's a short form: extern identifier
+        if self.current_token() == Some(&Token::Identifier) {
+            let (_tok, name_span) = self.expect(Token::Identifier)?;
+            let func_name = self.get_text(&name_span).to_string();
+            let span = start.merge(name_span);
+            return Ok(FuncDeclaration {
+                signature: FuncSignature {
+                    name: Identifier {
+                        name: func_name,
+                        span,
+                    },
+                    parameters: None,
+                    return_type: None,
+                    span,
+                },
+                span,
+            });
+        }
+
+        // Full form: extern def name(params) return_type
         if self.current_token() == Some(&Token::Def) {
             self.expect(Token::Def)?;
         }
