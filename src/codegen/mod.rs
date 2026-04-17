@@ -384,6 +384,8 @@ impl AsmGenerator {
 pub mod block;
 pub mod functions;
 pub mod instructions;
+pub mod java_bytecode;
+pub mod java_classes;
 
 impl Default for AsmGenerator {
     fn default() -> Self {

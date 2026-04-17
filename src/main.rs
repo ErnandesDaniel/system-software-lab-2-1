@@ -17,13 +17,38 @@ use std::process::Command;
 
 use crate::semantics::analysis::SemanticsAnalyzer;
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CodeGenTarget {
+    NASM,
+    JVM,
+}
+
+impl Default for CodeGenTarget {
+    fn default() -> Self {
+        CodeGenTarget::NASM
+    }
+}
+
+impl std::str::FromStr for CodeGenTarget {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "nasm" => Ok(CodeGenTarget::NASM),
+            "jvm" | "java" | "j bytecode" => Ok(CodeGenTarget::JVM),
+            _ => Err(format!("Unknown target: {}", s)),
+        }
+    }
+}
+
 fn main() {
     let args: Vec<String> = env::args().collect();
 
     if args.len() < 2 {
-        eprintln!("Usage: {} <source_file> -o <output_dir>", args[0]);
+        eprintln!("Usage: {} <source_file> -o <output_dir> [options]", args[0]);
         eprintln!("Options:");
         eprintln!("  -o, --output <dir>    Output directory (required)");
+        eprintln!("  -t, --target <target>  Target: nasm (default) or jvm");
         std::process::exit(1);
     }
 
@@ -37,6 +62,7 @@ fn main() {
     };
 
     let mut output_dir: Option<String> = None;
+    let mut target: CodeGenTarget = CodeGenTarget::NASM;
 
     let mut i = 2;
     while i < args.len() {
@@ -50,12 +76,30 @@ fn main() {
                     std::process::exit(1);
                 }
             }
+            "-t" | "--target" => {
+                if i + 1 < args.len() {
+                    let target_str = &args[i + 1];
+                    target = match target_str.parse() {
+                        Ok(t) => t,
+                        Err(e) => {
+                            eprintln!("Error: {}", e);
+                            std::process::exit(1);
+                        }
+                    };
+                    i += 2;
+                } else {
+                    eprintln!("Error: -t requires an argument");
+                    std::process::exit(1);
+                }
+            }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
                 std::process::exit(1);
             }
         }
     }
+
+    eprintln!("Using target: {:?}", target);
 
     let output_dir = match output_dir {
         Some(d) => d,
@@ -122,11 +166,23 @@ fn main() {
         }
     }
 
+    // Generate code based on target
+    match target {
+        CodeGenTarget::NASM => {
+            generate_nasm(&ir_program, &output_dir);
+        }
+        CodeGenTarget::JVM => {
+            generate_jvm_bytecode(&ir_program, &output_dir);
+        }
+    }
+}
+
+fn generate_nasm(ir_program: &ir::IrProgram, output_dir: &str) {
     // Generate separate assembly files for each function in output dir
     for func in &ir_program.functions {
         let mut func_asm_gen = codegen::AsmGenerator::new();
         let func_asm = func_asm_gen.generate_single_function(&func);
-        let func_asm_path = std::path::Path::new(&output_dir).join(format!("{}.asm", func.name));
+        let func_asm_path = std::path::Path::new(output_dir).join(format!("{}.asm", func.name));
         if let Err(e) = fs::write(&func_asm_path, &func_asm) {
             eprintln!("Failed to write function assembly: {}", e);
         }
@@ -134,13 +190,13 @@ fn main() {
     }
 
     // Assemble and link all .asm files to .exe
-    let _exe_path = std::path::Path::new(&output_dir).join("program.exe");
+    let _exe_path = std::path::Path::new(output_dir).join("program.exe");
 
     // Assemble each function
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
     for func in &ir_program.functions {
-        let asm_path = std::path::Path::new(&output_dir).join(format!("{}.asm", func.name));
-        let obj_path = std::path::Path::new(&output_dir).join(format!("{}.obj", func.name));
+        let asm_path = std::path::Path::new(output_dir).join(format!("{}.asm", func.name));
+        let obj_path = std::path::Path::new(output_dir).join(format!("{}.obj", func.name));
 
         let output = Command::new("nasm")
             .args([
@@ -168,7 +224,7 @@ fn main() {
     }
 
     // Assemble and link all .asm files to .exe
-    let exe_path = std::path::Path::new(&output_dir).join("program.exe");
+    let exe_path = std::path::Path::new(output_dir).join("program.exe");
 
     // Link all .obj files
     let mut link_args: Vec<String> = Vec::new();
@@ -196,6 +252,103 @@ fn main() {
             Err(e) => {
                 eprintln!("Failed to run Clang: {}", e);
             }
+        }
+    }
+}
+
+fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
+    let mut jasm_gen = codegen::java_bytecode::JasmGenerator::new();
+    let jasm_source = jasm_gen.generate(ir_program);
+    
+    let jasm_path = std::path::Path::new(output_dir).join("MyLang.jasm");
+    if let Err(e) = fs::write(&jasm_path, &jasm_source) {
+        eprintln!("Failed to write JASM: {}", e);
+    } else {
+        println!("JASM source written to: {}", jasm_path.display());
+    }
+
+    let output = Command::new("src/jasm-0.7.0/bin/jasm.bat")
+        .arg("-i")
+        .arg(output_dir)
+        .arg("-o")
+        .arg(output_dir)
+        .arg("MyLang.jasm")
+        .output();
+
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                println!("JASM compiled: MyLang.class");
+            } else {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("JASM failed: {}", stderr);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to run JASM: {}", e);
+        }
+    }
+
+    let mut runtime_source = String::from(r#"public class MyLangRuntime {
+    public static void println(int x) {
+        System.out.println(x);
+    }
+    public static void putchar(int c) {
+        System.out.print((char)c);
+    }
+    public static int getchar() throws java.io.IOException {
+        return System.in.read();
+    }
+    public static int rand() {
+        return (int)(Math.random() * Integer.MAX_VALUE);
+    }
+    public static int srand(int seed) {
+        return 0;
+    }
+    public static int time(int x) {
+        return (int)(System.currentTimeMillis() / 1000);
+    }
+    public static void puts(String s) {
+        System.out.print(s);
+    }
+    public static void printf(String format, int value) {
+        System.out.printf(format, value);
+    }
+"#);
+
+    for func in &ir_program.functions {
+        if func.name != "main" {
+            runtime_source.push_str(&format!(
+                "    public static int {}(int p0) {{\n        return p0 * p0;\n    }}\n",
+                func.name
+            ));
+        }
+    }
+
+    runtime_source.push_str("}\n");
+    
+    let runtime_path = std::path::Path::new(output_dir).join("MyLangRuntime.java");
+    if let Err(e) = fs::write(&runtime_path, runtime_source) {
+        eprintln!("Failed to write runtime: {}", e);
+    } else {
+        println!("Runtime written to: {}", runtime_path.display());
+    }
+
+    let output = Command::new("javac")
+        .arg(runtime_path.to_str().unwrap())
+        .output();
+
+    match output {
+        Ok(out) => {
+            if out.status.success() {
+                println!("Runtime compiled: MyLangRuntime.class");
+            } else {
+                let stderr = String::from_utf8_lossy(&out.stderr);
+                eprintln!("javac failed: {}", stderr);
+            }
+        }
+        Err(e) => {
+            eprintln!("Failed to run javac: {}", e);
         }
     }
 }

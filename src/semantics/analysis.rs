@@ -287,6 +287,11 @@ impl SemanticsAnalyzer {
                     _ => return Ok(SemanticType::Int),
                 };
 
+                let builtin_funcs = ["println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf"];
+                if builtin_funcs.contains(&func_name.as_str()) {
+                    return Ok(SemanticType::Int);
+                }
+
                 let sig = self.functions.iter().find(|f| f.name == func_name);
                 if sig.is_none() {
                     self.errors
