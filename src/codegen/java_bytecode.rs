@@ -67,11 +67,19 @@ impl JasmGenerator {
         match inst.opcode {
             IrOpcode::Assign => {
                 if let (Some(_result), Some(operand)) = (&inst.result, inst.operands.first()) {
-                    self.push_value(operand, instructions);
-                    instructions.push(JasmInstruction {
-                        opcode: "istore".to_string(),
-                        operands: vec!["0".to_string()],
-                    });
+                    self.push_value_with_type(operand, inst.result_type.as_ref(), instructions);
+                    let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
+                    if is_string {
+                        instructions.push(JasmInstruction {
+                            opcode: "astore".to_string(),
+                            operands: vec!["0".to_string()],
+                        });
+                    } else {
+                        instructions.push(JasmInstruction {
+                            opcode: "istore".to_string(),
+                            operands: vec!["0".to_string()],
+                        });
+                    }
                 }
             }
             IrOpcode::Add => {
@@ -189,29 +197,26 @@ if func_name == "println" {
                             operands: vec!["0".to_string()],
                         });
                     } else if func_name == "puts" || func_name == "printf" {
-                        let mut pushed_string = false;
+                        let mut has_string_arg = false;
                         for operand in &inst.operands {
                             match operand {
                                 IrOperand::Constant(Constant::String(s)) => {
-                                    if !s.starts_with('%') && !s.is_empty() {
-                                        instructions.push(JasmInstruction {
-                                            opcode: "ldc".to_string(),
-                                            operands: vec![format!("\"{}\"", s)],
-                                        });
-                                        pushed_string = true;
-                                    } else if s.starts_with('%') {
-                                        instructions.push(JasmInstruction {
-                                            opcode: "ldc".to_string(),
-                                            operands: vec![format!("\"{}\"", s)],
-                                        });
-                                        pushed_string = true;
-                                    }
-                                }
-                                IrOperand::Variable(_, _) => {
                                     instructions.push(JasmInstruction {
-                                        opcode: "aload".to_string(),
-                                        operands: vec!["0".to_string()],
+                                        opcode: "ldc".to_string(),
+                                        operands: vec![format!("\"{}\"", s)],
                                     });
+                                    has_string_arg = true;
+                                }
+                                IrOperand::Variable(_, ty) => {
+                                    if matches!(ty, IrType::String) {
+                                        instructions.push(JasmInstruction {
+                                            opcode: "aload".to_string(),
+                                            operands: vec!["0".to_string()],
+                                        });
+                                        has_string_arg = true;
+                                    } else {
+                                        self.push_value(operand, instructions);
+                                    }
                                 }
                                 _ => {
                                     self.push_value(operand, instructions);
@@ -252,34 +257,7 @@ if func_name == "println" {
                                 operands: vec!["0".to_string()],
                             });
                         }
-                    } else {
-                        for operand in &inst.operands {
-                            self.push_value(operand, instructions);
-                        }
-                        let is_void_call = func_name == "println" || func_name == "putchar" || func_name == "puts" || func_name == "printf";
-                        if is_void_call {
-                            instructions.push(JasmInstruction {
-                                opcode: "invokestatic".to_string(),
-                                operands: vec![format!("MyLangRuntime.{}(I)V", func_name)],
-                            });
-                        } else {
-                            instructions.push(JasmInstruction {
-                                opcode: "invokestatic".to_string(),
-                                operands: vec![format!("MyLangRuntime.{}(I)I", func_name)],
-                            });
-                            if inst.result.is_some() {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec!["0".to_string()],
-                                });
-                            }
-                        }
                     }
-                }
-            }
-            IrOpcode::Ret => {
-                if let Some(operand) = inst.operands.first() {
-                    self.push_value(operand, instructions);
                 }
                 instructions.push(JasmInstruction {
                     opcode: "return".to_string(),
@@ -292,11 +270,86 @@ if func_name == "println" {
 
     fn push_value(&self, operand: &IrOperand, instructions: &mut Vec<JasmInstruction>) {
         match operand {
-            IrOperand::Variable(_, _) => {
-                instructions.push(JasmInstruction {
-                    opcode: "iload".to_string(),
-                    operands: vec!["0".to_string()],
-                });
+            IrOperand::Variable(_, ty) => {
+                let is_string = matches!(ty, IrType::String);
+                if is_string {
+                    instructions.push(JasmInstruction {
+                        opcode: "aload".to_string(),
+                        operands: vec!["0".to_string()],
+                    });
+                } else {
+                    instructions.push(JasmInstruction {
+                        opcode: "iload".to_string(),
+                        operands: vec!["0".to_string()],
+                    });
+                }
+            }
+            IrOperand::Constant(c) => match c {
+                Constant::Int(v) => {
+                    if *v >= -128 && *v <= 127 {
+                        instructions.push(JasmInstruction {
+                            opcode: "bipush".to_string(),
+                            operands: vec![v.to_string()],
+                        });
+                    } else if *v >= -32768 && *v <= 32767 {
+                        instructions.push(JasmInstruction {
+                            opcode: "sipush".to_string(),
+                            operands: vec![v.to_string()],
+                        });
+                    } else {
+                        instructions.push(JasmInstruction {
+                            opcode: "ldc".to_string(),
+                            operands: vec![format!("{}", v)],
+                        });
+                    }
+                }
+                Constant::Bool(b) => {
+                    instructions.push(JasmInstruction {
+                        opcode: "iconst_0".to_string(),
+                        operands: vec![],
+                    });
+                    if *b {
+                        instructions.push(JasmInstruction {
+                            opcode: "iconst_1".to_string(),
+                            operands: vec![],
+                        });
+                    }
+                }
+                Constant::Char(ch) => {
+                    instructions.push(JasmInstruction {
+                        opcode: "bipush".to_string(),
+                        operands: vec![(*ch as i64).to_string()],
+                    });
+                }
+                Constant::String(s) => {
+                    if !s.is_empty() && !s.starts_with('%') {
+                        instructions.push(JasmInstruction {
+                            opcode: "ldc".to_string(),
+                            operands: vec![format!("\"{}\"", s)],
+                        });
+                    }
+                }
+            },
+        }
+    }
+
+    fn push_value_with_type(&self, operand: &IrOperand, result_type: Option<&IrType>, instructions: &mut Vec<JasmInstruction>) {
+        let is_string = result_type.map_or(false, |t| matches!(t, IrType::String));
+        
+        match operand {
+            IrOperand::Variable(_, ty) => {
+                let is_var_string = matches!(ty, IrType::String);
+                if is_var_string {
+                    instructions.push(JasmInstruction {
+                        opcode: "aload".to_string(),
+                        operands: vec!["0".to_string()],
+                    });
+                } else {
+                    instructions.push(JasmInstruction {
+                        opcode: "iload".to_string(),
+                        operands: vec!["0".to_string()],
+                    });
+                }
             }
             IrOperand::Constant(c) => match c {
                 Constant::Int(v) => {
