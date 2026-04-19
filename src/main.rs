@@ -52,8 +52,8 @@ fn main() {
         std::process::exit(1);
     }
 
-    let source_path = &args[1];
-    let source = match fs::read_to_string(source_path) {
+let source_path = &args[1];
+        let source = match fs::read_to_string(source_path) {
         Ok(s) => s,
         Err(e) => {
             eprintln!("Failed to read file: {}", e);
@@ -290,9 +290,7 @@ fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
         }
     }
 
-    let mut runtime_source = String::from(r#"package mylang;
-
-public class MyLangRuntime {
+    let mut runtime_source = String::from(r#"public class MyLangRuntime {
     public static void println(int x) {
         System.out.println(x);
     }
@@ -311,12 +309,8 @@ public class MyLangRuntime {
     public static int time(int x) {
         return (int)(System.currentTimeMillis() / 1000);
     }
-    public static void puts(String s) {
-        System.out.print(s);
-    }
-    public static void printf(String format, int value) {
-        System.out.printf(format, value);
-    }
+    public static int puts(String s) { System.out.print(s); return 0; }
+    public static int printf(String format, int value) { System.out.print(String.format(format, value)); return 0; }
 "#);
 
     for func in &ir_program.functions {

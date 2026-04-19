@@ -136,15 +136,8 @@ impl JasmGenerator {
         self.locals.get(name).or(self.temps.get(name)).copied()
     }
 
-    fn is_string_type(&self, name: &str) -> bool {
-        if let Some(ty) = self.locals.get(name).and_then(|_| {
-            self.functions.last().map(|f| f.local_types.get(name))
-        }).flatten() {
-            return matches!(ty, IrType::String);
-        }
-        if let Some(ty) = self.temps.get(name).and_then(|_| {
-            self.functions.last().map(|f| f.local_types.get(name))
-        }).flatten() {
+    fn is_string_type(&self, name: &str, local_types: &HashMap<String, IrType>) -> bool {
+        if let Some(ty) = local_types.get(name) {
             return matches!(ty, IrType::String);
         }
         false
@@ -159,26 +152,20 @@ impl JasmGenerator {
                         if is_void {
                             return;
                         }
-                        if let IrOperand::Variable(ref name, ref ty) = operand {
+                        if let IrOperand::Variable(ref _name, ref ty) = operand {
                             if matches!(ty, IrType::Void) {
                                 return;
                             }
                         }
                         let local_idx = self.get_local_index(result);
-                        self.push_value(operand, instructions, &&self.current_local_types);
+                        self.push_value(operand, instructions, &self.current_local_types);
                         if let Some(idx) = local_idx {
                             let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
-                            if is_string {
-                                instructions.push(JasmInstruction {
-                                    opcode: "astore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            } else {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
+                            let store_opcode = if is_string { "astore" } else { "istore" };
+                            instructions.push(JasmInstruction {
+                                opcode: store_opcode.to_string(),
+                                operands: vec![idx.to_string()],
+                            });
                         }
                     }
                 }
@@ -298,14 +285,15 @@ impl JasmGenerator {
             }
             IrOpcode::Ret => {
                 let returns_void = matches!(func.return_type, IrType::Void);
-                if returns_void {
+                let is_main = func.name == "main";
+                if returns_void || is_main {
                     instructions.push(JasmInstruction {
                         opcode: "return".to_string(),
                         operands: vec![],
                     });
                 } else {
                     if let Some(operand) = inst.operands.first() {
-                        self.push_value(operand, instructions, &&self.current_local_types);
+                        self.push_value(operand, instructions, &self.current_local_types);
                     }
                     instructions.push(JasmInstruction {
                         opcode: "ireturn".to_string(),
@@ -370,18 +358,31 @@ impl JasmGenerator {
                                             });
                                         }
                                     } else {
-                                        self.push_value(op, instructions, &&self.current_local_types);
+                                        self.push_value(op, instructions, &self.current_local_types);
                                     }
                                 }
                                 _ => {
-                                    self.push_value(op, instructions, &&self.current_local_types);
+                                    self.push_value(op, instructions, &self.current_local_types);
                                 }
                             }
                         }
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
-                            operands: vec!["MyLangRuntime.puts(java/lang/String)V".to_string()],
+                            operands: vec!["MyLangRuntime.puts(java/lang/String)I".to_string()],
                         });
+                        if let Some(result) = &inst.result {
+                            if let Some(idx) = self.get_local_index(result) {
+                                instructions.push(JasmInstruction {
+                                    opcode: "istore".to_string(),
+                                    operands: vec![idx.to_string()],
+                                });
+                            }
+                        } else {
+                            instructions.push(JasmInstruction {
+                                opcode: "pop".to_string(),
+                                operands: vec![],
+                            });
+                        }
                     } else if func_name == "printf" {
                         for operand in &inst.operands {
                             match operand {
@@ -400,18 +401,31 @@ impl JasmGenerator {
                                             });
                                         }
                                     } else {
-                                        self.push_value(operand, instructions, &&self.current_local_types);
+                                        self.push_value(operand, instructions, &self.current_local_types);
                                     }
                                 }
                                 _ => {
-                                    self.push_value(operand, instructions, &&self.current_local_types);
+                                    self.push_value(operand, instructions, &self.current_local_types);
                                 }
                             }
                         }
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
-                            operands: vec!["MyLangRuntime.printf(java/lang/StringI)V".to_string()],
+                            operands: vec!["MyLangRuntime.printf(java/lang/StringI)I".to_string()],
                         });
+                        if let Some(result) = &inst.result {
+                            if let Some(idx) = self.get_local_index(result) {
+                                instructions.push(JasmInstruction {
+                                    opcode: "istore".to_string(),
+                                    operands: vec![idx.to_string()],
+                                });
+                            }
+                        } else {
+                            instructions.push(JasmInstruction {
+                                opcode: "pop".to_string(),
+                                operands: vec![],
+                            });
+                        }
                     } else if func_name == "rand" {
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
