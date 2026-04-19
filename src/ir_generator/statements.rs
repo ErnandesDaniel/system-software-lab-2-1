@@ -18,10 +18,12 @@ impl IrGenerator {
                     vec![]
                 };
 
+                let has_return_value = ret.expr.is_some();
+
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Ret,
                     result: None,
-                    result_type: None,
+                    result_type: if has_return_value { Some(IrType::Int) } else { None },
                     operands,
                     jump_target: None,
                     true_target: None,

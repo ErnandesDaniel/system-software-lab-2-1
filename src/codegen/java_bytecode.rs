@@ -147,7 +147,7 @@ impl JasmGenerator {
         false
     }
 
-    fn translate_instruction(&mut self, inst: &IrInstruction, _func: &IrFunction, instructions: &mut Vec<JasmInstruction>) {
+    fn translate_instruction(&mut self, inst: &IrInstruction, func: &IrFunction, instructions: &mut Vec<JasmInstruction>) {
         match inst.opcode {
             IrOpcode::Assign => {
                 if let Some(result) = &inst.result {
@@ -285,15 +285,18 @@ impl JasmGenerator {
                 }
             }
             IrOpcode::Ret => {
-                if let Some(operand) = inst.operands.first() {
-                    self.push_value(operand, instructions, &&self.current_local_types);
+                let returns_void = matches!(func.return_type, IrType::Void);
+                if returns_void {
                     instructions.push(JasmInstruction {
-                        opcode: "ireturn".to_string(),
+                        opcode: "return".to_string(),
                         operands: vec![],
                     });
                 } else {
+                    if let Some(operand) = inst.operands.first() {
+                        self.push_value(operand, instructions, &&self.current_local_types);
+                    }
                     instructions.push(JasmInstruction {
-                        opcode: "return".to_string(),
+                        opcode: "ireturn".to_string(),
                         operands: vec![],
                     });
                 }
@@ -367,6 +370,18 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.puts(java/lang/String)V".to_string()],
                         });
+                        let has_result = inst.result.as_ref().map_or(false, |s| !s.is_empty());
+                        
+                        if has_result {
+                            if let Some(result) = &inst.result {
+                                if let Some(idx) = self.get_local_index(result) {
+                                    instructions.push(JasmInstruction {
+                                        opcode: "astore".to_string(),
+                                        operands: vec![idx.to_string()],
+                                    });
+                                }
+                            }
+                        }
                     } else if func_name == "printf" {
                         for operand in &inst.operands {
                             match operand {
@@ -397,6 +412,18 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.printf(java/lang/StringI)V".to_string()],
                         });
+                        let has_result = inst.result.as_ref().map_or(false, |s| !s.is_empty());
+                        
+                        if has_result {
+                            if let Some(result) = &inst.result {
+                                if let Some(idx) = self.get_local_index(result) {
+                                    instructions.push(JasmInstruction {
+                                        opcode: "astore".to_string(),
+                                        operands: vec![idx.to_string()],
+                                    });
+                                }
+                            }
+                        }
                     } else if func_name == "rand" {
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
@@ -442,12 +469,15 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec![format!("MyLangRuntime.{}(...)", func_name)],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
+                        let returns_void = matches!(func_name.as_str(), "println" | "putchar" | "puts" | "printf" | "srand");
+                        if !returns_void {
+                            if let Some(result) = &inst.result {
+                                if let Some(idx) = self.get_local_index(result) {
+                                    instructions.push(JasmInstruction {
+                                        opcode: "istore".to_string(),
+                                        operands: vec![idx.to_string()],
+                                    });
+                                }
                             }
                         }
                     }
@@ -654,9 +684,6 @@ impl JasmGenerator {
                     source.push_str("    public static main([java/lang/String)V {\n");
                     
                     for inst in &func.instructions {
-                        if inst.opcode == "return" && inst.operands.is_empty() {
-                            continue;
-                        }
                         if inst.opcode == "label" {
                             source.push_str(&format!("        {}:\n", inst.operands.first().unwrap_or(&String::new())));
                             continue;

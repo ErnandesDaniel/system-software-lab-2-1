@@ -134,12 +134,23 @@ impl IrGenerator {
             args.push(IrOperand::Variable(temp, arg_type));
         }
 
-        let result_temp = self.generate_temp();
+        let returns_void = matches!(func_name.as_str(), "puts" | "printf" | "println" | "putchar" | "srand");
+        
+        let result_temp;
+        let result_type;
+
+        if returns_void {
+            result_temp = String::new();
+            result_type = IrType::Void;
+        } else {
+            result_temp = self.generate_temp();
+            result_type = IrType::Int;
+        }
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Call,
-            result: Some(result_temp.clone()),
-            result_type: Some(IrType::Int),
+            result: if returns_void { None } else { Some(result_temp.clone()) },
+            result_type: Some(result_type),
             operands: args,
             jump_target: Some(func_name.clone()),
             true_target: None,
