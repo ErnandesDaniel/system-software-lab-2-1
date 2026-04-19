@@ -75,10 +75,13 @@ impl JasmGenerator {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
                     if result.starts_with('t') && !self.temps.contains_key(result) {
-                        let idx = self.local_counter;
-                        self.temps.insert(result.clone(), idx);
-                        local_types.insert(result.clone(), inst.result_type.clone().unwrap_or(IrType::Int));
-                        self.local_counter += 1;
+                        let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                        if !is_void {
+                            let idx = self.local_counter;
+                            self.temps.insert(result.clone(), idx);
+                            local_types.insert(result.clone(), inst.result_type.clone().unwrap_or(IrType::Int));
+                            self.local_counter += 1;
+                        }
                     } else if !self.locals.contains_key(result) && !result.starts_with('t') {
                         let idx = self.local_counter;
                         self.locals.insert(result.clone(), idx);
@@ -152,6 +155,15 @@ impl JasmGenerator {
             IrOpcode::Assign => {
                 if let Some(result) = &inst.result {
                     if let Some(operand) = inst.operands.first() {
+                        let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                        if is_void {
+                            return;
+                        }
+                        if let IrOperand::Variable(ref name, ref ty) = operand {
+                            if matches!(ty, IrType::Void) {
+                                return;
+                            }
+                        }
                         let local_idx = self.get_local_index(result);
                         self.push_value(operand, instructions, &&self.current_local_types);
                         if let Some(idx) = local_idx {
@@ -370,18 +382,6 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.puts(java/lang/String)V".to_string()],
                         });
-                        let has_result = inst.result.as_ref().map_or(false, |s| !s.is_empty());
-                        
-                        if has_result {
-                            if let Some(result) = &inst.result {
-                                if let Some(idx) = self.get_local_index(result) {
-                                    instructions.push(JasmInstruction {
-                                        opcode: "astore".to_string(),
-                                        operands: vec![idx.to_string()],
-                                    });
-                                }
-                            }
-                        }
                     } else if func_name == "printf" {
                         for operand in &inst.operands {
                             match operand {
@@ -412,18 +412,6 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.printf(java/lang/StringI)V".to_string()],
                         });
-                        let has_result = inst.result.as_ref().map_or(false, |s| !s.is_empty());
-                        
-                        if has_result {
-                            if let Some(result) = &inst.result {
-                                if let Some(idx) = self.get_local_index(result) {
-                                    instructions.push(JasmInstruction {
-                                        opcode: "astore".to_string(),
-                                        operands: vec![idx.to_string()],
-                                    });
-                                }
-                            }
-                        }
                     } else if func_name == "rand" {
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
@@ -469,12 +457,14 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec![format!("MyLangRuntime.{}(...)", func_name)],
                         });
-                        let returns_void = matches!(func_name.as_str(), "println" | "putchar" | "puts" | "printf" | "srand");
-                        if !returns_void {
+                        let is_void_call = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                        if !is_void_call {
                             if let Some(result) = &inst.result {
                                 if let Some(idx) = self.get_local_index(result) {
+                                    let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
+                                    let store_opcode = if is_string { "astore" } else { "istore" };
                                     instructions.push(JasmInstruction {
-                                        opcode: "istore".to_string(),
+                                        opcode: store_opcode.to_string(),
                                         operands: vec![idx.to_string()],
                                     });
                                 }
