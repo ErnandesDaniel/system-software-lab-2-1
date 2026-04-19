@@ -267,11 +267,12 @@ fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
         println!("JASM source written to: {}", jasm_path.display());
     }
 
+    let jasm_dir = std::path::Path::new(output_dir);
     let output = Command::new("src/jasm-0.7.0/bin/jasm.bat")
         .arg("-i")
-        .arg(output_dir)
+        .arg(jasm_dir.to_str().unwrap())
         .arg("-o")
-        .arg(output_dir)
+        .arg(jasm_dir.to_str().unwrap())
         .arg("MyLang.jasm")
         .output();
 
@@ -289,7 +290,9 @@ fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
         }
     }
 
-    let mut runtime_source = String::from(r#"public class MyLangRuntime {
+    let mut runtime_source = String::from(r#"package mylang;
+
+public class MyLangRuntime {
     public static void println(int x) {
         System.out.println(x);
     }
