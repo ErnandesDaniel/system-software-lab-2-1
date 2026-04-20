@@ -31,6 +31,7 @@ pub fn translate_call(gen: &mut JasmGenerator, inst: &IrInstruction, instruction
                     opcode: "invokevirtual".to_string(),
                     operands: vec!["java/io/PrintStream.print(C)V".to_string()],
                 });
+                // Always return after putchar - it returns void
                 return;
             }
             "getchar" => {
@@ -89,6 +90,8 @@ pub fn translate_call(gen: &mut JasmGenerator, inst: &IrInstruction, instruction
                     opcode: "invokestatic".to_string(),
                     operands: vec!["MyLangRuntime.puts(java/lang/String)V".to_string()],
                 });
+                eprintln!("DEBUG: puts block reached return, instructions len={}", instructions.len());
+                // Always return after puts - it returns void
                 return;
             }
             "printf" => {
@@ -121,6 +124,7 @@ pub fn translate_call(gen: &mut JasmGenerator, inst: &IrInstruction, instruction
                     opcode: "invokestatic".to_string(),
                     operands: vec!["MyLangRuntime.printf(java/lang/StringI)V".to_string()],
                 });
+                // Always return after printf - it returns void
                 return;
             }
             "rand" => {
@@ -186,6 +190,8 @@ pub fn translate_call(gen: &mut JasmGenerator, inst: &IrInstruction, instruction
                     opcode: "invokestatic".to_string(),
                     operands: vec!["MyLangRuntime.srand(I)V".to_string()],
                 });
+                // Always return after srand - it returns void
+                return;
             }
             _ => {
                 for operand in &inst.operands {
