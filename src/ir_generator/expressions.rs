@@ -136,10 +136,12 @@ impl IrGenerator {
 
         let returns_void = matches!(func_name.as_str(), "puts" | "printf" | "println" | "putchar" | "srand");
 
+        let is_actually_void = matches!(func_name.as_str(), "println" | "putchar" | "srand");
+
         let result_temp;
         let result_return_type;
 
-        if returns_void {
+        if is_actually_void {
             result_temp = String::new();
             result_return_type = IrType::Void;
         } else {
@@ -149,7 +151,7 @@ impl IrGenerator {
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Call,
-            result: if returns_void { None } else { Some(result_temp.clone()) },
+            result: if is_actually_void { None } else { Some(result_temp.clone()) },
             result_type: Some(result_return_type.clone()),
             operands: args,
             jump_target: Some(func_name.clone()),

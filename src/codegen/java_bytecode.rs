@@ -74,21 +74,33 @@ impl JasmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
-                    if result.starts_with('t') && !self.temps.contains_key(result) {
-                        let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
-                        if !is_void {
-                            let idx = self.local_counter;
-                            self.temps.insert(result.clone(), idx);
-                            local_types.insert(result.clone(), inst.result_type.clone().unwrap_or(IrType::Int));
-                            self.local_counter += 1;
+                    let is_call_result = result.starts_with("Call_");
+                    if !is_call_result {
+                        if inst.opcode == IrOpcode::Call {
+                            let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                            if is_void {
+                                continue;
+                            }
                         }
-                    } else if !self.locals.contains_key(result) && !result.starts_with('t') {
-                        let idx = self.local_counter;
-                        self.locals.insert(result.clone(), idx);
-                        if let Some(ty) = &inst.result_type {
-                            local_types.insert(result.clone(), ty.clone());
+                        if result.starts_with('t') && !self.temps.contains_key(result) {
+                            let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                            if !is_void {
+                                let idx = self.local_counter;
+                                self.temps.insert(result.clone(), idx);
+                                local_types.insert(result.clone(), inst.result_type.clone().unwrap_or(IrType::Int));
+                                self.local_counter += 1;
+                            }
+                        } else if !self.locals.contains_key(result) && !result.starts_with('t') {
+                            let is_void = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::Void));
+                            if !is_void {
+                                let idx = self.local_counter;
+                                self.locals.insert(result.clone(), idx);
+                                if let Some(ty) = &inst.result_type {
+                                    local_types.insert(result.clone(), ty.clone());
+                                }
+                                self.local_counter += 1;
+                            }
                         }
-                        self.local_counter += 1;
                     }
                 }
                 for operand in &inst.operands {
@@ -332,13 +344,23 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.getchar()I".to_string()],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
+                        let result = inst.result.as_ref();
+                        let result_idx = result.and_then(|r| self.get_local_index(r));
+                        let has_result_and_local = result.map_or(false, |r| {
+                            self.locals.contains_key(r) || self.temps.contains_key(r)
+                        }) && result_idx.is_some();
+
+                        if has_result_and_local {
+                            instructions.push(JasmInstruction {
+                                opcode: "istore".to_string(),
+                                operands: vec![result_idx.unwrap().to_string()],
+                            });
+                        }
+                        if !has_result_and_local {
+                            instructions.push(JasmInstruction {
+                                opcode: "pop".to_string(),
+                                operands: vec![],
+                            });
                         }
                     } else if func_name == "puts" {
                         if let Some(op) = inst.operands.first() {
@@ -370,19 +392,10 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.puts(java/lang/String)I".to_string()],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
-                        } else {
-                            instructions.push(JasmInstruction {
-                                opcode: "pop".to_string(),
-                                operands: vec![],
-                            });
-                        }
+                        instructions.push(JasmInstruction {
+                            opcode: "pop".to_string(),
+                            operands: vec![],
+                        });
                     } else if func_name == "printf" {
                         for operand in &inst.operands {
                             match operand {
@@ -413,31 +426,31 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.printf(java/lang/StringI)I".to_string()],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
-                        } else {
-                            instructions.push(JasmInstruction {
-                                opcode: "pop".to_string(),
-                                operands: vec![],
-                            });
-                        }
+                        instructions.push(JasmInstruction {
+                            opcode: "pop".to_string(),
+                            operands: vec![],
+                        });
                     } else if func_name == "rand" {
                         instructions.push(JasmInstruction {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.rand()I".to_string()],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
+                        let result = inst.result.as_ref();
+                        let result_idx = result.and_then(|r| self.get_local_index(r));
+                        let has_result_and_local = result.map_or(false, |r| {
+                            self.locals.contains_key(r) || self.temps.contains_key(r)
+                        }) && result_idx.is_some();
+
+                        if has_result_and_local {
+                            instructions.push(JasmInstruction {
+                                opcode: "istore".to_string(),
+                                operands: vec![result_idx.unwrap().to_string()],
+                            });
+                        } else if result.is_some() {
+                            instructions.push(JasmInstruction {
+                                opcode: "pop".to_string(),
+                                operands: vec![],
+                            });
                         }
                     } else if func_name == "time" {
                         if let Some(op) = inst.operands.first() {
@@ -447,13 +460,22 @@ impl JasmGenerator {
                             opcode: "invokestatic".to_string(),
                             operands: vec!["MyLangRuntime.time(I)I".to_string()],
                         });
-                        if let Some(result) = &inst.result {
-                            if let Some(idx) = self.get_local_index(result) {
-                                instructions.push(JasmInstruction {
-                                    opcode: "istore".to_string(),
-                                    operands: vec![idx.to_string()],
-                                });
-                            }
+                        let result = inst.result.as_ref();
+                        let result_idx = result.and_then(|r| self.get_local_index(r));
+                        let has_result_and_local = result.map_or(false, |r| {
+                            self.locals.contains_key(r) || self.temps.contains_key(r)
+                        }) && result_idx.is_some();
+
+                        if has_result_and_local {
+                            instructions.push(JasmInstruction {
+                                opcode: "istore".to_string(),
+                                operands: vec![result_idx.unwrap().to_string()],
+                            });
+                        } else if result.is_some() {
+                            instructions.push(JasmInstruction {
+                                opcode: "pop".to_string(),
+                                operands: vec![],
+                            });
                         }
                     } else if func_name == "srand" {
                         if let Some(op) = inst.operands.first() {
@@ -475,13 +497,25 @@ impl JasmGenerator {
                         if !is_void_call {
                             if let Some(result) = &inst.result {
                                 if let Some(idx) = self.get_local_index(result) {
-                                    let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
-                                    let store_opcode = if is_string { "astore" } else { "istore" };
-                                    instructions.push(JasmInstruction {
-                                        opcode: store_opcode.to_string(),
-                                        operands: vec![idx.to_string()],
-                                    });
+                                    if self.locals.contains_key(result) || self.temps.contains_key(result) {
+                                        let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
+                                        let store_opcode = if is_string { "astore" } else { "istore" };
+                                        instructions.push(JasmInstruction {
+                                            opcode: store_opcode.to_string(),
+                                            operands: vec![idx.to_string()],
+                                        });
+                                    } else {
+                                        instructions.push(JasmInstruction {
+                                            opcode: "pop".to_string(),
+                                            operands: vec![],
+                                        });
+                                    }
                                 }
+                            } else {
+                                instructions.push(JasmInstruction {
+                                    opcode: "pop".to_string(),
+                                    operands: vec![],
+                                });
                             }
                         }
                     }
