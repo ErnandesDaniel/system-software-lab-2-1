@@ -257,7 +257,7 @@ fn generate_nasm(ir_program: &ir::IrProgram, output_dir: &str) {
 }
 
 fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
-    let mut jasm_gen = codegen::java_bytecode::JasmGenerator::new();
+    let mut jasm_gen = codegen::java::JasmGenerator::new();
     let jasm_source = jasm_gen.generate(ir_program);
     
     let jasm_path = std::path::Path::new(output_dir).join("MyLang.jasm");
@@ -303,14 +303,13 @@ fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
     public static int rand() {
         return (int)(Math.random() * Integer.MAX_VALUE);
     }
-    public static int srand(int seed) {
-        return 0;
+    public static void srand(int seed) {
     }
     public static int time(int x) {
         return (int)(System.currentTimeMillis() / 1000);
     }
-    public static int puts(String s) { System.out.print(s); return 0; }
-    public static int printf(String format, int value) { System.out.print(String.format(format, value)); return 0; }
+    public static void puts(String s) { System.out.print(s); }
+    public static void printf(String format, int value) { System.out.print(String.format(format, value)); }
 "#);
 
     for func in &ir_program.functions {

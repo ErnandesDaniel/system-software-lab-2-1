@@ -134,9 +134,7 @@ impl IrGenerator {
             args.push(IrOperand::Variable(temp, arg_type));
         }
 
-        let returns_void = matches!(func_name.as_str(), "puts" | "printf" | "println" | "putchar" | "srand");
-
-        let is_actually_void = matches!(func_name.as_str(), "println" | "putchar" | "srand");
+        let is_actually_void = matches!(func_name.as_str(), "puts" | "printf" | "println" | "putchar" | "srand");
 
         let result_temp;
         let result_return_type;
