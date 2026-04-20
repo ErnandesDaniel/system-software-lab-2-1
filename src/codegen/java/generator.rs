@@ -9,7 +9,6 @@ pub struct JasmGenerator {
     pub temps: HashMap<String, usize>,
     pub local_counter: usize,
     pub current_local_types: HashMap<String, IrType>,
-    pub max_stack: usize,
 }
 
 impl JasmGenerator {
@@ -20,7 +19,6 @@ impl JasmGenerator {
             temps: HashMap::new(),
             local_counter: 0,
             current_local_types: HashMap::new(),
-            max_stack: 4,
         }
     }
 

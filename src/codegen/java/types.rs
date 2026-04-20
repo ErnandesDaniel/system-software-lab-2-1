@@ -1,6 +1,7 @@
 use crate::ir::*;
 use std::collections::HashMap;
 
+#[allow(dead_code)]
 #[derive(Clone)]
 pub struct JasmFunction {
     pub name: String,

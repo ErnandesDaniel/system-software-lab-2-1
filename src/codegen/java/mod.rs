@@ -4,4 +4,3 @@ pub mod instructions;
 pub mod types;
 
 pub use generator::JasmGenerator;
-pub use types::{JasmFunction, JasmInstruction};
