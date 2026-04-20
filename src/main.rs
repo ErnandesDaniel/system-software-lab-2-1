@@ -260,33 +260,76 @@ fn generate_llvm(ir_program: &ir::IrProgram, output_dir: &str) {
     use std::io::Write;
     use crate::codegen::llvm::LlvmGenerator;
     
-    let mut llvm_ir = String::new();
-    
-    llvm_ir.push_str("; Module ID = 'mylang'\n");
-    llvm_ir.push_str("source_filename = \"mylang\"\n");
-    llvm_ir.push_str("target datalayout = \"e-m:w-p270:32:32-p271:32:32-p272:64:64-i128:128-f80:128-n8:16:32:64-S128\"\n");
-    llvm_ir.push_str("target triple = \"x86_64-pc-windows-msvc\"\n\n");
-    
+    // Generate separate .ll files for each function
     let mut all_externs = std::collections::HashSet::new();
-    let mut gens: Vec<LlvmGenerator> = Vec::new();
+    let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
     
     for func in &ir_program.functions {
         let mut gen = LlvmGenerator::new();
         let func_ir = gen.generate_function(&func);
         
+        // Get extern declarations for this function
         for ext in func.used_functions.iter() {
             all_externs.insert(ext.clone());
         }
-        
         for ext in gen.get_extern_decls() {
             all_externs.insert(ext);
         }
         
+        // Add header
+        let mut llvm_ir = String::new();
+        llvm_ir.push_str("; Module ID = 'mylang'\n");
+        llvm_ir.push_str("source_filename = \"mylang\"\n");
+        llvm_ir.push_str("target datalayout = \"e-m:w-p270:32:32-p271:32:32-p272:64:64-i128:128-f80:128-n8:16:32:64-S128\"\n");
+        llvm_ir.push_str("target triple = \"x86_64-pc-windows-msvc\"\n\n");
         llvm_ir.push_str(&func_ir);
         llvm_ir.push_str("\n");
-        gens.push(gen);
+        
+        // Write function-specific .ll file
+        let llvm_path = std::path::Path::new(output_dir).join(format!("{}.ll", func.name));
+        if let Err(e) = fs::write(&llvm_path, &llvm_ir) {
+            eprintln!("Failed to write LLVM IR: {}", e);
+            continue;
+        }
+        println!("LLVM IR written to: {}", llvm_path.display());
+        
+        // Compile to .obj
+        let obj_path = std::path::Path::new(output_dir).join(format!("{}.obj", func.name));
+        let output = Command::new("clang")
+            .args(["-c", "-o"])
+            .arg(obj_path.to_str().unwrap())
+            .arg(llvm_path.to_str().unwrap())
+            .output();
+        
+        match output {
+            Ok(out) => {
+                if !out.status.success() {
+                    let stderr = String::from_utf8_lossy(&out.stderr);
+                    eprintln!("Clang compilation failed: {}", stderr);
+                } else {
+                    println!("Object file created: {}", obj_path.display());
+                    obj_files.push(obj_path);
+                }
+            }
+            Err(e) => eprintln!("Failed to run Clang: {}", e),
+        }
     }
     
+    // Write combined .ll file
+    let mut combined_ir = String::new();
+    combined_ir.push_str("; Module ID = 'mylang'\n");
+    combined_ir.push_str("source_filename = \"mylang\"\n");
+    combined_ir.push_str("target datalayout = \"e-m:w-p270:32:32-p271:32:32-p272:64:64-i128:128-f80:128-n8:16:32:64-S128\"\n");
+    combined_ir.push_str("target triple = \"x86_64-pc-windows-msvc\"\n\n");
+    
+    for func in &ir_program.functions {
+        let mut gen = LlvmGenerator::new();
+        let func_ir = gen.generate_function(&func);
+        combined_ir.push_str(&func_ir);
+        combined_ir.push_str("\n");
+    }
+    
+    // Add extern declarations
     let mut externs: Vec<_> = all_externs.into_iter().collect();
     externs.sort();
     for ext in externs {
@@ -303,12 +346,12 @@ fn generate_llvm(ir_program: &ir::IrProgram, output_dir: &str) {
             "yieldThread" => "declare void @yieldThread()\n",
             _ => {
                 if !ext.is_empty() {
-                    llvm_ir.push_str(&format!("declare i32 @{}(i32)\n", ext));
+                    combined_ir.push_str(&format!("declare i32 @{}(i32)\n", ext));
                 }
                 continue;
             }
         };
-        llvm_ir.push_str(decl);
+        combined_ir.push_str(decl);
     }
     
     let llvm_path = std::path::Path::new(output_dir).join("program.ll");
@@ -320,7 +363,7 @@ fn generate_llvm(ir_program: &ir::IrProgram, output_dir: &str) {
         }
     };
     
-    if let Err(e) = file.write_all(llvm_ir.as_bytes()) {
+    if let Err(e) = file.write_all(combined_ir.as_bytes()) {
         eprintln!("Failed to write LLVM IR: {}", e);
         return;
     }
@@ -334,30 +377,29 @@ fn generate_llvm(ir_program: &ir::IrProgram, output_dir: &str) {
         .arg(llvm_path.to_str().unwrap())
         .output();
     
-    match output {
+    // Link all .obj files to .exe
+    if obj_files.is_empty() {
+        eprintln!("No object files to link");
+        return;
+    }
+    
+    let exe_path = std::path::Path::new(output_dir).join("program.exe");
+    let mut link_args: Vec<String> = Vec::new();
+    for obj in &obj_files {
+        link_args.push(obj.to_string_lossy().to_string());
+    }
+    link_args.push("-o".to_string());
+    link_args.push(exe_path.to_string_lossy().to_string());
+    
+    let link_output = Command::new("clang").args(&link_args).output();
+    
+    match link_output {
         Ok(out) => {
             if !out.status.success() {
                 let stderr = String::from_utf8_lossy(&out.stderr);
-                eprintln!("Clang compilation failed: {}", stderr);
-                return;
-            }
-            println!("Object file created: {}", obj_path.display());
-            
-            let exe_path = std::path::Path::new(output_dir).join("program.exe");
-            let link_output = Command::new("clang")
-                .args([obj_path.to_str().unwrap(), "-o", exe_path.to_str().unwrap()])
-                .output();
-            
-            match link_output {
-                Ok(out) => {
-                    if !out.status.success() {
-                        let stderr = String::from_utf8_lossy(&out.stderr);
-                        eprintln!("Clang linking failed: {}", stderr);
-                    } else {
-                        println!("Successfully built: {}", exe_path.display());
-                    }
-                }
-                Err(e) => eprintln!("Failed to run Clang: {}", e),
+                eprintln!("Clang linking failed: {}", stderr);
+            } else {
+                println!("Successfully built: {}", exe_path.display());
             }
         }
         Err(e) => eprintln!("Failed to run Clang: {}", e),
