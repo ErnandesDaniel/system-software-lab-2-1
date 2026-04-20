@@ -38,13 +38,6 @@ choco install llvm
 clang -v
 ```
 
-### 4. JDK (для JVM цели, опционально)
-
-**Chocolatey:**
-```bash
-choco install openjdk
-```
-
 ## Сборка
 
 ```bash
@@ -64,7 +57,7 @@ cargo run -- <source_file> -o <output_dir> [options]
 | Опция | Описание |
 |-------|-----------|
 | `-o, --output <dir>` | Выходная директория (**обязательно**) |
-| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию) или `jvm` |
+| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию) |
 | `--ast <file>` | Сохранить AST (диаграмма Mermaid) |
 | `--cfg <file>` | Сохранить CFG (диаграмма Mermaid) |
 
@@ -97,30 +90,6 @@ echo %ERRORLEVEL%    # cmd
 **Примечание:** Для вывода на консоль (printf, puts, putchar) требуется C runtime. 
 На Windows программа может запускаться без видимого вывода, если runtime не доступен.
 Для полноценного вывода установите MSYS2 с MinGW-w64 (см. раздел требований).
-
-#### Компиляция в Java bytecode (JVM)
-
-```bash
-cargo run -- input.mylang -o output -t jvm
-```
-
-Создаст в `output`:
-- `MyLang.class` — Java bytecode
-- `MyLangRuntime.java` — runtime с базовыми функциями
-- `MyLangRuntime.class` — скомпилированный runtime
-
-**Запуск:**
-
-```bash
-cd output; java MyLang
-```
-
-**Доступные функции в MyLangRuntime:**
-- `println(x)` — вывести число
-- `putchar(c)` — вывести символ по ASCII коду
-- `getchar()` — прочитать символ
-- `rand()` — случайное число
-- `time()` — текущее время
 
 #### Компиляция scheduling.mylang (корутины)
 
@@ -172,5 +141,10 @@ cargo test test_exe
 2. **Парсер** → AST
 3. **Семантический анализ** → проверка типов, таблица символов
 4. **IR генератор** → промежуточное представление (IR)
-5. **Codegen** → ассемблер x86-64 (NASM) или Java bytecode (JVM)
+5. **Codegen** → ассемблер x86-64 (NASM)
 6. **Линковка** → исполняемый файл (Clang)
+
+## Следующие шаги
+
+- [ ] Добавить поддержку LLVM IR
+- [ ] Добавить поддержку WebAssembly

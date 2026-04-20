@@ -20,7 +20,7 @@ use crate::semantics::analysis::SemanticsAnalyzer;
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CodeGenTarget {
     NASM,
-    JVM,
+    LLVM,
 }
 
 impl Default for CodeGenTarget {
@@ -35,7 +35,7 @@ impl std::str::FromStr for CodeGenTarget {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "nasm" => Ok(CodeGenTarget::NASM),
-            "jvm" | "java" | "j bytecode" => Ok(CodeGenTarget::JVM),
+            "llvm" => Ok(CodeGenTarget::LLVM),
             _ => Err(format!("Unknown target: {}", s)),
         }
     }
@@ -48,7 +48,7 @@ fn main() {
         eprintln!("Usage: {} <source_file> -o <output_dir> [options]", args[0]);
         eprintln!("Options:");
         eprintln!("  -o, --output <dir>    Output directory (required)");
-        eprintln!("  -t, --target <target>  Target: nasm (default) or jvm");
+        eprintln!("  -t, --target <target>  Target: nasm, llvm (default: nasm)");
         std::process::exit(1);
     }
 
@@ -171,8 +171,8 @@ let source_path = &args[1];
         CodeGenTarget::NASM => {
             generate_nasm(&ir_program, &output_dir);
         }
-        CodeGenTarget::JVM => {
-            generate_jvm_bytecode(&ir_program, &output_dir);
+        CodeGenTarget::LLVM => {
+            generate_llvm(&ir_program, &output_dir);
         }
     }
 }
@@ -256,95 +256,110 @@ fn generate_nasm(ir_program: &ir::IrProgram, output_dir: &str) {
     }
 }
 
-fn generate_jvm_bytecode(ir_program: &ir::IrProgram, output_dir: &str) {
-    let mut jasm_gen = codegen::java::JasmGenerator::new();
-    let jasm_source = jasm_gen.generate(ir_program);
+fn generate_llvm(ir_program: &ir::IrProgram, output_dir: &str) {
+    use std::io::Write;
+    use crate::codegen::llvm::LlvmGenerator;
     
-    let jasm_path = std::path::Path::new(output_dir).join("MyLang.jasm");
-    if let Err(e) = fs::write(&jasm_path, &jasm_source) {
-        eprintln!("Failed to write JASM: {}", e);
-    } else {
-        println!("JASM source written to: {}", jasm_path.display());
-    }
-
-    let jasm_dir = std::path::Path::new(output_dir);
-    let output = Command::new("src/jasm-0.7.0/bin/jasm.bat")
-        .arg("-i")
-        .arg(jasm_dir.to_str().unwrap())
-        .arg("-o")
-        .arg(jasm_dir.to_str().unwrap())
-        .arg("MyLang.jasm")
-        .output();
-
-    match output {
-        Ok(out) => {
-            if out.status.success() {
-                println!("JASM compiled: MyLang.class");
-            } else {
-                let stderr = String::from_utf8_lossy(&out.stderr);
-                eprintln!("JASM failed: {}", stderr);
-            }
-        }
-        Err(e) => {
-            eprintln!("Failed to run JASM: {}", e);
-        }
-    }
-
-    let mut runtime_source = String::from(r#"public class MyLangRuntime {
-    public static void println(int x) {
-        System.out.println(x);
-    }
-    public static void putchar(int c) {
-        System.out.print((char)c);
-    }
-    public static int getchar() throws java.io.IOException {
-        return System.in.read();
-    }
-    public static int rand() {
-        return (int)(Math.random() * Integer.MAX_VALUE);
-    }
-    public static void srand(int seed) {
-    }
-    public static int time(int x) {
-        return (int)(System.currentTimeMillis() / 1000);
-    }
-    public static void puts(String s) { System.out.print(s); }
-    public static void printf(String format, int value) { System.out.print(String.format(format, value)); }
-"#);
-
+    let mut llvm_ir = String::new();
+    
+    llvm_ir.push_str("; Module ID = 'mylang'\n");
+    llvm_ir.push_str("source_filename = \"mylang\"\n");
+    llvm_ir.push_str("target datalayout = \"e-m:w-p270:32:32-p271:32:32-p272:64:64-i128:128-f80:128-n8:16:32:64-S128\"\n");
+    llvm_ir.push_str("target triple = \"x86_64-pc-windows-msvc\"\n\n");
+    
+    let mut all_externs = std::collections::HashSet::new();
+    let mut gens: Vec<LlvmGenerator> = Vec::new();
+    
     for func in &ir_program.functions {
-        if func.name != "main" {
-            runtime_source.push_str(&format!(
-                "    public static int {}(int p0) {{\n        return p0 * p0;\n    }}\n",
-                func.name
-            ));
+        let mut gen = LlvmGenerator::new();
+        let func_ir = gen.generate_function(&func);
+        
+        for ext in func.used_functions.iter() {
+            all_externs.insert(ext.clone());
         }
+        
+        for ext in gen.get_extern_decls() {
+            all_externs.insert(ext);
+        }
+        
+        llvm_ir.push_str(&func_ir);
+        llvm_ir.push_str("\n");
+        gens.push(gen);
     }
-
-    runtime_source.push_str("}\n");
     
-    let runtime_path = std::path::Path::new(output_dir).join("MyLangRuntime.java");
-    if let Err(e) = fs::write(&runtime_path, runtime_source) {
-        eprintln!("Failed to write runtime: {}", e);
-    } else {
-        println!("Runtime written to: {}", runtime_path.display());
+    let mut externs: Vec<_> = all_externs.into_iter().collect();
+    externs.sort();
+    for ext in externs {
+        let decl = match ext.as_str() {
+            "printf" => "declare i32 @printf(i8*, ...)\n",
+            "scanf" => "declare i32 @scanf(i8*, ...)\n",
+            "puts" => "declare i32 @puts(i8*)\n",
+            "getchar" => "declare i32 @getchar()\n",
+            "putchar" => "declare i32 @putchar(i32)\n",
+            "rand" => "declare i32 @rand()\n",
+            "srand" => "declare void @srand(i32)\n",
+            "time" => "declare i32 @time(i32)\n",
+            "malloc" => "declare i8* @malloc(i64)\n",
+            "yieldThread" => "declare void @yieldThread()\n",
+            _ => {
+                if !ext.is_empty() {
+                    llvm_ir.push_str(&format!("declare i32 @{}(i32)\n", ext));
+                }
+                continue;
+            }
+        };
+        llvm_ir.push_str(decl);
     }
-
-    let output = Command::new("javac")
-        .arg(runtime_path.to_str().unwrap())
+    
+    let llvm_path = std::path::Path::new(output_dir).join("program.ll");
+    let mut file = match fs::File::create(&llvm_path) {
+        Ok(f) => f,
+        Err(e) => {
+            eprintln!("Failed to create LLVM IR file: {}", e);
+            return;
+        }
+    };
+    
+    if let Err(e) = file.write_all(llvm_ir.as_bytes()) {
+        eprintln!("Failed to write LLVM IR: {}", e);
+        return;
+    }
+    
+    println!("LLVM IR written to: {}", llvm_path.display());
+    
+    let obj_path = std::path::Path::new(output_dir).join("program.obj");
+    let output = Command::new("clang")
+        .args(["-c", "-o"])
+        .arg(obj_path.to_str().unwrap())
+        .arg(llvm_path.to_str().unwrap())
         .output();
-
+    
     match output {
         Ok(out) => {
-            if out.status.success() {
-                println!("Runtime compiled: MyLangRuntime.class");
-            } else {
+            if !out.status.success() {
                 let stderr = String::from_utf8_lossy(&out.stderr);
-                eprintln!("javac failed: {}", stderr);
+                eprintln!("Clang compilation failed: {}", stderr);
+                return;
+            }
+            println!("Object file created: {}", obj_path.display());
+            
+            let exe_path = std::path::Path::new(output_dir).join("program.exe");
+            let link_output = Command::new("clang")
+                .args([obj_path.to_str().unwrap(), "-o", exe_path.to_str().unwrap()])
+                .output();
+            
+            match link_output {
+                Ok(out) => {
+                    if !out.status.success() {
+                        let stderr = String::from_utf8_lossy(&out.stderr);
+                        eprintln!("Clang linking failed: {}", stderr);
+                    } else {
+                        println!("Successfully built: {}", exe_path.display());
+                    }
+                }
+                Err(e) => eprintln!("Failed to run Clang: {}", e),
             }
         }
-        Err(e) => {
-            eprintln!("Failed to run javac: {}", e);
-        }
+        Err(e) => eprintln!("Failed to run Clang: {}", e),
     }
 }
