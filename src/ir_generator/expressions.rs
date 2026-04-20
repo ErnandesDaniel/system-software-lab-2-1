@@ -135,22 +135,22 @@ impl IrGenerator {
         }
 
         let returns_void = matches!(func_name.as_str(), "puts" | "printf" | "println" | "putchar" | "srand");
-        
+
         let result_temp;
-        let result_type;
+        let result_return_type;
 
         if returns_void {
             result_temp = String::new();
-            result_type = IrType::Void;
+            result_return_type = IrType::Void;
         } else {
             result_temp = self.generate_temp();
-            result_type = IrType::Int;
+            result_return_type = IrType::Int;
         }
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Call,
             result: if returns_void { None } else { Some(result_temp.clone()) },
-            result_type: Some(result_type),
+            result_type: Some(result_return_type.clone()),
             operands: args,
             jump_target: Some(func_name.clone()),
             true_target: None,
@@ -174,7 +174,7 @@ impl IrGenerator {
             });
         }
 
-        (result_temp, IrType::Int)
+        (result_temp, result_return_type)
     }
 
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {
