@@ -11,7 +11,6 @@ pub struct AsmGenerator {
     current_function: Option<String>,
     param_registers: Vec<String>,
     temp_counter: usize,
-    has_create_thread: bool,
 }
 
 impl AsmGenerator {
@@ -32,13 +31,11 @@ impl AsmGenerator {
                 "r9".to_string(),
             ],
             temp_counter: 0,
-            has_create_thread: false,
         }
     }
 
     #[allow(dead_code)]
     pub fn generate(&mut self, program: &IrProgram) -> String {
-        self.has_create_thread = false; // Reset before generating
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
         self.output.push_str("section .text\n\n");
@@ -68,13 +65,6 @@ impl AsmGenerator {
                             }
                         }
                     }
-                    if let IrOpcode::CreateThread = inst.opcode {
-                        if let Some(IrOperand::Constant(Constant::String(name))) =
-                            inst.operands.first()
-                        {
-                            user_funcs.insert(name);
-                        }
-                    }
                 }
             }
         }
@@ -84,9 +74,7 @@ impl AsmGenerator {
         }
 
         for ext_func in extern_funcs {
-            if ext_func != "createThread" {
-                self.output.push_str(&format!("extern {}\n", ext_func));
-            }
+            self.output.push_str(&format!("extern {}\n", ext_func));
         }
 
         if !program.functions.is_empty() {
@@ -109,25 +97,6 @@ impl AsmGenerator {
         self.output.clear();
         self.string_counter = 0;
         self.data_section.clear();
-        self.has_create_thread = false; // Reset for each function
-
-        // Add coroutine data section FIRST (before text)
-        let has_create_thread = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::CreateThread));
-        let _needs_yield_stub = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::Yield));
-        let is_thread_function = func.is_thread;
-        let _main_needs_stub = has_create_thread && func.name == "main";
-        let _thread_func_needs_stub = is_thread_function && func.name == "main";
-
-        // Don't add data section here - we'll put coroutine table in text section
-        // if needed
 
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
@@ -147,59 +116,8 @@ impl AsmGenerator {
                         unique_externs.insert(target.clone());
                     }
                 }
-                if let IrOpcode::CreateThread = inst.opcode {
-                    if let Some(IrOperand::Constant(Constant::String(name))) = inst.operands.first()
-                    {
-                        unique_externs.insert(name.clone());
-                    }
-                }
-                if let IrOpcode::Yield = inst.opcode {
-                    unique_externs.insert("yieldThread".to_string());
-                }
             }
         }
-
-        // Thread functions need yieldThread as extern (they call it)
-        // Main defines yieldThread, so don't add it as extern for main
-        if func.is_thread && func.name != "main" {
-            unique_externs.insert("yieldThread".to_string());
-        }
-
-        // Always add yieldThread if function uses CreateThread (but main defines it)
-        let has_create_thread = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::CreateThread));
-        if has_create_thread && func.name != "main" {
-            unique_externs.insert("yieldThread".to_string());
-        }
-
-        // Add scheduler call in main before returning (after generating all blocks)
-        let add_scheduler = has_create_thread && func.name == "main";
-
-        /* Собираем имена всех функций-потоков для планировщика */
-        let mut thread_funcs: Vec<String> = Vec::new();
-        if add_scheduler {
-            for block in &func.blocks {
-                for inst in &block.instructions {
-                    if let IrOpcode::CreateThread = inst.opcode {
-                        if let Some(IrOperand::Constant(Constant::String(name))) =
-                            inst.operands.first()
-                        {
-                            thread_funcs.push(name.clone());
-                        }
-                    }
-                }
-            }
-        }
-
-        // For functions that have yieldThread calls, we need to provide a stub
-        let _needs_yield_stub = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::Yield));
 
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
@@ -260,62 +178,6 @@ impl AsmGenerator {
 
         for block in &func.blocks {
             self.generate_block(block);
-        }
-
-        // If main has createThread calls, generate inline scheduler
-        if add_scheduler {
-            self.output
-                .push_str("\n    ; === INLINE SCHEDULER (Simple Round-Robin) ===\n");
-
-            // Simple round-robin: just call coroutines in alternation
-            // Each coroutine runs, returns, then we switch to next
-            self.output.push_str("    mov r15, 0\n");
-
-            self.output.push_str(".scheduler_loop:\n");
-            self.output.push_str("    cmp r15, 0\n");
-            self.output.push_str("    je .run_coro0\n");
-            self.output.push_str("    call print_twos\n");
-            self.output.push_str("    jmp .after_coro\n");
-            self.output.push_str(".run_coro0:\n");
-            self.output.push_str("    call print_ones\n");
-            self.output.push_str(".after_coro:\n");
-
-            // Toggle coroutine index
-            self.output.push_str("    xor r15, 1\n");
-            self.output.push_str("    jmp .scheduler_loop\n");
-
-            self.output.push_str("    ; === END SCHEDULER ===\n");
-        }
-
-        // Thread functions (print_ones, print_twos) call yieldThread but don't define it
-        // Main should define yieldThread stub because it orchestrates thread execution
-        let _needs_yield_stub = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::Yield));
-
-        // Check if this function is a thread function (called via createThread)
-        let is_thread_function = func.is_thread;
-
-        // Main needs the stub if it has CreateThread (调度器)
-        let has_create_thread = func
-            .blocks
-            .iter()
-            .flat_map(|b| &b.instructions)
-            .any(|i| matches!(i.opcode, IrOpcode::CreateThread));
-        let main_needs_stub = has_create_thread && func.name == "main";
-        // Thread functions also need the stub defined in main, not in themselves
-        let thread_func_needs_stub = is_thread_function && func.name == "main";
-
-        if func.name == "main" && (main_needs_stub || thread_func_needs_stub) {
-            self.output
-                .push_str("\n; === Simple yieldThread (toggle) ===\n");
-            self.output.push_str("global yieldThread\n");
-            self.output.push_str("yieldThread:\n");
-            // Simple: just toggle between 0 and 1 (coroutine index stored in r15)
-            self.output.push_str("    xor r15, 1\n");
-            self.output.push_str("    ret\n");
         }
 
         if !self.data_section.is_empty() {

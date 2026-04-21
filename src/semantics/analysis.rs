@@ -311,9 +311,6 @@ impl SemanticsAnalyzer {
 
                 return Ok(sig.return_type.clone());
             }
-            Expr::CreateThread(_) => {
-                return Ok(SemanticType::Void);
-            }
             Expr::Slice(slice) => {
                 let array_type = self.check_expression(scope, &slice.array)?;
                 if let SemanticType::Array(elem, _) = array_type {

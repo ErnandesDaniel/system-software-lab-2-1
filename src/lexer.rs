@@ -38,13 +38,6 @@ pub enum Token {
     #[token("false")]
     False,
 
-    #[token("createThread", priority = 25)]
-    CreateThread,
-    #[token("FCFS", priority = 20)]
-    Fcfs,
-    #[token("SPN", priority = 20)]
-    Spn,
-
     #[token("bool")]
     Bool,
     #[token("byte")]

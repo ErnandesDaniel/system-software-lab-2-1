@@ -294,7 +294,7 @@ impl LlvmGenerator {
     }
 
     fn is_void_func(&self, name: &str) -> bool {
-        matches!(name, "puts" | "printf" | "yieldThread" | "srand")
+        matches!(name, "puts" | "printf" | "srand")
     }
 
     fn get_extern_signature(&self, name: &str) -> String {

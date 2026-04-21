@@ -66,19 +66,6 @@ impl AsmGenerator {
             self.generate_block(block);
         }
 
-        eprintln!(
-            "DEBUG: generate_function_internal: func.name={}, has_create_thread={}",
-            func.name, self.has_create_thread
-        );
-
-        // If function has createThread calls, add scheduler call before returning
-        if self.has_create_thread && func.name == "main" {
-            self.used_functions.push("schedule_threads".to_string());
-            self.output
-                .push_str("    ; Call scheduler to run registered threads\n");
-            self.output.push_str("    call schedule_threads\n");
-        }
-
         self.output.push_str("    leave\n");
         self.output.push_str("    ret\n");
     }

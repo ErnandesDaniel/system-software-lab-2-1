@@ -11,7 +11,6 @@ impl<'source> Parser<'source> {
             Some(Token::Break) => self.parse_break(),
             Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
-            Some(Token::CreateThread) => self.parse_expression_statement(),
             Some(Token::Identifier) => self.parse_identifier_based_statement(),
             _ => self.parse_expression_statement(),
         }
@@ -103,7 +102,6 @@ impl<'source> Parser<'source> {
                         | Token::Comma
                         | Token::RParen
                         | Token::RBracket
-                        | Token::CreateThread
                 ) {
                     break;
                 }
@@ -229,7 +227,6 @@ impl<'source> Parser<'source> {
                     | Token::Comma
                     | Token::RParen
                     | Token::RBracket
-                    | Token::CreateThread
                     | Token::LBrace
             ) {
                 break;
