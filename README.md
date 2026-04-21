@@ -57,7 +57,7 @@ cargo run -- <source_file> -o <output_dir> [options]
 | Опция | Описание |
 |-------|-----------|
 | `-o, --output <dir>` | Выходная директория (**обязательно**) |
-| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию) |
+| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию), `llvm` |
 | `--ast <file>` | Сохранить AST (диаграмма Mermaid) |
 | `--cfg <file>` | Сохранить CFG (диаграмма Mermaid) |
 
@@ -90,6 +90,44 @@ echo %ERRORLEVEL%    # cmd
 **Примечание:** Для вывода на консоль (printf, puts, putchar) требуется C runtime. 
 На Windows программа может запускаться без видимого вывода, если runtime не доступен.
 Для полноценного вывода установите MSYS2 с MinGW-w64 (см. раздел требований).
+
+#### Компиляция в LLVM IR
+
+```bash
+cargo run -- input.mylang -o output -t llvm
+```
+
+Создаст в `output`:
+- `program.ll` — LLVM IR код (человекочитаемый)
+- `program.obj` — объектный файл
+- `program.exe` — исполняемый файл
+
+**Просмотр сгенерированного LLVM IR:**
+```bash
+# Windows PowerShell
+type output\program.ll
+
+# Или открыть в VS Code
+code output\program.ll
+```
+
+**Проверка синтаксиса LLVM IR вручную:**
+```bash
+# Проверить валидность LLVM IR (без компиляции)
+llvm-as output\program.ll -o output\program.bc
+
+# Дизассемблировать обратно для проверки
+llvm-dis output\program.bc -o output\program_check.ll
+```
+
+**Сравнение с NASM бэкендом:**
+
+| Фича | NASM | LLVM |
+|------|------|------|
+| Регистры | Вручную (rax, rcx, etc) | SSA форма (%t1, %t2) |
+| Блоки | Метки с jmp | Базовые блоки с br |
+| Оптимизации | Нет | Доступны через opt |
+| Портативность | Только x86-64 | Любая архитектура |
 
 #### Компиляция scheduling.mylang (корутины)
 
@@ -141,10 +179,13 @@ cargo test test_exe
 2. **Парсер** → AST
 3. **Семантический анализ** → проверка типов, таблица символов
 4. **IR генератор** → промежуточное представление (IR)
-5. **Codegen** → ассемблер x86-64 (NASM)
+5. **Codegen** → выбор бэкенда:
+   - **NASM** → ассемблер x86-64 (default)
+   - **LLVM** → LLVM IR
 6. **Линковка** → исполняемый файл (Clang)
 
 ## Следующие шаги
 
-- [ ] Добавить поддержку LLVM IR
+- [x] Добавить поддержку LLVM IR
+- [ ] Добавить оптимизации LLVM (opt -O2)
 - [ ] Добавить поддержку WebAssembly
