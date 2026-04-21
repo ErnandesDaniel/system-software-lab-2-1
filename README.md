@@ -102,6 +102,21 @@ cargo run -- input.mylang -o output -t llvm
 - `program.obj` — объектный файл
 - `program.exe` — исполняемый файл
 
+**Проверка работы программы:**
+
+Для запуска с выводом на экран используйте одну из команд:
+```powershell
+# Windows PowerShell
+.\output\program.exe
+
+# Или через cmd
+output\program.exe
+
+# Проверить код возврата
+echo $LASTEXITCODE   # PowerShell
+echo %ERRORLEVEL%    # cmd
+```
+
 **Просмотр сгенерированного LLVM IR:**
 ```bash
 # Windows PowerShell
