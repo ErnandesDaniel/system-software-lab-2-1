@@ -31,6 +31,7 @@ impl IrGenerator {
         }
     }
 
+    #[allow(dead_code)]
     pub fn is_external_function(&self, name: &str) -> bool {
         // Function is external if:
         // 1. It's declared as extern def in the source code

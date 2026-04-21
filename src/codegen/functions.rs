@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::ir::types::*;
 
 use super::AsmGenerator;
 
@@ -150,9 +150,13 @@ impl AsmGenerator {
     }
 
     pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, _is_pointer: bool) {
+        use crate::codegen::traits::OperandLoader;
+        
         match operand {
             IrOperand::Variable(name, ty) => {
                 let is_ptr = ty.is_pointer();
+                // Use trait method to check if temp
+                let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
                     let src_reg = if is_ptr { "rax" } else { "eax" };
                     self.output

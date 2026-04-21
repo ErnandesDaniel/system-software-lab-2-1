@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::ir::types::*;
 
 use super::AsmGenerator;
 

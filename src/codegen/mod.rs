@@ -1,4 +1,4 @@
-use crate::ir::*;
+use crate::ir::types::*;
 use std::collections::HashMap;
 
 pub struct AsmGenerator {
@@ -246,7 +246,10 @@ impl AsmGenerator {
 pub mod block;
 pub mod functions;
 pub mod instructions;
+pub mod traits;
+
 pub mod llvm;
+pub use llvm::LlvmGenerator;
 
 impl Default for AsmGenerator {
     fn default() -> Self {

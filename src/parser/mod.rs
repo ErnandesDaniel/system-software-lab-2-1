@@ -1,10 +1,11 @@
 pub mod expressions;
 pub mod functions;
-pub mod statements;
+
+mod statements;
 
 use crate::ast::*;
+use crate::lexer::iter::Lexer;
 use crate::lexer::Token;
-use crate::lexer_iter::Lexer;
 use std::ops::Range;
 
 pub struct Parser<'source> {
