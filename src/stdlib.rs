@@ -38,8 +38,7 @@ impl StdLib {
         // Time functions
         funcs.insert("time");
         funcs.insert("clock");
-        funcs.insert("sleep");
-        funcs.insert("usleep");
+        funcs.insert("Sleep");  // Windows Sleep (ms) - blocking
 
         // Process functions
         funcs.insert("exit");
@@ -79,8 +78,7 @@ impl StdLib {
             ("strstr", ("haystack: string, needle: string", "string")),
             ("system", ("command: string", "int")),
             ("clock", ("", "int")),
-            ("sleep", ("seconds: int", "int")),
-            ("usleep", ("microseconds: int", "int")),
+            ("Sleep", ("ms: int", "int")),  // Windows Sleep (milliseconds) - blocking
             ("putchar", ("c: int", "int")),
         ];
         decls
