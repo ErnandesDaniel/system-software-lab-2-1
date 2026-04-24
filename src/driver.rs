@@ -42,6 +42,7 @@ impl CompilerDriver {
         match args.target {
             CodeGenTarget::NASM => self.generate_nasm(&ir_program, &args.output_dir),
             CodeGenTarget::LLVM => self.generate_llvm(&ir_program, &args.output_dir),
+            CodeGenTarget::WASM => self.generate_wasm(&ir_program, &args.output_dir),
         }
     }
 
@@ -232,6 +233,51 @@ impl CompilerDriver {
                 }
             }
             Err(e) => eprintln!("Failed to run Clang: {}", e),
+        }
+    }
+
+    fn generate_wasm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+        use std::process::Command;
+
+        let mut gen = LlvmGenerator::new();
+        let llvm_ir = gen.generate_program(ir);
+
+        // Write LLVM IR
+        let ll_path = Path::new(output_dir).join("program.ll");
+        if let Err(e) = fs::write(&ll_path, &llvm_ir) {
+            eprintln!("Failed to write LLVM IR: {}", e);
+            return;
+        }
+        println!("LLVM IR written to: {}", ll_path.display());
+
+        // Compile to WebAssembly using clang with wasm target
+        let wasm_path = Path::new(output_dir).join("program.wasm");
+        
+        // Just allow all undefined symbols since stdlib functions will be provided by JS
+        let compile_result = Command::new("clang")
+            .args([
+                "--target=wasm32",
+                "-nostdlib",
+                "-Wl,--no-entry",
+                "-Wl,--export-all",
+                "-Wl,--allow-undefined",
+                "-o",
+                wasm_path.to_str().unwrap(),
+                ll_path.to_str().unwrap()
+            ])
+            .output();
+
+        match compile_result {
+            Ok(out) => {
+                if !out.status.success() {
+                    eprintln!("Clang compile failed: {}", String::from_utf8_lossy(&out.stderr));
+                    return;
+                }
+                println!("WebAssembly module created: {}", wasm_path.display());
+            }
+            Err(e) => {
+                eprintln!("Failed to run Clang: {}", e);
+            }
         }
     }
 }

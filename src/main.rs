@@ -25,6 +25,7 @@ use driver::CompilerDriver;
 pub enum CodeGenTarget {
     NASM,
     LLVM,
+    WASM,
 }
 
 impl Default for CodeGenTarget {
@@ -40,6 +41,7 @@ impl std::str::FromStr for CodeGenTarget {
         match s.to_lowercase().as_str() {
             "nasm" => Ok(CodeGenTarget::NASM),
             "llvm" => Ok(CodeGenTarget::LLVM),
+            "wasm" => Ok(CodeGenTarget::WASM),
             _ => Err(format!("Unknown target: {}", s)),
         }
     }

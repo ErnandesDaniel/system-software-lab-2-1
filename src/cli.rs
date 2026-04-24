@@ -73,5 +73,5 @@ fn print_usage(program: &str) {
     eprintln!("Usage: {} <source_file> -o <output_dir> [options]", program);
     eprintln!("Options:");
     eprintln!("  -o, --output <dir>    Output directory (required)");
-    eprintln!("  -t, --target <target>  Target: nasm, llvm (default: nasm)");
+    eprintln!("  -t, --target <target>  Target: nasm, llvm, wasm (default: nasm)");
 }

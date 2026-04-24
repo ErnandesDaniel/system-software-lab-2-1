@@ -21,10 +21,11 @@ impl LlvmGenerator {
             "printf" => "declare i32 @printf(i8*, ...)\n".to_string(),
             "srand" => "declare void @srand(i32)\n".to_string(),
             "rand" => "declare i32 @rand()\n".to_string(),
-            "time" => "declare i64 @time(i64)\n".to_string(),
+            "time" => "declare i32 @time(i32)\n".to_string(),
             "getchar" => "declare i32 @getchar()\n".to_string(),
             "putchar" => "declare i32 @putchar(i32)\n".to_string(),
             "scanf" => "declare i32 @scanf(i8*, ...)\n".to_string(),
+            "Sleep" => "declare void @Sleep(i32)\n".to_string(),
             _ => format!("declare i32 @{}(i32)\n", name),
         }
     }
