@@ -12,11 +12,9 @@ mod loaders;
 mod logical;
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 enum JumpPlaceholder {
     Goto { block_id: String },
     Ifne { block_id: String },
-    Ifeq { block_id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -207,21 +205,16 @@ impl JvmGenerator {
                     result.push(i);
                 }
                 JvmInst::Placeholder(placeholder) => {
-                    let (target_block, is_conditional, is_ifne) = match &placeholder {
-                        JumpPlaceholder::Goto { block_id } => (block_id, false, false),
-                        JumpPlaceholder::Ifne { block_id } => (block_id, true, true),
-                        JumpPlaceholder::Ifeq { block_id } => (block_id, true, false),
+                    let (target_block, is_conditional) = match &placeholder {
+                        JumpPlaceholder::Goto { block_id } => (block_id, false),
+                        JumpPlaceholder::Ifne { block_id } => (block_id, true),
                     };
 
                     if let Some(&target_pos) = block_positions.get(target_block) {
                         let target_u16 = target_pos as u16;
 
                         let resolved = if is_conditional {
-                            if is_ifne {
-                                Instruction::Ifne(target_u16)
-                            } else {
-                                Instruction::Ifeq(target_u16)
-                            }
+                            Instruction::Ifne(target_u16)
                         } else {
                             Instruction::Goto(target_u16)
                         };
@@ -231,11 +224,7 @@ impl JvmGenerator {
                     } else {
                         let fallback_pos = current_pos as u16;
                         let resolved = if is_conditional {
-                            if is_ifne {
-                                Instruction::Ifne(fallback_pos)
-                            } else {
-                                Instruction::Ifeq(fallback_pos)
-                            }
+                            Instruction::Ifne(fallback_pos)
                         } else {
                             Instruction::Goto(fallback_pos)
                         };
