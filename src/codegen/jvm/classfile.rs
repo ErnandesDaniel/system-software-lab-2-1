@@ -5,7 +5,7 @@ use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
 
 impl JvmGenerator {
-    pub fn build_class_file(&mut self, class_name: &str, func: &IrFunction, code: Vec<Instruction>) -> Vec<u8> {
+    pub fn build_class_file(&mut self, class_name: &str, func: &IrFunction, code: Vec<ristretto_classfile::attributes::Instruction>) -> Vec<u8> {
         let this_class = self.constant_pool.add_class(class_name).unwrap();
         let super_class = self.constant_pool.add_class("java/lang/Object").unwrap();
 

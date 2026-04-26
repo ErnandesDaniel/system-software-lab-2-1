@@ -289,11 +289,13 @@ public class RuntimeStub {
 
     public static int putchar(int c) {
         System.out.print((char) c);
+        System.out.flush();
         return c;
     }
 
     public static int puts(String s) {
         System.out.println(s);
+        System.out.flush();
         return s.length();
     }
 
@@ -303,6 +305,7 @@ public class RuntimeStub {
                                     .replace("%s", String.valueOf(value))
                                     .replace("\\n", "\n")
                                     .replace("\\t", "\t"));
+        System.out.flush();
         return value;
     }
 

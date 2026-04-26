@@ -1,14 +1,13 @@
 use crate::codegen::traits::OperandLoader;
 use crate::codegen::jvm::types::{capitalize_first, get_method_descriptor, ir_type_to_jvm_descriptor};
+use crate::codegen::jvm::bytecode::{JvmInstruction, resolve_instructions, instruction_size};
 use crate::ir::types::*;
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::{ConstantPool};
 use std::collections::HashMap;
 
 mod types;
-mod instructions;
-mod logical;
-mod loaders;
+mod bytecode;
 mod classfile;
 
 pub struct JvmGenerator {
@@ -167,15 +166,208 @@ impl JvmGenerator {
     }
 
     fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
-        let mut code = Vec::new();
-
+        // Two-pass generation:
+        // 1. Generate intermediate instructions with labels
+        // 2. Compute block positions
+        // 3. Resolve labels to offsets
+        
+        let mut instructions: Vec<JvmInstruction> = Vec::new();
+        let mut block_positions: HashMap<String, usize> = HashMap::new();
+        
+        // First pass: collect instructions and compute block positions
+        let mut current_pos = 0usize;
         for block in &func.blocks {
+            block_positions.insert(block.id.clone(), current_pos);
+            
             for inst in &block.instructions {
-                self.generate_instruction(&mut code, inst);
+                let insts = self.generate_intermediate_instruction(inst);
+                for i in &insts {
+                    current_pos += instruction_size(i);
+                }
+                instructions.extend(insts);
             }
         }
-
+        
+        // Second pass: resolve labels to actual offsets
+        resolve_instructions(&instructions, &block_positions, &self.method_refs, &self.string_consts)
+    }
+    
+    fn generate_intermediate_instruction(&self, inst: &IrInstruction) -> Vec<JvmInstruction> {
+        use JvmInstruction::*;
+        let mut code = Vec::new();
+        
+        match inst.opcode {
+            IrOpcode::Assign => {
+                if let (Some(ref result), Some(ref operand)) = (&inst.result, inst.operands.first()) {
+                    self.emit_load_operand(&mut code, operand);
+                    let slot = self.get_local_slot(result);
+                    code.push(match operand.get_type() {
+                        IrType::String => Astore(slot),
+                        _ => Istore(slot),
+                    });
+                }
+            }
+            IrOpcode::Add => self.emit_binary_op(&mut code, inst, Iadd),
+            IrOpcode::Sub => self.emit_binary_op(&mut code, inst, Isub),
+            IrOpcode::Mul => self.emit_binary_op(&mut code, inst, Imul),
+            IrOpcode::Div => self.emit_binary_op(&mut code, inst, Idiv),
+            IrOpcode::Mod => self.emit_binary_op(&mut code, inst, Irem),
+            IrOpcode::BitAnd => self.emit_binary_op(&mut code, inst, Iand),
+            IrOpcode::BitOr => self.emit_binary_op(&mut code, inst, Ior),
+            IrOpcode::Neg => {
+                if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
+                    self.emit_load_operand(&mut code, operand);
+                    code.push(Ineg);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::Pos => {
+                if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
+                    self.emit_load_operand(&mut code, operand);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::BitNot => {
+                if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
+                    self.emit_load_operand(&mut code, operand);
+                    code.push(Iconst(-1));
+                    code.push(Ixor);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::And => {
+                // Simple bitwise and - no short-circuit
+                if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+                    self.emit_load_operand(&mut code, left);
+                    self.emit_load_operand(&mut code, right);
+                    code.push(Iand);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::Or => {
+                // Simple bitwise or - no short-circuit
+                if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+                    self.emit_load_operand(&mut code, left);
+                    self.emit_load_operand(&mut code, right);
+                    code.push(Ior);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::Not => {
+                // Logical not: x == 0 ? 1 : 0
+                if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
+                    self.emit_load_operand(&mut code, operand);
+                    code.push(Iconst(1));
+                    code.push(Ixor);  // x ^ 1 = !x for booleans
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::Eq => self.emit_comparison(&mut code, inst, |offset| If_icmpeq(offset)),
+            IrOpcode::Ne => self.emit_comparison(&mut code, inst, |offset| If_icmpne(offset)),
+            IrOpcode::Lt => self.emit_comparison(&mut code, inst, |offset| If_icmplt(offset)),
+            IrOpcode::Le => self.emit_comparison(&mut code, inst, |offset| If_icmple(offset)),
+            IrOpcode::Gt => self.emit_comparison(&mut code, inst, |offset| If_icmpgt(offset)),
+            IrOpcode::Ge => self.emit_comparison(&mut code, inst, |offset| If_icmpge(offset)),
+            IrOpcode::Call => {
+                if let Some(ref target) = inst.jump_target {
+                    for operand in &inst.operands {
+                        self.emit_load_operand(&mut code, operand);
+                    }
+                    let method_idx = self.method_refs.get(target).copied().unwrap_or(1);
+                    code.push(Invokestatic(method_idx));
+                    if let Some(ref result) = inst.result {
+                        code.push(Istore(self.get_local_slot(result)));
+                    }
+                }
+            }
+            IrOpcode::Ret => {
+                if let Some(operand) = inst.operands.first() {
+                    self.emit_load_operand(&mut code, operand);
+                    code.push(Ireturn);
+                } else {
+                    code.push(Return);
+                }
+            }
+            IrOpcode::Jump => {
+                if let Some(ref target) = inst.jump_target {
+                    code.push(GotoLabel(target.clone()));
+                }
+            }
+            IrOpcode::CondBr => {
+                if let Some(operand) = inst.operands.first() {
+                    if let Some(ref target) = inst.jump_target {
+                        self.emit_load_operand(&mut code, operand);
+                        code.push(JvmInstruction::IfneLabel(target.clone()));
+                    }
+                }
+            }
+            IrOpcode::Load => {
+                if let (Some(ref result), Some(array), Some(index)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+                    self.emit_load_operand(&mut code, array);
+                    self.emit_load_operand(&mut code, index);
+                    code.push(Iaload);
+                    code.push(Istore(self.get_local_slot(result)));
+                }
+            }
+            IrOpcode::Slice | IrOpcode::Alloca | IrOpcode::Store | IrOpcode::Cast => {}
+        }
+        
         code
+    }
+    
+    fn emit_binary_op(&self, code: &mut Vec<JvmInstruction>, inst: &IrInstruction, op: JvmInstruction) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+            self.emit_load_operand(code, left);
+            self.emit_load_operand(code, right);
+            code.push(op);
+            code.push(JvmInstruction::Istore(self.get_local_slot(result)));
+        }
+    }
+    
+    fn emit_comparison<F>(&self, code: &mut Vec<JvmInstruction>, inst: &IrInstruction, make_br: F)
+    where F: Fn(i16) -> JvmInstruction {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+            self.emit_load_operand(code, left);
+            self.emit_load_operand(code, right);
+            
+            // Layout: if_icmpXX +3 -> iconst_1
+            //         iconst_0
+            //         goto +2
+            //         iconst_1
+            // Total: 3 + 1 + 3 + 1 = 8 bytes
+            code.push(make_br(3));  // jump to iconst_1 (skip iconst_0 + goto)
+            code.push(JvmInstruction::Iconst(0));
+            code.push(JvmInstruction::Goto(2));  // jump past iconst_1
+            code.push(JvmInstruction::Iconst(1));
+            
+            code.push(JvmInstruction::Istore(self.get_local_slot(result)));
+        }
+    }
+    
+    fn emit_load_operand(&self, code: &mut Vec<JvmInstruction>, operand: &IrOperand) {
+        use JvmInstruction::*;
+        match operand {
+            IrOperand::Variable(name, ty) => {
+                let slot = self.get_local_slot(name);
+                code.push(match ty {
+                    IrType::String => Aload(slot),
+                    _ => Iload(slot),
+                });
+            }
+            IrOperand::Constant(c) => self.emit_load_constant(code, c),
+        }
+    }
+    
+    fn emit_load_constant(&self, code: &mut Vec<JvmInstruction>, c: &crate::ir::Constant) {
+        use crate::ir::Constant;
+        use JvmInstruction::*;
+        match c {
+            Constant::Int(n) => code.push(Iconst(*n as i32)),
+            Constant::Bool(true) => code.push(Iconst(1)),
+            Constant::Bool(false) => code.push(Iconst(0)),
+            Constant::String(s) => code.push(LdcString(s.clone())),
+            Constant::Char(c) => code.push(Iconst(*c as i32)),
+        }
     }
 
     pub fn get_local_slot(&self, name: &str) -> u16 {
