@@ -19,26 +19,13 @@ impl CompilerDriver {
 
     pub fn compile(&self, args: &crate::cli::Args) {
         let source = self.read_source(&args.source_path);
-        
-        // Parse
         let ast = self.parse(&source);
-        
-        // Create output directory
         self.create_output_dir(&args.output_dir);
-        
-        // Generate AST diagrams
         self.generate_ast_diagrams(&ast, &args.output_dir);
-        
-        // Semantic analysis
         self.run_semantic_analysis(&ast);
-        
-        // Generate IR
         let ir_program = self.generate_ir(&ast);
-        
-        // Generate CFG diagrams
         self.generate_cfg_diagrams(&ir_program, &args.output_dir);
         
-        // Generate code
         match args.target {
             CodeGenTarget::NASM => self.generate_nasm(&ir_program, &args.output_dir),
             CodeGenTarget::LLVM => self.generate_llvm(&ir_program, &args.output_dir),
@@ -85,8 +72,6 @@ impl CompilerDriver {
                 
                 if let Err(e) = fs::write(&path, &diagram) {
                     eprintln!("Failed to write AST: {}", e);
-                } else {
-                    println!("Function AST written to: {}", path.display());
                 }
             }
         }
@@ -115,8 +100,6 @@ impl CompilerDriver {
             
             if let Err(e) = fs::write(&path, &diagram) {
                 eprintln!("Failed to write CFG: {}", e);
-            } else {
-                println!("Function CFG written to: {}", path.display());
             }
         }
     }
@@ -124,7 +107,6 @@ impl CompilerDriver {
     fn generate_nasm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
-        // Generate assembly files
         for func in &ir.functions {
             let mut gen = codegen::AsmGenerator::new();
             let asm = gen.generate_single_function(func);
@@ -135,7 +117,6 @@ impl CompilerDriver {
             }
         }
 
-        // Assemble
         let mut obj_files = Vec::new();
         for func in &ir.functions {
             let asm_path = Path::new(output_dir).join(format!("{}.asm", func.name));
@@ -159,7 +140,6 @@ impl CompilerDriver {
             }
         }
 
-        // Link
         if !obj_files.is_empty() {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files
@@ -171,9 +151,7 @@ impl CompilerDriver {
 
             match Command::new("clang").args(&args).output() {
                 Ok(out) => {
-                    if out.status.success() {
-                        println!("Successfully built: {}", exe_path.display());
-                    } else {
+                    if !out.status.success() {
                         eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
                     }
                 }
@@ -188,15 +166,12 @@ impl CompilerDriver {
         let mut gen = LlvmGenerator::new();
         let llvm_ir = gen.generate_program(ir);
 
-        // Write LLVM IR
         let ll_path = Path::new(output_dir).join("program.ll");
         if let Err(e) = fs::write(&ll_path, &llvm_ir) {
             eprintln!("Failed to write LLVM IR: {}", e);
             return;
         }
-        println!("LLVM IR written to: {}", ll_path.display());
 
-        // Compile
         let obj_path = Path::new(output_dir).join("program.obj");
         let compile_result = Command::new("clang")
             .args(["-c", "-o"])
@@ -210,7 +185,6 @@ impl CompilerDriver {
                     eprintln!("Clang failed: {}", String::from_utf8_lossy(&out.stderr));
                     return;
                 }
-                println!("Object file created: {}", obj_path.display());
             }
             Err(e) => {
                 eprintln!("Failed to run Clang: {}", e);
@@ -218,7 +192,6 @@ impl CompilerDriver {
             }
         }
 
-        // Link
         let exe_path = Path::new(output_dir).join("program.exe");
         match Command::new("clang")
             .arg(obj_path.to_str().unwrap())
@@ -227,9 +200,7 @@ impl CompilerDriver {
             .output()
         {
             Ok(out) => {
-                if out.status.success() {
-                    println!("Successfully built: {}", exe_path.display());
-                } else {
+                if !out.status.success() {
                     eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
                 }
             }
@@ -243,18 +214,14 @@ impl CompilerDriver {
         let mut gen = LlvmGenerator::new();
         let llvm_ir = gen.generate_program(ir);
 
-        // Write LLVM IR
         let ll_path = Path::new(output_dir).join("program.ll");
         if let Err(e) = fs::write(&ll_path, &llvm_ir) {
             eprintln!("Failed to write LLVM IR: {}", e);
             return;
         }
-        println!("LLVM IR written to: {}", ll_path.display());
 
-        // Compile to WebAssembly using clang with wasm target
         let wasm_path = Path::new(output_dir).join("program.wasm");
 
-        // Just allow all undefined symbols since stdlib functions will be provided by JS
         let compile_result = Command::new("clang")
             .args([
                 "--target=wasm32",
@@ -272,9 +239,7 @@ impl CompilerDriver {
             Ok(out) => {
                 if !out.status.success() {
                     eprintln!("Clang compile failed: {}", String::from_utf8_lossy(&out.stderr));
-                    return;
                 }
-                println!("WebAssembly module created: {}", wasm_path.display());
             }
             Err(e) => {
                 eprintln!("Failed to run Clang: {}", e);

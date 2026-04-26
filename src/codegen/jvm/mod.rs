@@ -53,21 +53,16 @@ impl JvmGenerator {
         self.current_return_type = func.return_type.clone();
 
         self.setup_local_variables(func);
-        
-        // First, populate method refs for external calls
         self.collect_external_calls(func);
-        
         let code = self.generate_bytecode(func);
         self.build_class_file(class_name, func, code)
     }
     
     fn collect_external_calls(&mut self, func: &IrFunction) {
-        // Add RuntimeStub class to constant pool
         let runtime_stub_class = self.constant_pool.add_class("RuntimeStub").unwrap();
         
         for block in &func.blocks {
             for inst in &block.instructions {
-                // Collect strings from operands
                 for operand in &inst.operands {
                     if let IrOperand::Constant(crate::ir::Constant::String(s)) = operand {
                         if !self.string_consts.contains_key(s) {
@@ -78,34 +73,27 @@ impl JvmGenerator {
                     }
                 }
                 
-                // Collect method calls
                 if let IrOpcode::Call = inst.opcode {
                     if let Some(ref target) = inst.jump_target {
-                        // Skip if already added
                         if self.method_refs.contains_key(target) {
                             continue;
                         }
                         
-                        // Build descriptor from actual arguments
                         let param_types: Vec<IrType> = inst.operands.iter()
                             .map(|op| op.get_type())
                             .collect();
                         let return_type = inst.result_type.clone();
                         
-                        // Determine if this is an external (RuntimeStub) function or user function
                         let (class_idx, method_name, descriptor) = if self.is_external_function(target) {
-                            // External function in RuntimeStub
-                            let desc = self.get_method_descriptor(target, &param_types, return_type.as_ref());
+                            let desc = get_method_descriptor(target);
                             (runtime_stub_class, target.clone(), desc)
                         } else {
-                            // User-defined function in its own class
                             let class_name = capitalize_first(target);
                             let user_class = self.constant_pool.add_class(&class_name).unwrap();
                             let desc = self.build_user_method_descriptor(&param_types, return_type.as_ref());
                             (user_class, "call".to_string(), desc)
                         };
                         
-                        // Add method ref to constant pool
                         let method_idx = self.constant_pool
                             .add_method_ref(class_idx, &method_name, &descriptor)
                             .unwrap();
@@ -222,7 +210,6 @@ impl JvmGenerator {
             self.emit_load_operand(code, operand);
             let slot = self.get_local_slot(result);
             
-            // Choose store instruction based on type
             match operand.get_type() {
                 IrType::String => code.push(Instruction::Astore(slot as u8)),
                 _ => code.push(Instruction::Istore(slot as u8)),
@@ -366,7 +353,6 @@ impl JvmGenerator {
                 self.emit_load_operand(code, operand);
             }
 
-            // Get method index from cache
             let method_idx = self.method_refs.get(target).copied().unwrap_or(1);
             code.push(Instruction::Invokestatic(method_idx));
 
@@ -453,13 +439,12 @@ impl JvmGenerator {
                     5 => code.push(Instruction::Iconst_5),
                     n if n >= -128 && n <= 127 => code.push(Instruction::Bipush(n as i8)),
                     n if n >= -32768 && n <= 32767 => code.push(Instruction::Sipush(n as i16)),
-                    _ => code.push(Instruction::Iconst_0), // Large constants not yet supported
+                    _ => code.push(Instruction::Iconst_0),
                 }
             }
             Constant::Bool(true) => code.push(Instruction::Iconst_1),
             Constant::Bool(false) => code.push(Instruction::Iconst_0),
             Constant::String(s) => {
-                // Use pre-collected string index
                 let idx = self.string_consts.get(s).copied().unwrap_or(1);
                 if idx <= u8::MAX as u16 {
                     code.push(Instruction::Ldc(idx as u8));
@@ -492,16 +477,13 @@ impl JvmGenerator {
 
         let mut methods = Vec::new();
 
-        // Build method descriptor for the actual function
         let param_types: String = func.parameters.iter()
             .map(|p| ir_type_to_jvm_descriptor(&p.ty))
             .collect();
         let return_type = ir_type_to_jvm_descriptor(&func.return_type);
         let call_desc = format!("({}){}", param_types, return_type);
 
-        // For main function, also create main(String[]) method
         if func.name == "main" {
-            // Create call() method with actual implementation
             let call_name_idx = self.constant_pool.add_utf8("call").unwrap();
             let call_desc_idx = self.constant_pool.add_utf8(&call_desc).unwrap();
             
@@ -522,17 +504,14 @@ impl JvmGenerator {
             };
             methods.push(call_method);
 
-            // Create main(String[]) method that calls call()
             let main_name_idx = self.constant_pool.add_utf8("main").unwrap();
             let main_desc = "([Ljava/lang/String;)V".to_string();
             let main_desc_idx = self.constant_pool.add_utf8(&main_desc).unwrap();
 
-            // Add method reference for call() to constant pool
             let call_ref_idx = self.constant_pool
                 .add_method_ref(this_class, "call", &call_desc)
                 .unwrap();
 
-            // Bytecode for: public static void main(String[] args) { call(); }
             let main_code = vec![
                 Instruction::Invokestatic(call_ref_idx),
                 Instruction::Return,
@@ -555,7 +534,6 @@ impl JvmGenerator {
             };
             methods.push(main_method);
         } else {
-            // For non-main functions, create call() method
             let call_name_idx = self.constant_pool.add_utf8("call").unwrap();
             let call_desc_idx = self.constant_pool.add_utf8(&call_desc).unwrap();
 
@@ -595,27 +573,6 @@ impl JvmGenerator {
         buffer
     }
 
-    /// Get JVM method descriptor for external functions
-    fn get_method_descriptor(&self, target: &str, param_types: &[IrType], _return_type: Option<&IrType>) -> String {
-        match target {
-            "puts" => "(Ljava/lang/String;)I".to_string(),
-            "putchar" => "(I)I".to_string(),
-            "getchar" => "()I".to_string(),
-            "printf" => "(Ljava/lang/String;I)I".to_string(),
-            "rand" => "()I".to_string(),
-            "srand" => "(I)V".to_string(),
-            "time" => "(I)I".to_string(),
-            "Sleep" => "(I)V".to_string(),
-            _ => {
-                // Build from IR types for unknown functions
-                let param_desc: String = param_types.iter()
-                    .map(|t| ir_type_to_jvm_descriptor(t))
-                    .collect();
-                format!("({})I", param_desc)
-            }
-        }
-    }
-
     fn estimate_max_stack(&self, code: &[Instruction]) -> u16 {
         let pushes = code.iter().filter(|i| self.instr_pushes(i)).count() as u16;
         (pushes / 2 + 2).max(4)
@@ -639,6 +596,20 @@ impl JvmGenerator {
 impl Default for JvmGenerator {
     fn default() -> Self {
         Self::new()
+    }
+}
+
+fn get_method_descriptor(target: &str) -> String {
+    match target {
+        "puts" => "(Ljava/lang/String;)I".to_string(),
+        "putchar" => "(I)I".to_string(),
+        "getchar" => "()I".to_string(),
+        "printf" => "(Ljava/lang/String;I)I".to_string(),
+        "rand" => "()I".to_string(),
+        "srand" => "(I)V".to_string(),
+        "time" => "(I)I".to_string(),
+        "Sleep" => "(I)V".to_string(),
+        _ => "()I".to_string(),
     }
 }
 

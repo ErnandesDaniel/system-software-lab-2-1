@@ -51,8 +51,6 @@ impl std::str::FromStr for CodeGenTarget {
 
 fn main() {
     let args = parse_args();
-    eprintln!("Using target: {:?}", args.target);
-    
     let driver = CompilerDriver::new();
     driver.compile(&args);
 }
