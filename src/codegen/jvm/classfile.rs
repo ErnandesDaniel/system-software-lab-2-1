@@ -94,7 +94,7 @@ impl JvmGenerator {
         }
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_21,
+            version: ristretto_classfile::JAVA_6,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
