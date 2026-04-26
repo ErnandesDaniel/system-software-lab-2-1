@@ -26,6 +26,7 @@ pub enum CodeGenTarget {
     NASM,
     LLVM,
     WASM,
+    JVM,
 }
 
 impl Default for CodeGenTarget {
@@ -42,6 +43,7 @@ impl std::str::FromStr for CodeGenTarget {
             "nasm" => Ok(CodeGenTarget::NASM),
             "llvm" => Ok(CodeGenTarget::LLVM),
             "wasm" => Ok(CodeGenTarget::WASM),
+            "jvm" => Ok(CodeGenTarget::JVM),
             _ => Err(format!("Unknown target: {}", s)),
         }
     }

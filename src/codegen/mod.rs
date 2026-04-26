@@ -249,7 +249,9 @@ pub mod instructions;
 pub mod traits;
 
 pub mod llvm;
+pub mod jvm;
 pub use llvm::LlvmGenerator;
+pub use jvm::JvmGenerator;
 
 impl Default for AsmGenerator {
     fn default() -> Self {

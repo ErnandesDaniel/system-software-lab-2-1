@@ -57,7 +57,7 @@ cargo run -- <source_file> -o <output_dir> [options]
 | Опция | Описание |
 |-------|-----------|
 | `-o, --output <dir>` | Выходная директория (**обязательно**) |
-| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию), `llvm`, `wasm` |
+| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию), `llvm`, `jvm`, `wasm` |
 | `--optimize` | Оптимизировать (O2) при компиляции в wasm |
 | `--ast <file>` | Сохранить AST (диаграмма Mermaid) |
 | `--cfg <file>` | Сохранить CFG (диаграмма Mermaid) |
@@ -138,13 +138,70 @@ llvm-dis output\program.bc -o output\program_check.ll
 
 **Сравнение с NASM бэкендом:**
 
-| Фича | NASM | LLVM | WebAssembly |
-|------|------|------|-------------|
-| Регистры | Вручную (rax, rcx, etc) | SSA форма (%t1, %t2) | SSA форма |
-| Блоки | Метки с jmp | Базовые блоки с br | Базовые блоки с br |
-| Оптимизации | Нет | Доступны через opt | Доступны через opt |
-| Портативность | Только x86-64 | Любая архитектура | Любая архитектура |
-| Runtime | Windows .exe | Windows .exe | Node.js/браузер |
+| Фича | NASM | LLVM | JVM | WebAssembly |
+|------|------|------|-----|-------------|
+| Регистры | Вручную (rax, rcx, etc) | SSA форма (%t1, %t2) | Стековая машина | SSA форма |
+| Блоки | Метки с jmp | Базовые блоки с br | Метки с goto | Базовые блоки с br |
+| Оптимизации | Нет | Доступны через opt | JIT JVM | Доступны через opt |
+| Портативность | Только x86-64 | Любая архитектура | Любая платформа с JVM | Любая архитектура |
+| Runtime | Windows .exe | Windows .exe | Java Runtime | Node.js/браузер |
+
+#### Компиляция в JVM (Java bytecode)
+
+**Требования:**
+- Java JDK 21 или выше ([скачать](https://jdk.java.net/))
+
+**Проверка установки:**
+```bash
+java -version
+javac -version
+```
+
+**Компиляция:**
+
+```bash
+cargo run -- input.mylang -o output -t jvm
+```
+
+Создаст в `output`:
+- `Main.class` — байткод JVM (для функции main)
+- `FunctionName.class` — байткод для каждой функции
+- `RuntimeStub.java` — Java-реализации stdlib функций (puts, printf, rand и т.д.)
+
+**Запуск:**
+
+```bash
+# Запустить программу
+java -cp output RuntimeStub
+
+# Проверить код возврата
+echo $LASTEXITCODE   # PowerShell
+echo %ERRORLEVEL%    # cmd
+```
+
+**Как это работает:**
+
+1. Каждая функция компилируется в отдельный `.class` файл
+2. `RuntimeStub.java` автоматически компилируется в `RuntimeStub.class`
+3. `RuntimeStub` предоставляет реализации C-функций (puts, printf, rand и т.д.) на Java
+4. Программа вызывает Java-методы через `invokestatic`
+5. `RuntimeStub.main()` вызывает `Main.main()` и возвращает код завершения
+
+**Пример:**
+
+```mylang
+extern puts
+def main() of int
+    puts("Hello from JVM!");
+    return 0
+end
+```
+
+```bash
+cargo run -- hello.mylang -o output -t jvm
+java -cp output RuntimeStub
+# Вывод: Hello from JVM!
+```
 
 #### Компиляция в WebAssembly (для Node.js)
 
@@ -311,57 +368,8 @@ cargo test test_exe
 ## Следующие шаги
 
 - [x] Добавить поддержку LLVM IR
+- [x] Добавить поддержку JVM
 - [x] Добавить поддержку WebAssembly
 - [ ] Добавить оптимизации LLVM (opt -O2)
 - [ ] Исправить типы возврата (void vs i32) для extern функций
 - [ ] Добавить поддержку браузера (Web), не только Node.js
-
-## WebAssembly (Node.js)
-
-### Компиляция
-
-```bash
-# Компилирует testing_wasm.mylang в WebAssembly
-cargo run -- testing_wasm.mylang -o output -t wasm
-```
-
-Создаст:
-- `output/program.ll` — LLVM IR
-- `output/program.wasm` — WebAssembly модуль
-
-### Тестирование
-
-Файл `testing_wasm.js` — консольная утилита для вызова функций из WASM модуля.
-
-```bash
-# Показать справку
-node testing_wasm.js
-
-# Доступные функции:
-node testing_wasm.js factorial 5    # факториал: 120
-node testing_wasm.js power 2 10   # 2^10: 1024
-node testing_wasm.js sum 10 20    # сложение: 30
-node testing_wasm.js diff 100 37   # вычитание: 63
-node testing_wasm.js product 6 7   # умножение: 42
-```
-
-**Примеры:**
-```bash
-# Факториал
-$ node testing_wasm.js factorial 6
-720
-
-# Степень
-$ node testing_wasm.js power 3 4
-81
-
-# Сложение
-$ node testing_wasm.js sum 50 50
-100
-```
-
-### Как это работает
-
-1. `testing_wasm.mylang` содержит математические функции
-2. Компилятор генерирует LLVM IR, затем Clang компилирует в WASM
-3. `testing_wasm.js` загружает модуль и вызывает нужную функцию по имени
