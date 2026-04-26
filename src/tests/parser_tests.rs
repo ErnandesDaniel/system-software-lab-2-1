@@ -28,7 +28,7 @@ fn test_if_statement() {
 
 #[test]
 fn test_while_loop() {
-    let source = "def foo() while x < 10 x = x + 1; end end";
+    let source = "def foo() x = 1; while x < 10 { x = x + 1; } loop_end end";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }

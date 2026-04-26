@@ -119,9 +119,9 @@ fn test_cfg_generation() {
 
 #[test]
 fn test_while_loop_block_order() {
-    // While loop: i=1; while i<5 { i=i+1; }
+    // While loop: i=1; while i<5 { i=i+1; } loop_end
     // Expected blocks: init+jmp, header, body, exit, post-loop
-    let source = "def foo() i=1; while i<5 i=i+1; end return i; end";
+    let source = "def foo() i=1; while i<5 { i=i+1; } loop_end return i; end";
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
 
@@ -166,7 +166,7 @@ fn test_exe_arithmetic() {
 
 #[test]
 fn test_exe_with_loop() {
-    let source = "def main() of int i = 1; while i < 5 i = i + 1; end return i; end";
+    let source = "def main() of int i = 1; while i < 5 { i = i + 1; } loop_end return i; end";
     let output = compile_and_run(source);
 
     eprintln!("Exit code: {:?}", output.status.code());
