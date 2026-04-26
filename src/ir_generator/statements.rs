@@ -125,8 +125,6 @@ impl IrGenerator {
         self.loop_depth += 1;
         self.loop_exit_stack.push(exit_id.clone());
 
-        // Jump from current block to loop header - this goes in current block
-        // which has initialization code
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Jump,
             result: None,
@@ -139,7 +137,6 @@ impl IrGenerator {
         });
         block.successors.push(header_id.clone());
 
-        // Header block - evaluate condition
         let mut header_block = IrBlock {
             id: header_id.clone(),
             instructions: Vec::new(),
@@ -170,7 +167,6 @@ impl IrGenerator {
         header_block.successors.push(false_target);
         block_stack.push(header_block);
 
-        // Body block
         let mut body_block = IrBlock {
             id: body_id.clone(),
             instructions: Vec::new(),
@@ -181,7 +177,6 @@ impl IrGenerator {
             self.visit_statement(&mut body_block, block_stack, s);
         }
 
-        // After body, jump back to header
         body_block.instructions.push(IrInstruction {
             opcode: IrOpcode::Jump,
             result: None,
@@ -195,8 +190,6 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        // Push current_block (with init + jmp) to stack FIRST
-        // This ensures init+jmp comes BEFORE exit in output order
         block_stack.push(std::mem::replace(
             block,
             IrBlock {
@@ -206,7 +199,6 @@ impl IrGenerator {
             },
         ));
 
-        // Then push exit block to stack (comes AFTER init+jmp)
         block_stack.push(IrBlock {
             id: exit_id,
             instructions: Vec::new(),

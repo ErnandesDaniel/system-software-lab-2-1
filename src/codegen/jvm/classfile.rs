@@ -6,21 +6,17 @@ use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
 
 impl JvmGenerator {
     pub fn build_class_file(&mut self, class_name: &str, func: &IrFunction, code: Vec<ristretto_classfile::attributes::Instruction>) -> Vec<u8> {
-        // Debug info at start
         let func_name = &func.name;
-        let code_len = code.len();
-        
         let this_class = self.constant_pool.add_class(class_name).unwrap();
         let super_class = self.constant_pool.add_class("java/lang/Object").unwrap();
 
         let code_attr_name_idx = self.constant_pool.add_utf8("Code").unwrap();
         let max_locals = self.next_local_slot;
         let max_stack = self.estimate_max_stack(&code);
-        
-        // Validate code size - JVM limits method size to 65535 bytes
+
         let code_size: u32 = code.iter().map(|i| self.instr_size(i) as u32).sum();
         if code_size > 65535 {
-            panic!("Function {}: Generated code size ({}) exceeds JVM limit of 65535 bytes. max_stack={}, max_locals={}", 
+            panic!("Function {}: Generated code size ({}) exceeds JVM limit of 65535 bytes. max_stack={}, max_locals={}",
                    func_name, code_size, max_stack, max_locals);
         }
 
@@ -117,14 +113,12 @@ impl JvmGenerator {
             code_source_url: None,
         };
 
-        let code_len = code.len();
-        let constant_pool_len = self.constant_pool.len();
         let mut buffer = Vec::new();
         match class_file.to_bytes(&mut buffer) {
             Ok(_) => buffer,
             Err(e) => {
-                panic!("Failed to serialize class file: {:?}. code_len={}, max_stack={}, max_locals={}, constant_pool_len={}", 
-                       e, code_len, max_stack, max_locals, constant_pool_len);
+                panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}",
+                       e, max_stack, max_locals);
             }
         }
     }

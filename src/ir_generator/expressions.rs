@@ -40,13 +40,11 @@ impl IrGenerator {
             BinaryOp::And => (IrOpcode::And, IrType::Bool),
             BinaryOp::Or => (IrOpcode::Or, IrType::Bool),
             BinaryOp::Assign => {
-                // For assignment, we need to track the actual variable name, not convert to temp
                 let target_name = match expr.left.as_ref() {
                     Expr::Identifier(id) => id.name.clone(),
                     _ => left_temp.clone(),
                 };
 
-                // Use right_type instead of always Int
                 let right_type = right_type.clone();
 
                 block.instructions.push(IrInstruction {
@@ -60,8 +58,6 @@ impl IrGenerator {
                     span: expr.span,
                 });
 
-                // Add to locals only if it's a new variable (implicit declaration)
-                // Only add if not already declared (as parameter or earlier assignment)
                 if !self.declared_vars.contains(&target_name) {
                     self.locals.insert(
                         target_name.clone(),

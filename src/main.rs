@@ -11,7 +11,6 @@ mod stdlib;
 #[cfg(test)]
 mod tests;
 
-// Re-export core modules for convenience
 pub mod ast;
 pub mod ir;
 pub mod lexer;

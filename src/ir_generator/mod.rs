@@ -33,9 +33,6 @@ impl IrGenerator {
 
     #[allow(dead_code)]
     pub fn is_external_function(&self, name: &str) -> bool {
-        // Function is external if:
-        // 1. It's declared as extern def in the source code
-        // 2. It's a stdlib function (C runtime)
         self.external_functions.contains(name) || StdLib::is_stdlib(name)
     }
 
@@ -54,7 +51,6 @@ impl IrGenerator {
     pub fn generate(&mut self, program: &Program) -> IrProgram {
         let mut functions = Vec::new();
 
-        // First, collect all external function declarations
         for item in &program.items {
             if let SourceItem::FuncDeclaration(decl) = item {
                 self.external_functions
@@ -64,7 +60,6 @@ impl IrGenerator {
 
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
-                // Reset block counter and declared vars for each function
                 self.block_counter = 0;
                 self.declared_vars.clear();
                 let ir_func = self.generate_function(def);
@@ -105,7 +100,6 @@ impl IrGenerator {
                     },
                 );
 
-                // Track declared variables
                 self.declared_vars.insert(arg.name.name.clone());
             }
         }
@@ -126,42 +120,25 @@ impl IrGenerator {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
 
-        // After processing all statements:
-        // - current_block contains post-loop code
-        // - block_stack contains: [header, body, init_jmp, exit] (in that order from visit_loop_statement)
-        //
-        // We want final order: init_jmp (BB_0), header (BB_1), body (BB_2), post_loop (BB_3)
-        // Exit block is empty and gets merged with post-loop code
-        //
-        // block_stack[0] = header (contains CondBr)
-        // block_stack[1] = body (contains body code + Jump to header)
-        // block_stack[2] = init_jmp (old current_block with Jump to header)
-        // block_stack[3] = exit (empty - merge with post-loop)
-
-        // Add init_jmp block first (BB_0) - it's at index 2 in stack
         if block_stack.len() >= 3 {
             let init_jmp_block = block_stack.remove(2);
             blocks.push(init_jmp_block);
         }
 
-        // Add header block (BB_1)
         if !block_stack.is_empty() {
             let header_block = block_stack.remove(0);
             blocks.push(header_block);
         }
 
-        // Add body block (BB_2)
         if !block_stack.is_empty() {
             let body_block = block_stack.remove(0);
             blocks.push(body_block);
         }
 
-        // Exit block is at index 0 now - just remove it (empty), don't add as separate block
         if !block_stack.is_empty() {
-            block_stack.remove(0); // discard empty exit block
+            block_stack.remove(0);
         }
 
-        // Add post-loop code with fixed ID (next available is BB_3)
         current_block.id = format!("BB{}", blocks.len());
         blocks.push(current_block);
 

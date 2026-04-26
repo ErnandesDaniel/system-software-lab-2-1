@@ -6,21 +6,19 @@ use ristretto_classfile::ConstantPool;
 use std::collections::HashMap;
 
 mod types;
-mod bytecode;
 mod classfile;
 mod instructions;
 mod loaders;
 mod logical;
 
-/// Represents a placeholder for jump instructions that need label resolution
 #[derive(Debug, Clone)]
+#[allow(dead_code)]
 enum JumpPlaceholder {
     Goto { block_id: String },
     Ifne { block_id: String },
     Ifeq { block_id: String },
 }
 
-/// Extended instruction type that can hold either a real JVM instruction or a placeholder
 #[derive(Debug, Clone)]
 enum JvmInst {
     Real(Instruction),
@@ -183,19 +181,13 @@ impl JvmGenerator {
     }
 
     fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
-        // Two-pass generation:
-        // 1. Generate instructions with placeholders for jumps
-        // 2. Compute block positions
-        // 3. Resolve placeholders to actual offsets
-        
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_positions: HashMap<String, usize> = HashMap::new();
-        
-        // First pass: collect instructions and compute block positions
+
         let mut current_pos = 0usize;
         for block in &func.blocks {
             block_positions.insert(block.id.clone(), current_pos);
-            
+
             for inst in &block.instructions {
                 let insts = self.generate_instruction_with_placeholders(inst);
                 for i in &insts {
@@ -204,11 +196,10 @@ impl JvmGenerator {
                 instructions.extend(insts);
             }
         }
-        
-        // Second pass: resolve placeholders to actual offsets
+
         let mut result = Vec::new();
         current_pos = 0;
-        
+
         for inst in instructions {
             match inst {
                 JvmInst::Real(i) => {
@@ -221,12 +212,10 @@ impl JvmGenerator {
                         JumpPlaceholder::Ifne { block_id } => (block_id, true, true),
                         JumpPlaceholder::Ifeq { block_id } => (block_id, true, false),
                     };
-                    
+
                     if let Some(&target_pos) = block_positions.get(target_block) {
-                        // ristretto_classfile expects ABSOLUTE byte position, not relative offset!
-                        // The write_offset function calculates the relative offset internally
                         let target_u16 = target_pos as u16;
-                        
+
                         let resolved = if is_conditional {
                             if is_ifne {
                                 Instruction::Ifne(target_u16)
@@ -236,11 +225,10 @@ impl JvmGenerator {
                         } else {
                             Instruction::Goto(target_u16)
                         };
-                        
-                        current_pos += 3; // Size of branch instruction
+
+                        current_pos += 3;
                         result.push(resolved);
                     } else {
-                        // Fallback: jump to end (current position)
                         let fallback_pos = current_pos as u16;
                         let resolved = if is_conditional {
                             if is_ifne {
@@ -257,23 +245,20 @@ impl JvmGenerator {
                 }
             }
         }
-        
+
         result
     }
     
     fn generate_instruction_with_placeholders(&self, inst: &IrInstruction) -> Vec<JvmInst> {
         let mut code: Vec<Instruction> = Vec::new();
-        
-        // Use the generate_instruction method from instructions.rs
+
         self.generate_instruction(&mut code, inst);
-        
-        // Convert to JvmInst, but detect and replace jump placeholders
-        // We need to intercept Jump and CondBr to create proper placeholders
+
         match inst.opcode {
             IrOpcode::Jump => {
                 if let Some(ref target) = inst.jump_target {
-                    vec![JvmInst::Placeholder(JumpPlaceholder::Goto { 
-                        block_id: target.clone() 
+                    vec![JvmInst::Placeholder(JumpPlaceholder::Goto {
+                        block_id: target.clone()
                     })]
                 } else {
                     vec![JvmInst::Real(Instruction::Nop)]
@@ -283,11 +268,10 @@ impl JvmGenerator {
                 if let Some(operand) = inst.operands.first() {
                     self.emit_load_operand(&mut code, operand);
                     if let Some(ref target) = inst.jump_target {
-                        // Remove the placeholder Ifne(0) that generate_instruction added
                         code.pop();
                         code.into_iter().map(JvmInst::Real).chain(
-                            vec![JvmInst::Placeholder(JumpPlaceholder::Ifne { 
-                                block_id: target.clone() 
+                            vec![JvmInst::Placeholder(JumpPlaceholder::Ifne {
+                                block_id: target.clone()
                             })]
                         ).collect()
                     } else {
