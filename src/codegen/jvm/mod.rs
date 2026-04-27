@@ -15,6 +15,7 @@ mod logical;
 enum JumpPlaceholder {
     Goto { block_id: String },
     Ifne { block_id: String },
+    Ifeq { block_id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -178,57 +179,122 @@ impl JvmGenerator {
         }
     }
 
+    fn reorder_blocks_for_jvm<'a>(&self, blocks: &'a [IrBlock]) -> Vec<&'a IrBlock> {
+        if blocks.is_empty() {
+            return Vec::new();
+        }
+        
+        let mut ordered = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+        let block_map: std::collections::HashMap<String, &IrBlock> = 
+            blocks.iter().map(|b| (b.id.clone(), b)).collect();
+        
+        // Find entry block (first block that is not referenced by others)
+        let mut referenced = std::collections::HashSet::new();
+        for block in blocks {
+            for succ in &block.successors {
+                referenced.insert(succ.clone());
+            }
+        }
+        
+        // Entry is first block not in referenced, or just first block
+        let entry_idx = blocks.iter()
+            .position(|b| !referenced.contains(&b.id))
+            .unwrap_or(0);
+        
+        // BFS from entry to get correct order
+        let mut queue = std::collections::VecDeque::new();
+        queue.push_back(&blocks[entry_idx]);
+        
+        while let Some(block) = queue.pop_front() {
+            if visited.insert(block.id.clone()) {
+                ordered.push(block);
+                
+                // Add successors (body first for loops, then alternative)
+                for succ_id in &block.successors {
+                    if !visited.contains(succ_id) {
+                        if let Some(succ_block) = block_map.get(succ_id) {
+                            // Check if already in queue by id
+                            let already_in_queue = queue.iter().any(|b| b.id == *succ_id);
+                            if !already_in_queue {
+                                queue.push_back(succ_block);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Add any remaining blocks
+        for block in blocks {
+            if !visited.contains(&block.id) {
+                ordered.push(block);
+            }
+        }
+        
+        ordered
+    }
+
     fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
         let mut instructions: Vec<JvmInst> = Vec::new();
-        let mut block_positions: HashMap<String, usize> = HashMap::new();
+        let mut block_indices: HashMap<String, usize> = HashMap::new();
 
-        let mut current_pos = 0usize;
-        for block in &func.blocks {
-            block_positions.insert(block.id.clone(), current_pos);
+        // Reorder blocks for JVM: entry first, then follow successors
+        // This ensures relative instruction indices work correctly
+        let ordered_blocks = self.reorder_blocks_for_jvm(&func.blocks);
+
+        // First pass: collect instruction indices (not byte positions)
+        let mut current_idx = 0usize;
+        for block in &ordered_blocks {
+            block_indices.insert(block.id.clone(), current_idx);
 
             for inst in &block.instructions {
                 let insts = self.generate_instruction_with_placeholders(inst);
-                for i in &insts {
-                    current_pos += self.instruction_size(i);
-                }
+                current_idx += insts.len(); // Count instructions, not bytes
                 instructions.extend(insts);
             }
         }
 
+        // Second pass: resolve placeholders with relative instruction indices
         let mut result = Vec::new();
-        current_pos = 0;
+        let mut current_idx = 0usize;
 
         for inst in instructions {
             match inst {
                 JvmInst::Real(i) => {
-                    current_pos += self.instruction_size(&JvmInst::Real(i.clone()));
+                    current_idx += 1;
                     result.push(i);
                 }
                 JvmInst::Placeholder(placeholder) => {
-                    let (target_block, is_conditional) = match &placeholder {
-                        JumpPlaceholder::Goto { block_id } => (block_id, false),
-                        JumpPlaceholder::Ifne { block_id } => (block_id, true),
+                    let target_block = match &placeholder {
+                        JumpPlaceholder::Goto { block_id } => block_id,
+                        JumpPlaceholder::Ifne { block_id } => block_id,
+                        JumpPlaceholder::Ifeq { block_id } => block_id,
                     };
 
-                    if let Some(&target_pos) = block_positions.get(target_block) {
-                        let target_u16 = target_pos as u16;
+                    if let Some(&target_idx) = block_indices.get(target_block) {
+                        // ristretto_classfile uses relative instruction indices
+                        // offset = target_idx - current_idx (after this instruction)
+                        let offset = target_idx as i32 - (current_idx as i32 + 1);
+                        // Convert to i16 first to handle negative values, then to u16
+                        let offset_u16 = (offset as i16) as u16;
 
-                        let resolved = if is_conditional {
-                            Instruction::Ifne(target_u16)
-                        } else {
-                            Instruction::Goto(target_u16)
+                        let resolved = match &placeholder {
+                            JumpPlaceholder::Goto { .. } => Instruction::Goto(offset_u16),
+                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(offset_u16),
+                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(offset_u16),
                         };
 
-                        current_pos += 3;
+                        current_idx += 1;
                         result.push(resolved);
                     } else {
-                        let fallback_pos = current_pos as u16;
-                        let resolved = if is_conditional {
-                            Instruction::Ifne(fallback_pos)
-                        } else {
-                            Instruction::Goto(fallback_pos)
+                        // Jump to self as fallback (offset 0)
+                        let resolved = match &placeholder {
+                            JumpPlaceholder::Goto { .. } => Instruction::Goto(0),
+                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(0),
+                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(0),
                         };
-                        current_pos += 3;
+                        current_idx += 1;
                         result.push(resolved);
                     }
                 }
@@ -254,105 +320,39 @@ impl JvmGenerator {
                 }
             }
             IrOpcode::CondBr => {
-                if let Some(operand) = inst.operands.first() {
-                    self.emit_load_operand(&mut code, operand);
-                    if let Some(ref target) = inst.jump_target {
-                        code.pop();
-                        code.into_iter().map(JvmInst::Real).chain(
-                            vec![JvmInst::Placeholder(JumpPlaceholder::Ifne {
-                                block_id: target.clone()
-                            })]
-                        ).collect()
-                    } else {
-                        code.into_iter().map(JvmInst::Real).collect()
+                // CondBr uses true_target and false_target, not jump_target
+                if let (Some(ref true_target), Some(ref false_target)) = (&inst.true_target, &inst.false_target) {
+                    if let Some(operand) = inst.operands.first() {
+                        self.emit_load_operand(&mut code, operand);
                     }
+                    // Generate: ifeq false_target (jump to false branch if condition is false/0)
+                    //           goto true_target (fall through to true branch)
+                    code.into_iter().map(JvmInst::Real).chain(
+                        vec![
+                            JvmInst::Placeholder(JumpPlaceholder::Ifeq {
+                                block_id: false_target.clone()
+                            }),
+                            JvmInst::Placeholder(JumpPlaceholder::Goto {
+                                block_id: true_target.clone()
+                            })
+                        ]
+                    ).collect()
+                } else if let Some(ref target) = inst.jump_target {
+                    // Fallback for legacy IR using jump_target
+                    if let Some(operand) = inst.operands.first() {
+                        self.emit_load_operand(&mut code, operand);
+                    }
+                    code.into_iter().map(JvmInst::Real).chain(
+                        vec![JvmInst::Placeholder(JumpPlaceholder::Ifne {
+                            block_id: target.clone()
+                        })]
+                    ).collect()
                 } else {
                     code.into_iter().map(JvmInst::Real).collect()
                 }
             }
             _ => {
                 code.into_iter().map(JvmInst::Real).collect()
-            }
-        }
-    }
-    
-    fn instruction_size(&self, inst: &JvmInst) -> usize {
-        use ristretto_classfile::attributes::Instruction as Ri;
-        
-        match inst {
-            JvmInst::Placeholder(_) => 3, // Branch instructions are 3 bytes
-            JvmInst::Real(instr) => match instr {
-                Ri::Nop => 1,
-                Ri::Aconst_null => 1,
-                Ri::Iconst_m1 | Ri::Iconst_0 | Ri::Iconst_1 | Ri::Iconst_2 |
-                Ri::Iconst_3 | Ri::Iconst_4 | Ri::Iconst_5 => 1,
-                Ri::Lconst_0 | Ri::Lconst_1 => 1,
-                Ri::Fconst_0 | Ri::Fconst_1 | Ri::Fconst_2 => 1,
-                Ri::Dconst_0 | Ri::Dconst_1 => 1,
-                Ri::Bipush(_) => 2,
-                Ri::Sipush(_) => 3,
-                Ri::Ldc(_) => 2,
-                Ri::Ldc_w(_) | Ri::Ldc2_w(_) => 3,
-                Ri::Iload_0 | Ri::Iload_1 | Ri::Iload_2 | Ri::Iload_3 => 1,
-                Ri::Lload_0 | Ri::Lload_1 | Ri::Lload_2 | Ri::Lload_3 => 1,
-                Ri::Fload_0 | Ri::Fload_1 | Ri::Fload_2 | Ri::Fload_3 => 1,
-                Ri::Dload_0 | Ri::Dload_1 | Ri::Dload_2 | Ri::Dload_3 => 1,
-                Ri::Aload_0 | Ri::Aload_1 | Ri::Aload_2 | Ri::Aload_3 => 1,
-                Ri::Iload(_) | Ri::Lload(_) | Ri::Fload(_) | Ri::Dload(_) | Ri::Aload(_) => 2,
-                Ri::Istore_0 | Ri::Istore_1 | Ri::Istore_2 | Ri::Istore_3 => 1,
-                Ri::Lstore_0 | Ri::Lstore_1 | Ri::Lstore_2 | Ri::Lstore_3 => 1,
-                Ri::Fstore_0 | Ri::Fstore_1 | Ri::Fstore_2 | Ri::Fstore_3 => 1,
-                Ri::Dstore_0 | Ri::Dstore_1 | Ri::Dstore_2 | Ri::Dstore_3 => 1,
-                Ri::Astore_0 | Ri::Astore_1 | Ri::Astore_2 | Ri::Astore_3 => 1,
-                Ri::Istore(_) | Ri::Lstore(_) | Ri::Fstore(_) | Ri::Dstore(_) | Ri::Astore(_) => 2,
-                Ri::Pop | Ri::Pop2 => 1,
-                Ri::Dup | Ri::Dup_x1 | Ri::Dup_x2 | Ri::Dup2 | Ri::Dup2_x1 | Ri::Dup2_x2 => 1,
-                Ri::Swap => 1,
-                Ri::Iadd | Ri::Ladd | Ri::Fadd | Ri::Dadd => 1,
-                Ri::Isub | Ri::Lsub | Ri::Fsub | Ri::Dsub => 1,
-                Ri::Imul | Ri::Lmul | Ri::Fmul | Ri::Dmul => 1,
-                Ri::Idiv | Ri::Ldiv | Ri::Fdiv | Ri::Ddiv => 1,
-                Ri::Irem | Ri::Lrem | Ri::Frem | Ri::Drem => 1,
-                Ri::Ineg | Ri::Lneg | Ri::Fneg | Ri::Dneg => 1,
-                Ri::Ishl | Ri::Lshl => 1,
-                Ri::Ishr | Ri::Lshr => 1,
-                Ri::Iushr | Ri::Lushr => 1,
-                Ri::Iand | Ri::Land => 1,
-                Ri::Ior | Ri::Lor => 1,
-                Ri::Ixor | Ri::Lxor => 1,
-                Ri::Iinc(_, _) => 3,
-                Ri::I2l | Ri::I2f | Ri::I2d | Ri::L2i | Ri::L2f | Ri::L2d | Ri::F2i | Ri::F2l | Ri::F2d | Ri::D2i | Ri::D2l | Ri::D2f => 1,
-                Ri::I2b | Ri::I2c | Ri::I2s => 1,
-                Ri::Lcmp => 1,
-                Ri::Fcmpl | Ri::Fcmpg | Ri::Dcmpl | Ri::Dcmpg => 1,
-                Ri::Ifeq(_) | Ri::Ifne(_) | Ri::Iflt(_) | Ri::Ifge(_) | Ri::Ifgt(_) | Ri::Ifle(_) => 3,
-                Ri::If_icmpeq(_) | Ri::If_icmpne(_) | Ri::If_icmplt(_) | Ri::If_icmpge(_) | Ri::If_icmpgt(_) | Ri::If_icmple(_) => 3,
-                Ri::If_acmpeq(_) | Ri::If_acmpne(_) => 3,
-                Ri::Goto(_) => 3,
-                Ri::Jsr(_) => 3,
-                Ri::Ret(_) => 2,
-                Ri::Tableswitch { .. } => 1, // Variable size, simplified
-                Ri::Lookupswitch { .. } => 1, // Variable size, simplified
-                Ri::Ireturn | Ri::Lreturn | Ri::Freturn | Ri::Dreturn | Ri::Areturn | Ri::Return => 1,
-                Ri::Getstatic(_) => 3,
-                Ri::Putstatic(_) => 3,
-                Ri::Getfield(_) => 3,
-                Ri::Putfield(_) => 3,
-                Ri::Invokevirtual(_) | Ri::Invokespecial(_) | Ri::Invokestatic(_) => 3,
-                Ri::Invokeinterface(_, _) => 5,
-                Ri::Invokedynamic(_) => 5,
-                Ri::New(_) => 3,
-                Ri::Newarray(_) => 2,
-                Ri::Anewarray(_) => 3,
-                Ri::Arraylength => 1,
-                Ri::Athrow => 1,
-                Ri::Checkcast(_) => 3,
-                Ri::Instanceof(_) => 3,
-                Ri::Monitorenter | Ri::Monitorexit => 1,
-                Ri::Wide => 1,
-                Ri::Ifnull(_) | Ri::Ifnonnull(_) => 3,
-                Ri::Goto_w(_) | Ri::Jsr_w(_) => 5,
-                _ => 1,
             }
         }
     }

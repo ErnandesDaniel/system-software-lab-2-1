@@ -110,6 +110,13 @@ impl IrGenerator {
         }
         else_block.successors.push(merge_id.clone());
         block_stack.push(else_block);
+        
+        // Add merge block (code after if statement)
+        block_stack.push(IrBlock {
+            id: merge_id,
+            instructions: Vec::new(),
+            successors: Vec::new(),
+        });
     }
 
     pub fn visit_loop_statement(
@@ -190,20 +197,17 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        block_stack.push(std::mem::replace(
+        // Save current block (entry with Jump) to stack
+        let old_block = std::mem::replace(
             block,
             IrBlock {
-                id: self.generate_block_id(),
+                id: exit_id,
                 instructions: Vec::new(),
                 successors: Vec::new(),
             },
-        ));
-
-        block_stack.push(IrBlock {
-            id: exit_id,
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        });
+        );
+        block_stack.push(old_block);  // Save entry block
+        // block now is exit block for code after the loop
 
         self.loop_exit_stack.pop();
         self.loop_depth -= 1;

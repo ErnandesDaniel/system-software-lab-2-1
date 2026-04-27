@@ -117,8 +117,8 @@ impl JvmGenerator {
         match class_file.to_bytes(&mut buffer) {
             Ok(_) => buffer,
             Err(e) => {
-                panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}",
-                       e, max_stack, max_locals);
+                panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}, code_len={}",
+                       e, max_stack, max_locals, code.len());
             }
         }
     }

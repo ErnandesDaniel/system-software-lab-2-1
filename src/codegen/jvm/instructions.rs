@@ -123,17 +123,14 @@ impl JvmGenerator {
         }
     }
 
-    fn generate_jump(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let Some(ref _target) = inst.jump_target {
-            code.push(Instruction::Goto(0));
-        }
+    fn generate_jump(&self, _code: &mut Vec<Instruction>, _inst: &IrInstruction) {
+        // Jump is handled entirely in generate_instruction_with_placeholders
+        // to properly manage branch targets and avoid duplicate instructions
     }
 
-    fn generate_conditional_branch(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let Some(operand) = inst.operands.first() {
-            self.emit_load_operand(code, operand);
-            code.push(Instruction::Ifne(0));
-        }
+    fn generate_conditional_branch(&self, _code: &mut Vec<Instruction>, _inst: &IrInstruction) {
+        // CondBr is handled entirely in generate_instruction_with_placeholders
+        // to properly manage branch targets and avoid duplicate instructions
     }
 
     fn generate_array_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {

@@ -150,12 +150,87 @@ fn test_jvm_generation_negation() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     assert_eq!(classes.len(), 1);
     assert_eq!(classes[0].0, "Negate");
+    // Class file should be valid
+    assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
+}
+
+#[test]
+fn test_jvm_generation_if_statement() {
+    let source = r#"
+        def max(a of int, b of int) of int
+            if a > b then
+                return a
+            end
+            return b
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+
+    let mut jvm_gen = JvmGenerator::new();
+    let classes = jvm_gen.generate_program(&ir);
+
+    assert_eq!(classes.len(), 1);
+    assert_eq!(classes[0].0, "Max");
+    // Class file should be valid
+    assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
+}
+
+#[test]
+fn test_jvm_generation_if_else_statement() {
+    let source = r#"
+        def abs(x of int) of int
+            if x >= 0 then
+                return x
+            else
+                return -x
+            end
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+
+    let mut jvm_gen = JvmGenerator::new();
+    let classes = jvm_gen.generate_program(&ir);
+
+    assert_eq!(classes.len(), 1);
+    assert_eq!(classes[0].0, "Abs");
+    // Class file should be valid
+    assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
+}
+
+#[test]
+fn test_jvm_generation_nested_if() {
+    let source = r#"
+        def sign(x of int) of int
+            if x > 0 then
+                return 1
+            else
+                if x < 0 then
+                    return -1
+                else
+                    return 0
+                end
+            end
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+
+    let mut jvm_gen = JvmGenerator::new();
+    let classes = jvm_gen.generate_program(&ir);
+
+    assert_eq!(classes.len(), 1);
+    assert_eq!(classes[0].0, "Sign");
     // Class file should be valid
     assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
 }

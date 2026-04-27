@@ -120,27 +120,14 @@ impl IrGenerator {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
 
-        if block_stack.len() >= 3 {
-            let init_jmp_block = block_stack.remove(2);
-            blocks.push(init_jmp_block);
-        }
-
-        if !block_stack.is_empty() {
-            let header_block = block_stack.remove(0);
-            blocks.push(header_block);
-        }
-
-        if !block_stack.is_empty() {
-            let body_block = block_stack.remove(0);
-            blocks.push(body_block);
-        }
-
-        if !block_stack.is_empty() {
-            block_stack.remove(0);
-        }
-
-        current_block.id = format!("BB{}", blocks.len());
+        // Collect all blocks in order
+        // For functions: entry block first, then stack blocks
+        // For if/loop statements, blocks in stack are already in correct order
         blocks.push(current_block);
+        
+        for block in block_stack.drain(..) {
+            blocks.push(block);
+        }
 
         let mut func = IrFunction {
             name: def.signature.name.name.clone(),
