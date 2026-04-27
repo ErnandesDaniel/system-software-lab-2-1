@@ -121,12 +121,12 @@ impl IrGenerator {
         }
 
         // Collect all blocks in order
-        // First add blocks from stack (entry with Jump, then header, body)
-        // Then add current_block (exit for loops, or entry for simple functions)
+        // For if/functions: current_block is entry (first), stack has then/else
+        // For loops: we need special handling - see visit_loop_statement
+        blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
         }
-        blocks.push(current_block);
 
         let mut func = IrFunction {
             name: def.signature.name.name.clone(),

@@ -239,19 +239,12 @@ impl JvmGenerator {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_indices: HashMap<String, usize> = HashMap::new();
 
-        // Reorder blocks for JVM: entry first, then follow successors
-        // This ensures relative instruction indices work correctly
-        let ordered_blocks = self.reorder_blocks_for_jvm(&func.blocks);
-
-        // Debug: print block order
-        eprintln!("Function: {} - {} blocks", func.name, ordered_blocks.len());
-        for (i, block) in ordered_blocks.iter().enumerate() {
-            eprintln!("  Block {}: id={}, instrs={}, successors={:?}", i, block.id, block.instructions.len(), block.successors);
-        }
+        // Use blocks in their original order (already correct from ir_generator)
+        let ordered_blocks = &func.blocks;
 
         // First pass: collect instruction indices (not byte positions)
         let mut current_idx = 0usize;
-        for block in &ordered_blocks {
+        for block in ordered_blocks {
             block_indices.insert(block.id.clone(), current_idx);
 
             for inst in &block.instructions {
@@ -279,13 +272,14 @@ impl JvmGenerator {
                     };
 
                     if let Some(&target_idx) = block_indices.get(target_block) {
-                        // ristretto_classfile uses ABSOLUTE instruction positions
-                        let target_u16 = target_idx as u16;
+                        // ristretto_classfile uses RELATIVE instruction indices
+                        let offset = target_idx as i32 - current_idx as i32;
+                        let offset_u16 = (offset as i16) as u16;
 
                         let resolved = match &placeholder {
-                            JumpPlaceholder::Goto { .. } => Instruction::Goto(target_u16),
-                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(target_u16),
-                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(target_u16),
+                            JumpPlaceholder::Goto { .. } => Instruction::Goto(offset_u16),
+                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(offset_u16),
+                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(offset_u16),
                         };
 
                         current_idx += 1;

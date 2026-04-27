@@ -97,7 +97,7 @@ impl IrGenerator {
             successors: Vec::new(),
         };
         self.visit_statement(&mut then_block, block_stack, &stmt.consequence);
-        then_block.successors.push(merge_id.clone());
+        // then_block.successors.push(merge_id.clone());  // Don't add successor to non-existent merge block
         block_stack.push(then_block);
 
         let mut else_block = IrBlock {
@@ -108,15 +108,8 @@ impl IrGenerator {
         if let Some(ref alt) = stmt.alternative {
             self.visit_statement(&mut else_block, block_stack, alt);
         }
-        else_block.successors.push(merge_id.clone());
+        // else_block.successors.push(merge_id.clone());  // Don't add successor to non-existent merge block
         block_stack.push(else_block);
-        
-        // Add merge block (code after if statement)
-        block_stack.push(IrBlock {
-            id: merge_id,
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        });
     }
 
     pub fn visit_loop_statement(
@@ -197,17 +190,13 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        // Save current block (entry with Jump) to stack
-        let old_block = std::mem::replace(
-            block,
-            IrBlock {
-                id: exit_id,
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            },
-        );
-        block_stack.push(old_block);  // Save entry block
-        // block now is exit block for code after the loop
+        // Add exit block for code after the loop
+        block_stack.push(IrBlock {
+            id: exit_id,
+            instructions: Vec::new(),
+            successors: Vec::new(),
+        });
+        // current_block continues as the block after the loop
 
         self.loop_exit_stack.pop();
         self.loop_depth -= 1;
