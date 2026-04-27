@@ -243,6 +243,12 @@ impl JvmGenerator {
         // This ensures relative instruction indices work correctly
         let ordered_blocks = self.reorder_blocks_for_jvm(&func.blocks);
 
+        // Debug: print block order
+        eprintln!("Function: {} - {} blocks", func.name, ordered_blocks.len());
+        for (i, block) in ordered_blocks.iter().enumerate() {
+            eprintln!("  Block {}: id={}, instrs={}, successors={:?}", i, block.id, block.instructions.len(), block.successors);
+        }
+
         // First pass: collect instruction indices (not byte positions)
         let mut current_idx = 0usize;
         for block in &ordered_blocks {
@@ -273,16 +279,13 @@ impl JvmGenerator {
                     };
 
                     if let Some(&target_idx) = block_indices.get(target_block) {
-                        // ristretto_classfile uses relative instruction indices
-                        // offset = target_idx - current_idx (after this instruction)
-                        let offset = target_idx as i32 - (current_idx as i32 + 1);
-                        // Convert to i16 first to handle negative values, then to u16
-                        let offset_u16 = (offset as i16) as u16;
+                        // ristretto_classfile uses ABSOLUTE instruction positions
+                        let target_u16 = target_idx as u16;
 
                         let resolved = match &placeholder {
-                            JumpPlaceholder::Goto { .. } => Instruction::Goto(offset_u16),
-                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(offset_u16),
-                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(offset_u16),
+                            JumpPlaceholder::Goto { .. } => Instruction::Goto(target_u16),
+                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(target_u16),
+                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(target_u16),
                         };
 
                         current_idx += 1;

@@ -117,6 +117,10 @@ impl JvmGenerator {
         match class_file.to_bytes(&mut buffer) {
             Ok(_) => buffer,
             Err(e) => {
+                eprintln!("Code for {}:", func_name);
+                for (i, instr) in code.iter().enumerate() {
+                    eprintln!("  {}: {:?}", i, instr);
+                }
                 panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}, code_len={}",
                        e, max_stack, max_locals, code.len());
             }
