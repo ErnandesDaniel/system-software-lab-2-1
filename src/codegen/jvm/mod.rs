@@ -239,12 +239,12 @@ impl JvmGenerator {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_indices: HashMap<String, usize> = HashMap::new();
 
-        // Use blocks in their original order (already correct from ir_generator)
-        let ordered_blocks = &func.blocks;
+        // Reorder blocks for correct branch targets
+        let ordered_blocks = self.reorder_blocks_for_jvm(&func.blocks);
 
         // First pass: collect instruction indices (not byte positions)
         let mut current_idx = 0usize;
-        for block in ordered_blocks {
+        for block in &ordered_blocks {
             block_indices.insert(block.id.clone(), current_idx);
 
             for inst in &block.instructions {

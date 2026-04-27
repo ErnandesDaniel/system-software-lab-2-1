@@ -190,13 +190,17 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        // Add exit block for code after the loop
-        block_stack.push(IrBlock {
-            id: exit_id,
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        });
-        // current_block continues as the block after the loop
+        // Save entry block (with Jump) to stack, replace current_block with exit
+        let entry_block = std::mem::replace(
+            block,
+            IrBlock {
+                id: exit_id,
+                instructions: Vec::new(),
+                successors: Vec::new(),
+            },
+        );
+        // Add blocks in correct order: entry, header, body, exit (current_block)
+        block_stack.push(entry_block);
 
         self.loop_exit_stack.pop();
         self.loop_depth -= 1;
