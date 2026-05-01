@@ -407,11 +407,357 @@ cargo test test_exe
    - **LLVM** → LLVM IR
 6. **Линковка** → исполняемый файл (Clang)
 
-## Следующие шаги
 
-- [x] Добавить поддержку LLVM IR
-- [x] Добавить поддержку JVM
-- [x] Добавить поддержку WebAssembly
-- [ ] Добавить оптимизации LLVM (opt -O2)
-- [ ] Исправить типы возврата (void vs i32) для extern функций
-- [ ] Добавить поддержку браузера (Web), не только Node.js
+## Техническое задание: Корутины и Планировщик
+
+### Архитектура
+
+Реализация **кооперативной многозадачности** с автоматическим планировщиком.
+
+#### Концепция
+
+Пользовательская `main` — это **"фиктивная"** функция инициализации. Она регистрирует корутины, а настоящая точка входа скрыта.
+
+```mylang
+// Объявление корутины
+coroutine task1() of int
+    puts("Task 1");
+    yield;              // <-- приостановка
+    puts("Task 1 done");
+    return 10;
+end
+
+// "Фиктивная" main - только для инициализации
+def main() of int
+    task1();            // <-- автоматически создает и регистрирует корутину
+    task2();            // <-- то же самое
+    
+    puts("Setup done");
+    return 0;           // <-- здесь автоматически запускается планировщик!
+end
+```
+
+**Поток выполнения:**
+1. `_real_main` (скрытая) запускается
+2. Вызывается `user_main` ("фиктивная" main пользователя)
+3. Внутри `user_main` вызовы корутин (`task1()`) не выполняют код, а **регистрируют** корутины в планировщике
+4. После `return` в `user_main` автоматически запускается `run_scheduler()`
+5. Планировщик выполняет все зарегистрированные корутины до завершения
+
+### Синтаксис
+
+```mylang
+// Объявление корутины
+coroutine имя_функции(параметры) of тип_возврата
+    // локальные переменные - сохраняются между yield
+    counter = 0;
+    
+    while counter < 10 {
+        // работа...
+        yield;              // приостановка, возврат управления планировщику
+        counter = counter + 1;
+    }
+    loop_end
+    
+    return значение;        // сигнал завершения корутины
+end
+
+// Использование в main
+def main() of int
+    // Просто вызываем - это auto-spawn (создание + регистрация)
+    имя_функции(аргументы);
+    
+    // Можно вызвать yield в самой main
+    // для кооперации с корутинами
+    yield;
+    
+    return 0;               // запуск планировщика
+end
+```
+
+### Ключевые слова
+
+| Ключевое слово | Описание |
+|----------------|----------|
+| `coroutine` | Объявление корутины |
+| `yield` | Приостановка выполнения, возврат управления планировщику |
+
+### Генерация кода
+
+#### 1. Точка входа (скрытая)
+
+```nasm
+_real_main:
+    call init_scheduler
+    call user_main              ; "фиктивная" main
+    call run_scheduler          ; запуск всех корутин
+    call wait_all_tasks
+    mov eax, [exit_code]
+    ret
+```
+
+#### 2. Корутина (state machine)
+
+Каждая корутина компилируется в state machine с точками входа:
+
+```nasm
+task1_coroutine:
+    ; Switch по сохраненному PC (program counter)
+    mov rax, [rcx + state.rip]
+    
+    cmp rax, 0
+    je .start
+    cmp rax, 1
+    je .after_yield1
+    ; ...
+    
+.start:
+    call puts
+    mov qword [rcx + state.rip], 1    ; save next PC
+    ret                                ; yield!
+    
+.after_yield1:
+    ; продолжение после yield
+```
+
+#### 3. Auto-spawn при вызове
+
+При вызове корутины внутри main:
+
+```mylang
+def main() of int
+    task1();        // task1 - coroutine
+end
+```
+
+Генерируется:
+
+```nasm
+user_main:
+    call create_coroutine_task1     ; выделить память для состояния
+    call scheduler_add              ; добавить в список
+    
+    ; ...
+    ret
+```
+
+### Структура данных корутины (MyLang)
+
+```mylang
+struct CoroutineState {
+    rip of int;              // точка входа (instruction pointer)
+    rsp of int;              // saved stack pointer
+    rbx of int;              // saved registers
+    rbp of int;
+    r12 of int;
+    r13 of int;
+    r14 of int;
+    r15 of int;
+    finished of int;         // флаг завершения
+    return_value of int;     // возвращенное значение
+    locals of int[64];       // сохраненные локальные переменные
+}
+
+struct Scheduler {
+    coroutines of int[100];  // массив handle'ов (указателей)
+    count of int;
+    current_index of int;
+}
+```
+
+### Планировщик (MyLang)
+
+**Алгоритм:** Round-robin (циклический)
+
+```mylang
+// Глобальные переменные планировщика
+global scheduler of Scheduler;
+
+def scheduler_has_work() of int
+    return scheduler.count > 0;
+end
+
+def get_next_coroutine() of int
+    if scheduler.count == 0 {
+        return 0;
+    }
+    
+    handle = scheduler.coroutines[scheduler.current_index];
+    scheduler.current_index = scheduler.current_index + 1;
+    
+    if scheduler.current_index >= scheduler.count {
+        scheduler.current_index = 0;
+    }
+    
+    return handle;
+end
+
+def remove_coroutine(index of int) of int
+    i = index;
+    while i < scheduler.count - 1 {
+        scheduler.coroutines[i] = scheduler.coroutines[i + 1];
+        i = i + 1;
+    }
+    loop_end
+    scheduler.count = scheduler.count - 1;
+    return 0;
+end
+
+def run_scheduler() of int
+    while scheduler_has_work() {
+        co = get_next_coroutine();
+        
+        if co != 0 {
+            state = cast(co, CoroutineState*);
+            
+            if state->finished == 0 {
+                resume_coroutine(co);     // выполнить до yield
+            }
+            
+            if state->finished {
+                remove_coroutine(scheduler.current_index);
+            }
+        }
+    }
+    return 0;
+end
+```
+
+### Пример использования
+
+```mylang
+coroutine worker(id of int) of int
+    i = 0;
+    while i < 3 {
+        puts("Worker");
+        i = i + 1;
+        yield;
+    }
+    loop_end
+    return id;
+end
+
+def main() of int
+    worker(1);
+    worker(2);
+    worker(3);
+    
+    puts("All spawned");
+    return 0;
+end
+```
+
+**Вывод:**
+```
+All spawned
+Worker
+Worker
+Worker
+Worker
+Worker
+Worker
+Worker
+Worker
+Worker
+```
+
+### Предварительные требования
+
+Для реализации планировщика на чистом MyLang необходимо добавить в язык:
+
+#### 1. Структуры (struct)
+
+**Синтаксис:**
+```mylang
+struct CoroutineState {
+    rip of int;           // instruction pointer
+    rsp of int;           // stack pointer
+    rbx of int;           // saved registers
+    rbp of int;
+    r12 of int;
+    r13 of int;
+    r14 of int;
+    r15 of int;
+    finished of int;      // flag
+    return_value of int;
+    locals of int[64];    // local variables storage
+}
+
+struct Scheduler {
+    coroutines of int[100];   // array of pointers (handles)
+    count of int;
+    current_index of int;
+}
+```
+
+**Использование:**
+```mylang
+def create_coroutine(func of int) of int
+    co = alloc(sizeof(CoroutineState));
+    co->rip = func;
+    co->finished = 0;
+    return co;
+end
+
+def is_finished(co of int) of int
+    state = cast(co, CoroutineState*);
+    return state->finished;
+end
+```
+
+#### 2. Глобальные переменные
+
+**Синтаксис:**
+```mylang
+// Глобальные переменные (вне функций)
+global scheduler of Scheduler;
+global current_coroutine of int;
+global exit_code of int;
+
+def init_scheduler() of int
+    scheduler.count = 0;
+    scheduler.current_index = 0;
+    return 0;
+end
+
+def scheduler_add(handle of int) of int
+    scheduler.coroutines[scheduler.count] = handle;
+    scheduler.count = scheduler.count + 1;
+    return 0;
+end
+```
+
+**Требования:**
+- Глобальные переменные должны инициализироваться нулем (или заданным значением)
+- Доступны из любой функции
+- Сохраняют значение между вызовами
+- Линкуются в секцию `.data`
+
+### Этапы реализации
+
+#### Этап 0: Предварительные требования (ДО корутин)
+1. **Структуры:**
+   - Токены: `struct`, `->`, `.`, `sizeof`
+   - AST: `StructDef`, `StructFieldAccess`, `StructPointerAccess`
+   - Генерация: выравнивание полей, доступ по offset
+   - Функция: `alloc(size)` - выделение памяти из кучи
+
+2. **Глобальные переменные:**
+   - Парсинг объявлений вне функций
+   - Генерация в секцию `.data`
+   - Доступ через label (например: `mov rax, [scheduler_count]`)
+
+#### Этап 1: Корутины
+3. **Лексер/Парсер:** добавить токены `coroutine`, `yield`
+4. **AST:** добавить ноды `CoroutineDef`, `YieldStatement`, `CoroutineCall`
+5. **Анализ:** определить какие функции - корутины
+6. **Генерация кода:**
+   - State machine для корутин
+   - Скрытая `_real_main`
+   - Auto-spawn при вызове корутин
+7. **Runtime (ASM):**
+   - `init_scheduler`
+   - `scheduler_add`
+   - `run_scheduler`
+   - `resume_coroutine`
+   - Сохранение/восстановление контекста (registers)
