@@ -38,6 +38,20 @@ choco install llvm
 clang -v
 ```
 
+### 4. PHP
+
+PHP требуется для запуска WebAssembly тестов.
+
+**Chocolatey:**
+```bash
+choco install php
+```
+
+**Проверка установки:**
+```bash
+php -v
+```
+
 ## Сборка
 
 ```bash
