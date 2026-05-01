@@ -266,6 +266,90 @@ square(a) = 25
 
 *Примечание: Для переноса строки в `printf` используйте `\n` в форматной строке (как в C). Функция `puts` автоматически добавляет перенос.*
 
+#### Вызов из PHP
+
+Создайте файл `run_jvm.php`:
+
+```php
+<?php
+/**
+ * JVM Runner - PHP обертка для запуска JVM функций
+ */
+
+class JVMRunner {
+    private string $classpath;
+    private string $runnerClass;
+    
+    public function __construct(string $classpath = 'output', string $runnerClass = 'MainRunner') {
+        $this->classpath = $classpath;
+        $this->runnerClass = $runnerClass;
+    }
+    
+    /**
+     * Вызвать функцию из JVM с аргументами
+     */
+    public function call(string $functionName, array $args = []): array {
+        $argsStr = implode(' ', array_map('escapeshellarg', $args));
+        $command = sprintf(
+            'java -cp %s %s %s %s 2>&1',
+            escapeshellarg($this->classpath),
+            escapeshellarg($this->runnerClass),
+            escapeshellarg($functionName),
+            $argsStr
+        );
+        
+        $output = [];
+        $exitCode = 0;
+        exec($command, $output, $exitCode);
+        
+        return [
+            'output' => implode("\n", $output),
+            'exit_code' => $exitCode,
+            'success' => $exitCode === 0
+        ];
+    }
+    
+    /**
+     * Вызвать функцию и получить результат как число
+     */
+    public function callInt(string $functionName, array $args = []): ?int {
+        $result = $this->call($functionName, $args);
+        if (!$result['success']) {
+            return null;
+        }
+        
+        $lines = explode("\n", trim($result['output']));
+        $lastLine = end($lines);
+        
+        return is_numeric($lastLine) ? (int)$lastLine : null;
+    }
+}
+
+// Примеры использования:
+$jvm = new JVMRunner('output');
+
+// Запуск main функции
+$result = $jvm->call('main');
+echo "Вывод:\n" . $result['output'];
+echo "Код возврата: " . $result['exit_code'];
+
+// Запуск функции square с аргументом
+$value = $jvm->callInt('square', ['7']);
+echo "square(7) = " . $value;  // 49
+
+// Таблица квадратов
+for ($i = 1; $i <= 10; $i++) {
+    $result = $jvm->callInt('square', [(string)$i]);
+    echo "square($i) = $result\n";
+}
+```
+
+**Запуск:**
+
+```bash
+php run_input_jvm.php
+```
+
 #### Компиляция в WebAssembly (для Node.js)
 
 ```bash
