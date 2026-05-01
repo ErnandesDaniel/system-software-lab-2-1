@@ -67,17 +67,12 @@ impl JvmGenerator {
             self.emit_load_operand(code, right);
 
             // Branch structure for comparison (ABSOLUTE instruction positions):
-            // Current position: 0
             // 0: If_icmpXX(3)  - if true, jump to position 3 (Iconst_1)
             // 1: Iconst_0      - else push 0
             // 2: Goto(4)       - jump to position 4 (Istore)
             // 3: Iconst_1      - push 1
             // 4: Istore(slot)  - store result
             
-            // We need to calculate absolute positions
-            let if_icmp_pos = 0u16;
-            let iconst_0_pos = 1u16;
-            let goto_pos = 2u16;
             let iconst_1_pos = 3u16;
             let istore_pos = 4u16;
             

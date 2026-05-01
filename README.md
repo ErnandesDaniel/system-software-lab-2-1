@@ -213,35 +213,6 @@ echo %ERRORLEVEL%    # cmd
 
 Файл `input_jvm.mylang` — простой работающий пример для JVM:
 
-```mylang
-// Простейшая программа для JVM - только базовые операции без циклов и условий
-extern puts
-extern printf
-
-def square(x of int) of int
-    return x * x;
-end
-
-def main() of int
-    puts("Hello from JVM!");
-    
-    a = 5;
-    b = 3;
-    c = a + b;
-    d = a * b;
-    e = square(a);
-    
-    puts("Results:");
-    
-    // Используем \n в форматной строке для переноса строки
-    printf("a + b = %d\n", c);
-    printf("a * b = %d\n", d);
-    printf("square(a) = %d\n", e);
-    
-    return e
-end
-```
-
 **Компиляция и запуск:**
 
 ```bash

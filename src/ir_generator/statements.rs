@@ -76,7 +76,6 @@ impl IrGenerator {
 
         let then_id = self.generate_block_id();
         let else_id = self.generate_block_id();
-        let merge_id = self.generate_block_id();
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CondBr,
