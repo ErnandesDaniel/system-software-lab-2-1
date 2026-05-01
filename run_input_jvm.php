@@ -80,24 +80,6 @@ $jvm = new JVMRunner($classpath);
 echo "1. Запуск main():\n";
 $result = $jvm->call('main');
 echo "Вывод:\n" . $result['output'] . "\n";
-echo "Код возврата: " . $result['exit_code'] . "\n";
-echo "Успех: " . ($result['success'] ? 'да' : 'нет') . "\n\n";
-
-// Пример 2: Запуск функции square с аргументом
-echo "2. Запуск square(7):\n";
-$result = $jvm->call('square', ['7']);
-echo "Вывод: " . trim($result['output']) . "\n";
-echo "Код возврата: " . $result['exit_code'] . "\n\n";
-
-// Пример 3: Упрощенный вызов
-echo "3. Упрощенный вызов square(10):\n";
-$output = $jvm->callSimple('square', ['10']);
-echo "Результат: " . trim($output) . "\n\n";
-
-// Пример 4: Получение результата как число
-echo "4. Получение int результата square(5):\n";
-$value = $jvm->callInt('square', ['5']);
-echo "Значение: " . ($value !== null ? $value : 'null') . "\n\n";
 
 // Пример 5: Несколько вызовов
 $numbers = [3, 5, 7, 10];
