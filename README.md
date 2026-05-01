@@ -62,6 +62,8 @@ cargo run -- <source_file> -o <output_dir> [options]
 | `--ast <file>` | Сохранить AST (диаграмма Mermaid) |
 | `--cfg <file>` | Сохранить CFG (диаграмма Mermaid) |
 
+**Примечание:** Для target `jvm` используйте файл `input_jvm.mylang`, так как циклы (`while`) и условия (`if`) пока не работают на JVM.
+
 #### Компиляция в executable
 
 ```bash
@@ -148,6 +150,8 @@ llvm-dis output\program.bc -o output\program_check.ll
 
 #### Компиляция в JVM (Java bytecode)
 
+**Примечание:** В текущей реализации циклы (`while`) не работают на JVM target. Используйте файл `input_jvm.mylang` вместо `input.mylang` для тестирования JVM компиляции.
+
 **Требования:**
 - Java JDK 21 или выше ([скачать](https://jdk.java.net/))
 
@@ -160,7 +164,11 @@ javac -version
 **Компиляция:**
 
 ```bash
-cargo run -- input.mylang -o output -t jvm
+# Используйте input_jvm.mylang для JVM (без циклов и условий, так как они пока не работают на JVM)
+cargo run -- input_jvm.mylang -o output -t jvm
+
+# Или компилируйте input.mylang для других target'ов (nasm, llvm, wasm)
+# cargo run -- input.mylang -o output -t nasm
 ```
 
 Создаст в `output`:
@@ -187,21 +195,62 @@ echo %ERRORLEVEL%    # cmd
 4. Программа вызывает Java-методы через `invokestatic`
 5. `RuntimeStub.main()` вызывает `Main.main()` и возвращает код завершения
 
-**Пример:**
+**Работающий пример:**
+
+Файл `input_jvm.mylang` — простой работающий пример для JVM:
 
 ```mylang
+// Простейшая программа для JVM - только базовые операции без циклов и условий
 extern puts
+extern printf
+
+def square(x of int) of int
+    return x * x;
+end
+
 def main() of int
     puts("Hello from JVM!");
-    return 0
+    
+    a = 5;
+    b = 3;
+    c = a + b;
+    d = a * b;
+    e = square(a);
+    
+    puts("Results:");
+    
+    // Используем \n в форматной строке для переноса строки
+    printf("a + b = %d\n", c);
+    printf("a * b = %d\n", d);
+    printf("square(a) = %d\n", e);
+    
+    return e
 end
 ```
 
+**Компиляция и запуск:**
+
 ```bash
-cargo run -- hello.mylang -o output -t jvm
-java -cp output RuntimeStub
-# Вывод: Hello from JVM!
+# Компилировать программу для JVM
+cargo run -- input_jvm.mylang -o output -t jvm
+
+# Запустить main функцию
+java -cp output MainRunner main
+
+# Запустить отдельную функцию
+java -cp output MainRunner square 7
 ```
+
+**Вывод:**
+```
+Hello from JVM!
+Results:
+a + b = 8
+a * b = 15
+square(a) = 25
+```
+
+*Примечание: Для переноса строки в `printf` используйте `\n` в форматной строке (как в C). Функция `puts` автоматически добавляет перенос.*
 
 #### Компиляция в WebAssembly (для Node.js)
 
