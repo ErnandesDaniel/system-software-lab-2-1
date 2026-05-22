@@ -58,26 +58,25 @@ impl<'source> Parser<'source> {
 
         let condition = self.parse_condition_expression()?;
 
-        let mut body = Vec::new();
-        while let Some(tok) = self.current_token() {
-            if tok == &Token::LoopEnd {
-                self.expect(Token::LoopEnd)?;
-                break;
-            }
-            if tok == &Token::End {
-                self.expect(Token::End)?;
-                break;
-            }
-            if tok == &Token::Semi {
-                self.advance();
-                continue;
-            }
-            let stmt = self.parse_statement()?;
-            body.push(stmt);
-            while self.current_token() == Some(&Token::Semi) {
-                self.advance();
-            }
+        while self.current_token() == Some(&Token::Semi) {
+            self.advance();
         }
+
+        let body_stmt = self.parse_statement()?;
+
+        while self.current_token() == Some(&Token::Semi) {
+            self.advance();
+        }
+
+        if self.current_token() == Some(&Token::LoopEnd) {
+            self.expect(Token::LoopEnd)?;
+        }
+
+        let body = if let Statement::Block(block) = body_stmt {
+            block.body
+        } else {
+            vec![body_stmt]
+        };
 
         let span = start.merge(self.current_span());
         Ok(Statement::Loop(LoopStatement {

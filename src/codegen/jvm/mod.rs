@@ -187,8 +187,6 @@ impl JvmGenerator {
             return Vec::new();
         }
         
-        let mut ordered = Vec::new();
-        let mut visited = std::collections::HashSet::new();
         let block_map: std::collections::HashMap<String, &IrBlock> = 
             blocks.iter().map(|b| (b.id.clone(), b)).collect();
         
@@ -200,42 +198,76 @@ impl JvmGenerator {
             }
         }
         
-        // Entry is first block not in referenced, or just first block
         let entry_idx = blocks.iter()
             .position(|b| !referenced.contains(&b.id))
             .unwrap_or(0);
         
-        // BFS from entry to get correct order
-        let mut queue = std::collections::VecDeque::new();
-        queue.push_back(&blocks[entry_idx]);
+        // DFS pre-order from entry. This visits body blocks before exit blocks
+        // because body is the first successor of header, and exit is the second.
+        // Back edges (body → header) are skipped since header is already visited.
+        let mut ordered = Vec::new();
+        let mut visited = std::collections::HashSet::new();
+        let mut stack = vec![&blocks[entry_idx]];
         
-        while let Some(block) = queue.pop_front() {
+        while let Some(block) = stack.pop() {
             if visited.insert(block.id.clone()) {
                 ordered.push(block);
-                
-                // Add successors (body first for loops, then alternative)
-                for succ_id in &block.successors {
+                for succ_id in block.successors.iter().rev() {
                     if !visited.contains(succ_id) {
                         if let Some(succ_block) = block_map.get(succ_id) {
-                            // Check if already in queue by id
-                            let already_in_queue = queue.iter().any(|b| b.id == *succ_id);
-                            if !already_in_queue {
-                                queue.push_back(succ_block);
-                            }
+                            stack.push(succ_block);
                         }
                     }
                 }
             }
         }
         
-        // Add any remaining blocks
+        // Add any remaining blocks not reachable from entry
         for block in blocks {
             if !visited.contains(&block.id) {
                 ordered.push(block);
             }
         }
         
-        ordered
+        // Use REVERSE of original block order from generate_function.
+        // The original order is: [exit, ...blocks..., entry]
+        // but with blocks in stack order (header, then, else, body, ...).
+        // We need: [entry, ...reachable..., exit]
+        // So: collect reachable in DFS pre-order, ensure entry first, exit last.
+        let mut seen = std::collections::HashSet::new();
+        let mut result = Vec::new();
+        
+        // Start DFS from entry, collect in DFS pre-order
+        let mut dfs_stack = vec![&blocks[entry_idx]];
+        while let Some(b) = dfs_stack.pop() {
+            if seen.insert(b.id.clone()) {
+                result.push(b);
+                for succ_id in b.successors.iter().rev() {
+                    if !seen.contains(succ_id) {
+                        if let Some(succ) = block_map.get(succ_id) {
+                            dfs_stack.push(succ);
+                        }
+                    }
+                }
+            }
+        }
+        
+        // Append any remaining blocks (shouldn't happen, but safety)
+        for b in blocks {
+            if !seen.contains(&b.id) {
+                result.push(b);
+            }
+        }
+        
+        eprintln!("  [jvm] block order (entry={}):", blocks[entry_idx].id);
+        for (i, b) in result.iter().enumerate() {
+            let is_ret = b.instructions.last().map_or(false, |inst| inst.opcode == IrOpcode::Ret);
+            if is_ret { eprint!(" *"); }
+            eprintln!("    {}: {} ({} instrs){}", i, b.id, b.instructions.len(),
+                if is_ret { " RET" } else { "" });
+        }
+        
+        result
     }
 
     fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
@@ -323,6 +355,11 @@ impl JvmGenerator {
         let block_inst_indices: HashMap<String, u16> = block_to_inst_idx.iter()
             .map(|(id, &idx)| (id.clone(), idx as u16))
             .collect();
+
+        eprintln!("  block positions for {}:", func.name);
+        for (id, &idx) in &block_inst_indices {
+            eprintln!("    {} → instr {}", id, idx);
+        }
 
         // Resolve placeholders to instruction-index-based branch instructions
         let result: Vec<Instruction> = instructions.into_iter().map(|jvm_inst| {
