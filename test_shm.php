@@ -4,7 +4,6 @@ require __DIR__ . '/shm_client.php';
 $c = new SHMClient();
 
 $tests = [
-    'exec square 7'      => fn() => $c->exec('square', '7'),
     'create note1 Hello' => fn() => $c->create('note1', 'Hello World'),
     'create note2 PHPJVM'=> fn() => $c->create('note2', 'PHP+JVM via SHM'),
     'list'               => fn() => $c->list(),

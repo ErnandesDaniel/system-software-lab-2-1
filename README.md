@@ -28,16 +28,6 @@ php cli_app.php
 | `set` | `set note1 World` | Обновить значение |
 | `delete` | `delete note1` | Удалить по ключу |
 | `list` | `list` | Список ключей |
-| `exec` | `exec square 7` / `exec add 3 5` | Выполнить builtin-функцию |
-| `exit` | `exit` | Остановить демон и выйти |
-
-### Builtin функции (exec)
-
-| Функция | Аргументы | Пример |
-|---------|-----------|--------|
-| `square` | 1 int | `exec square 7` → 49 |
-| `add` | 2+ ints | `exec add 3 5 2` → 10 |
-
 ### SHM Бинарный протокол
 
 Размер SHM: 4096 байт (mylang_shm.dat, mmap через CreateFileMapping).
@@ -45,9 +35,9 @@ php cli_app.php
 ```
 Запрос:
   [0..3]  state    int32 LE  0=idle, 1=request, 2=done, 3=exit
-  [4]     opcode   byte      0=create,1=get,2=set,3=delete,4=list,5=exec,6=exit
-  [5..]   key\0    string    null-terminated key (или имя функции для exec)
-  [..]    value\0  string    null-terminated value (или args для exec)
+  [4]     opcode   byte      0=create,1=get,2=set,3=delete,4=list,5=exit
+  [5..]   key\0    string    null-terminated key
+  [..]    value\0  string    null-terminated value
 
 Ответ:
   [0..3]  state    int32 LE  2=done
@@ -59,7 +49,7 @@ php cli_app.php
 
 | Файл | Назначение |
 |------|------------|
-| `output/MainServer.java` | JVM-демон: CRUD (HashMap) + exec (square/add) |
+| `output/MainServer.java` | JVM-демон: CRUD (HashMap) |
 | `shm_client.php` | PHP FFI класс (CreateFileA → CreateFileMappingA → MapViewOfFile) |
 | `cli_app.php` | PHP CLI с интерактивными командами |
 | `test_shm.php` | Интеграционный тест |

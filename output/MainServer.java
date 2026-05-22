@@ -15,8 +15,7 @@ public class MainServer {
     private static final byte OP_SET    = 2;
     private static final byte OP_DELETE = 3;
     private static final byte OP_LIST   = 4;
-    private static final byte OP_EXEC   = 5;
-    private static final byte OP_EXIT   = 6;
+    private static final byte OP_EXIT   = 5;
 
     private static final byte RES_OK    = 0;
     private static final byte RES_ERR   = 1;
@@ -127,7 +126,6 @@ public class MainServer {
                 case OP_SET    -> handleSet(key, value);
                 case OP_DELETE -> handleDelete(key);
                 case OP_LIST   -> handleList();
-                case OP_EXEC   -> handleExec(key, value);
                 case OP_EXIT   -> writeResp(RES_OK, "");
                 default -> writeResp(RES_ERR, "Unknown opcode: " + opcode);
             }
@@ -189,26 +187,6 @@ public class MainServer {
             names = store.keySet().toArray(new String[0]);
         }
         writeResp(RES_OK, String.join(",", names));
-    }
-
-    private void handleExec(String func, String argsStr) {
-        if (func.isEmpty()) { writeResp(RES_ERR, "No function name"); return; }
-        try {
-            String[] parts = argsStr.split(",");
-            int[] args = new int[parts.length];
-            for (int i = 0; i < parts.length; i++)
-                args[i] = Integer.parseInt(parts[i].trim());
-
-            int result;
-            switch (func) {
-                case "square" -> { if (args.length != 1) throw new IllegalArgumentException("square needs 1 arg"); result = args[0] * args[0]; }
-                case "add" -> { if (args.length < 2) throw new IllegalArgumentException("add needs 2+ args"); result = java.util.Arrays.stream(args).sum(); }
-                default -> { writeResp(RES_ERR, "Unknown function: " + func); return; }
-            }
-            writeResp(RES_OK, String.valueOf(result));
-        } catch (Exception e) {
-            writeResp(RES_ERR, e.getMessage() != null ? e.getMessage() : "Error");
-        }
     }
 
     private void shutdown() {

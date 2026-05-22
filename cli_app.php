@@ -16,9 +16,6 @@ PHP FFI → JVM Daemon (Shared Memory)
   delete <key>              Удалить по ключу
   list                      Список ключей
 
-  exec <func> <args...>     Выполнить builtin-функцию
-                              Пример: exec square 7
-
   help                      Эта справка
 
 ";
@@ -91,13 +88,6 @@ function main(): void {
 
                 case 'help':
                     printHelp();
-                    break;
-
-                case 'exec':
-                    $func = array_shift($parts) ?? '';
-                    $args = implode(',', $parts);
-                    $r = $shm->exec($func, $args);
-                    echo "  result: " . ($r ?? '(empty)') . "\n";
                     break;
 
                 case 'create':

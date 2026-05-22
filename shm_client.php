@@ -12,8 +12,7 @@ class SHMClient {
     const OP_SET    = 2;
     const OP_DELETE = 3;
     const OP_LIST   = 4;
-    const OP_EXEC   = 5;
-    const OP_EXIT   = 6;
+    const OP_EXIT   = 5;
 
     public function __construct(string $filePath = 'mylang_shm.dat') {
         $this->ffi = FFI::cdef("
@@ -72,7 +71,6 @@ class SHMClient {
     public function set(string $name, string $value): ?string { return $this->request(self::OP_SET, $name, $value); }
     public function delete(string $name): ?string { return $this->request(self::OP_DELETE, $name); }
     public function list(): ?string { return $this->request(self::OP_LIST); }
-    public function exec(string $func, string $args): ?string { return $this->request(self::OP_EXEC, $func, $args); }
     public function shutdown(): void { $this->request(self::OP_EXIT); }
 
     private function request(int $opcode, string $key = '', string $value = ''): ?string {
