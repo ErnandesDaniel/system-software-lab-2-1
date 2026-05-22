@@ -1,36 +1,97 @@
 # System Software Lab 2-1: MyLang Compiler + PHP↔JVM via SHM
 
-Два компонента:
-1. **MyLang Compiler** (Rust) — компилятор кастомного языка в NASM/LLVM/JVM/WASM
-2. **PHP↔JVM Demo** — PHP общается с Java-демоном через shared memory (mmap'd file) по бинарному протоколу
+Три компонента:
+1. **MyLang Compiler** (Rust) — компилирует `server.mylang` в JVM `.class` файлы
+2. **RuntimeStub** (Java) — рантайм с shared memory, реализациями `shm_*`/`map_*`, вызывает скомпилированный MyLang-код
+3. **PHP CLI** (`cli_app.php` + `shm_client.php`) — интерактивная консоль, отправляет запросы JVM-демону через разделяемую память
 
 ---
 
-## PHP↔JVM Demo
+## Полный цикл: компиляция → запуск → тестирование
 
-PHP (FFI → kernel32.dll) ↔ SHM-файл (mylang_shm.dat) ↔ JVM-демон (RandomAccessFile)
+### 1. Требования
 
-### Быстрый старт
+- Rust: `rustup default stable`
+- Java JDK 21+: `choco install openjdk`
+- PHP 8.1+ с FFI: `choco install php`
+
+### 2. Сборка компилятора
+
+```powershell
+cargo build
+```
+
+### 3. Компиляция MyLang в JVM
+
+```powershell
+cargo run -- server.mylang -o output -t jvm
+```
+
+Результат в `output/`:
+- `Main.class`, `Dispatch.class`, `Handle_create.class`, `Handle_get.class`, `Handle_set.class`, `Handle_delete.class` — скомпилированный mylang-код
+- `RuntimeStub.java`, `MainRunner.java` — сгенерированные Java-обёртки
+
+### 4. Компиляция Java-классов
+
+```powershell
+cd output
+javac -cp ".;lib/jna-5.14.0.jar" RuntimeStub.java
+javac MainRunner.java
+cd ..
+```
+
+### 5. Запуск PHP CLI
+
+PHP-приложение само запускает JVM-демон при подключении:
 
 ```powershell
 php cli_app.php
 ```
 
-Демон запускается автоматически. После `exit` демон останавливается и CLI завершается.
+### 6. Основной сценарий (тестирование)
 
-### Команды CLI
+```
+=== PHP FFI → JVM Daemon ===
 
-| Команда | Пример | Описание |
-|---------|--------|----------|
-| `start` | `start` | Запустить JVM-демон внутри сессии |
-| `create` | `create note1 Hello` | Создать запись по ключу |
-| `get` | `get note1` | Получить значение |
-| `set` | `set note1 World` | Обновить значение |
-| `delete` | `delete note1` | Удалить по ключу |
-| `list` | `list` | Список ключей |
-### SHM Бинарный протокол
+> create user1 Alice
+  ok
+> create user2 Bob
+  ok
+> get user1
+  value: Alice
+> set user1 Charlie
+  ok
+> get user1
+  value: Charlie
+> list
+  keys:
+    - user1
+    - user2
+> delete user2
+  ok
+> list
+  keys:
+    - user1
+> exit
+Bye!
+```
 
-Размер SHM: 4096 байт (mylang_shm.dat, mmap через CreateFileMapping).
+### Как это работает
+
+```
+PHP (cli_app.php)
+  ↓ FFI → kernel32.dll
+  ↓ CreateFileMapping + MapViewOfFile → mylang_shm.dat (4096 байт)
+  ↓ Win32 Event — сигнал JVM-демону
+JVM (RuntimeStub)
+  ↓ main() → инициализация SHM
+  ↓ Main.call() → запуск mylang-кода
+  ↓ Dispatch.dispatch() → handle_create/handle_get/handle_set/handle_delete
+  ↓ Ответ через SHM → сигнал PHP через Event
+PHP читает SHM → выводит результат
+```
+
+### Протокол SHM
 
 ```
 Запрос:
@@ -42,84 +103,39 @@ php cli_app.php
 Ответ:
   [0..3]  state    int32 LE  2=done
   [4]     result   byte      0=ok, 1=error
-  [5..]   payload\0 string   null-terminated payload (пусто если ok без данных)
+  [5..]   payload\0 string   null-terminated payload
 ```
-
-### Структура проекта
-
-| Файл | Назначение |
-|------|------------|
-| `output/MainServer.java` | JVM-демон: CRUD (HashMap) |
-| `shm_client.php` | PHP FFI класс (CreateFileA → CreateFileMappingA → MapViewOfFile) |
-| `cli_app.php` | PHP CLI с интерактивными командами |
-| `test_shm.php` | Интеграционный тест |
-
-### Примечания
-
-- `php cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Интерактивный режим работает нормально.
-- Для запуска требуется Java JDK 21+ (`java -version`).
 
 ---
 
-## MyLang Compiler
+## Структура проекта
 
-Компилятор языка MyLang, написанный на Rust.
+| Файл | Назначение |
+|------|------------|
+| `server.mylang` | Исходный код на MyLang (обработчики create/get/set/delete + main-цикл) |
+| `src/` | Компилятор MyLang на Rust |
+| `output/Main.class` | JVM-байткод: main() из server.mylang |
+| `output/Dispatch.class` | JVM-байткод: dispatch-таблица по opcode |
+| `output/Handle_*.class` | JVM-байткод: CRUD-функции |
+| `output/RuntimeStub.java` | Java-рантайм (shared memory, вызовы mylang-кода) |
+| `output/MainRunner.java` | Java-загрузчик для вызова функций по имени |
+| `shm_client.php` | PHP FFI класс (kernel32 → CreateFileMapping, MapViewOfFile, Event) |
+| `cli_app.php` | PHP CLI с интерактивными командами |
+| `test_shm.php` | Интеграционный тест |
 
-### Требования
+## Команды PHP CLI
 
-- Rust: `rustup default stable`
-- NASM: https://www.nasm.us/ (для target nasm)
-- Clang/LLVM: `choco install llvm` (для линковки и target llvm)
-- Java JDK 21+: `choco install openjdk` (для target jvm)
-- PHP: `choco install php` (для WASM тестов)
+| Команда | Пример | Описание |
+|---------|--------|----------|
+| `create` | `create note1 Hello` | Создать запись по ключу |
+| `get` | `get note1` | Получить значение |
+| `set` | `set note1 World` | Обновить значение |
+| `delete` | `delete note1` | Удалить по ключу |
+| `list` | `list` | Список ключей |
+| `exit` | `exit` | Остановить JVM-демон и выйти |
 
-### Сборка
+## Примечания
 
-```bash
-cargo build
-```
-
-### Использование
-
-```bash
-cargo run -- <source.mylang> -o <output_dir> [options]
-```
-
-| Опция | Описание |
-|-------|----------|
-| `-o, --output <dir>` | Выходная директория (**обязательно**) |
-| `-t, --target <target>` | `nasm` (default), `llvm`, `jvm`, `wasm` |
-| `--optimize` | Оптимизация O2 для wasm |
-| `--ast <file>` | Сохранить AST (Mermaid) |
-| `--cfg <file>` | Сохранить CFG (Mermaid) |
-
-### Примеры
-
-```bash
-# NASM executable
-cargo run -- input.mylang -o output
-
-# JVM bytecode
-cargo run -- input_jvm.mylang -o output -t jvm
-
-# LLVM IR
-cargo run -- input.mylang -o output -t llvm
-
-# WebAssembly
-cargo run -- input.mylang -o output -t wasm
-```
-
-### Тестирование
-
-```bash
-cargo test
-```
-
-### Архитектура компилятора
-
-1. **Лексер** → токены
-2. **Парсер** → AST
-3. **Семантический анализ** → проверка типов, таблица символов
-4. **IR генератор** → промежуточное представление
-5. **Codegen** → NASM / LLVM IR / JVM bytecode / WASM
-6. **Линковка** → исполняемый файл
+- `php cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Только интерактивный режим.
+- Если `output/mylang_shm.dat` остался после аварийного завершения, удалите вручную перед перезапуском.
+- Компилятор также поддерживает цели `nasm`, `llvm`, `wasm` (см. `cargo run -- --help`).
