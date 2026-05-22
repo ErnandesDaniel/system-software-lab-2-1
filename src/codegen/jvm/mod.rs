@@ -126,7 +126,8 @@ impl JvmGenerator {
     }
     
     fn is_external_function(&self, name: &str) -> bool {
-        matches!(name, "puts" | "putchar" | "getchar" | "printf" | "rand" | "srand" | "time" | "Sleep")
+        matches!(name, "puts" | "putchar" | "getchar" | "printf" | "rand" | "srand" | "time" | "Sleep"
+            | "map_put" | "map_get" | "map_remove" | "map_has" | "map_size" | "map_key" | "map_list")
     }
     
     fn build_user_method_descriptor(&self, param_types: &[IrType], return_type: Option<&IrType>) -> String {

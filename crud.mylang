@@ -1,0 +1,52 @@
+extern def map_put(name of string, value of string) of int
+extern def map_get(name of string) of string
+extern def map_remove(name of string) of int
+extern def map_has(name of string) of int
+extern def map_size() of int
+extern def map_key(i of int) of string
+extern def map_list() of string
+
+def create_entity(name of string, value of string) of int
+begin
+    if map_has(name) == 0 then {
+        map_put(name, value);
+        return 1;
+    }
+    return 0;
+end
+end
+
+def get_entity(name of string) of string
+begin
+    if map_has(name) == 0 then {
+        return "";
+    }
+    return map_get(name);
+end
+end
+
+def set_entity(name of string, value of string) of int
+begin
+    if map_has(name) == 1 then {
+        map_put(name, value);
+        return 1;
+    }
+    return 0;
+end
+end
+
+def delete_entity(name of string) of int
+begin
+    if map_has(name) == 1 then {
+        map_remove(name);
+        return 1;
+    }
+    return 0;
+end
+end
+
+def list_entities() of string
+begin
+    return map_list();
+end
+end

@@ -29,7 +29,7 @@ pub struct IrLocal {
     pub stack_offset: Option<i32>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum IrType {
     Void,

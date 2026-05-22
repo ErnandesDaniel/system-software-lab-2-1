@@ -44,6 +44,15 @@ impl StdLib {
         funcs.insert("exit");
         funcs.insert("system");
 
+        // EntityStore functions (JVM daemon)
+        funcs.insert("map_put");
+        funcs.insert("map_get");
+        funcs.insert("map_remove");
+        funcs.insert("map_has");
+        funcs.insert("map_size");
+        funcs.insert("map_key");
+        funcs.insert("map_list");
+
         funcs
     }
 

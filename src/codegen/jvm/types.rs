@@ -39,6 +39,13 @@ pub fn get_method_descriptor(target: &str) -> String {
         "srand" => "(I)V".to_string(),
         "time" => "(I)I".to_string(),
         "Sleep" => "(I)V".to_string(),
+        "map_put" => "(Ljava/lang/String;Ljava/lang/String;)I".to_string(),
+        "map_get" => "(Ljava/lang/String;)Ljava/lang/String;".to_string(),
+        "map_remove" => "(Ljava/lang/String;)I".to_string(),
+        "map_has" => "(Ljava/lang/String;)I".to_string(),
+        "map_size" => "()I".to_string(),
+        "map_key" => "(I)Ljava/lang/String;".to_string(),
+        "map_list" => "()Ljava/lang/String;".to_string(),
         _ => "()I".to_string(),
     }
 }

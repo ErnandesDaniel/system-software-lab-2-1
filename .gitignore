@@ -1,4 +1,7 @@
 target
 .idea
+*.class
+*.log
+*.dat
+*.exe
 old-code
-output

@@ -109,7 +109,12 @@ impl JvmGenerator {
 
             if let Some(ref result) = inst.result {
                 let slot = self.get_local_slot(result);
-                code.push(Instruction::Istore(slot as u8));
+                let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
+                if is_string {
+                    code.push(Instruction::Astore(slot as u8));
+                } else {
+                    code.push(Instruction::Istore(slot as u8));
+                }
             }
         }
     }
@@ -117,7 +122,11 @@ impl JvmGenerator {
     fn generate_return(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let Some(operand) = inst.operands.first() {
             self.emit_load_operand(code, operand);
-            code.push(Instruction::Ireturn);
+            if operand.get_type() == IrType::String {
+                code.push(Instruction::Areturn);
+            } else {
+                code.push(Instruction::Ireturn);
+            }
         } else {
             code.push(Instruction::Return);
         }

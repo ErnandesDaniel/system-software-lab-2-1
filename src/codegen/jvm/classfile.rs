@@ -142,6 +142,9 @@ impl JvmGenerator {
             Instruction::Ldc_w(_) | Instruction::Iload(_) |
             Instruction::Iload_0 | Instruction::Iload_1 |
             Instruction::Iload_2 | Instruction::Iload_3 |
+            Instruction::Aload(_) | Instruction::Aload_0 |
+            Instruction::Aload_1 | Instruction::Aload_2 |
+            Instruction::Aload_3 |
             Instruction::Iaload | Instruction::Invokestatic(_)
         )
     }
