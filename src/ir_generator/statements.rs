@@ -11,19 +11,17 @@ impl IrGenerator {
     ) {
         match stmt {
             Statement::Return(ret) => {
-                let operands = if let Some(ref expr) = ret.expr {
-                    let (temp, _) = self.visit_expr(block, expr);
-                    vec![IrOperand::Variable(temp, IrType::Int)]
+                let (operands, result_type) = if let Some(ref expr) = ret.expr {
+                    let (temp, expr_type) = self.visit_expr(block, expr);
+                    (vec![IrOperand::Variable(temp, expr_type.clone())], Some(expr_type))
                 } else {
-                    vec![]
+                    (vec![], None)
                 };
-
-                let has_return_value = ret.expr.is_some();
 
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Ret,
                     result: None,
-                    result_type: if has_return_value { Some(IrType::Int) } else { None },
+                    result_type,
                     operands,
                     jump_target: None,
                     true_target: None,
@@ -76,6 +74,7 @@ impl IrGenerator {
 
         let then_id = self.generate_block_id();
         let else_id = self.generate_block_id();
+        let merge_id = self.generate_block_id();
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CondBr,
@@ -96,7 +95,19 @@ impl IrGenerator {
             successors: Vec::new(),
         };
         self.visit_statement(&mut then_block, block_stack, &stmt.consequence);
-        // then_block.successors.push(merge_id.clone());  // Don't add successor to non-existent merge block
+        if !ends_with_control_flow(&then_block) {
+            then_block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Jump,
+                result: None,
+                result_type: None,
+                operands: vec![],
+                jump_target: Some(merge_id.clone()),
+                true_target: None,
+                false_target: None,
+                span: stmt.span,
+            });
+        }
+        then_block.successors.push(merge_id.clone());
         block_stack.push(then_block);
 
         let mut else_block = IrBlock {
@@ -107,8 +118,30 @@ impl IrGenerator {
         if let Some(ref alt) = stmt.alternative {
             self.visit_statement(&mut else_block, block_stack, alt);
         }
-        // else_block.successors.push(merge_id.clone());  // Don't add successor to non-existent merge block
+        if !ends_with_control_flow(&else_block) {
+            else_block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Jump,
+                result: None,
+                result_type: None,
+                operands: vec![],
+                jump_target: Some(merge_id.clone()),
+                true_target: None,
+                false_target: None,
+                span: stmt.span,
+            });
+        }
+        else_block.successors.push(merge_id.clone());
         block_stack.push(else_block);
+
+        let entry_block = std::mem::replace(
+            block,
+            IrBlock {
+                id: merge_id,
+                instructions: Vec::new(),
+                successors: Vec::new(),
+            },
+        );
+        block_stack.push(entry_block);
     }
 
     pub fn visit_loop_statement(
@@ -291,4 +324,10 @@ impl IrGenerator {
         self.loop_exit_stack.pop();
         self.loop_depth -= 1;
     }
+}
+
+fn ends_with_control_flow(block: &IrBlock) -> bool {
+    block.instructions.last().map_or(false, |inst| {
+        matches!(inst.opcode, IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr)
+    })
 }

@@ -101,7 +101,7 @@ impl JvmGenerator {
         }
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_6,
+            version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
@@ -115,7 +115,13 @@ impl JvmGenerator {
 
         let mut buffer = Vec::new();
         match class_file.to_bytes(&mut buffer) {
-            Ok(_) => buffer,
+            Ok(_) => {
+                eprintln!("Code for {} ({} instrs):", func_name, code.len());
+                for (i, instr) in code.iter().enumerate() {
+                    eprintln!("  {}: {:?} (size={})", i, instr, self.instr_size(instr));
+                }
+                buffer
+            }
             Err(e) => {
                 eprintln!("Code for {}:", func_name);
                 for (i, instr) in code.iter().enumerate() {
@@ -149,7 +155,7 @@ impl JvmGenerator {
         )
     }
     
-    fn instr_size(&self, instr: &Instruction) -> usize {
+    pub fn instr_size(&self, instr: &Instruction) -> usize {
         match instr {
             Instruction::Nop => 1,
             Instruction::Aconst_null => 1,

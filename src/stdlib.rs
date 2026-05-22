@@ -53,6 +53,15 @@ impl StdLib {
         funcs.insert("map_key");
         funcs.insert("map_list");
 
+        // SHM functions (JVM daemon)
+        funcs.insert("shm_read_state");
+        funcs.insert("shm_read_byte");
+        funcs.insert("shm_read_str");
+        funcs.insert("shm_write_state");
+        funcs.insert("shm_write_resp");
+        funcs.insert("shm_wait_event");
+        funcs.insert("shm_find_null");
+
         funcs
     }
 
@@ -89,6 +98,14 @@ impl StdLib {
             ("clock", ("", "int")),
             ("Sleep", ("ms: int", "int")),  // Windows Sleep (milliseconds) - blocking
             ("putchar", ("c: int", "int")),
+            // SHM functions (JVM daemon)
+            ("shm_read_state", ("", "int")),
+            ("shm_read_byte", ("pos: int", "int")),
+            ("shm_read_str", ("pos: int", "string")),
+            ("shm_write_state", ("state: int", "")),
+            ("shm_write_resp", ("result: int, payload: string", "")),
+            ("shm_wait_event", ("", "")),
+            ("shm_find_null", ("start: int", "int")),
         ];
         decls
             .into_iter()

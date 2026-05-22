@@ -4,7 +4,7 @@ use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::BinaryOp;
 
 impl JvmGenerator {
-    pub fn generate_instruction(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+    pub fn generate_instruction(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
         match inst.opcode {
             IrOpcode::Assign => self.generate_assign(code, inst),
             IrOpcode::Add => self.generate_binary_op(code, inst, BinaryOp::Add),
@@ -14,18 +14,18 @@ impl JvmGenerator {
             IrOpcode::Mod => self.generate_binary_op(code, inst, BinaryOp::Mod),
             IrOpcode::Neg => self.generate_neg(code, inst),
             IrOpcode::Pos => self.generate_pos(code, inst),
-            IrOpcode::And => self.generate_logical_and(code, inst),
-            IrOpcode::Or => self.generate_logical_or(code, inst),
-            IrOpcode::Not => self.generate_logical_not(code, inst),
+            IrOpcode::And => self.generate_logical_and(code, inst, global_offset),
+            IrOpcode::Or => self.generate_logical_or(code, inst, global_offset),
+            IrOpcode::Not => self.generate_logical_not(code, inst, global_offset),
             IrOpcode::BitAnd => self.generate_binary_op(code, inst, BinaryOp::BitAnd),
             IrOpcode::BitOr => self.generate_binary_op(code, inst, BinaryOp::BitOr),
             IrOpcode::BitNot => self.generate_bit_not(code, inst),
-            IrOpcode::Eq => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq),
-            IrOpcode::Ne => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne),
-            IrOpcode::Lt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt),
-            IrOpcode::Le => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le),
-            IrOpcode::Gt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt),
-            IrOpcode::Ge => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge),
+            IrOpcode::Eq => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset),
+            IrOpcode::Ne => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne, global_offset),
+            IrOpcode::Lt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt, global_offset),
+            IrOpcode::Le => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le, global_offset),
+            IrOpcode::Gt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt, global_offset),
+            IrOpcode::Ge => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge, global_offset),
             IrOpcode::Call => self.generate_call(code, inst),
             IrOpcode::Ret => self.generate_return(code, inst),
             IrOpcode::Jump => self.generate_jump(code, inst),

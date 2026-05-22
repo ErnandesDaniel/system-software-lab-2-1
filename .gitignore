@@ -5,3 +5,7 @@ target
 *.dat
 *.exe
 old-code
+output/*.java
+output/*.mmd
+daemon_*.txt
+mylang_shm.dat

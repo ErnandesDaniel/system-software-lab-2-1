@@ -127,7 +127,9 @@ impl JvmGenerator {
     
     fn is_external_function(&self, name: &str) -> bool {
         matches!(name, "puts" | "putchar" | "getchar" | "printf" | "rand" | "srand" | "time" | "Sleep"
-            | "map_put" | "map_get" | "map_remove" | "map_has" | "map_size" | "map_key" | "map_list")
+            | "map_put" | "map_get" | "map_remove" | "map_has" | "map_size" | "map_key" | "map_list"
+            | "shm_read_state" | "shm_read_byte" | "shm_read_str" | "shm_write_state" | "shm_write_resp" | "shm_wait_event"
+            | "shm_find_null")
     }
     
     fn build_user_method_descriptor(&self, param_types: &[IrType], return_type: Option<&IrType>) -> String {
@@ -238,74 +240,127 @@ impl JvmGenerator {
 
     fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
         let mut instructions: Vec<JvmInst> = Vec::new();
-        let mut block_indices: HashMap<String, usize> = HashMap::new();
+        let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
+
+        // Initialize all local slots for verifier type consistency across loop boundaries
+        let string_slots = collect_string_slots(self, func);
+        for slot in 0..self.next_local_slot {
+            if self.locals.values().any(|&s| s == slot) {
+                if string_slots.contains(&slot) {
+                    instructions.push(JvmInst::Real(Instruction::Aconst_null));
+                    instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                } else {
+                    instructions.push(JvmInst::Real(Instruction::Iconst_0));
+                    instructions.push(JvmInst::Real(Instruction::Istore(slot as u8)));
+                }
+            }
+        }
+
+    // Helper to find all string-typed local slots
+    fn collect_string_slots(jg: &JvmGenerator, func: &IrFunction) -> Vec<u16> {
+        let mut slots = Vec::new();
+        for param in &func.parameters {
+            if param.ty == IrType::String {
+                if let Some(&slot) = jg.locals.get(&param.name) {
+                    slots.push(slot);
+                }
+            }
+        }
+        for local in &func.locals {
+            if local.ty == IrType::String {
+                if let Some(&slot) = jg.locals.get(&local.name) {
+                    if !slots.contains(&slot) {
+                        slots.push(slot);
+                    }
+                }
+            }
+        }
+        for block in &func.blocks {
+            for inst in &block.instructions {
+                for op in &inst.operands {
+                    if let IrOperand::Variable(name, ty) = op {
+                        if *ty == IrType::String {
+                            if let Some(&slot) = jg.locals.get(name) {
+                                if !slots.contains(&slot) {
+                                    slots.push(slot);
+                                }
+                            }
+                        }
+                    }
+                }
+                if let Some(ref result) = inst.result {
+                    if Some(IrType::String) == inst.result_type || inst.operands.first().map_or(false, |op| op.get_type() == IrType::String) {
+                        if let Some(&slot) = jg.locals.get(result) {
+                            if !slots.contains(&slot) {
+                                slots.push(slot);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        slots.sort();
+        slots.dedup();
+        slots
+    }
 
         // Reorder blocks for correct branch targets
         let ordered_blocks = self.reorder_blocks_for_jvm(&func.blocks);
 
-        // First pass: collect instruction indices (not byte positions)
-        let mut current_idx = 0usize;
+        // First pass: generate all instructions with placeholders, track block start indices
+        let mut inst_idx = instructions.len();
         for block in &ordered_blocks {
-            block_indices.insert(block.id.clone(), current_idx);
+            block_to_inst_idx.insert(block.id.clone(), inst_idx);
 
-            for inst in &block.instructions {
-                let insts = self.generate_instruction_with_placeholders(inst);
-                current_idx += insts.len(); // Count instructions, not bytes
-                instructions.extend(insts);
+            for ir_inst in &block.instructions {
+                let jvm_insts = self.generate_instruction_with_placeholders(ir_inst, inst_idx as u16);
+                inst_idx += jvm_insts.len();
+                instructions.extend(jvm_insts);
             }
         }
 
-        // Second pass: resolve placeholders with relative instruction indices
-        let mut result = Vec::new();
-        let mut current_idx = 0usize;
+        // Map block IDs to instruction indices
+        let block_inst_indices: HashMap<String, u16> = block_to_inst_idx.iter()
+            .map(|(id, &idx)| (id.clone(), idx as u16))
+            .collect();
 
-        for inst in instructions {
-            match inst {
-                JvmInst::Real(i) => {
-                    current_idx += 1;
-                    result.push(i);
-                }
-                JvmInst::Placeholder(placeholder) => {
-                    let target_block = match &placeholder {
+        // Resolve placeholders to instruction-index-based branch instructions
+        let result: Vec<Instruction> = instructions.into_iter().map(|jvm_inst| {
+            match jvm_inst {
+                JvmInst::Real(instr) => instr,
+                JvmInst::Placeholder(p) => {
+                    let target_block = match &p {
                         JumpPlaceholder::Goto { block_id } => block_id,
                         JumpPlaceholder::Ifne { block_id } => block_id,
                         JumpPlaceholder::Ifeq { block_id } => block_id,
                     };
 
-                    if let Some(&target_idx) = block_indices.get(target_block) {
-                        // ristretto_classfile uses RELATIVE instruction indices
-                        let offset = target_idx as i32 - current_idx as i32;
-                        let offset_u16 = (offset as i16) as u16;
-
-                        let resolved = match &placeholder {
-                            JumpPlaceholder::Goto { .. } => Instruction::Goto(offset_u16),
-                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(offset_u16),
-                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(offset_u16),
-                        };
-
-                        current_idx += 1;
-                        result.push(resolved);
-                    } else {
-                        // Jump to self as fallback (offset 0)
-                        let resolved = match &placeholder {
-                            JumpPlaceholder::Goto { .. } => Instruction::Goto(0),
-                            JumpPlaceholder::Ifne { .. } => Instruction::Ifne(0),
-                            JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(0),
-                        };
-                        current_idx += 1;
-                        result.push(resolved);
+                    let target_idx = block_inst_indices.get(target_block).copied().unwrap_or(0);
+                    match &p {
+                        JumpPlaceholder::Goto { .. } => Instruction::Goto(target_idx),
+                        JumpPlaceholder::Ifne { .. } => Instruction::Ifne(target_idx),
+                        JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(target_idx),
                     }
                 }
             }
-        }
+        }).collect();
 
-        result
+        // Ensure all branch targets are within bounds; add Nop if needed
+        let total = result.len() as u16;
+        let has_out_of_bounds = block_inst_indices.values().any(|&idx| idx >= total);
+        if has_out_of_bounds {
+            let mut extended = result;
+            extended.push(Instruction::Nop);
+            extended
+        } else {
+            result
+        }
     }
     
-    fn generate_instruction_with_placeholders(&self, inst: &IrInstruction) -> Vec<JvmInst> {
+    fn generate_instruction_with_placeholders(&self, inst: &IrInstruction, global_offset: u16) -> Vec<JvmInst> {
         let mut code: Vec<Instruction> = Vec::new();
 
-        self.generate_instruction(&mut code, inst);
+        self.generate_instruction(&mut code, inst, global_offset);
 
         match inst.opcode {
             IrOpcode::Jump => {

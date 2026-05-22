@@ -46,6 +46,13 @@ pub fn get_method_descriptor(target: &str) -> String {
         "map_size" => "()I".to_string(),
         "map_key" => "(I)Ljava/lang/String;".to_string(),
         "map_list" => "()Ljava/lang/String;".to_string(),
+        "shm_read_state" => "()I".to_string(),
+        "shm_read_byte" => "(I)I".to_string(),
+        "shm_read_str" => "(I)Ljava/lang/String;".to_string(),
+        "shm_write_state" => "(I)V".to_string(),
+        "shm_write_resp" => "(ILjava/lang/String;)V".to_string(),
+        "shm_wait_event" => "()V".to_string(),
+        "shm_find_null" => "(I)I".to_string(),
         _ => "()I".to_string(),
     }
 }

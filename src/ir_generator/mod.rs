@@ -15,6 +15,7 @@ pub struct IrGenerator {
     pub loop_exit_stack: Vec<String>,
     pub loop_depth: usize,
     pub external_functions: HashSet<String>,
+    pub function_return_types: HashMap<String, IrType>,
 }
 
 impl IrGenerator {
@@ -28,6 +29,7 @@ impl IrGenerator {
             loop_exit_stack: Vec::new(),
             loop_depth: 0,
             external_functions: HashSet::new(),
+            function_return_types: HashMap::new(),
         }
     }
 
@@ -51,13 +53,29 @@ impl IrGenerator {
     pub fn generate(&mut self, program: &Program) -> IrProgram {
         let mut functions = Vec::new();
 
+        // First pass: collect all function signatures (extern + user-defined)
         for item in &program.items {
-            if let SourceItem::FuncDeclaration(decl) = item {
-                self.external_functions
-                    .insert(decl.signature.name.name.clone());
+            match item {
+                SourceItem::FuncDeclaration(decl) => {
+                    self.external_functions
+                        .insert(decl.signature.name.name.clone());
+                    let ret_type = decl.signature.return_type.as_ref()
+                        .map(|t| self.convert_type(t))
+                        .unwrap_or(IrType::Void);
+                    self.function_return_types
+                        .insert(decl.signature.name.name.clone(), ret_type);
+                }
+                SourceItem::FuncDefinition(def) => {
+                    let ret_type = def.signature.return_type.as_ref()
+                        .map(|t| self.convert_type(t))
+                        .unwrap_or(IrType::Void);
+                    self.function_return_types
+                        .insert(def.signature.name.name.clone(), ret_type);
+                }
             }
         }
 
+        // Second pass: generate IR for each function definition
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
                 self.block_counter = 0;

@@ -266,7 +266,7 @@ impl CompilerDriver {
         let stub_file = "RuntimeStub.java";
         let _ = Command::new("javac")
             .current_dir(output_dir)
-            .args(["-cp", ".", stub_file])
+            .args(["-cp", ".;../lib/jna-5.14.0.jar", stub_file])
             .output();
 
         let runner_file = "MainRunner.java";
@@ -278,10 +278,53 @@ impl CompilerDriver {
 
     fn generate_jvm_stub(&self, output_dir: &str) {
         let stub = r#"import java.io.*;
+import java.nio.*;
+import java.nio.channels.*;
+import java.nio.charset.*;
 import java.util.*;
+import com.sun.jna.*;
+import com.sun.jna.win32.*;
 
 public class RuntimeStub {
+    private static final int SHM_SIZE = 4096;
+    private static final int STATE_IDLE = 0;
+    private static final int STATE_EXIT = 3;
+
+    private static MappedByteBuffer buf;
+    private static HashMap<String, String> store = new HashMap<>();
+    private static Pointer hEvent;
     private static Random random = new Random();
+
+    static {
+        Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
+    }
+
+    public static void main(String[] args) {
+        try {
+            System.out.println("[RuntimeStub] Initializing...");
+            RandomAccessFile file = new RandomAccessFile("mylang_shm.dat", "rw");
+            file.setLength(SHM_SIZE);
+            FileChannel ch = file.getChannel();
+            buf = ch.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE);
+            buf.order(ByteOrder.LITTLE_ENDIAN);
+            ch.close();
+
+            hEvent = Kernel32.INSTANCE.CreateEventA(null, 1, 0, "MyLangSHMEvent");
+            if (hEvent == null) {
+                throw new RuntimeException("CreateEventA failed");
+            }
+
+            System.out.println("[RuntimeStub] Ready. PID: " + ProcessHandle.current().pid());
+        } catch (Exception e) {
+            System.err.println("[RuntimeStub] Init error: " + e.getMessage());
+            System.exit(1);
+        }
+
+        int result = Main.call();
+        System.exit(result);
+    }
+
+    // --- Standard IO ---
 
     public static int getchar() throws IOException {
         return System.in.read();
@@ -301,10 +344,10 @@ public class RuntimeStub {
 
     public static int printf(String format, int value) {
         System.out.print(format.replace("%d", String.valueOf(value))
-                                    .replace("%c", String.valueOf((char) value))
-                                    .replace("%s", String.valueOf(value))
-                                    .replace("\\n", "\n")
-                                    .replace("\\t", "\t"));
+                                .replace("%c", String.valueOf((char) value))
+                                .replace("%s", String.valueOf(value))
+                                .replace("\\n", "\n")
+                                .replace("\\t", "\t"));
         System.out.flush();
         return value;
     }
@@ -322,15 +365,103 @@ public class RuntimeStub {
     }
 
     public static void Sleep(int ms) {
+        try { Thread.sleep(ms); } catch (InterruptedException e) {}
+    }
+
+    // --- SHM functions ---
+
+    public static int shm_read_state() {
+        return buf.getInt(0);
+    }
+
+    public static int shm_read_byte(int pos) {
+        return buf.get(pos) & 0xFF;
+    }
+
+    public static String shm_read_str(int pos) {
+        int len = 0;
+        while (pos + len < SHM_SIZE && buf.get(pos + len) != 0) len++;
+        byte[] bytes = new byte[len];
+        buf.position(pos);
+        buf.get(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
+    }
+
+    public static void shm_write_state(int state) {
+        buf.putInt(0, state);
+    }
+
+    public static void shm_write_resp(int result, String payload) {
         try {
-            Thread.sleep(ms);
-        } catch (InterruptedException e) {
+            byte[] pbytes = payload != null ? payload.getBytes(StandardCharsets.UTF_8) : new byte[0];
+            int maxLen = SHM_SIZE - 6;
+            if (pbytes.length > maxLen) pbytes = java.util.Arrays.copyOf(pbytes, maxLen);
+            buf.position(4);
+            buf.put((byte) result);
+            buf.put(pbytes);
+            buf.put((byte) 0);
+        } catch (Exception e) {
+            System.err.println("[RuntimeStub] Write error: " + e.getMessage());
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        int result = Main.call();
-        System.exit(result);
+    public static void shm_wait_event() {
+        Kernel32.INSTANCE.WaitForSingleObject(hEvent, 2000);
+        Kernel32.INSTANCE.ResetEvent(hEvent);
+    }
+
+    public static int shm_find_null(int start) {
+        for (int i = start; i < SHM_SIZE; i++) {
+            if (buf.get(i) == 0) return i;
+        }
+        return SHM_SIZE;
+    }
+
+    // --- Map functions ---
+
+    public static int map_put(String name, String value) {
+        synchronized (store) { store.put(name, value); return 1; }
+    }
+
+    public static String map_get(String name) {
+        synchronized (store) { return store.get(name); }
+    }
+
+    public static int map_has(String name) {
+        synchronized (store) { return store.containsKey(name) ? 1 : 0; }
+    }
+
+    public static int map_remove(String name) {
+        synchronized (store) { return store.remove(name) != null ? 1 : 0; }
+    }
+
+    public static int map_size() {
+        synchronized (store) { return store.size(); }
+    }
+
+    public static String map_key(int i) {
+        synchronized (store) {
+            int idx = 0;
+            for (String k : store.keySet()) {
+                if (idx == i) return k;
+                idx++;
+            }
+            return "";
+        }
+    }
+
+    public static String map_list() {
+        synchronized (store) { return String.join(",", store.keySet()); }
+    }
+
+    private interface Kernel32 extends StdCallLibrary {
+        Kernel32 INSTANCE = Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
+
+        Pointer CreateEventA(Pointer lpEventAttributes, int bManualReset, int bInitialState, String lpName);
+        int WaitForSingleObject(Pointer hHandle, int dwMilliseconds);
+        int SetEvent(Pointer hEvent);
+        int ResetEvent(Pointer hEvent);
+        int CloseHandle(Pointer hObject);
     }
 }
 "#;
