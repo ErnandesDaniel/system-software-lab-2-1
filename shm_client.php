@@ -5,6 +5,7 @@ class SHMClient {
     private FFI\CData $ptr;
     private FFI\CData $hFile;
     private FFI\CData $hMap;
+    private FFI\CData $hEvent;
     private int $shmSize = 4096;
 
     const OP_CREATE = 0;
@@ -28,6 +29,11 @@ class SHMClient {
                 uint32_t dwFileOffsetLow, uintptr_t dwNumberOfBytesToMap);
             int UnmapViewOfFile(void* lpBaseAddress);
             int CloseHandle(void* hObject);
+
+            void* CreateEventA(void* lpEventAttributes, int bManualReset,
+                int bInitialState, const char* lpName);
+            int SetEvent(void* hEvent);
+            int ResetEvent(void* hEvent);
         ", "kernel32.dll");
 
         $hFile = $this->ffi->CreateFileA(
@@ -64,6 +70,11 @@ class SHMClient {
             throw new RuntimeException("MapViewOfFile failed");
         }
         $this->ptr = $ptr;
+
+        $this->hEvent = $this->ffi->CreateEventA(null, 1, 0, "MyLangSHMEvent");
+        if (FFI::isNull($this->hEvent)) {
+            throw new RuntimeException("CreateEventA failed");
+        }
     }
 
     public function create(string $name, string $value): ?string { return $this->request(self::OP_CREATE, $name, $value); }
@@ -74,8 +85,6 @@ class SHMClient {
     public function shutdown(): void { $this->request(self::OP_EXIT); }
 
     private function request(int $opcode, string $key = '', string $value = ''): ?string {
-        $this->waitForState(0);
-
         $mem = FFI::cast('char[4096]', $this->ptr);
 
         // write opcode at offset 4
@@ -99,6 +108,9 @@ class SHMClient {
         // set state to REQUEST
         $intPtr = FFI::cast('int*', $this->ptr);
         $intPtr[0] = 1;
+
+        // signal Java that request is ready
+        $this->ffi->SetEvent($this->hEvent);
 
         // wait for DONE
         $this->waitForState(2);
@@ -135,6 +147,7 @@ class SHMClient {
     }
 
     public function close(): void {
+        $this->ffi->CloseHandle($this->hEvent);
         $this->ffi->UnmapViewOfFile($this->ptr);
         $this->ffi->CloseHandle($this->hMap);
         $this->ffi->CloseHandle($this->hFile);

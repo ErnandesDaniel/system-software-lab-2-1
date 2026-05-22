@@ -1,7 +1,10 @@
 import java.io.*;
 import java.nio.*;
+import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
+import com.sun.jna.*;
+import com.sun.jna.win32.*;
 
 public class MainServer {
     private static final int SHM_SIZE = 4096;
@@ -20,19 +23,36 @@ public class MainServer {
     private static final byte RES_OK    = 0;
     private static final byte RES_ERR   = 1;
 
-    private final RandomAccessFile file;
+    private static final int INFINITE = -1;
+    private static final int WAIT_TIMEOUT = 0x00000102;
+
+    private final MappedByteBuffer buf;
     private final Map<String, String> store = new HashMap<>();
+    private final Pointer hEvent;
 
     public MainServer() throws Exception {
         System.out.println("[JVM Daemon] Initializing...");
-        file = new RandomAccessFile("mylang_shm.dat", "rw");
+        RandomAccessFile file = new RandomAccessFile("mylang_shm.dat", "rw");
         file.setLength(SHM_SIZE);
+        FileChannel ch = file.getChannel();
+        buf = ch.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE);
+        buf.order(ByteOrder.LITTLE_ENDIAN);
+        ch.close();
+
+        hEvent = Kernel32.INSTANCE.CreateEventA(null, true, false, "MyLangSHMEvent");
+        if (hEvent == null) {
+            throw new RuntimeException("CreateEventA failed");
+        }
+
         writeState(STATE_IDLE);
         System.out.println("[JVM Daemon] Ready. PID: " + ProcessHandle.current().pid());
     }
 
     public void run() throws Exception {
         while (true) {
+            Kernel32.INSTANCE.WaitForSingleObject(hEvent, 2000);
+            Kernel32.INSTANCE.ResetEvent(hEvent);
+
             int state = readState();
             if (state == STATE_REQ) {
                 handleRequest();
@@ -40,57 +60,38 @@ public class MainServer {
             } else if (state == STATE_EXIT) {
                 break;
             }
-            Thread.sleep(10);
         }
         shutdown();
     }
 
-    private final byte[] stBuf = new byte[4];
-
-    private int readState() throws IOException {
-        synchronized (file) {
-            file.seek(0);
-            file.readFully(stBuf);
-        }
-        return ByteBuffer.wrap(stBuf).order(ByteOrder.LITTLE_ENDIAN).getInt();
+    private int readState() {
+        return buf.getInt(0);
     }
 
-    private void writeState(int state) throws IOException {
-        byte[] b = ByteBuffer.allocate(4).order(ByteOrder.LITTLE_ENDIAN).putInt(state).array();
-        synchronized (file) {
-            file.seek(0);
-            file.write(b);
-        }
+    private void writeState(int state) {
+        buf.putInt(0, state);
     }
 
-    private int readByte(int pos) throws IOException {
-        synchronized (file) {
-            file.seek(pos);
-            return file.read();
-        }
+    private int readByte(int pos) {
+        return buf.get(pos) & 0xFF;
     }
 
-    private String readStr(int pos) throws IOException {
-        byte[] buf = new byte[SHM_SIZE - pos];
-        synchronized (file) {
-            file.seek(pos);
-            file.read(buf);
+    private int indexOfNull(int start) {
+        for (int i = start; i < SHM_SIZE; i++) {
+            if (buf.get(i) == 0) return i;
         }
+        return SHM_SIZE;
+    }
+
+    private String readStr(int pos) {
+        ByteBuffer slice = buf.duplicate();
+        slice.position(pos);
         int len = 0;
-        while (len < buf.length && buf[len] != 0) len++;
-        return new String(buf, 0, len, StandardCharsets.UTF_8);
-    }
-
-    private int indexOfNull(int start) throws IOException {
-        byte[] buf = new byte[SHM_SIZE - start];
-        synchronized (file) {
-            file.seek(start);
-            file.read(buf);
-        }
-        for (int i = 0; i < buf.length; i++) {
-            if (buf[i] == 0) return start + i;
-        }
-        return start + buf.length;
+        while (pos + len < SHM_SIZE && slice.get() != 0) len++;
+        byte[] bytes = new byte[len];
+        buf.position(pos);
+        buf.get(bytes);
+        return new String(bytes, StandardCharsets.UTF_8);
     }
 
     private void writeResp(byte result, String payload) {
@@ -99,12 +100,10 @@ public class MainServer {
             int maxLen = SHM_SIZE - 6;
             if (pbytes.length > maxLen) pbytes = java.util.Arrays.copyOf(pbytes, maxLen);
 
-            synchronized (file) {
-                file.seek(4);
-                file.write(result);
-                file.write(pbytes);
-                file.write(0);
-            }
+            buf.position(4);
+            buf.put(result);
+            buf.put(pbytes);
+            buf.put((byte) 0);
         } catch (Exception e) {
             System.err.println("[JVM] Write error: " + e.getMessage());
         }
@@ -190,11 +189,21 @@ public class MainServer {
     }
 
     private void shutdown() {
-        try { file.close(); System.out.println("[JVM Daemon] Shutdown complete."); }
-        catch (Exception e) { System.err.println("[JVM] Shutdown error: " + e.getMessage()); }
+        Kernel32.INSTANCE.CloseHandle(hEvent);
+        System.out.println("[JVM Daemon] Shutdown complete.");
     }
 
     public static void main(String[] args) throws Exception {
         new MainServer().run();
+    }
+
+    private interface Kernel32 extends StdCallLibrary {
+        Kernel32 INSTANCE = Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
+
+        Pointer CreateEventA(Pointer lpEventAttributes, boolean bManualReset, boolean bInitialState, String lpName);
+        int WaitForSingleObject(Pointer hHandle, int dwMilliseconds);
+        boolean SetEvent(Pointer hEvent);
+        boolean ResetEvent(Pointer hEvent);
+        boolean CloseHandle(Pointer hObject);
     }
 }

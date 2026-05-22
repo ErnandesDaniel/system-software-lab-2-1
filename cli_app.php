@@ -24,7 +24,7 @@ PHP FFI → JVM Daemon (Shared Memory)
 function startDaemon(): void {
     echo "[INFO] Starting JVM daemon...\n";
     $proc = proc_open(
-        'START /B java -cp output MainServer',
+        'START /B java -cp "output;lib/jna-5.14.0.jar" MainServer',
         [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
         $pipes
     );
