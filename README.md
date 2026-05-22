@@ -63,8 +63,6 @@ php cli_app.php
 | `shm_client.php` | PHP FFI класс (CreateFileA → CreateFileMappingA → MapViewOfFile) |
 | `cli_app.php` | PHP CLI с интерактивными командами |
 | `test_shm.php` | Интеграционный тест |
-| `run_daemon.bat` | (альтернатива) Запуск: `java -cp output MainServer` |
-| `stop_daemon.bat` | (альтернатива) Остановка: убить java процесс |
 
 ### Примечания
 
