@@ -8,7 +8,6 @@ PHP FFI → JVM Daemon (Shared Memory)
 =====================================
 
 Команды:
-  start                     Запустить JVM-демон (фоновый процесс)
   exit                      Остановить JVM-демон и выйти
 
   create <key> <value>      Создать запись
@@ -57,20 +56,16 @@ function connect(): ?SHMClient {
 }
 
 function main(): void {
-    $argv = $_SERVER['argv'] ?? [];
-    if (isset($argv[1]) && $argv[1] === 'start') {
-        startDaemon();
-        exit(0);
-    }
-
     echo "=== PHP FFI → JVM Daemon ===\n\n";
 
     $shm = connect();
     if ($shm === null) {
-        echo "[INFO] JVM daemon not running.\n";
-        echo "  Run: php cli_app.php start\n";
-        echo "  Or:  run_daemon.bat\n";
-        exit(1);
+        startDaemon();
+        $shm = connect();
+        if ($shm === null) {
+            echo "[ERR] Failed to connect to JVM daemon\n";
+            exit(1);
+        }
     }
     echo "[OK] Connected\n\n";
 
