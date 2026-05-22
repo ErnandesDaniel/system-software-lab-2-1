@@ -73,6 +73,7 @@ class SHMClient {
     public function delete(string $name): ?string { return $this->request(self::OP_DELETE, $name); }
     public function list(): ?string { return $this->request(self::OP_LIST); }
     public function exec(string $func, string $args): ?string { return $this->request(self::OP_EXEC, $func, $args); }
+    public function shutdown(): void { $this->request(self::OP_EXIT); }
 
     private function request(int $opcode, string $key = '', string $value = ''): ?string {
         $this->waitForState(0);

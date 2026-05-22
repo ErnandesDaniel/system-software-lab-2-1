@@ -10,33 +10,29 @@
 
 PHP (FFI → kernel32.dll) ↔ SHM-файл (mylang_shm.dat) ↔ JVM-демон (RandomAccessFile)
 
-### Запуск
+### Быстрый старт
+
+Всё управление — из одного PHP-процесса:
 
 ```powershell
-# Терминал 1: запустить JVM-демон
-run_daemon.bat
-
-# Терминал 2: запустить PHP CLI
-php cli_app.php
-
-# Или интеграционный тест (без интерактива)
-php test_shm.php
-
-# Остановить демон
-stop_daemon.bat
+php cli_app.php start       # запустить JVM-демон в фоне
+php cli_app.php              # интерактивный режим
 ```
+
+Если демон ещё не запущен, можно запустить его внутри CLI командой `start`.
 
 ### Команды CLI
 
 | Команда | Пример | Описание |
 |---------|--------|----------|
+| `start` | `start` | Запустить JVM-демон (если не запущен) |
 | `create` | `create note1 Hello` | Создать запись по ключу |
 | `get` | `get note1` | Получить значение |
 | `set` | `set note1 World` | Обновить значение |
 | `delete` | `delete note1` | Удалить по ключу |
 | `list` | `list` | Список ключей |
 | `exec` | `exec square 7` / `exec add 3 5` | Выполнить builtin-функцию |
-| `exit` | `exit` | Завершить демон |
+| `exit` | `exit` | Остановить демон и выйти |
 
 ### Builtin функции (exec)
 
@@ -70,79 +66,13 @@ stop_daemon.bat
 | `shm_client.php` | PHP FFI класс (CreateFileA → CreateFileMappingA → MapViewOfFile) |
 | `cli_app.php` | PHP CLI с интерактивными командами |
 | `test_shm.php` | Интеграционный тест |
-| `run_daemon.bat` | Запуск: `java -cp output MainServer` |
-| `stop_daemon.bat` | Остановка: убить java процесс |
-
-### Сценарий тестирования
-
-```powershell
-# Терминал 1 — запустить JVM-демон
-run_daemon.bat
-# Вывод: [JVM Daemon] Ready. PID: 12345
-
-# Терминал 2 — запустить интеграционный тест
-php test_shm.php
-```
-
-Ожидаемый вывод интеграционного теста:
-```
->>> exec square 7
-  ok: 49
-
->>> create note1 Hello
-  ok
-
->>> create note2 PHPJVM
-  ok
-
->>> list
-  ok: note1,note2
-
->>> get note1
-  ok: Hello World
-
->>> set note1 Updated
-  ok
-
->>> get note1
-  ok: Updated Value
-
->>> delete note2
-  ok
-
->>> list
-  ok: note1
-
-Done.
-```
-
-Интерактивный режим (ручной ввод):
-```powershell
-php cli_app.php
-=== PHP FFI → JVM Daemon ===
-
-[OK] Connected
-
-> create note1 Hello World
-  ok
-> exec square 7
-  result: 49
-> list
-  keys:
-    - note1
-> exit
-Bye!
-```
-
-Завершение:
-```powershell
-stop_daemon.bat
-```
+| `run_daemon.bat` | (альтернатива) Запуск: `java -cp output MainServer` |
+| `stop_daemon.bat` | (альтернатива) Остановка: убить java процесс |
 
 ### Примечания
 
 - `php cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Интерактивный режим работает нормально.
-- Перед запуском тестов убедись, что JVM-демон запущен, иначе SHMClient выбросит исключение.
+- Убедись, что Java JDK (21+) доступна через `java -version`, иначе `start` не сработает.
 
 ---
 
