@@ -23,25 +23,19 @@ PHP FFI → JVM Daemon (Shared Memory)
 
 function startDaemon(): void {
     echo "[INFO] Starting JVM daemon...\n";
-    $proc = proc_open(
-        'START /B java -cp "output;lib/jna-5.14.0.jar" RuntimeStub',
-        [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
-        $pipes
-    );
-    if (is_resource($proc)) {
-        fclose($pipes[0]);
-        fclose($pipes[1]);
-        fclose($pipes[2]);
-        proc_close($proc);
-    }
-    for ($i = 0; $i < 20; $i++) {
+    $cmd = sprintf('powershell -Command "Start-Process -WindowStyle Hidden java \'-cp output;lib\\jna-5.14.0.jar RuntimeStub\'"');
+    shell_exec($cmd);
+    for ($i = 0; $i < 30; $i++) {
         if (@file_exists('mylang_shm.dat')) {
             echo "[OK] Daemon started\n";
+            @file_put_contents('daemon_pid.txt', '');
             return;
         }
         usleep(200000);
     }
-    echo "[WARN] Daemon may not be ready yet — try connecting anyway.\n";
+    echo "[ERR] Failed to start JVM daemon\n";
+    echo "  Try: java -cp \"output;lib/jna-5.14.0.jar\" RuntimeStub\n";
+    exit(1);
 }
 
 function connect(): ?SHMClient {
@@ -52,23 +46,39 @@ function connect(): ?SHMClient {
     }
 }
 
+function shmIsStale(): bool {
+    if (!@file_exists('mylang_shm.dat')) return false;
+    // stale if no java process running
+    $out = shell_exec('tasklist /NH /FI "IMAGENAME eq java.exe" 2>NUL');
+    return $out === null || trim($out) === '' || !str_contains($out, 'java');
+}
+
 function main(): void {
     echo "=== PHP FFI → JVM Daemon ===\n\n";
 
+    if (shmIsStale()) {
+        @unlink('mylang_shm.dat');
+        echo "[INFO] Removed stale SHM file\n";
+    }
+
+    // Always start daemon if SHM file doesn't exist
+    if (!@file_exists('mylang_shm.dat')) {
+        startDaemon();
+    }
+
     $shm = connect();
     if ($shm === null) {
-        startDaemon();
-        $shm = connect();
-        if ($shm === null) {
-            echo "[ERR] Failed to connect to JVM daemon\n";
-            exit(1);
-        }
+        echo "[ERR] Failed to connect to JVM daemon\n";
+        echo "  Try: java -cp \"output;lib/jna-5.14.0.jar\" RuntimeStub\n";
+        exit(1);
     }
     echo "[OK] Connected\n\n";
 
     while (true) {
         echo "> ";
-        $line = trim(fgets(STDIN));
+        $input = fgets(STDIN);
+        if ($input === false) break;
+        $line = trim($input);
         if ($line === '') continue;
 
         $parts = explode(' ', $line);

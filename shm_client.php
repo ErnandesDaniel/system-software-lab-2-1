@@ -41,7 +41,7 @@ class SHMClient {
             0x80000000 | 0x40000000,
             1 | 2,
             null,
-            4,
+            4,  // OPEN_ALWAYS — create if not exists, open if exists
             128,
             null
         );

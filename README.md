@@ -31,16 +31,7 @@ cargo run -- server.mylang -o output -t jvm
 - `Main.class`, `Dispatch.class`, `Handle_create.class`, `Handle_get.class`, `Handle_set.class`, `Handle_delete.class` — скомпилированный mylang-код
 - `RuntimeStub.java`, `MainRunner.java` — сгенерированные Java-обёртки
 
-### 4. Компиляция Java-классов
-
-```powershell
-cd output
-javac -cp ".;lib/jna-5.14.0.jar" RuntimeStub.java
-javac MainRunner.java
-cd ..
-```
-
-### 5. Запуск PHP CLI
+### 4. Запуск PHP CLI
 
 PHP-приложение само запускает JVM-демон при подключении:
 
