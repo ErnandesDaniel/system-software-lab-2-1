@@ -7,5 +7,7 @@ target
 old-code
 output/*.java
 output/*.mmd
+output_jvm/
+output_test/
 daemon_*.txt
 mylang_shm.dat

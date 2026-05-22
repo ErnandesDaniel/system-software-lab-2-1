@@ -259,13 +259,7 @@ impl JvmGenerator {
             }
         }
         
-        eprintln!("  [jvm] block order (entry={}):", blocks[entry_idx].id);
-        for (i, b) in result.iter().enumerate() {
-            let is_ret = b.instructions.last().map_or(false, |inst| inst.opcode == IrOpcode::Ret);
-            if is_ret { eprint!(" *"); }
-            eprintln!("    {}: {} ({} instrs){}", i, b.id, b.instructions.len(),
-                if is_ret { " RET" } else { "" });
-        }
+
         
         result
     }
@@ -274,9 +268,10 @@ impl JvmGenerator {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
 
-        // Initialize all local slots for verifier type consistency across loop boundaries
+        // Initialize all local (non-parameter) slots for verifier type consistency
         let string_slots = collect_string_slots(self, func);
-        for slot in 0..self.next_local_slot {
+        let num_params = func.parameters.len() as u16;
+        for slot in num_params..self.next_local_slot {
             if self.locals.values().any(|&s| s == slot) {
                 if string_slots.contains(&slot) {
                     instructions.push(JvmInst::Real(Instruction::Aconst_null));
@@ -355,11 +350,6 @@ impl JvmGenerator {
         let block_inst_indices: HashMap<String, u16> = block_to_inst_idx.iter()
             .map(|(id, &idx)| (id.clone(), idx as u16))
             .collect();
-
-        eprintln!("  block positions for {}:", func.name);
-        for (id, &idx) in &block_inst_indices {
-            eprintln!("    {} → instr {}", id, idx);
-        }
 
         // Resolve placeholders to instruction-index-based branch instructions
         let result: Vec<Instruction> = instructions.into_iter().map(|jvm_inst| {

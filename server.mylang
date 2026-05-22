@@ -91,6 +91,7 @@ begin
     if opcode == 5 then {
         shm_write_resp(0, "");
     }
+    return;
 end
 end
 

@@ -115,18 +115,8 @@ impl JvmGenerator {
 
         let mut buffer = Vec::new();
         match class_file.to_bytes(&mut buffer) {
-            Ok(_) => {
-                eprintln!("Code for {} ({} instrs):", func_name, code.len());
-                for (i, instr) in code.iter().enumerate() {
-                    eprintln!("  {}: {:?} (size={})", i, instr, self.instr_size(instr));
-                }
-                buffer
-            }
+            Ok(_) => buffer,
             Err(e) => {
-                eprintln!("Code for {}:", func_name);
-                for (i, instr) in code.iter().enumerate() {
-                    eprintln!("  {}: {:?}", i, instr);
-                }
                 panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}, code_len={}",
                        e, max_stack, max_locals, code.len());
             }

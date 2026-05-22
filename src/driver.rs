@@ -263,17 +263,46 @@ impl CompilerDriver {
 
         self.generate_jvm_stub(output_dir);
 
-        let stub_file = "RuntimeStub.java";
-        let _ = Command::new("javac")
-            .current_dir(output_dir)
-            .args(["-cp", ".;../lib/jna-5.14.0.jar", stub_file])
-            .output();
+        // Create lib/ in output dir and copy JNA jar for manual compilation too
+        let output_lib = Path::new(output_dir).join("lib");
+        let _ = fs::create_dir_all(&output_lib);
+        let jna_src = Path::new("lib").join("jna-5.14.0.jar");
+        let jna_dst = output_lib.join("jna-5.14.0.jar");
+        if jna_src.exists() {
+            let _ = fs::copy(&jna_src, &jna_dst);
+        }
 
+        let jna_cp = format!(".;lib/jna-5.14.0.jar");
+
+        println!("Compiling RuntimeStub.java with javac...");
+        let stub_file = "RuntimeStub.java";
+        let stub_output = Command::new("javac")
+            .current_dir(output_dir)
+            .args(["-cp", &jna_cp, stub_file])
+            .output()
+            .expect("Failed to run javac");
+
+        if !stub_output.status.success() {
+            eprintln!("javac (RuntimeStub.java) failed:");
+            eprintln!("{}", String::from_utf8_lossy(&stub_output.stderr));
+            std::process::exit(1);
+        }
+
+        println!("Compiling MainRunner.java with javac...");
         let runner_file = "MainRunner.java";
-        let _ = Command::new("javac")
+        let runner_output = Command::new("javac")
             .current_dir(output_dir)
             .arg(runner_file)
-            .output();
+            .output()
+            .expect("Failed to run javac");
+
+        if !runner_output.status.success() {
+            eprintln!("javac (MainRunner.java) failed:");
+            eprintln!("{}", String::from_utf8_lossy(&runner_output.stderr));
+            std::process::exit(1);
+        }
+
+        println!("JVM compilation complete.");
     }
 
     fn generate_jvm_stub(&self, output_dir: &str) {
