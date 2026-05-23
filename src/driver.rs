@@ -324,13 +324,13 @@ public class RuntimeStub {
     private static Pointer hEvent;
     private static Random random = new Random();
 
-    static {
-        Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
-    }
+    private static boolean shmInitialized = false;
 
-    public static void main(String[] args) {
+    private static synchronized void ensureShm() {
+        if (shmInitialized) return;
+        shmInitialized = true;
         try {
-            System.out.println("[RuntimeStub] Initializing...");
+            Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
             RandomAccessFile file = new RandomAccessFile("mylang_shm.dat", "rw");
             file.setLength(SHM_SIZE);
             FileChannel ch = file.getChannel();
@@ -342,13 +342,15 @@ public class RuntimeStub {
             if (hEvent == null) {
                 throw new RuntimeException("CreateEventA failed");
             }
-
-            System.out.println("[RuntimeStub] Ready. PID: " + ProcessHandle.current().pid());
+            System.out.println("[RuntimeStub] SHM initialized. PID: " + ProcessHandle.current().pid());
         } catch (Exception e) {
-            System.err.println("[RuntimeStub] Init error: " + e.getMessage());
+            System.err.println("[RuntimeStub] SHM init error: " + e.getMessage());
             System.exit(1);
         }
+    }
 
+    public static void main(String[] args) {
+        System.out.println("[RuntimeStub] Starting...");
         int result = Main.call();
         System.exit(result);
     }
@@ -400,14 +402,17 @@ public class RuntimeStub {
     // --- SHM functions ---
 
     public static int shm_read_state() {
+        ensureShm();
         return buf.getInt(0);
     }
 
     public static int shm_read_byte(int pos) {
+        ensureShm();
         return buf.get(pos) & 0xFF;
     }
 
     public static String shm_read_str(int pos) {
+        ensureShm();
         int len = 0;
         while (pos + len < SHM_SIZE && buf.get(pos + len) != 0) len++;
         byte[] bytes = new byte[len];
@@ -417,10 +422,12 @@ public class RuntimeStub {
     }
 
     public static void shm_write_state(int state) {
+        ensureShm();
         buf.putInt(0, state);
     }
 
     public static void shm_write_resp(int result, String payload) {
+        ensureShm();
         try {
             byte[] pbytes = payload != null ? payload.getBytes(StandardCharsets.UTF_8) : new byte[0];
             int maxLen = SHM_SIZE - 6;
@@ -435,11 +442,13 @@ public class RuntimeStub {
     }
 
     public static void shm_wait_event() {
+        ensureShm();
         Kernel32.INSTANCE.WaitForSingleObject(hEvent, 2000);
         Kernel32.INSTANCE.ResetEvent(hEvent);
     }
 
     public static int shm_find_null(int start) {
+        ensureShm();
         for (int i = start; i < SHM_SIZE; i++) {
             if (buf.get(i) == 0) return i;
         }

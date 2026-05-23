@@ -38,7 +38,7 @@ cargo run -- <source_file> -o <output_dir> [options]
 cargo run -- input.mylang -o output
 ```
 
-Создаст в `output/`: `main.asm`, `program.exe`
+Создаст в `output/`: `main.asm`, `main.obj`, `program.exe`
 
 ```powershell
 .\output\program.exe
@@ -50,10 +50,21 @@ cargo run -- input.mylang -o output
 cargo run -- input_jvm.mylang -o output -t jvm
 ```
 
-Создаст в `output/`: `.class` файлы, `RuntimeStub.java`, `MainRunner.java`
+Создаст в `output/`: `.class` файлы (по одному на функцию), `RuntimeStub.java`, `MainRunner.java`.
 
+**Запуск программы (без SHM):**
 ```powershell
 java -cp output RuntimeStub
+```
+
+**Запуск программы с SHM (server.mylang, нужна JNA):**
+```powershell
+java -cp "output;output/lib/jna-5.14.0.jar" RuntimeStub
+```
+
+**Отладочный вызов отдельной функции через MainRunner:**
+```powershell
+java -cp output MainRunner square 7
 ```
 
 ## Этапы компиляции
