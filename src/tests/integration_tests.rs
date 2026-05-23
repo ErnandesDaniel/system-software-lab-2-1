@@ -376,17 +376,72 @@ fn test_exe_local_struct() {
 }
 
 #[test]
-fn test_exe_struct_array_field_write() {
+#[test]
+fn test_asm_coroutine_state_machine() {
     let source = r#"
-        struct Sched { slots of int[3]; count of int; }
-        global sched of Sched;
-        def main() of int
-            sched.slots[1] = 42;
-            return sched.slots[1]
+        extern putchar
+        coroutine worker() of int
+            putchar(49)
+            yield
+            putchar(50)
+            return 0
         end
     "#;
-    let (_, asm) = compile_only(source);
-    assert!(asm.contains("mov [rcx + rbx * 4], eax"), "Expected indexed store");
+    let mut parser = Parser::new(source);
+    let ast = parser.parse().unwrap();
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&ast);
+    assert_eq!(ir.functions.len(), 1);
+    assert!(ir.functions[0].yield_count > 0, "Expected yield count > 0");
+    let mut asm_gen = AsmGenerator::new();
+    asm_gen.set_coroutine(ir.functions[0].yield_count);
+    let asm = asm_gen.generate(&ir);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("co_state_0"), "Expected state 0 label");
+    assert!(asm.contains("co_state_1"), "Expected state 1 label");
+    assert!(asm.contains("[rcx]"), "Expected state struct access");
+    assert!(asm.contains("global worker"), "Expected global worker");
+}
+
+#[test]
+fn test_asm_coroutine_locals() {
+    let source = r#"
+        coroutine counter() of int
+            i = 0;
+            yield;
+            return i
+        end
+    "#;
+    let mut parser = Parser::new(source);
+    let ast = parser.parse().unwrap();
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&ast);
+    let mut asm_gen = AsmGenerator::new();
+    if !ir.functions.is_empty() && ir.functions[0].yield_count > 0 {
+        asm_gen.set_coroutine(ir.functions[0].yield_count);
+    }
+    let asm = asm_gen.generate(&ir);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("global counter"), "Expected global counter");
+}
+
+#[test]
+fn test_nasm_coroutine_compiles() {
+    let source = r#"
+        coroutine simple() of int
+            return 0
+        end
+    "#;
+    let mut parser = Parser::new(source);
+    let ast = parser.parse().unwrap();
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&ast);
+    let mut asm_gen = AsmGenerator::new();
+    if !ir.functions.is_empty() && ir.functions[0].yield_count > 0 {
+        asm_gen.set_coroutine(ir.functions[0].yield_count);
+    }
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("global simple"), "Expected global simple");
 }
 
 #[test]

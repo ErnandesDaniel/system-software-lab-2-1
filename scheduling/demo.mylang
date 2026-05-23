@@ -1,0 +1,26 @@
+// scheduling/demo.mylang — демо: две корутины печатают цифры по очереди
+
+extern putchar
+extern puts
+
+coroutine worker1() of int
+    i = 0;
+    while i < 5 {
+        putchar(49);
+        yield;
+        i = i + 1;
+    }
+    loop_end
+    return 0;
+end
+
+coroutine worker2() of int
+    i = 0;
+    while i < 3 {
+        putchar(50);
+        yield;
+        i = i + 1;
+    }
+    loop_end
+    return 0;
+end
