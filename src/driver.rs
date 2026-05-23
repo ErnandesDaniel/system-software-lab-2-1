@@ -111,6 +111,9 @@ impl CompilerDriver {
 
         for func in &ir.functions {
             let mut gen = codegen::AsmGenerator::new();
+            if func.yield_count > 0 {
+                gen.set_coroutine(func.yield_count);
+            }
             let mut asm = gen.generate_single_function(func);
             if !ir.globals.is_empty() {
                 let mut externs = String::new();
@@ -148,6 +151,28 @@ impl CompilerDriver {
             real_main.push_str("    ret\n");
             let path = Path::new(output_dir).join("_real_main.asm");
             let _ = fs::write(&path, &real_main);
+        }
+
+        if has_coroutines {
+            let helper_asm = "\
+bits 64\ndefault rel\nsection .text\n\n\
+global resume_coroutine\n\
+resume_coroutine:\n\
+    ; rcx = &CoroutineState\n\
+    mov eax, [rcx]\n\
+    cmp eax, -1\n\
+    jne .go\n\
+    mov eax, 1\n\
+    ret\n\
+.go:\n\
+    push rbp\n\
+    mov rbp, rsp\n\
+    call [rcx + 8]\n\
+    mov eax, [rcx + 16]\n\
+    leave\n\
+    ret\n";
+            let path = Path::new(output_dir).join("resume_coroutine.asm");
+            fs::write(&path, helper_asm).ok();
         }
 
         let mut obj_files = Vec::new();
@@ -201,6 +226,19 @@ impl CompilerDriver {
                     obj_files.push(real_main_obj);
                 }
         }
+        }
+
+        if has_coroutines {
+            let res_path = Path::new(output_dir).join("resume_coroutine.asm");
+            let res_obj = Path::new(output_dir).join("resume_coroutine.obj");
+            let output = Command::new("nasm")
+                .args(["-f", "win64", "-o"])
+                .arg(res_obj.to_str().unwrap())
+                .arg(res_path.to_str().unwrap())
+                .output();
+            if let Ok(out) = output {
+                if out.status.success() { obj_files.push(res_obj); }
+            }
         }
 
         if !obj_files.is_empty() {

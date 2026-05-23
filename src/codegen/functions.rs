@@ -153,9 +153,8 @@ impl AsmGenerator {
             }
         }
         if self.is_coroutine {
-            // For coroutines: signal finished to scheduler
-            self.output.push_str("    mov dword [rcx + 64], 1\n");
-            self.output.push_str("    mov dword [rcx + 68], eax\n");
+            self.output.push_str("    mov dword [rcx + 16], 1\n");
+            self.output.push_str("    mov dword [rcx + 20], eax\n");
         }
         self.output.push_str("    leave\n");
         self.output.push_str("    ret\n");
@@ -170,7 +169,7 @@ impl AsmGenerator {
                 let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
                     if self.is_coroutine {
-                        let co_off = 72 + (-offset) as i32;
+                        let co_off = 24 + (-offset) as i32;
                         self.output.push_str(&format!("    mov {}, [rcx + {}]\n", dest, co_off));
                     } else {
                         self.output
@@ -258,7 +257,7 @@ impl AsmGenerator {
     pub fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
         if self.is_coroutine {
             if let Some(offset) = self.locals.get(name) {
-                let co_off = 72 + (-offset) as i32;
+                let co_off = 24 + (-offset) as i32;
                 self.output.push_str(&format!("    mov [rcx + {}], {}\n", co_off, src));
                 return;
             }
