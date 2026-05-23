@@ -130,22 +130,41 @@ impl AsmGenerator {
     }
 
     fn generate_load(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(operand)) = (&inst.result, inst.operands.get(0)) {
+        if let (Some(result), Some(_operand0)) = (&inst.result, inst.operands.get(0)) {
             if inst.operands.len() == 1 {
-                if let IrOperand::Variable(name, _) = operand {
+                if let IrOperand::Variable(name, _) = &inst.operands[0] {
                     self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
                     self.store_variable(result, "eax", false);
                 }
-            } else if let (Some(array), Some(index)) = (inst.operands.get(0), inst.operands.get(1)) {
-                if let IrOperand::Variable(name, _) = array {
-                    // Global array: use lea for address
-                    self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
-                } else {
-                    self.load_operand(array, "rax", true);
+            } else if inst.operands.len() == 2 {
+                let first = &inst.operands[0];
+                let second = &inst.operands[1];
+                match second {
+                    IrOperand::Constant(c) => {
+                        // Struct field access: base + offset
+                        if let IrOperand::Variable(name, _) = first {
+                            if let crate::ir::Constant::Int(offset) = c {
+                                if *offset == 0 {
+                                    self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
+                                } else {
+                                    self.output.push_str(&format!("    mov eax, [rel {} + {}]\n", name, offset));
+                                }
+                                self.store_variable(result, "eax", false);
+                            }
+                        }
+                    }
+                    _ => {
+                        // Array access: base + index
+                        if let IrOperand::Variable(name, _) = first {
+                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                        } else {
+                            self.load_operand(first, "rax", true);
+                        }
+                        self.load_operand(second, "ebx", false);
+                        self.output.push_str("    mov eax, [rax + rbx * 4]\n");
+                        self.store_variable(result, "eax", false);
+                    }
                 }
-                self.load_operand(index, "ebx", false);
-                self.output.push_str("    mov eax, [rax + rbx * 4]\n");
-                self.store_variable(result, "eax", false);
             }
         }
     }

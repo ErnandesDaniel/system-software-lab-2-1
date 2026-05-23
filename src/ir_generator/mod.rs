@@ -18,6 +18,7 @@ pub struct IrGenerator {
     pub function_return_types: HashMap<String, IrType>,
     pub global_names: HashSet<String>,
     pub global_types: HashMap<String, IrType>,
+    pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>, // name → [(field, type, offset)]
 }
 
 impl IrGenerator {
@@ -34,6 +35,7 @@ impl IrGenerator {
             function_return_types: HashMap::new(),
             global_names: HashSet::new(),
             global_types: HashMap::new(),
+            struct_fields: HashMap::new(),
         }
     }
 
@@ -80,6 +82,17 @@ impl IrGenerator {
                     self.global_names.insert(global.name.name.clone());
                     let ir_ty = self.convert_type(&global.ty);
                     self.global_types.insert(global.name.name.clone(), ir_ty);
+                }
+                SourceItem::StructDef(s) => {
+                    let mut fields = Vec::new();
+                    let mut offset: usize = 0;
+                    for f in &s.fields {
+                        let fty = self.convert_type(&f.ty);
+                        let size = fty.size() as usize;
+                        fields.push((f.name.name.clone(), fty, offset));
+                        offset += size;
+                    }
+                    self.struct_fields.insert(s.name.name.clone(), fields);
                 }
             }
         }
@@ -203,7 +216,18 @@ impl IrGenerator {
                 | BuiltinType::Char => IrType::Int,
                 BuiltinType::String => IrType::String,
             },
-            TypeRef::Custom(_) => IrType::Int,
+            TypeRef::Custom(id) => {
+                if let Some(fields) = self.struct_fields.get(&id.name) {
+                    if let Some(last) = fields.last() {
+                        let size = last.2 + last.1.size() as usize;
+                        IrType::Array(Box::new(IrType::Int), size)
+                    } else {
+                        IrType::Int
+                    }
+                } else {
+                    IrType::Int
+                }
+            }
             TypeRef::Array {
                 element_type, size, ..
             } => IrType::Array(Box::new(self.convert_type(element_type)), *size as usize),
@@ -228,6 +252,18 @@ impl IrGenerator {
             }
             _ => None,
         }
+    }
+
+    pub fn find_field_offset(&self, _base: &str, field: &str) -> usize {
+        // Search all structs for the field
+        for (_, fields) in &self.struct_fields {
+            for (fname, _, offset) in fields {
+                if fname == field {
+                    return *offset;
+                }
+            }
+        }
+        0
     }
 }
 

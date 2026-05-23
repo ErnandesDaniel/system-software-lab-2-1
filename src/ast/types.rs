@@ -10,6 +10,21 @@ pub enum SourceItem {
     FuncDeclaration(FuncDeclaration),
     FuncDefinition(FuncDefinition),
     GlobalDecl(GlobalDecl),
+    StructDef(StructDefinition),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructDefinition {
+    pub name: Identifier,
+    pub fields: Vec<StructField>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StructField {
+    pub name: Identifier,
+    pub ty: TypeRef,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -149,6 +164,7 @@ pub enum Expr {
     Call(CallExpr),
     Slice(SliceExpr),
     ArrayLiteral(Vec<Expr>),
+    FieldAccess(Box<Expr>, Identifier),
     Identifier(Identifier),
     Literal(Literal),
 }

@@ -325,7 +325,10 @@ impl AsmGenerator {
                         _ => {}
                     }
                 }
-                _ => {}
+                _ => {
+                    let size = global.ty.size() as usize;
+                    output.push_str(&format!("{} times {} db 0\n", global.name, size));
+                }
             }
         }
         output

@@ -323,6 +323,26 @@ fn test_exe_global_string() {
 }
 
 #[test]
+fn test_exe_global_struct_field() {
+    let source = r#"
+        struct Sched {
+            count of int;
+            index of int;
+        }
+        global sched of Sched;
+        def main() of int
+            return sched.count
+        end
+    "#;
+    let (_, asm) = compile_only(source);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("global main"), "Expected global main");
+    assert!(asm.contains("sched"), "Expected sched in data");
+    // sched.count is at offset 0, so mov eax, [rel sched]
+    assert!(asm.contains("[rel sched"), "Expected rel sched");
+}
+
+#[test]
 fn test_exe_global_array_read() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];

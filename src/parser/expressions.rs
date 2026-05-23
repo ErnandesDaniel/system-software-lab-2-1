@@ -32,6 +32,9 @@ impl<'source> Parser<'source> {
             if matches!(token, Token::LBracket) {
                 // Array indexing / slice
             }
+            if matches!(token, Token::Dot) {
+                // Field access
+            }
             if matches!(token, Token::Semi) {
                 break;
             }
@@ -248,6 +251,16 @@ impl<'source> Parser<'source> {
                     span,
                 }))
             }
+            Token::Dot => {
+                self.advance();
+                let (_tok, f_span) = self.expect(Token::Identifier)?;
+                let field = Identifier {
+                    name: self.get_text(&f_span).to_string(),
+                    span: f_span.into(),
+                };
+                let _span = start.merge(self.current_span());
+                Ok(Expr::FieldAccess(Box::new(left), field))
+            }
             _ => Ok(left),
         }
     }
@@ -263,6 +276,7 @@ impl<'source> Parser<'source> {
             Token::Assign => 5,
             Token::LParen => 70,
             Token::LBracket => 70,
+            Token::Dot => 80,
             _ => 0,
         }
     }
@@ -279,6 +293,7 @@ impl Expr {
             Expr::Identifier(e) => e.span,
             Expr::Literal(_) => Span::new(0, 0),
             Expr::ArrayLiteral(_) => Span::new(0, 0),
+            Expr::FieldAccess(e, _) => e.span(),
         }
     }
 }

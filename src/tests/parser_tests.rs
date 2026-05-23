@@ -198,3 +198,42 @@ fn test_global_with_extern_and_def() {
     let program = parse(source);
     assert_eq!(program.items.len(), 3);
 }
+
+#[test]
+fn test_struct_definition() {
+    let source = r#"
+        struct Point {
+            x of int;
+            y of int;
+        }
+    "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_global_struct() {
+    let source = r#"
+        struct Point {
+            x of int;
+            y of int;
+        }
+        global p of Point;
+        def main() of int
+            return p.x
+        end
+    "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 3);
+}
+
+#[test]
+fn test_field_access() {
+    let source = r#"
+        def main() of int
+            return sched.count
+        end
+    "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}

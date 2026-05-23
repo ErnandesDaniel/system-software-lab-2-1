@@ -17,6 +17,7 @@ impl SemanticsAnalyzer {
             Expr::Identifier(id) => self.check_identifier(scope, id),
             Expr::Literal(lit) => Ok(self.literal_type(lit)),
             Expr::ArrayLiteral(_) => Ok(SemanticType::Array(Box::new(SemanticType::Int), 0)),
+            Expr::FieldAccess(_, _) => Ok(SemanticType::Int),
         }
     }
 

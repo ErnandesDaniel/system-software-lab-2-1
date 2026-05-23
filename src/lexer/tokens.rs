@@ -15,6 +15,8 @@ pub enum Token {
     Extern,
     #[token("global")]
     Global,
+    #[token("struct")]
+    Struct,
     #[token("if")]
     If,
     #[token("then")]
@@ -90,6 +92,8 @@ pub enum Token {
     Semi,
     #[token("..")]
     Range,
+    #[token(".")]
+    Dot,
 
     #[token("+")]
     Plus,

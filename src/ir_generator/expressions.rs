@@ -45,6 +45,26 @@ impl IrGenerator {
                 let tmp = self.generate_temp();
                 (tmp, IrType::Int)
             }
+            Expr::FieldAccess(base, field) => {
+                let (base_temp, _base_type) = self.visit_expr(block, base);
+                let tmp = self.generate_temp();
+                // Look up field offset from struct definitions
+                let field_offset = self.find_field_offset(&base_temp, &field.name);
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Load,
+                    result: Some(tmp.clone()),
+                    result_type: Some(IrType::Int),
+                    operands: vec![
+                        IrOperand::Variable(base_temp, IrType::Int),
+                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                    ],
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: crate::ast::Span::new(0, 0),
+                });
+                (tmp, IrType::Int)
+            }
         }
     }
 

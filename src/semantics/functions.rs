@@ -17,6 +17,7 @@ impl SemanticsAnalyzer {
                     let ty = self.convert_type(&global.ty);
                     self.global_scope.insert(global.name.name.clone(), ty).ok();
                 }
+                SourceItem::StructDef(_) => {}
             }
         }
         Ok(())

@@ -268,4 +268,45 @@ impl<'source> Parser<'source> {
             span,
         })
     }
+
+    pub(crate) fn parse_struct(&mut self) -> Result<StructDefinition, String> {
+        let start = self.current_span();
+        self.expect(Token::Struct)?;
+
+        let (_n, n_span) = self.expect(Token::Identifier)?;
+        let name = self.get_text(&n_span).to_string();
+
+        self.expect(Token::LBrace)?;
+        let mut fields = Vec::new();
+
+        while self.current_token() != Some(&Token::RBrace) {
+            let (_, f_span) = self.expect(Token::Identifier)?;
+            let field_name = self.get_text(&f_span).to_string();
+
+            if self.current_token() == Some(&Token::Of) {
+                self.expect(Token::Of)?;
+            }
+
+            let ty = self.parse_type()?;
+
+            if self.current_token() == Some(&Token::Semi) {
+                self.advance();
+            }
+
+            fields.push(StructField {
+                name: Identifier { name: field_name, span: f_span.into() },
+                ty,
+                span: f_span.into(),
+            });
+        }
+
+        self.expect(Token::RBrace)?;
+
+        let span = start.merge(self.current_span());
+        Ok(StructDefinition {
+            name: Identifier { name, span: n_span.into() },
+            fields,
+            span,
+        })
+    }
 }

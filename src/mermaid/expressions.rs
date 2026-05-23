@@ -126,6 +126,12 @@ impl MermaidGenerator {
                     self.generate_expr(elem, output, Some(&format!("N{}", arr_id)));
                 }
             }
+            Expr::FieldAccess(base, field) => {
+                let fa_id = self.next_id();
+                output.push_str(&format!("N{}[\"field_access .{}\"]\n", fa_id, field.name));
+                output.push_str(&format!("N{} --> N{}\n", id, fa_id));
+                self.generate_expr(base, output, Some(&format!("N{}", fa_id)));
+            }
         }
     }
 
