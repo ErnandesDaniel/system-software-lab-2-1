@@ -131,18 +131,30 @@ impl AsmGenerator {
 
     fn generate_store(&mut self, inst: &IrInstruction) {
         if inst.operands.len() >= 3 {
-            // Store to struct field: base, offset, value
             let base = &inst.operands[0];
             let offset = &inst.operands[1];
             let value = &inst.operands[2];
 
             if let IrOperand::Variable(name, _) = base {
                 if let IrOperand::Constant(crate::ir::Constant::Int(off)) = offset {
-                    self.load_operand(value, "eax", false);
-                    if *off == 0 {
-                        self.output.push_str(&format!("    mov [rel {}], eax\n", name));
+                    if inst.operands.len() == 4 {
+                        // Store to struct array field element: base + offset + index
+                        let index = &inst.operands[3];
+                        self.load_operand(value, "eax", false);
+                        self.load_operand(index, "ebx", false);
+                        if *off == 0 {
+                            self.output.push_str(&format!("    lea rcx, [rel {}]\n", name));
+                        } else {
+                            self.output.push_str(&format!("    lea rcx, [rel {} + {}]\n", name, off));
+                        }
+                        self.output.push_str("    mov [rcx + rbx * 4], eax\n");
                     } else {
-                        self.output.push_str(&format!("    mov [rel {} + {}], eax\n", name, off));
+                        self.load_operand(value, "eax", false);
+                        if *off == 0 {
+                            self.output.push_str(&format!("    mov [rel {}], eax\n", name));
+                        } else {
+                            self.output.push_str(&format!("    mov [rel {} + {}], eax\n", name, off));
+                        }
                     }
                 }
             }
@@ -155,6 +167,20 @@ impl AsmGenerator {
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
                     self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
                     self.store_variable(result, "eax", false);
+                }
+            } else if inst.operands.len() == 3 {
+                // Struct array field access: base + offset + index
+                if let IrOperand::Variable(name, _) = &inst.operands[0] {
+                    if let IrOperand::Constant(crate::ir::Constant::Int(off)) = &inst.operands[1] {
+                        self.load_operand(&inst.operands[2], "ebx", false);
+                        if *off == 0 {
+                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                        } else {
+                            self.output.push_str(&format!("    lea rax, [rel {} + {}]\n", name, off));
+                        }
+                        self.output.push_str("    mov eax, [rax + rbx * 4]\n");
+                        self.store_variable(result, "eax", false);
+                    }
                 }
             } else if inst.operands.len() == 2 {
                 let first = &inst.operands[0];

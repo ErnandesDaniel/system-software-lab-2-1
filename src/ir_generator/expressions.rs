@@ -113,6 +113,41 @@ impl IrGenerator {
                         });
                         return (right_temp, right_type);
                     }
+                    Expr::Slice(slice) => {
+                        // Struct array field assignment: scheduler.coroutines[i] = value
+                        if let Expr::FieldAccess(base, field) = slice.array.as_ref() {
+                            let (base_temp, _) = self.visit_expr(block, base);
+                            let field_offset = self.find_field_offset(&base_temp, &field.name);
+                            if let Some(range) = slice.ranges.first() {
+                                let (idx, _) = self.visit_expr(block, &range.start);
+                                block.instructions.push(IrInstruction {
+                                    opcode: IrOpcode::Store,
+                                    result: None,
+                                    result_type: None,
+                                    operands: vec![
+                                        IrOperand::Variable(base_temp, IrType::Int),
+                                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                        IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                        IrOperand::Variable(idx, IrType::Int),
+                                    ],
+                                    jump_target: None, true_target: None, false_target: None,
+                                    span: expr.span,
+                                });
+                                return (right_temp, right_type);
+                            }
+                        }
+                        let target_name = left_temp.clone();
+                        let right_type = right_type.clone();
+                        block.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Assign,
+                            result: Some(target_name.clone()),
+                            result_type: Some(right_type.clone()),
+                            operands: vec![IrOperand::Variable(right_temp.clone(), right_type.clone())],
+                            jump_target: None, true_target: None, false_target: None,
+                            span: expr.span,
+                        });
+                        return (right_temp, right_type);
+                    }
                     _ => {
                         let target_name = match expr.left.as_ref() {
                             Expr::Identifier(id) => id.name.clone(),
@@ -229,6 +264,29 @@ impl IrGenerator {
     }
 
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {
+        // Handle struct field array access: scheduler.coroutines[i]
+        if let crate::ast::Expr::FieldAccess(base, field) = expr.array.as_ref() {
+            let (base_temp, _) = self.visit_expr(block, base);
+            let field_offset = self.find_field_offset(&base_temp, &field.name);
+            if let Some(range) = expr.ranges.first() {
+                let (index_temp, _) = self.visit_expr(block, &range.start);
+                let result_temp = self.generate_temp();
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Load,
+                    result: Some(result_temp.clone()),
+                    result_type: Some(IrType::Int),
+                    operands: vec![
+                        IrOperand::Variable(base_temp, IrType::Int),
+                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(index_temp, IrType::Int),
+                    ],
+                    jump_target: None, true_target: None, false_target: None,
+                    span: expr.span,
+                });
+                return (result_temp, IrType::Int);
+            }
+        }
+
         let (array_temp, array_type) = self.visit_expr(block, &expr.array);
 
         let element_type = match &array_type {

@@ -338,8 +338,45 @@ fn test_exe_global_struct_field() {
     eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
     assert!(asm.contains("global main"), "Expected global main");
     assert!(asm.contains("sched"), "Expected sched in data");
-    // sched.count is at offset 0, so mov eax, [rel sched]
     assert!(asm.contains("[rel sched"), "Expected rel sched");
+}
+
+#[test]
+fn test_exe_struct_array_field_read() {
+    let source = r#"
+        struct Sched {
+            slots of int[3];
+            count of int;
+        }
+        global sched of Sched;
+        def main() of int
+            return sched.slots[0]
+        end
+    "#;
+    let (_, asm) = compile_only(source);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("sched"), "Expected sched label");
+    // Should use lea rax, [rel sched] then mov eax, [rax + rbx*4]
+    assert!(asm.contains("lea rax"), "Expected lea for array field");
+}
+
+#[test]
+fn test_exe_struct_array_field_write() {
+    let source = r#"
+        struct Sched {
+            slots of int[3];
+            count of int;
+        }
+        global sched of Sched;
+        def main() of int
+            sched.slots[1] = 42;
+            return sched.slots[1]
+        end
+    "#;
+    let (_, asm) = compile_only(source);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("sched"), "Expected sched label");
+    assert!(asm.contains("mov [rcx + rbx * 4], eax"), "Expected indexed store");
 }
 
 #[test]

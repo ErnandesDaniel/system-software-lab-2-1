@@ -109,7 +109,14 @@ impl CompilerDriver {
 
         for func in &ir.functions {
             let mut gen = codegen::AsmGenerator::new();
-            let asm = gen.generate_single_function(func);
+            let mut asm = gen.generate_single_function(func);
+            if !ir.globals.is_empty() {
+                let mut externs = String::new();
+                for g in &ir.globals {
+                    externs.push_str(&format!("extern {}\n", g.name));
+                }
+                asm.insert_str(0, &externs);
+            }
             let path = Path::new(output_dir).join(format!("{}.asm", func.name));
             
             if let Err(e) = fs::write(&path, &asm) {
