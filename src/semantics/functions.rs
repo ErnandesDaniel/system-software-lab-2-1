@@ -18,6 +18,7 @@ impl SemanticsAnalyzer {
                     self.global_scope.insert(global.name.name.clone(), ty).ok();
                 }
                 SourceItem::StructDef(_) => {}
+                SourceItem::CoroutineDef(_) => {}
             }
         }
         Ok(())

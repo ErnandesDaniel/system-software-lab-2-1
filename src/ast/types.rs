@@ -11,6 +11,14 @@ pub enum SourceItem {
     FuncDefinition(FuncDefinition),
     GlobalDecl(GlobalDecl),
     StructDef(StructDefinition),
+    CoroutineDef(CoroutineDefinition),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CoroutineDefinition {
+    pub signature: FuncSignature,
+    pub body: Vec<Statement>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -102,6 +110,12 @@ pub enum Statement {
     Expression(ExpressionStatement),
     Block(BlockStatement),
     VarDecl(VarDeclStatement),
+    Yield(YieldStatement),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct YieldStatement {
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

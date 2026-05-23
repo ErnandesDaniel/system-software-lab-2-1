@@ -70,14 +70,24 @@ impl IrGenerator {
                         stack_offset: None,
                     });
                     self.declared_vars.insert(vd.name.name.clone());
-                    // Store struct type name for field access
                     if let crate::ast::TypeRef::Custom(id) = &vd.ty {
                         self.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
                     }
                 }
             }
+            Statement::Yield(_) => {
+                self.current_yield_state += 1;
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Ret,
+                    result: None,
+                    result_type: Some(IrType::Int),
+                    operands: vec![IrOperand::Constant(Constant::Int(self.current_yield_state as i64))],
+                    jump_target: None, true_target: None, false_target: None,
+                    span: crate::ast::Span::new(0, 0),
+                });
+            }
+            }
         }
-    }
 
     pub fn visit_if_statement(
         &mut self,

@@ -19,7 +19,8 @@ pub struct IrGenerator {
     pub global_names: HashSet<String>,
     pub global_types: HashMap<String, IrType>,
     pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
-    pub local_struct_types: HashMap<String, String>, // name → [(field, type, offset)]
+    pub local_struct_types: HashMap<String, String>,
+    pub current_yield_state: usize,
 }
 
 impl IrGenerator {
@@ -38,6 +39,7 @@ impl IrGenerator {
             global_types: HashMap::new(),
             struct_fields: HashMap::new(),
             local_struct_types: HashMap::new(),
+            current_yield_state: 0,
         }
     }
 
@@ -84,6 +86,9 @@ impl IrGenerator {
                     self.global_names.insert(global.name.name.clone());
                     let ir_ty = self.convert_type(&global.ty);
                     self.global_types.insert(global.name.name.clone(), ir_ty);
+                }
+                SourceItem::CoroutineDef(_) => {
+                    // Coroutines are parsed like functions from FuncDefinition items
                 }
                 SourceItem::StructDef(s) => {
                     let mut fields = Vec::new();
@@ -317,6 +322,7 @@ impl Statement {
             Statement::Expression(s) => s.span,
             Statement::Block(s) => s.span,
             Statement::VarDecl(s) => s.span,
+            Statement::Yield(s) => s.span,
         }
     }
 }

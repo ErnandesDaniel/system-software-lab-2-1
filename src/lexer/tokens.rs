@@ -17,6 +17,10 @@ pub enum Token {
     Global,
     #[token("struct")]
     Struct,
+    #[token("coroutine")]
+    Coroutine,
+    #[token("yield")]
+    Yield,
     #[token("if")]
     If,
     #[token("then")]

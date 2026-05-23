@@ -175,45 +175,8 @@ user_main:
     ret
 ```
 
-### Предварительные требования
-
-Для реализации планировщика необходимо добавить в язык:
-
-#### 1. Структуры (struct)
-
-```mylang
-struct CoroutineState {
-    rip of int;
-    rsp of int;
-    rbx, rbp, r12, r13, r14, r15 of int;
-    finished of int;
-    return_value of int;
-    locals of int[64];
-}
-
-struct Scheduler {
-    coroutines of int[100];
-    count of int;
-    current_index of int;
-}
-```
-
-Требуется: токены `struct`, `->`, `.`, `sizeof`; функция `alloc(size)`.
-
-#### 2. Глобальные переменные
-
-```mylang
-global scheduler of Scheduler;
-global exit_code of int;
-```
-
-Требуется: парсинг объявлений вне функций, генерация в секцию `.data`.
-
 ### Этапы реализации
 
-#### Этап 0: Предварительные требования
-1. **Структуры:** токены `struct`/`->`/`.`/`sizeof`, AST-ноды, кодогенерация полей по offset, `alloc(size)`
-2. **Глобальные переменные:** парсинг вне функций, секция `.data`, доступ через label
 
 #### Этап 1: Корутины
 3. **Лексер/Парсер:** токены `coroutine`, `yield`

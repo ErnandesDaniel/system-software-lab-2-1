@@ -309,4 +309,34 @@ impl<'source> Parser<'source> {
             span,
         })
     }
+
+    pub(crate) fn parse_coroutine(&mut self) -> Result<CoroutineDefinition, String> {
+        let start = self.current_span();
+        self.expect(Token::Coroutine)?;
+        let sig = self.parse_signature()?;
+
+        let mut body = Vec::new();
+        while let Some(tok) = self.current_token() {
+            if tok == &Token::End {
+                self.expect(Token::End)?;
+                break;
+            }
+            if tok == &Token::Semi {
+                self.advance();
+                continue;
+            }
+            let stmt = self.parse_statement()?;
+            body.push(stmt);
+            while self.current_token() == Some(&Token::Semi) {
+                self.advance();
+            }
+            if body.len() > 100 { break; }
+        }
+        if self.current_token() == Some(&Token::End) {
+            self.expect(Token::End)?;
+        }
+
+        let span = start.merge(self.current_span());
+        Ok(CoroutineDefinition { signature: sig, body, span })
+    }
 }

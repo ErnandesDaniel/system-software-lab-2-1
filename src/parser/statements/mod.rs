@@ -14,6 +14,13 @@ impl<'source> Parser<'source> {
             Some(Token::Break) => self.parse_break(),
             Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
+            Some(Token::Yield) => {
+                let start = self.current_span();
+                self.expect(Token::Yield)?;
+                let span = start.merge(self.current_span());
+                if self.current_token() == Some(&Token::Semi) { self.advance(); }
+                Ok(Statement::Yield(YieldStatement { span }))
+            }
             Some(Token::Identifier) => self.parse_identifier_based_statement(),
             _ => self.parse_expression_statement(),
         }
