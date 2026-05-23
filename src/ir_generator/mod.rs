@@ -125,7 +125,15 @@ impl IrGenerator {
             if let SourceItem::FuncDefinition(def) = item {
                 self.block_counter = 0;
                 self.declared_vars.clear();
+                self.current_yield_state = 0;
                 let ir_func = self.generate_function(def);
+                functions.push(ir_func);
+            }
+            if let SourceItem::CoroutineDef(coroutine) = item {
+                self.block_counter = 0;
+                self.declared_vars.clear();
+                self.current_yield_state = 0;
+                let ir_func = self.generate_coroutine_function(coroutine);
                 functions.push(ir_func);
             }
         }
@@ -138,70 +146,97 @@ impl IrGenerator {
             Some(ty) => self.convert_type(ty),
             None => IrType::Void,
         };
-
-        let mut parameters = Vec::new();
-        let mut locals = HashMap::new();
-
-        if let Some(ref params) = def.signature.parameters {
-            for (_i, arg) in params.iter().enumerate() {
-                let ty = match &arg.ty {
-                    Some(t) => self.convert_type(t),
-                    None => IrType::Int,
-                };
-
-                parameters.push(IrParameter {
-                    name: arg.name.name.clone(),
-                    ty: ty.clone(),
-                });
-
-                locals.insert(
-                    arg.name.name.clone(),
-                    IrLocal {
-                        name: arg.name.name.clone(),
-                        ty,
-                        stack_offset: None,
-                    },
-                );
-
-                self.declared_vars.insert(arg.name.name.clone());
+        let mut params = Vec::new();
+        if let Some(ref args) = def.signature.parameters {
+            for arg in args {
+                let param_type = arg.ty.as_ref()
+                    .map(|t| self.convert_type(t))
+                    .unwrap_or(IrType::Int);
+                params.push(IrParameter { name: arg.name.name.clone(), ty: param_type });
             }
         }
 
-        let mut blocks = Vec::new();
-        let mut block_stack: Vec<IrBlock> = Vec::new();
-
-        let entry_id = self.generate_block_id();
+        self.locals.clear();
+        self.used_functions.clear();
+        let mut block_stack = Vec::new();
         let mut current_block = IrBlock {
-            id: entry_id,
+            id: format!("BB{}", self.block_counter),
             instructions: Vec::new(),
             successors: Vec::new(),
         };
-
-        self.locals = locals.clone();
+        self.block_counter += 1;
 
         for stmt in &def.body {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
 
-        // Collect all blocks in order
-        // For if/functions: current_block is entry (first), stack has then/else
-        // For loops: we need special handling - see visit_loop_statement
+        let mut blocks = Vec::new();
         blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
         }
 
-        let mut func = IrFunction {
+        let mut used = Vec::new();
+        std::mem::swap(&mut used, &mut self.used_functions);
+
+        IrFunction {
             name: def.signature.name.name.clone(),
             return_type,
-            parameters,
+            parameters: params,
             blocks,
-            locals: self.locals.clone().into_values().collect(),
-            used_functions: self.used_functions.clone(),
-        };
+            locals: self.locals.values().cloned().collect(),
+            used_functions: used,
+        }
+    }
 
-        func.used_functions = self.used_functions.clone();
-        func
+    pub fn generate_coroutine_function(&mut self, def: &CoroutineDefinition) -> IrFunction {
+        let return_type = match &def.signature.return_type {
+            Some(ty) => self.convert_type(ty),
+            None => IrType::Void,
+        };
+        let mut params = Vec::new();
+        if let Some(ref args) = def.signature.parameters {
+            for arg in args {
+                let param_type = arg.ty.as_ref()
+                    .map(|t| self.convert_type(t))
+                    .unwrap_or(IrType::Int);
+                params.push(IrParameter { name: arg.name.name.clone(), ty: param_type });
+            }
+        }
+
+        self.locals.clear();
+        self.used_functions.clear();
+        let mut block_stack = Vec::new();
+        let mut current_block = IrBlock {
+            id: format!("BB{}", self.block_counter),
+            instructions: Vec::new(),
+            successors: Vec::new(),
+        };
+        self.block_counter += 1;
+
+        // Generate body — yield statements will set current_yield_state
+        for stmt in &def.body {
+            self.visit_statement(&mut current_block, &mut block_stack, stmt);
+        }
+
+        // Collect blocks
+        let mut blocks = Vec::new();
+        blocks.push(current_block);
+        for block in block_stack.drain(..) {
+            blocks.push(block);
+        }
+
+        let mut used = Vec::new();
+        std::mem::swap(&mut used, &mut self.used_functions);
+
+        IrFunction {
+            name: def.signature.name.name.clone(),
+            return_type,
+            parameters: params,
+            blocks,
+            locals: self.locals.values().cloned().collect(),
+            used_functions: used,
+        }
     }
 
     pub fn get_ident_type(&self, id: &Identifier) -> IrType {
