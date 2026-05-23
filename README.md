@@ -47,7 +47,7 @@ cargo run -- input.mylang -o output
 ### Компиляция в JVM (Java bytecode)
 
 ```powershell
-cargo run -- input_jvm.mylang -o output -t jvm
+cargo run -- input.mylang -o output -t jvm
 ```
 
 Создаст в `output/`: `.class` файлы (по одному на функцию), `RuntimeStub.java`, `MainRunner.java`.
