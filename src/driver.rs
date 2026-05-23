@@ -107,6 +107,8 @@ impl CompilerDriver {
     fn generate_nasm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
+        let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
+
         for func in &ir.functions {
             let mut gen = codegen::AsmGenerator::new();
             let mut asm = gen.generate_single_function(func);
@@ -129,6 +131,23 @@ impl CompilerDriver {
             globals_asm.push_str(&crate::codegen::AsmGenerator::generate_globals_asm(&ir.globals));
             let path = Path::new(output_dir).join("globals.asm");
             let _ = fs::write(&path, &globals_asm);
+        }
+
+        if has_coroutines {
+            let mut real_main = String::from("bits 64\ndefault rel\nsection .text\n\n");
+            real_main.push_str("global _real_main\n");
+            real_main.push_str("extern start\n");
+            real_main.push_str("extern main\n");
+            real_main.push_str("_real_main:\n");
+            real_main.push_str("    push rbp\n");
+            real_main.push_str("    mov rbp, rsp\n");
+            real_main.push_str("    sub rsp, 32\n");
+            real_main.push_str("    call start\n");
+            real_main.push_str("    call main\n");
+            real_main.push_str("    leave\n");
+            real_main.push_str("    ret\n");
+            let path = Path::new(output_dir).join("_real_main.asm");
+            let _ = fs::write(&path, &real_main);
         }
 
         let mut obj_files = Vec::new();
@@ -169,6 +188,21 @@ impl CompilerDriver {
             }
         }
 
+        if has_coroutines {
+            let real_main_asm = Path::new(output_dir).join("_real_main.asm");
+            let real_main_obj = Path::new(output_dir).join("_real_main.obj");
+            let output = Command::new("nasm")
+                .args(["-f", "win64", "-o"])
+                .arg(real_main_obj.to_str().unwrap())
+                .arg(real_main_asm.to_str().unwrap())
+                .output();
+            if let Ok(out) = output {
+                if out.status.success() {
+                    obj_files.push(real_main_obj);
+                }
+        }
+        }
+
         if !obj_files.is_empty() {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files
@@ -177,6 +211,10 @@ impl CompilerDriver {
                 .collect();
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
+
+            if has_coroutines {
+                args.push("-Wl,-e,_real_main".to_string());
+            }
 
             match Command::new("clang").args(&args).output() {
                 Ok(out) => {
