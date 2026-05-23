@@ -256,18 +256,31 @@ impl IrGenerator {
         }
     }
 
-    pub fn find_field_offset(&self, base: &str, field: &str) -> usize {
-        // Check if base is a local struct variable
-        let struct_name = self.local_struct_types.get(base);
-        let search_name = struct_name.map(|s| s.as_str()).unwrap_or(base);
-        if let Some(fields) = self.struct_fields.get(search_name) {
-            for (fname, _, offset) in fields {
-                if fname == field {
-                    return *offset;
-                }
+    pub fn resolve_field_chain(&self, expr: &crate::ast::Expr) -> (String, usize) {
+        match expr {
+            crate::ast::Expr::FieldAccess(base, field) => {
+                let (base_name, base_offset) = self.resolve_field_chain(base);
+                // Find which struct the base variable belongs to
+                let struct_name = self.local_struct_types.get(&base_name)
+                    .map(|s| s.as_str())
+                    .or_else(|| {
+                        // Check if base is a global with a struct type
+                        self.global_types.get(&base_name).and_then(|t| {
+                            if let IrType::Array(..) = t { None } else { Some(base_name.as_str()) }
+                        })
+                    })
+                    .unwrap_or(&base_name);
+                let field_offset = self.struct_fields.get(struct_name)
+                    .and_then(|fields| fields.iter().find(|(n,_,_)| n == &field.name))
+                    .map(|(_,_,o)| *o)
+                    .unwrap_or(0);
+                (base_name, base_offset + field_offset)
             }
+            crate::ast::Expr::Identifier(id) => {
+                (id.name.clone(), 0)
+            }
+            _ => (String::new(), 0),
         }
-        0
     }
 }
 

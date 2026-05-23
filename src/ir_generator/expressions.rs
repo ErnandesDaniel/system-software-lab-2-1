@@ -46,17 +46,16 @@ impl IrGenerator {
                 (tmp, IrType::Int)
             }
             Expr::FieldAccess(base, field) => {
-                let (base_temp, _base_type) = self.visit_expr(block, base);
+                let (base_name, total_offset) = self.resolve_field_chain(expr);
                 let tmp = self.generate_temp();
-                // Look up field offset from struct definitions
-                let field_offset = self.find_field_offset(&base_temp, &field.name);
+                // Use resolved chain — base name + cumulative offset
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Load,
                     result: Some(tmp.clone()),
                     result_type: Some(IrType::Int),
                     operands: vec![
-                        IrOperand::Variable(base_temp, IrType::Int),
-                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(base_name, IrType::Int),
+                        IrOperand::Constant(Constant::Int(total_offset as i64)),
                     ],
                     jump_target: None,
                     true_target: None,
@@ -94,16 +93,15 @@ impl IrGenerator {
             BinaryOp::Or => (IrOpcode::Or, IrType::Bool),
             BinaryOp::Assign => {
                 match expr.left.as_ref() {
-                    Expr::FieldAccess(base, field) => {
-                        let (base_temp, _) = self.visit_expr(block, base);
-                        let field_offset = self.find_field_offset(&base_temp, &field.name);
+                    Expr::FieldAccess(_, _) => {
+                        let (base_name, total_offset) = self.resolve_field_chain(expr.left.as_ref());
                         block.instructions.push(IrInstruction {
                             opcode: IrOpcode::Store,
                             result: None,
                             result_type: None,
                             operands: vec![
-                                IrOperand::Variable(base_temp, IrType::Int),
-                                IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                IrOperand::Variable(base_name, IrType::Int),
+                                IrOperand::Constant(Constant::Int(total_offset as i64)),
                                 IrOperand::Variable(right_temp.clone(), right_type.clone()),
                             ],
                             jump_target: None,
@@ -115,9 +113,8 @@ impl IrGenerator {
                     }
                     Expr::Slice(slice) => {
                         // Struct array field assignment: scheduler.coroutines[i] = value
-                        if let Expr::FieldAccess(base, field) = slice.array.as_ref() {
-                            let (base_temp, _) = self.visit_expr(block, base);
-                            let field_offset = self.find_field_offset(&base_temp, &field.name);
+                        if let Expr::FieldAccess(_, _) = slice.array.as_ref() {
+                            let (base_name, total_offset) = self.resolve_field_chain(slice.array.as_ref());
                             if let Some(range) = slice.ranges.first() {
                                 let (idx, _) = self.visit_expr(block, &range.start);
                                 block.instructions.push(IrInstruction {
@@ -125,8 +122,8 @@ impl IrGenerator {
                                     result: None,
                                     result_type: None,
                                     operands: vec![
-                                        IrOperand::Variable(base_temp, IrType::Int),
-                                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                        IrOperand::Variable(base_name, IrType::Int),
+                                        IrOperand::Constant(Constant::Int(total_offset as i64)),
                                         IrOperand::Variable(right_temp.clone(), right_type.clone()),
                                         IrOperand::Variable(idx, IrType::Int),
                                     ],
@@ -265,9 +262,8 @@ impl IrGenerator {
 
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {
         // Handle struct field array access: scheduler.coroutines[i]
-        if let crate::ast::Expr::FieldAccess(base, field) = expr.array.as_ref() {
-            let (base_temp, _) = self.visit_expr(block, base);
-            let field_offset = self.find_field_offset(&base_temp, &field.name);
+        if let crate::ast::Expr::FieldAccess(_, _) = expr.array.as_ref() {
+            let (base_name, total_offset) = self.resolve_field_chain(expr.array.as_ref());
             if let Some(range) = expr.ranges.first() {
                 let (index_temp, _) = self.visit_expr(block, &range.start);
                 let result_temp = self.generate_temp();
@@ -276,8 +272,8 @@ impl IrGenerator {
                     result: Some(result_temp.clone()),
                     result_type: Some(IrType::Int),
                     operands: vec![
-                        IrOperand::Variable(base_temp, IrType::Int),
-                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(base_name, IrType::Int),
+                        IrOperand::Constant(Constant::Int(total_offset as i64)),
                         IrOperand::Variable(index_temp, IrType::Int),
                     ],
                     jump_target: None, true_target: None, false_target: None,
