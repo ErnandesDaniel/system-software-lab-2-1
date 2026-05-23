@@ -53,6 +53,21 @@ impl AsmGenerator {
 
         self.output.push_str(&format!("global {}\n", func.name));
         self.output.push_str(&format!("{}:\n", func.name));
+
+        if self.is_coroutine {
+            // State machine dispatch: rcx = &CoroutineState
+            self.output.push_str("    ; Coroutine state machine\n");
+            self.output.push_str("    mov eax, [rcx]\n");
+            self.output.push_str("    cmp eax, 0\n");
+            self.output.push_str("    je .co_state_0\n");
+            // Generate comparisons for yield states
+            let yield_count = self.yield_counter;
+            for s in 1..=yield_count {
+                self.output.push_str(&format!("    cmp eax, {}\n", s));
+                self.output.push_str(&format!("    je .co_state_{}\n", s));
+            }
+        }
+
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
 

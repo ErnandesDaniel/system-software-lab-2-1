@@ -107,6 +107,16 @@ impl AsmGenerator {
     }
 
     pub fn generate_ret(&mut self, inst: &IrInstruction) {
+        if self.is_coroutine && !inst.operands.is_empty() {
+            if let IrOperand::Constant(c) = &inst.operands[0] {
+                // Coroutine yield: store state number to rip
+                self.load_constant(c, "eax");
+                self.output.push_str("    mov [rcx], eax\n");
+                self.output.push_str("    leave\n");
+                self.output.push_str("    ret\n");
+                return;
+            }
+        }
         if let Some(operand) = inst.operands.first() {
             match operand {
                 IrOperand::Constant(c) => self.load_constant(c, "eax"),
@@ -142,6 +152,11 @@ impl AsmGenerator {
                 }
             }
         }
+        if self.is_coroutine {
+            // For coroutines: signal finished to scheduler
+            self.output.push_str("    mov dword [rcx + 64], 1\n");
+            self.output.push_str("    mov dword [rcx + 68], eax\n");
+        }
         self.output.push_str("    leave\n");
         self.output.push_str("    ret\n");
     }
@@ -154,8 +169,13 @@ impl AsmGenerator {
                 let is_ptr = ty.is_pointer();
                 let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
-                    self.output
-                        .push_str(&format!("    mov {}, [rbp + {}]\n", dest, offset));
+                    if self.is_coroutine {
+                        let co_off = 72 + (-offset) as i32;
+                        self.output.push_str(&format!("    mov {}, [rcx + {}]\n", dest, co_off));
+                    } else {
+                        self.output
+                            .push_str(&format!("    mov {}, [rbp + {}]\n", dest, offset));
+                    }
                 } else if let Some(offset) = self.temps.get(name) {
                     self.output
                         .push_str(&format!("    mov {}, [rbp + {}]\n", dest, offset));
@@ -236,6 +256,13 @@ impl AsmGenerator {
     }
 
     pub fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
+        if self.is_coroutine {
+            if let Some(offset) = self.locals.get(name) {
+                let co_off = 72 + (-offset) as i32;
+                self.output.push_str(&format!("    mov [rcx + {}], {}\n", co_off, src));
+                return;
+            }
+        }
         if let Some(offset) = self.locals.get(name) {
             self.output
                 .push_str(&format!("    mov [rbp + {}], {}\n", offset, src));

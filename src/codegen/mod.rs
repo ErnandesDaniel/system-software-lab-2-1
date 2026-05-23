@@ -11,6 +11,8 @@ pub struct AsmGenerator {
     current_function: Option<String>,
     param_registers: Vec<String>,
     temp_counter: usize,
+    is_coroutine: bool,
+    yield_counter: usize,
 }
 
 impl AsmGenerator {
@@ -24,17 +26,18 @@ impl AsmGenerator {
             temps: HashMap::new(),
             used_functions: Vec::new(),
             current_function: None,
-            param_registers: vec![
-                "rcx".to_string(),
-                "rdx".to_string(),
-                "r8".to_string(),
-                "r9".to_string(),
-            ],
+            param_registers: Vec::new(),
             temp_counter: 0,
+            is_coroutine: false,
+            yield_counter: 0,
         }
     }
 
-    #[allow(dead_code)]
+    pub fn set_coroutine(&mut self, yield_count: usize) {
+        self.is_coroutine = true;
+        self.yield_counter = yield_count;
+    }
+
     pub fn generate(&mut self, program: &IrProgram) -> String {
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
@@ -82,7 +85,11 @@ impl AsmGenerator {
         }
 
         for func in &program.functions {
+            if func.yield_count > 0 {
+                self.set_coroutine(func.yield_count);
+            }
             self.generate_function_internal(func);
+            self.is_coroutine = false;
         }
 
         if !self.data_section.is_empty() || !program.globals.is_empty() {

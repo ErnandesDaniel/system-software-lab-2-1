@@ -186,6 +186,7 @@ impl IrGenerator {
             blocks,
             locals: self.locals.values().cloned().collect(),
             used_functions: used,
+            yield_count: 0,
         }
     }
 
@@ -236,6 +237,7 @@ impl IrGenerator {
             blocks,
             locals: self.locals.values().cloned().collect(),
             used_functions: used,
+            yield_count: self.current_yield_state,
         }
     }
 
