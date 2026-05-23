@@ -46,6 +46,30 @@ impl IrGenerator {
                 (tmp, IrType::Int)
             }
             Expr::FieldAccess(base, field) => {
+                if let Expr::Slice(slice) = base.as_ref() {
+                    // Array of structs: sched[i].field
+                    let (arr_name, _) = self.visit_expr(block, &slice.array);
+                    if let Some(range) = slice.ranges.first() {
+                        let (idx_temp, _) = self.visit_expr(block, &range.start);
+                        let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
+                        let elem_size = self.struct_size_for_var(&arr_name);
+                        let tmp = self.generate_temp();
+                        block.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Load,
+                            result: Some(tmp.clone()),
+                            result_type: Some(IrType::Int),
+                            operands: vec![
+                                IrOperand::Variable(arr_name, IrType::Int),
+                                IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                IrOperand::Variable(idx_temp, IrType::Int),
+                                IrOperand::Constant(Constant::Int(elem_size as i64)),
+                            ],
+                            jump_target: None, true_target: None, false_target: None,
+                            span: crate::ast::Span::new(0, 0),
+                        });
+                        return (tmp, IrType::Int);
+                    }
+                }
                 let (base_name, total_offset) = self.resolve_field_chain(expr);
                 let tmp = self.generate_temp();
                 // Use resolved chain — base name + cumulative offset

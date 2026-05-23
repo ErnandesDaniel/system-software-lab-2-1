@@ -256,6 +256,21 @@ impl IrGenerator {
         }
     }
 
+    pub fn find_field_offset_for_array(&self, base: &str, field: &str) -> usize {
+        for (_, fields) in &self.struct_fields {
+            for (fname, _, offset) in fields {
+                if fname == field {
+                    return *offset;
+                }
+            }
+        }
+        0
+    }
+
+    pub fn struct_size_for_var(&self, _base: &str) -> usize {
+        4
+    }
+
     pub fn resolve_field_chain(&self, expr: &crate::ast::Expr) -> (String, usize) {
         match expr {
             crate::ast::Expr::FieldAccess(base, field) => {

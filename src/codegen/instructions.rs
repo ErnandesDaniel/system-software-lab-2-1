@@ -170,6 +170,25 @@ impl AsmGenerator {
                     self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
                     self.store_variable(result, "eax", false);
                 }
+            } else if inst.operands.len() == 4 {
+                // Array of structs: base + field_offset + index + elem_size
+                if let IrOperand::Variable(name, _) = &inst.operands[0] {
+                    if let (IrOperand::Constant(crate::ir::Constant::Int(field_off)),
+                            IrOperand::Constant(crate::ir::Constant::Int(elem_sz))) = (&inst.operands[1], &inst.operands[3]) {
+                        self.load_operand(&inst.operands[2], "ebx", false);
+                        if *field_off == 0 {
+                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                        } else {
+                            self.output.push_str(&format!("    lea rax, [rel {} + {}]\n", name, field_off));
+                        }
+                        if *elem_sz != 1 {
+                            self.output.push_str(&format!("    imul ebx, {}\n", elem_sz));
+                        }
+                        self.output.push_str("    add rax, rbx\n");
+                        self.output.push_str("    mov eax, [rax]\n");
+                        self.store_variable(result, "eax", false);
+                    }
+                }
             } else if inst.operands.len() == 3 {
                 // Struct array field access: base + offset + index
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
