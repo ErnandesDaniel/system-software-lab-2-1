@@ -74,9 +74,6 @@ impl<'source> Parser<'source> {
             });
 
             while let Some(token) = self.current_token() {
-                if matches!(token, Token::Assign) {
-                    break;
-                }
                 if matches!(
                     token,
                     Token::End

@@ -93,36 +93,59 @@ impl IrGenerator {
             BinaryOp::And => (IrOpcode::And, IrType::Bool),
             BinaryOp::Or => (IrOpcode::Or, IrType::Bool),
             BinaryOp::Assign => {
-                let target_name = match expr.left.as_ref() {
-                    Expr::Identifier(id) => id.name.clone(),
-                    _ => left_temp.clone(),
-                };
+                match expr.left.as_ref() {
+                    Expr::FieldAccess(base, field) => {
+                        let (base_temp, _) = self.visit_expr(block, base);
+                        let field_offset = self.find_field_offset(&base_temp, &field.name);
+                        block.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Store,
+                            result: None,
+                            result_type: None,
+                            operands: vec![
+                                IrOperand::Variable(base_temp, IrType::Int),
+                                IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                            ],
+                            jump_target: None,
+                            true_target: None,
+                            false_target: None,
+                            span: expr.span,
+                        });
+                        return (right_temp, right_type);
+                    }
+                    _ => {
+                        let target_name = match expr.left.as_ref() {
+                            Expr::Identifier(id) => id.name.clone(),
+                            _ => left_temp.clone(),
+                        };
 
-                let right_type = right_type.clone();
+                        let right_type = right_type.clone();
 
-                block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Assign,
-                    result: Some(target_name.clone()),
-                    result_type: Some(right_type.clone()),
-                    operands: vec![IrOperand::Variable(right_temp.clone(), right_type.clone())],
-                    jump_target: None,
-                    true_target: None,
-                    false_target: None,
-                    span: expr.span,
-                });
+                        block.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Assign,
+                            result: Some(target_name.clone()),
+                            result_type: Some(right_type.clone()),
+                            operands: vec![IrOperand::Variable(right_temp.clone(), right_type.clone())],
+                            jump_target: None,
+                            true_target: None,
+                            false_target: None,
+                            span: expr.span,
+                        });
 
-                if !self.declared_vars.contains(&target_name) {
-                    self.locals.insert(
-                        target_name.clone(),
-                        IrLocal {
-                            name: target_name.clone(),
-                            ty: right_type.clone(),
-                            stack_offset: None,
-                        },
-                    );
-                    self.declared_vars.insert(target_name);
+                        if !self.declared_vars.contains(&target_name) {
+                            self.locals.insert(
+                                target_name.clone(),
+                                IrLocal {
+                                    name: target_name.clone(),
+                                    ty: right_type.clone(),
+                                    stack_offset: None,
+                                },
+                            );
+                            self.declared_vars.insert(target_name);
+                        }
+                        return (right_temp, right_type);
+                    }
                 }
-                return (right_temp, right_type);
             }
         };
 

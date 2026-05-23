@@ -38,9 +38,6 @@ impl<'source> Parser<'source> {
             if matches!(token, Token::Semi) {
                 break;
             }
-            if matches!(token, Token::Assign) {
-                break;
-            }
             let token_copy = *token;
             let prec = Self::get_precedence(&token_copy);
             if prec < min_prec {

@@ -32,7 +32,7 @@ impl AsmGenerator {
             IrOpcode::BitAnd => self.binary_op(inst, "and"),
             IrOpcode::BitOr => self.binary_op(inst, "or"),
             IrOpcode::Pos => self.generate_pos(inst),
-            IrOpcode::Store => {}
+            IrOpcode::Store => self.generate_store(inst),
             IrOpcode::Cast => {}
         }
     }
@@ -126,6 +126,26 @@ impl AsmGenerator {
         if let Some(ref target) = inst.jump_target {
             let formatted = self.format_block_label(target);
             self.output.push_str(&format!("    jmp {}\n", formatted));
+        }
+    }
+
+    fn generate_store(&mut self, inst: &IrInstruction) {
+        if inst.operands.len() >= 3 {
+            // Store to struct field: base, offset, value
+            let base = &inst.operands[0];
+            let offset = &inst.operands[1];
+            let value = &inst.operands[2];
+
+            if let IrOperand::Variable(name, _) = base {
+                if let IrOperand::Constant(crate::ir::Constant::Int(off)) = offset {
+                    self.load_operand(value, "eax", false);
+                    if *off == 0 {
+                        self.output.push_str(&format!("    mov [rel {}], eax\n", name));
+                    } else {
+                        self.output.push_str(&format!("    mov [rel {} + {}], eax\n", name, off));
+                    }
+                }
+            }
         }
     }
 

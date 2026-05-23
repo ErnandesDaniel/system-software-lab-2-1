@@ -228,13 +228,26 @@ fn test_global_struct() {
 }
 
 #[test]
-#[test]
 fn test_field_access() {
     let source = r#"
         def main() of int
             return a.b
         end
     "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_simple_assign() {
+    let source = "def foo() a = 5; end";
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_field_write() {
+    let source = "def foo() p.x = 5; end";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }
