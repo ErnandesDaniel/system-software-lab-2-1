@@ -67,3 +67,110 @@ fn test_assembler_output_format() {
     assert!(asm_output.contains("mov rbp, rsp"));
     assert!(asm_output.contains("imul"));
 }
+
+#[test]
+fn test_ir_generation_multiple_functions() {
+    let source = r#"
+        def add(a of int, b of int) of int
+            return a + b
+        end
+        def main() of int
+            return add(1, 2)
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    assert_eq!(ir.functions.len(), 2);
+    assert_eq!(ir.functions[0].name, "add");
+    assert_eq!(ir.functions[1].name, "main");
+}
+
+#[test]
+fn test_asm_function_call() {
+    let source = r#"
+        def double(x of int) of int
+            return x + x
+        end
+        def main() of int
+            return double(21)
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("double:"));
+    assert!(asm.contains("main:"));
+    assert!(asm.contains("ret"));
+}
+
+#[test]
+fn test_asm_if_else_structure() {
+    let source = r#"
+        def max(a of int, b of int) of int
+            if a > b then
+                return a
+            else
+                return b
+            end
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("max:"));
+    assert!(asm.contains("ret"));
+    assert!(asm.contains("cmp"));
+}
+
+#[test]
+fn test_asm_string_literal() {
+    let source = r#"
+        def main() of int
+            s = "hello";
+            return 0
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("main:"));
+    assert!(asm.contains("ret"));
+    // String may be stored in data section or as bytes
+    assert!(
+        asm.contains("hello") || asm.contains("db ") || asm.contains("section .data"),
+        "Expected string data in asm, got: {}",
+        &asm[..asm.len().min(500)]
+    );
+}
+
+#[test]
+fn test_asm_while_loop_structure() {
+    let source = r#"
+        def sum() of int
+            i = 1;
+            total = 0;
+            while i <= 10 {
+                total = total + i;
+                i = i + 1;
+            }
+            loop_end
+            return total
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("sum:"));
+    assert!(asm.contains("ret"));
+    assert!(asm.contains("cmp"));
+    assert!(asm.contains("j"));
+}

@@ -65,9 +65,6 @@ impl AsmGenerator {
         for block in &func.blocks {
             self.generate_block(block);
         }
-
-        self.output.push_str("    leave\n");
-        self.output.push_str("    ret\n");
     }
 
     #[allow(dead_code)]

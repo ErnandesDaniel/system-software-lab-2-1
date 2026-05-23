@@ -1,84 +1,246 @@
-# System Software Lab 2-1: MyLang Compiler + PHP↔JVM via SHM
+# MyLang Compiler
 
-Три компонента:
-1. **MyLang Compiler** (Rust) — компилирует `cli_app/server.mylang` в JVM `.class` файлы
-2. **RuntimeStub** (Java) — рантайм с shared memory, реализациями `shm_*`/`map_*`, вызывает скомпилированный MyLang-код
-3. **PHP CLI** (`cli_app.php` + `shm_client.php`) — интерактивная консоль, отправляет запросы JVM-демону через разделяемую память
+Компилятор кастомного языка MyLang на Rust. Основная цель компиляции — NASM (x86-64), также поддерживаются JVM bytecode, LLVM IR и WebAssembly.
 
----
-
-## Полный цикл: компиляция → запуск → тестирование
-
-### 1. Требования
+## Требования
 
 - Rust: `rustup default stable`
-- Java JDK 21+: `choco install openjdk`
-- PHP 8.1+ с FFI: `choco install php`
+- NASM: `choco install nasm`
+- Clang (линковщик): `choco install llvm`
+- Java JDK 21+ (для target `jvm`): `choco install openjdk`
+- PHP 8.1+ с FFI (для PHP-демок)
 
-### 2. Сборка компилятора
+## Сборка
 
 ```powershell
 cargo build
 ```
 
-### 3. Компиляция MyLang в JVM
+## Использование
+
+```powershell
+cargo run -- <source_file> -o <output_dir> [options]
+```
+
+### Опции
+
+| Опция | Описание |
+|-------|-----------|
+| `-o, --output <dir>` | Выходная директория (**обязательно**) |
+| `-t, --target <target>` | Цель компиляции: `nasm` (по умолчанию), `llvm`, `jvm`, `wasm` |
+| `--optimize` | Оптимизировать (O2) при компиляции в wasm |
+| `--ast <file>` | Сохранить AST (диаграмма Mermaid) |
+| `--cfg <file>` | Сохранить CFG (диаграмма Mermaid) |
+
+### Компиляция в executable (NASM)
+
+```powershell
+cargo run -- input.mylang -o output
+```
+
+Создаст в `output/`: `main.asm`, `program.exe`
+
+```powershell
+.\output\program.exe
+```
+
+### Компиляция в JVM (Java bytecode)
+
+```powershell
+cargo run -- input_jvm.mylang -o output -t jvm
+```
+
+Создаст в `output/`: `.class` файлы, `RuntimeStub.java`, `MainRunner.java`
+
+```powershell
+java -cp output RuntimeStub
+```
+
+## Этапы компиляции
+
+1. **Лексер** → токены
+2. **Парсер** → AST
+3. **Семантический анализ** → проверка типов, таблица символов
+4. **IR генератор** → промежуточное представление (IR)
+5. **Codegen** → выбор бэкенда (NASM / LLVM / JVM / WASM)
+6. **Линковка** → исполняемый файл (Clang) / .class (javac)
+
+---
+
+## Структура проекта
+
+| Путь | Назначение |
+|------|------------|
+| `src/` | Исходный код компилятора на Rust |
+| `src/lexer/` | Лексер |
+| `src/parser/` | Парсер |
+| `src/ast/` | AST-ноды |
+| `src/semantics/` | Семантический анализ |
+| `src/ir/`, `src/ir_generator/` | Промежуточное представление |
+| `src/codegen/` | NASM, LLVM, JVM, WASM кодогенераторы |
+| `src/lib/jna-5.14.0.jar` | JNA для RuntimeStub (JVM target) |
+| `examples/` | Примеры программ на MyLang |
+| `output/` | Результаты компиляции (генерируется) |
+
+---
+
+## Техническое задание: Корутины и Планировщик
+
+Реализация **кооперативной многозадачности** с автоматическим планировщиком.
+
+### Концепция
+
+Пользовательская `main` — **"фиктивная"** функция инициализации. Она регистрирует корутины, а настоящая точка входа скрыта.
+
+```mylang
+coroutine task1() of int
+    puts("Task 1");
+    yield;
+    puts("Task 1 done");
+    return 10;
+end
+
+def main() of int
+    task1();
+    task2();
+    puts("Setup done");
+    return 0;           // здесь автоматически запускается планировщик
+end
+```
+
+**Поток выполнения:**
+1. `_real_main` (скрытая) запускается
+2. Вызывается `user_main` ("фиктивная" main пользователя)
+3. Вызовы корутин внутри `user_main` **регистрируют** их в планировщике (не выполняют код)
+4. После `return` из `user_main` автоматически запускается `run_scheduler()`
+5. Планировщик выполняет все зарегистрированные корутины до завершения
+
+### Синтаксис
+
+| Ключевое слово | Описание |
+|----------------|----------|
+| `coroutine` | Объявление корутины |
+| `yield` | Приостановка выполнения, возврат управления планировщику |
+
+### Генерация кода
+
+#### Точка входа (скрытая)
+
+```nasm
+_real_main:
+    call init_scheduler
+    call user_main
+    call run_scheduler
+    call wait_all_tasks
+    mov eax, [exit_code]
+    ret
+```
+
+#### Корутина (state machine)
+
+```nasm
+task1_coroutine:
+    mov rax, [rcx + state.rip]
+
+    cmp rax, 0
+    je .start
+    cmp rax, 1
+    je .after_yield1
+
+.start:
+    call puts
+    mov qword [rcx + state.rip], 1
+    ret
+
+.after_yield1:
+    ; продолжение после yield
+```
+
+#### Auto-spawn при вызове
+
+```nasm
+user_main:
+    call create_coroutine_task1
+    call scheduler_add
+    ret
+```
+
+### Предварительные требования
+
+Для реализации планировщика необходимо добавить в язык:
+
+#### 1. Структуры (struct)
+
+```mylang
+struct CoroutineState {
+    rip of int;
+    rsp of int;
+    rbx, rbp, r12, r13, r14, r15 of int;
+    finished of int;
+    return_value of int;
+    locals of int[64];
+}
+
+struct Scheduler {
+    coroutines of int[100];
+    count of int;
+    current_index of int;
+}
+```
+
+Требуется: токены `struct`, `->`, `.`, `sizeof`; функция `alloc(size)`.
+
+#### 2. Глобальные переменные
+
+```mylang
+global scheduler of Scheduler;
+global exit_code of int;
+```
+
+Требуется: парсинг объявлений вне функций, генерация в секцию `.data`.
+
+### Этапы реализации
+
+#### Этап 0: Предварительные требования
+1. **Структуры:** токены `struct`/`->`/`.`/`sizeof`, AST-ноды, кодогенерация полей по offset, `alloc(size)`
+2. **Глобальные переменные:** парсинг вне функций, секция `.data`, доступ через label
+
+#### Этап 1: Корутины
+3. **Лексер/Парсер:** токены `coroutine`, `yield`
+4. **AST:** ноды `CoroutineDef`, `YieldStatement`, `CoroutineCall`
+5. **Семантика:** определение корутин vs обычных функций
+6. **Кодогенерация:** state machine, скрытая `_real_main`, auto-spawn
+7. **Runtime (ASM):** `init_scheduler`, `scheduler_add`, `run_scheduler`, `resume_coroutine`
+
+---
+
+## Демо: PHP↔JVM CLI (Shared Memory)
+
+Одна из демонстрационных программ. PHP общается с JVM-демоном через разделяемую память (Win32 File Mapping), позволяя интерактивно вызывать CRUD-операции, скомпилированные из `server.mylang`.
 
 ```powershell
 cargo run -- cli_app/server.mylang -o output -t jvm
-```
-
-Результат в `output/`:
-- `Main.class`, `Dispatch.class`, `Handle_create.class`, `Handle_get.class`, `Handle_set.class`, `Handle_delete.class` — скомпилированный mylang-код
-- `RuntimeStub.java`, `MainRunner.java` — сгенерированные Java-обёртки
-
-### 4. Запуск PHP CLI
-
-PHP-приложение само запускает JVM-демон при подключении:
-
-```powershell
 php cli_app/cli_app.php
 ```
 
-### 6. Основной сценарий (тестирование)
+### Команды
+
+| Команда | Описание |
+|---------|----------|
+| `create <key> <value>` | Создать запись |
+| `get <key>` | Получить значение |
+| `set <key> <value>` | Обновить |
+| `delete <key>` | Удалить |
+| `list` | Список ключей |
+| `exit` | Остановить демон и выйти |
+
+### Как работает
 
 ```
-=== PHP FFI → JVM Daemon ===
-
-> create user1 Alice
-  ok
-> create user2 Bob
-  ok
-> get user1
-  value: Alice
-> set user1 Charlie
-  ok
-> get user1
-  value: Charlie
-> list
-  keys:
-    - user1
-    - user2
-> delete user2
-  ok
-> list
-  keys:
-    - user1
-> exit
-Bye!
-```
-
-### Как это работает
-
-```
-PHP (cli_app.php)
-  ↓ FFI → kernel32.dll
-  ↓ CreateFileMapping + MapViewOfFile → mylang_shm.dat (4096 байт)
-  ↓ Win32 Event — сигнал JVM-демону
-JVM (RuntimeStub)
-  ↓ main() → инициализация SHM
-  ↓ Main.call() → запуск mylang-кода
-  ↓ Dispatch.dispatch() → handle_create/handle_get/handle_set/handle_delete
-  ↓ Ответ через SHM → сигнал PHP через Event
+PHP (cli_app.php) → FFI/kernel32.dll → CreateFileMapping + MapViewOfFile
+  → mylang_shm.dat (4096 байт) + Win32 Event
+JVM (RuntimeStub) → main() → Main.call() → Dispatch.dispatch()
+  → CRUD-функции → ответ через SHM → сигнал PHP через Event
 PHP читает SHM → выводит результат
 ```
 
@@ -97,36 +259,15 @@ PHP читает SHM → выводит результат
   [5..]   payload\0 string   null-terminated payload
 ```
 
----
-
-## Структура проекта
+### Файлы демо
 
 | Файл | Назначение |
 |------|------------|
-| `cli_app/server.mylang` | Исходный код на MyLang (обработчики create/get/set/delete + main-цикл) |
-| `src/` | Компилятор MyLang на Rust |
-| `output/Main.class` | JVM-байткод: main() из server.mylang |
-| `output/Dispatch.class` | JVM-байткод: dispatch-таблица по opcode |
-| `output/Handle_*.class` | JVM-байткод: CRUD-функции |
-| `output/RuntimeStub.java` | Java-рантайм (shared memory, вызовы mylang-кода) |
-| `output/MainRunner.java` | Java-загрузчик для вызова функций по имени |
-| `cli_app/cli_app.php` | PHP CLI с интерактивными командами |
-| `cli_app/shm_client.php` | PHP FFI класс (kernel32 → CreateFileMapping, MapViewOfFile, Event) |
+| `cli_app/server.mylang` | MyLang CRUD-сервер |
+| `cli_app/cli_app.php` | Интерактивная консоль |
+| `cli_app/shm_client.php` | PHP FFI: kernel32 → SHM |
 | `cli_app/test_shm.php` | Интеграционный тест |
+| `output/RuntimeStub.java` | Генерируется: I/O, SHM через JNA, HashMap |
+| `output/MainRunner.java` | Генерируется: отладочный запускатор через рефлексию |
 
-## Команды PHP CLI
-
-| Команда | Пример | Описание |
-|---------|--------|----------|
-| `create` | `create note1 Hello` | Создать запись по ключу |
-| `get` | `get note1` | Получить значение |
-| `set` | `set note1 World` | Обновить значение |
-| `delete` | `delete note1` | Удалить по ключу |
-| `list` | `list` | Список ключей |
-| `exit` | `exit` | Остановить JVM-демон и выйти |
-
-## Примечания
-
-- `php cli_app/cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Только интерактивный режим.
-- Если `mylang_shm.dat` остался после аварийного завершения, удалите вручную перед перезапуском.
-- Компилятор также поддерживает цели `nasm`, `llvm`, `wasm` (см. `cargo run -- --help`).
+---

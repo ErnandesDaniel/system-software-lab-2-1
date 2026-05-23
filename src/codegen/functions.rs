@@ -113,32 +113,16 @@ impl AsmGenerator {
                         let idx = self.param_registers.iter().position(|r| r == name).unwrap();
                         let src_reg = match idx {
                             0 => {
-                                if is_pointer {
-                                    "rcx"
-                                } else {
-                                    "ecx"
-                                }
+                                if is_pointer { "rcx" } else { "ecx" }
                             }
                             1 => {
-                                if is_pointer {
-                                    "rdx"
-                                } else {
-                                    "edx"
-                                }
+                                if is_pointer { "rdx" } else { "edx" }
                             }
                             2 => {
-                                if is_pointer {
-                                    "r8"
-                                } else {
-                                    "r8d"
-                                }
+                                if is_pointer { "r8" } else { "r8d" }
                             }
                             3 => {
-                                if is_pointer {
-                                    "r9"
-                                } else {
-                                    "r9d"
-                                }
+                                if is_pointer { "r9" } else { "r9d" }
                             }
                             _ => "eax",
                         };
@@ -147,6 +131,8 @@ impl AsmGenerator {
                 }
             }
         }
+        self.output.push_str("    leave\n");
+        self.output.push_str("    ret\n");
     }
 
     pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, _is_pointer: bool) {
@@ -155,24 +141,13 @@ impl AsmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 let is_ptr = ty.is_pointer();
-                // Use trait method to check if temp
                 let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
-                    let src_reg = if is_ptr { "rax" } else { "eax" };
                     self.output
-                        .push_str(&format!("    mov {}, [rbp + {}]\n", src_reg, offset));
-                    if dest != src_reg {
-                        self.output
-                            .push_str(&format!("    mov {}, {}\n", dest, src_reg));
-                    }
+                        .push_str(&format!("    mov {}, [rbp + {}]\n", dest, offset));
                 } else if let Some(offset) = self.temps.get(name) {
-                    let src_reg = if is_ptr { "rax" } else { "eax" };
                     self.output
-                        .push_str(&format!("    mov {}, [rbp + {}]\n", src_reg, offset));
-                    if dest != src_reg {
-                        self.output
-                            .push_str(&format!("    mov {}, {}\n", dest, src_reg));
-                    }
+                        .push_str(&format!("    mov {}, [rbp + {}]\n", dest, offset));
                 } else if self.param_registers.contains(name) {
                     let idx = self.param_registers.iter().position(|r| r == name).unwrap();
                     let src_reg = match idx {
