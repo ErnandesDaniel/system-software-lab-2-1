@@ -61,7 +61,7 @@ impl IrGenerator {
                         .insert(decl.signature.name.name.clone());
                     let ret_type = decl.signature.return_type.as_ref()
                         .map(|t| self.convert_type(t))
-                        .unwrap_or(IrType::Void);
+                        .unwrap_or(IrType::Int);
                     self.function_return_types
                         .insert(decl.signature.name.name.clone(), ret_type);
                 }

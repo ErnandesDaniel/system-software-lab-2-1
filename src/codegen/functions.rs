@@ -227,6 +227,12 @@ impl AsmGenerator {
         } else if let Some(offset) = self.temps.get(name) {
             self.output
                 .push_str(&format!("    mov [rbp + {}], {}\n", offset, src));
+        } else if name.starts_with('t') {
+            let offset = -8 * (self.temp_counter as i32 + 1);
+            self.temps.insert(name.to_string(), offset);
+            self.temp_counter += 1;
+            self.output
+                .push_str(&format!("    mov [rbp + {}], {}\n", offset, src));
         }
     }
 }
