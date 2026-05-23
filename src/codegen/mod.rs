@@ -279,14 +279,48 @@ impl AsmGenerator {
                     match elem_type.as_ref() {
                         IrType::Int => {
                             output.push_str(&format!("{} dd ", label));
-                            for i in 0..*size {
-                                if i > 0 { output.push_str(", "); }
-                                output.push_str("0");
+                            if let Some(crate::ir::Constant::Array(elems)) = &global.initializer {
+                                for (i, elem) in elems.iter().enumerate() {
+                                    if i > 0 { output.push_str(", "); }
+                                    if let crate::ir::Constant::Int(v) = elem {
+                                        output.push_str(&format!("{}", v));
+                                    } else {
+                                        output.push_str("0");
+                                    }
+                                }
+                                for i in elems.len()..*size {
+                                    if i > 0 || !elems.is_empty() { output.push_str(", "); }
+                                    output.push_str("0");
+                                }
+                            } else {
+                                for i in 0..*size {
+                                    if i > 0 { output.push_str(", "); }
+                                    output.push_str("0");
+                                }
                             }
                             output.push('\n');
                         }
                         IrType::String => {
-                            output.push_str(&format!("{} dq 0\n", label));
+                            if let Some(crate::ir::Constant::Array(elems)) = &global.initializer {
+                                for (i, elem) in elems.iter().enumerate() {
+                                    let slabel = format!("{}_{}", global.name, i);
+                                    if let crate::ir::Constant::String(s) = elem {
+                                        output.push_str(&format!("{} db ", slabel));
+                                        let bytes: Vec<u8> = s.bytes().collect();
+                                        for (j, b) in bytes.iter().enumerate() {
+                                            if j > 0 { output.push_str(", "); }
+                                            output.push_str(&format!("{}", b));
+                                        }
+                                        output.push_str(", 0\n");
+                                    }
+                                }
+                            }
+                            output.push_str(&format!("{} dq ", label));
+                            for i in 0..*size {
+                                if i > 0 { output.push_str(", "); }
+                                output.push_str(&format!("{}_{}", global.name, i));
+                            }
+                            output.push('\n');
                         }
                         _ => {}
                     }

@@ -25,10 +25,12 @@ impl<'source> Parser<'source> {
             // Don't break on LParen when the left side is an identifier (function call)
             if matches!(token, Token::LParen) {
                 if let Expr::Identifier(_) = left {
-                    // Continue to parse function call
                 } else {
                     break;
                 }
+            }
+            if matches!(token, Token::LBracket) {
+                // Array indexing / slice
             }
             if matches!(token, Token::Semi) {
                 break;
@@ -204,12 +206,17 @@ impl<'source> Parser<'source> {
                 }))
             }
             Token::LBracket => {
-                let _index = self.parse_expression(0)?;
+                let index = self.parse_expression(0)?;
+                let idx_span = index.span();
                 self.expect(Token::RBracket)?;
                 let span = start.merge(self.current_span());
                 Ok(Expr::Slice(SliceExpr {
                     array: Box::new(left),
-                    ranges: vec![],
+                    ranges: vec![Range {
+                        start: index,
+                        end: None,
+                        span: idx_span,
+                    }],
                     span,
                 }))
             }
@@ -255,6 +262,7 @@ impl<'source> Parser<'source> {
             Token::Star | Token::Slash | Token::Percent => 60,
             Token::Assign => 5,
             Token::LParen => 70,
+            Token::LBracket => 70,
             _ => 0,
         }
     }

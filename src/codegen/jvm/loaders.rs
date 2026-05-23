@@ -68,6 +68,9 @@ impl JvmGenerator {
                     code.push(Instruction::Sipush(val as i16));
                 }
             }
+            Constant::Array(_) => {
+                code.push(Instruction::Iconst_0);
+            }
         }
     }
 }

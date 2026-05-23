@@ -17,6 +17,7 @@ pub struct IrGenerator {
     pub external_functions: HashSet<String>,
     pub function_return_types: HashMap<String, IrType>,
     pub global_names: HashSet<String>,
+    pub global_types: HashMap<String, IrType>,
 }
 
 impl IrGenerator {
@@ -32,6 +33,7 @@ impl IrGenerator {
             external_functions: HashSet::new(),
             function_return_types: HashMap::new(),
             global_names: HashSet::new(),
+            global_types: HashMap::new(),
         }
     }
 
@@ -76,6 +78,8 @@ impl IrGenerator {
                 }
                 SourceItem::GlobalDecl(global) => {
                     self.global_names.insert(global.name.name.clone());
+                    let ir_ty = self.convert_type(&global.ty);
+                    self.global_types.insert(global.name.name.clone(), ir_ty);
                 }
             }
         }
@@ -215,6 +219,13 @@ impl IrGenerator {
                 crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(if *b { 1 } else { 0 })),
                 _ => None,
             },
+            crate::ast::Expr::ArrayLiteral(elements) => {
+                let constants: Vec<crate::ir::Constant> = elements
+                    .iter()
+                    .map(|e| self.expr_to_constant(e))
+                    .collect::<Option<_>>()?;
+                Some(crate::ir::Constant::Array(constants))
+            }
             _ => None,
         }
     }

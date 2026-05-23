@@ -220,6 +220,23 @@ impl<'source> Parser<'source> {
             });
         }
 
+        if self.current_token() == Some(&Token::LBracket) {
+            self.advance();
+            let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
+                let (_tok, span) = self.expect(Token::DecLiteral)?;
+                self.get_text(&span).parse().unwrap_or(0)
+            } else {
+                0
+            };
+            self.expect(Token::RBracket)?;
+            let span = start.merge(self.current_span());
+            return Ok(TypeRef::Array {
+                element_type: Box::new(TypeRef::BuiltinType(base_type)),
+                size,
+                span,
+            });
+        }
+
         Ok(TypeRef::BuiltinType(base_type))
     }
 

@@ -156,6 +156,7 @@ pub enum Constant {
     Bool(bool),
     String(String),
     Char(u8),
+    Array(Vec<Constant>),
 }
 
 #[allow(dead_code)]
@@ -168,6 +169,7 @@ impl IrOperand {
                 Constant::Bool(_) => IrType::Bool,
                 Constant::String(_) => IrType::String,
                 Constant::Char(_) => IrType::Int,
+                Constant::Array(_) => IrType::Int,
             },
         }
     }

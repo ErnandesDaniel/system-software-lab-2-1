@@ -311,6 +311,7 @@ impl CfgMermaidGenerator {
                     .replace('\r', "\\r")
                     .replace('\t', "\\t"),
                 Constant::Char(c) => format!("'{}'", *c as char),
+                Constant::Array(a) => format!("[{}]", a.len()),
             },
         }
     }

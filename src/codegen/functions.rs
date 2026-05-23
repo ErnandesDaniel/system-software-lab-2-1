@@ -218,6 +218,9 @@ impl AsmGenerator {
                 self.output
                     .push_str(&format!("    mov {}, {}\n", reg, *c as i32));
             }
+            Constant::Array(_) => {
+                self.output.push_str(&format!("    mov {}, 0\n", dest));
+            }
         }
     }
 

@@ -174,6 +174,7 @@ impl LlvmGenerator {
                 format!("getelementptr inbounds ([{} x i8], [{} x i8]* @{}, i64 0, i64 0)", s.len() + 1, s.len() + 1, label)
             }
             Constant::Char(c) => (*c as i8).to_string(),
+            Constant::Array(_) => "0".to_string(),
         }
     }
 

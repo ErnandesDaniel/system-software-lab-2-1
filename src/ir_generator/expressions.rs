@@ -12,22 +12,27 @@ impl IrGenerator {
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
             Expr::Identifier(id) => {
                 if self.global_names.contains(&id.name) {
-                    let tmp = self.generate_temp();
-                    let ir_type = self.function_return_types
+                    let ir_type = self.global_types
                         .get(&id.name)
                         .cloned()
                         .unwrap_or(IrType::Int);
-                    block.instructions.push(IrInstruction {
-                        opcode: IrOpcode::Load,
-                        result: Some(tmp.clone()),
-                        result_type: Some(ir_type.clone()),
-                        operands: vec![IrOperand::Variable(id.name.clone(), ir_type)],
-                        jump_target: None,
-                        true_target: None,
-                        false_target: None,
-                        span: crate::ast::Span::new(0, 0),
-                    });
-                    (tmp, IrType::Int)
+                    if matches!(ir_type, IrType::Array(..)) {
+                        // For array globals, return the name directly — Slice will use it as base
+                        (id.name.clone(), ir_type)
+                    } else {
+                        let tmp = self.generate_temp();
+                        block.instructions.push(IrInstruction {
+                            opcode: IrOpcode::Load,
+                            result: Some(tmp.clone()),
+                            result_type: Some(ir_type.clone()),
+                            operands: vec![IrOperand::Variable(id.name.clone(), ir_type.clone())],
+                            jump_target: None,
+                            true_target: None,
+                            false_target: None,
+                            span: crate::ast::Span::new(0, 0),
+                        });
+                        (tmp, ir_type)
+                    }
                 } else {
                     (id.name.clone(), self.get_ident_type(id))
                 }

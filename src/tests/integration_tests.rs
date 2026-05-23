@@ -321,3 +321,81 @@ fn test_exe_global_string() {
         &asm[..asm.len().min(800)]
     );
 }
+
+#[test]
+fn test_exe_global_array_read() {
+    let source = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return arr[0]
+        end
+    "#;
+    let output = compile_and_run(source);
+    eprintln!("Exit code: {:?}", output.status.code());
+    assert!(output.status.code() != Some(-1), "Program should run");
+}
+
+#[test]
+fn test_exe_global_array_index() {
+    let source = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return arr[2]
+        end
+    "#;
+    let output = compile_and_run(source);
+    eprintln!("Exit code: {:?}", output.status.code());
+    assert!(output.status.code() != Some(-1), "Program should run");
+}
+
+#[test]
+fn test_asm_global_array_parse() {
+    // Test 1: no initializer
+    let source1 = r#"
+        global arr of int[3];
+        def main() of int
+            return 0
+        end
+    "#;
+    let mut parser = Parser::new(source1);
+    let ast1 = parser.parse().unwrap();
+    eprintln!("Test1 (no init): items={}", ast1.items.len());
+
+    // Test 2: with initializer
+    let source2 = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return 0
+        end
+    "#;
+    let mut parser2 = Parser::new(source2);
+    let ast2 = parser2.parse().unwrap();
+    eprintln!("Test2 (with init): items={}", ast2.items.len());
+
+    assert_eq!(ast1.items.len(), 2, "Without init: expected 2");
+    assert_eq!(ast2.items.len(), 2, "With init: expected 2");
+}
+
+#[test]
+fn test_asm_global_array_init() {
+    use crate::codegen::AsmGenerator;
+    let source = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return arr[0]
+        end
+    "#;
+    let mut parser = Parser::new(source);
+    let ast = parser.parse().unwrap();
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&ast);
+    eprintln!("IR functions: {}", ir.functions.len());
+    eprintln!("IR globals: {}", ir.globals.len());
+    assert_eq!(ir.functions.len(), 1, "Expected 1 function");
+    assert_eq!(ir.globals.len(), 1, "Expected 1 global");
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
+    assert!(asm.contains("section .data"), "Expected data section");
+    assert!(asm.contains("global main"), "Expected global main");
+}
