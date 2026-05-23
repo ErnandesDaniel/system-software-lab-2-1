@@ -1,9 +1,0 @@
-graph TD
-    BB_0["BB0\nt0 = 1\ni = t0\ngoto BB_1"]
-    BB_1["BB1\nt2 = 5\nt3 = (i < t2)\nif t3 goto BB_2 else BB_3"]
-    BB_2["BB2\nt4 = 1\nt5 = i + t4\ni = t5\ngoto BB_1"]
-    BB_3["BB3\nt7 = 0\nreturn t7"]
-BB_0 --> BB_1
-BB_1 --> BB_2
-BB_1 --> BB_3
-BB_2 --> BB_1

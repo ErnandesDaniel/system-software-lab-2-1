@@ -1,8 +1,0 @@
-graph TD
-    BB_1["BB1\nt4 = 1\ni = t4"]
-    BB_2["BB2\n"]
-    BB_2["BB2\nt0 = 5\nx = t0\nt2 = 0\nt3 = (x > t2)\nif t3 goto BB_1 else BB_2"]
-BB_1 --> BB_3
-BB_2 --> BB_3
-BB_2 --> BB_1
-BB_2 --> BB_2
