@@ -266,7 +266,7 @@ impl CompilerDriver {
         // Create lib/ in output dir and copy JNA jar for manual compilation too
         let output_lib = Path::new(output_dir).join("lib");
         let _ = fs::create_dir_all(&output_lib);
-        let jna_src = Path::new("lib").join("jna-5.14.0.jar");
+        let jna_src = Path::new("src/lib").join("jna-5.14.0.jar");
         let jna_dst = output_lib.join("jna-5.14.0.jar");
         if jna_src.exists() {
             let _ = fs::copy(&jna_src, &jna_dst);

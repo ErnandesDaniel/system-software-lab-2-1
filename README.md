@@ -1,7 +1,7 @@
 # System Software Lab 2-1: MyLang Compiler + PHP↔JVM via SHM
 
 Три компонента:
-1. **MyLang Compiler** (Rust) — компилирует `server.mylang` в JVM `.class` файлы
+1. **MyLang Compiler** (Rust) — компилирует `cli_app/server.mylang` в JVM `.class` файлы
 2. **RuntimeStub** (Java) — рантайм с shared memory, реализациями `shm_*`/`map_*`, вызывает скомпилированный MyLang-код
 3. **PHP CLI** (`cli_app.php` + `shm_client.php`) — интерактивная консоль, отправляет запросы JVM-демону через разделяемую память
 
@@ -24,7 +24,7 @@ cargo build
 ### 3. Компиляция MyLang в JVM
 
 ```powershell
-cargo run -- server.mylang -o output -t jvm
+cargo run -- cli_app/server.mylang -o output -t jvm
 ```
 
 Результат в `output/`:
@@ -36,7 +36,7 @@ cargo run -- server.mylang -o output -t jvm
 PHP-приложение само запускает JVM-демон при подключении:
 
 ```powershell
-php cli_app.php
+php cli_app/cli_app.php
 ```
 
 ### 6. Основной сценарий (тестирование)
@@ -103,16 +103,16 @@ PHP читает SHM → выводит результат
 
 | Файл | Назначение |
 |------|------------|
-| `server.mylang` | Исходный код на MyLang (обработчики create/get/set/delete + main-цикл) |
+| `cli_app/server.mylang` | Исходный код на MyLang (обработчики create/get/set/delete + main-цикл) |
 | `src/` | Компилятор MyLang на Rust |
 | `output/Main.class` | JVM-байткод: main() из server.mylang |
 | `output/Dispatch.class` | JVM-байткод: dispatch-таблица по opcode |
 | `output/Handle_*.class` | JVM-байткод: CRUD-функции |
 | `output/RuntimeStub.java` | Java-рантайм (shared memory, вызовы mylang-кода) |
 | `output/MainRunner.java` | Java-загрузчик для вызова функций по имени |
-| `shm_client.php` | PHP FFI класс (kernel32 → CreateFileMapping, MapViewOfFile, Event) |
-| `cli_app.php` | PHP CLI с интерактивными командами |
-| `test_shm.php` | Интеграционный тест |
+| `cli_app/cli_app.php` | PHP CLI с интерактивными командами |
+| `cli_app/shm_client.php` | PHP FFI класс (kernel32 → CreateFileMapping, MapViewOfFile, Event) |
+| `cli_app/test_shm.php` | Интеграционный тест |
 
 ## Команды PHP CLI
 
@@ -127,6 +127,6 @@ PHP читает SHM → выводит результат
 
 ## Примечания
 
-- `php cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Только интерактивный режим.
-- Если `output/mylang_shm.dat` остался после аварийного завершения, удалите вручную перед перезапуском.
+- `php cli_app/cli_app.php < file.txt` не работает на Windows — `fgets(STDIN)` блокируется при пайпе. Только интерактивный режим.
+- Если `mylang_shm.dat` остался после аварийного завершения, удалите вручную перед перезапуском.
 - Компилятор также поддерживает цели `nasm`, `llvm`, `wasm` (см. `cargo run -- --help`).

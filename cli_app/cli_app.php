@@ -23,7 +23,7 @@ PHP FFI → JVM Daemon (Shared Memory)
 
 function startDaemon(): void {
     echo "[INFO] Starting JVM daemon...\n";
-    $cmd = sprintf('powershell -Command "Start-Process -WindowStyle Hidden java \'-cp output;lib\\jna-5.14.0.jar RuntimeStub\'"');
+    $cmd = sprintf('powershell -Command "Start-Process -WindowStyle Hidden java \'-cp output;output\\lib\jna-5.14.0.jar RuntimeStub\'"');
     shell_exec($cmd);
     for ($i = 0; $i < 30; $i++) {
         if (@file_exists('mylang_shm.dat')) {
@@ -34,7 +34,7 @@ function startDaemon(): void {
         usleep(200000);
     }
     echo "[ERR] Failed to start JVM daemon\n";
-    echo "  Try: java -cp \"output;lib/jna-5.14.0.jar\" RuntimeStub\n";
+    echo "  Try: java -cp \"output;output/lib/jna-5.14.0.jar\" RuntimeStub\n";
     exit(1);
 }
 
@@ -69,7 +69,7 @@ function main(): void {
     $shm = connect();
     if ($shm === null) {
         echo "[ERR] Failed to connect to JVM daemon\n";
-        echo "  Try: java -cp \"output;lib/jna-5.14.0.jar\" RuntimeStub\n";
+        echo "  Try: java -cp \"output;output/lib/jna-5.14.0.jar\" RuntimeStub\n";
         exit(1);
     }
     echo "[OK] Connected\n\n";

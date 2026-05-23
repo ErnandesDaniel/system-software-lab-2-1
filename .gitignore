@@ -5,6 +5,7 @@ target
 *.dat
 *.exe
 old-code
+output
 output/*.java
 output/*.mmd
 output_jvm/
