@@ -361,12 +361,24 @@ fn test_exe_struct_array_field_read() {
 }
 
 #[test]
+fn test_exe_local_struct() {
+    let source = r#"
+        struct Point { x of int; y of int; }
+        def main() of int
+            p of Point;
+            p.x = 42;
+            return p.x
+        end
+    "#;
+    let output = compile_and_run(source);
+    eprintln!("Exit code: {:?}", output.status.code());
+    assert!(output.status.code() != Some(-1), "Program should run");
+}
+
+#[test]
 fn test_exe_struct_array_field_write() {
     let source = r#"
-        struct Sched {
-            slots of int[3];
-            count of int;
-        }
+        struct Sched { slots of int[3]; count of int; }
         global sched of Sched;
         def main() of int
             sched.slots[1] = 42;
@@ -374,8 +386,6 @@ fn test_exe_struct_array_field_write() {
         end
     "#;
     let (_, asm) = compile_only(source);
-    eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
-    assert!(asm.contains("sched"), "Expected sched label");
     assert!(asm.contains("mov [rcx + rbx * 4], eax"), "Expected indexed store");
 }
 

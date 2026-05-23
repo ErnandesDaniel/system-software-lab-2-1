@@ -61,6 +61,21 @@ impl IrGenerator {
                     block.successors.push(exit_id.clone());
                 }
             }
+            Statement::VarDecl(vd) => {
+                if !self.declared_vars.contains(&vd.name.name) {
+                    let ir_ty = self.convert_type(&vd.ty);
+                    self.locals.insert(vd.name.name.clone(), IrLocal {
+                        name: vd.name.name.clone(),
+                        ty: ir_ty,
+                        stack_offset: None,
+                    });
+                    self.declared_vars.insert(vd.name.name.clone());
+                    // Store struct type name for field access
+                    if let crate::ast::TypeRef::Custom(id) = &vd.ty {
+                        self.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
+                    }
+                }
+            }
         }
     }
 

@@ -246,8 +246,16 @@ fn test_simple_assign() {
 }
 
 #[test]
-fn test_field_write() {
-    let source = "def foo() p.x = 5; end";
+#[test]
+fn test_local_struct_var() {
+    let source = r#"
+        struct Point { x of int; y of int; }
+        def foo() of int
+            p of Point;
+            p.x = 5;
+            return p.x
+        end
+    "#;
     let program = parse(source);
-    assert_eq!(program.items.len(), 1);
+    assert_eq!(program.items.len(), 2);
 }

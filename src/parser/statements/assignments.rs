@@ -7,6 +7,20 @@ impl<'source> Parser<'source> {
         let (_name, span) = self.expect(Token::Identifier)?;
         let var_name = self.get_text(&span).to_string();
 
+        if self.current_token() == Some(&Token::Of) {
+            self.expect(Token::Of)?;
+            let ty = self.parse_type()?;
+            if self.current_token() == Some(&Token::Semi) {
+                self.advance();
+            }
+            let end_span = self.current_span();
+            return Ok(Statement::VarDecl(VarDeclStatement {
+                name: Identifier { name: var_name, span },
+                ty,
+                span: span.merge(end_span),
+            }));
+        }
+
         // Check if this is a slice assignment: identifier[expr] = expr
         if self.current_token() == Some(&Token::LBracket) {
             self.expect(Token::LBracket)?;

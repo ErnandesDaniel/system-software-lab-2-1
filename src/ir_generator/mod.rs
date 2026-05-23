@@ -18,7 +18,8 @@ pub struct IrGenerator {
     pub function_return_types: HashMap<String, IrType>,
     pub global_names: HashSet<String>,
     pub global_types: HashMap<String, IrType>,
-    pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>, // name → [(field, type, offset)]
+    pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
+    pub local_struct_types: HashMap<String, String>, // name → [(field, type, offset)]
 }
 
 impl IrGenerator {
@@ -36,6 +37,7 @@ impl IrGenerator {
             global_names: HashSet::new(),
             global_types: HashMap::new(),
             struct_fields: HashMap::new(),
+            local_struct_types: HashMap::new(),
         }
     }
 
@@ -254,9 +256,11 @@ impl IrGenerator {
         }
     }
 
-    pub fn find_field_offset(&self, _base: &str, field: &str) -> usize {
-        // Search all structs for the field
-        for (_, fields) in &self.struct_fields {
+    pub fn find_field_offset(&self, base: &str, field: &str) -> usize {
+        // Check if base is a local struct variable
+        let struct_name = self.local_struct_types.get(base);
+        let search_name = struct_name.map(|s| s.as_str()).unwrap_or(base);
+        if let Some(fields) = self.struct_fields.get(search_name) {
             for (fname, _, offset) in fields {
                 if fname == field {
                     return *offset;
@@ -284,6 +288,7 @@ impl Statement {
             Statement::Break(s) => s.span,
             Statement::Expression(s) => s.span,
             Statement::Block(s) => s.span,
+            Statement::VarDecl(s) => s.span,
         }
     }
 }

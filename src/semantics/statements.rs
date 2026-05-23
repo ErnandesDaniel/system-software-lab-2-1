@@ -59,6 +59,7 @@ impl SemanticsAnalyzer {
                 }
             }
             Statement::Break(_) => {}
+            Statement::VarDecl(_) => {}
         }
         Ok(())
     }

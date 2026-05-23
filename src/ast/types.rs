@@ -101,6 +101,14 @@ pub enum Statement {
     Break(BreakStatement),
     Expression(ExpressionStatement),
     Block(BlockStatement),
+    VarDecl(VarDeclStatement),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct VarDeclStatement {
+    pub name: Identifier,
+    pub ty: TypeRef,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

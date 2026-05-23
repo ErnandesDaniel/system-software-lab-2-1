@@ -138,7 +138,6 @@ impl AsmGenerator {
             if let IrOperand::Variable(name, _) = base {
                 if let IrOperand::Constant(crate::ir::Constant::Int(off)) = offset {
                     if inst.operands.len() == 4 {
-                        // Store to struct array field element: base + offset + index
                         let index = &inst.operands[3];
                         self.load_operand(value, "eax", false);
                         self.load_operand(index, "ebx", false);
@@ -150,7 +149,10 @@ impl AsmGenerator {
                         self.output.push_str("    mov [rcx + rbx * 4], eax\n");
                     } else {
                         self.load_operand(value, "eax", false);
-                        if *off == 0 {
+                        if let Some(local_off) = self.locals.get(name) {
+                            let addr = local_off + *off as i32;
+                            self.output.push_str(&format!("    mov [rbp + {}], eax\n", addr));
+                        } else if *off == 0 {
                             self.output.push_str(&format!("    mov [rel {}], eax\n", name));
                         } else {
                             self.output.push_str(&format!("    mov [rel {} + {}], eax\n", name, off));
@@ -187,10 +189,12 @@ impl AsmGenerator {
                 let second = &inst.operands[1];
                 match second {
                     IrOperand::Constant(c) => {
-                        // Struct field access: base + offset
                         if let IrOperand::Variable(name, _) = first {
                             if let crate::ir::Constant::Int(offset) = c {
-                                if *offset == 0 {
+                                if let Some(local_off) = self.locals.get(name) {
+                                    let addr = local_off + *offset as i32;
+                                    self.output.push_str(&format!("    mov eax, [rbp + {}]\n", addr));
+                                } else if *offset == 0 {
                                     self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
                                 } else {
                                     self.output.push_str(&format!("    mov eax, [rel {} + {}]\n", name, offset));
