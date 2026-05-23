@@ -13,6 +13,17 @@ impl AsmGenerator {
                     let load_reg = self.get_param_register(i, is_pointer);
                     if is_pointer {
                         self.load_pointer_arg(arg, &load_reg);
+                    } else if let IrOperand::Variable(name, _) = arg {
+                        // Check if it's a global variable (not local, not temp, not param)
+                        if !self.locals.contains_key(name)
+                            && !self.temps.contains_key(name)
+                            && !self.param_registers.contains(&name.to_string())
+                        {
+                            // Global — pass by address
+                            self.output.push_str(&format!("    lea {}, [rel {}]\n", load_reg, name));
+                        } else {
+                            self.load_operand(arg, &load_reg, false);
+                        }
                     } else {
                         self.load_operand(arg, &load_reg, false);
                     }
@@ -35,7 +46,7 @@ impl AsmGenerator {
         }
     }
 
-    fn get_param_register(&self, i: usize, is_pointer: bool) -> String {
+    pub fn get_param_register(&self, i: usize, is_pointer: bool) -> String {
         match i {
             0 => {
                 if is_pointer {

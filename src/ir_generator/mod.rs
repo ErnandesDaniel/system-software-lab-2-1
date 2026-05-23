@@ -256,7 +256,7 @@ impl IrGenerator {
         }
     }
 
-    pub fn find_field_offset_for_array(&self, base: &str, field: &str) -> usize {
+    pub fn find_field_offset_for_array(&self, _base: &str, field: &str) -> usize {
         for (_, fields) in &self.struct_fields {
             for (fname, _, offset) in fields {
                 if fname == field {

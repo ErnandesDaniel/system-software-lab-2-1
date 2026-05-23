@@ -152,6 +152,13 @@ impl AsmGenerator {
                         if let Some(local_off) = self.locals.get(name) {
                             let addr = local_off + *off as i32;
                             self.output.push_str(&format!("    mov [rbp + {}], eax\n", addr));
+                        } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+                            let reg = self.get_param_register(param_idx, true);
+                            if *off == 0 {
+                                self.output.push_str(&format!("    mov [{}], eax\n", reg));
+                            } else {
+                                self.output.push_str(&format!("    mov [{} + {}], eax\n", reg, off));
+                            }
                         } else if *off == 0 {
                             self.output.push_str(&format!("    mov [rel {}], eax\n", name));
                         } else {
@@ -213,6 +220,13 @@ impl AsmGenerator {
                                 if let Some(local_off) = self.locals.get(name) {
                                     let addr = local_off + *offset as i32;
                                     self.output.push_str(&format!("    mov eax, [rbp + {}]\n", addr));
+                                } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+                                    let reg = self.get_param_register(param_idx, true);
+                                    if *offset == 0 {
+                                        self.output.push_str(&format!("    mov eax, [{}]\n", reg));
+                                    } else {
+                                        self.output.push_str(&format!("    mov eax, [{} + {}]\n", reg, offset));
+                                    }
                                 } else if *offset == 0 {
                                     self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
                                 } else {
