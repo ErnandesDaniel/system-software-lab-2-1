@@ -52,12 +52,11 @@ cargo run -- input_jvm.mylang -o output -t jvm
 
 Создаст в `output/`: `.class` файлы (по одному на функцию), `RuntimeStub.java`, `MainRunner.java`.
 
-**Запуск программы (без SHM):**
+**Запуск:**
 ```powershell
 java -cp output RuntimeStub
 ```
-
-**Запуск программы с SHM (server.mylang, нужна JNA):**
+*Для программ, использующих SHM (server.mylang), потребуется JNA:*
 ```powershell
 java -cp "output;output/lib/jna-5.14.0.jar" RuntimeStub
 ```

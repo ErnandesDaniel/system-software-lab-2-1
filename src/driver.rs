@@ -311,26 +311,41 @@ import java.nio.*;
 import java.nio.channels.*;
 import java.nio.charset.*;
 import java.util.*;
-import com.sun.jna.*;
-import com.sun.jna.win32.*;
+import java.lang.reflect.*;
 
 public class RuntimeStub {
     private static final int SHM_SIZE = 4096;
-    private static final int STATE_IDLE = 0;
-    private static final int STATE_EXIT = 3;
 
     private static MappedByteBuffer buf;
     private static HashMap<String, String> store = new HashMap<>();
-    private static Pointer hEvent;
     private static Random random = new Random();
 
     private static boolean shmInitialized = false;
+    private static Object hEvent;
+    private static Object kernel32WaitFn;
+    private static Object kernel32SetFn;
+    private static Object kernel32ResetFn;
 
     private static synchronized void ensureShm() {
         if (shmInitialized) return;
         shmInitialized = true;
         try {
-            Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
+            Class<?> fnClass = Class.forName("com.sun.jna.Function");
+            java.lang.reflect.Method getFn = fnClass.getMethod("getFunction", String.class, String.class);
+
+            kernel32WaitFn = getFn.invoke(null, "kernel32", "WaitForSingleObject");
+            kernel32SetFn = getFn.invoke(null, "kernel32", "SetEvent");
+            kernel32ResetFn = getFn.invoke(null, "kernel32", "ResetEvent");
+
+            Object createEventFn = getFn.invoke(null, "kernel32", "CreateEventA");
+            java.lang.reflect.Method invokeMethod = fnClass.getMethod("invoke", Class.class, Object[].class);
+            hEvent = invokeMethod.invoke(createEventFn, Class.forName("com.sun.jna.Pointer"),
+                new Object[]{null, 1, 0, "MyLangSHMEvent"});
+
+            if (hEvent == null) {
+                throw new RuntimeException("CreateEventA failed");
+            }
+
             RandomAccessFile file = new RandomAccessFile("mylang_shm.dat", "rw");
             file.setLength(SHM_SIZE);
             FileChannel ch = file.getChannel();
@@ -338,11 +353,10 @@ public class RuntimeStub {
             buf.order(ByteOrder.LITTLE_ENDIAN);
             ch.close();
 
-            hEvent = Kernel32.INSTANCE.CreateEventA(null, 1, 0, "MyLangSHMEvent");
-            if (hEvent == null) {
-                throw new RuntimeException("CreateEventA failed");
-            }
             System.out.println("[RuntimeStub] SHM initialized. PID: " + ProcessHandle.current().pid());
+        } catch (ClassNotFoundException e) {
+            System.err.println("[RuntimeStub] JNA not found. Add jna.jar to classpath for SHM programs.");
+            System.exit(1);
         } catch (Exception e) {
             System.err.println("[RuntimeStub] SHM init error: " + e.getMessage());
             System.exit(1);
@@ -443,8 +457,14 @@ public class RuntimeStub {
 
     public static void shm_wait_event() {
         ensureShm();
-        Kernel32.INSTANCE.WaitForSingleObject(hEvent, 2000);
-        Kernel32.INSTANCE.ResetEvent(hEvent);
+        try {
+            java.lang.reflect.Method invokeMethod = kernel32WaitFn.getClass()
+                .getMethod("invoke", Class.class, Object[].class);
+            invokeMethod.invoke(kernel32WaitFn, int.class, new Object[]{hEvent, 2000});
+            invokeMethod.invoke(kernel32ResetFn, int.class, new Object[]{hEvent});
+        } catch (Exception e) {
+            System.err.println("[RuntimeStub] Event error: " + e.getMessage());
+        }
     }
 
     public static int shm_find_null(int start) {
@@ -491,17 +511,6 @@ public class RuntimeStub {
     public static String map_list() {
         synchronized (store) { return String.join(",", store.keySet()); }
     }
-
-    private interface Kernel32 extends StdCallLibrary {
-        Kernel32 INSTANCE = Native.load("kernel32", Kernel32.class, W32APIOptions.DEFAULT_OPTIONS);
-
-        Pointer CreateEventA(Pointer lpEventAttributes, int bManualReset, int bInitialState, String lpName);
-        int WaitForSingleObject(Pointer hHandle, int dwMilliseconds);
-        int SetEvent(Pointer hEvent);
-        int ResetEvent(Pointer hEvent);
-        int CloseHandle(Pointer hObject);
-    }
-}
 "#;
         let stub_path = Path::new(output_dir).join("RuntimeStub.java");
         if let Err(e) = fs::write(&stub_path, stub) {
