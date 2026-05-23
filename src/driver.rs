@@ -511,6 +511,7 @@ public class RuntimeStub {
     public static String map_list() {
         synchronized (store) { return String.join(",", store.keySet()); }
     }
+}
 "#;
         let stub_path = Path::new(output_dir).join("RuntimeStub.java");
         if let Err(e) = fs::write(&stub_path, stub) {
