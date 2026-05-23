@@ -228,10 +228,11 @@ fn test_global_struct() {
 }
 
 #[test]
+#[test]
 fn test_field_access() {
     let source = r#"
         def main() of int
-            return sched.count
+            return a.b
         end
     "#;
     let program = parse(source);

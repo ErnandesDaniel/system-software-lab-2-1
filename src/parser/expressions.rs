@@ -252,7 +252,6 @@ impl<'source> Parser<'source> {
                 }))
             }
             Token::Dot => {
-                self.advance();
                 let (_tok, f_span) = self.expect(Token::Identifier)?;
                 let field = Identifier {
                     name: self.get_text(&f_span).to_string(),

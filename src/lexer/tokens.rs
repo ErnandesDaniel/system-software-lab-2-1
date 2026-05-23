@@ -92,7 +92,7 @@ pub enum Token {
     Semi,
     #[token("..")]
     Range,
-    #[token(".")]
+    #[regex(r"\.")]
     Dot,
 
     #[token("+")]
