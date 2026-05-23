@@ -16,6 +16,7 @@ pub struct IrGenerator {
     pub loop_depth: usize,
     pub external_functions: HashSet<String>,
     pub function_return_types: HashMap<String, IrType>,
+    pub global_names: HashSet<String>,
 }
 
 impl IrGenerator {
@@ -30,6 +31,7 @@ impl IrGenerator {
             loop_depth: 0,
             external_functions: HashSet::new(),
             function_return_types: HashMap::new(),
+            global_names: HashSet::new(),
         }
     }
 
@@ -72,8 +74,8 @@ impl IrGenerator {
                     self.function_return_types
                         .insert(def.signature.name.name.clone(), ret_type);
                 }
-                SourceItem::GlobalDecl(_) => {
-                    // Globals are collected separately
+                SourceItem::GlobalDecl(global) => {
+                    self.global_names.insert(global.name.name.clone());
                 }
             }
         }

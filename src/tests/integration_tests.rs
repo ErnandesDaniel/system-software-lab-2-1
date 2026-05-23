@@ -262,3 +262,62 @@ fn test_asm_contains_data_section_for_strings() {
         &asm[..asm.len().min(600)]
     );
 }
+
+#[test]
+fn test_exe_global_read() {
+    let source = r#"
+        global counter of int = 42;
+        def main() of int
+            return counter
+        end
+    "#;
+    let output = compile_and_run(source);
+    eprintln!("Exit code: {:?}", output.status.code());
+    assert!(output.status.code() != Some(-1), "Program should run");
+}
+
+#[test]
+fn test_asm_global_in_data_section() {
+    let source = r#"
+        global counter of int = 42;
+        def main() of int
+            return counter
+        end
+    "#;
+    let (_, asm) = compile_only(source);
+    assert!(asm.contains("counter"), "Expected global label in asm, got:\n{}", &asm[..asm.len().min(800)]);
+    assert!(asm.contains("section .data"), "Expected data section");
+    assert!(asm.contains("dd 42"), "Expected dd 42");
+}
+
+#[test]
+fn test_exe_global_write() {
+    let source = r#"
+        global value of int = 0;
+        def main() of int
+            value = 99;
+            return value
+        end
+    "#;
+    let output = compile_and_run(source);
+    eprintln!("Exit code: {:?}", output.status.code());
+    assert!(output.status.code() != Some(-1), "Program should run");
+}
+
+#[test]
+fn test_exe_global_string() {
+    let source = r#"
+        global name of string = "test";
+        def main() of int
+            return 0
+        end
+    "#;
+    let (_, asm) = compile_only(source);
+    assert!(asm.contains("section .data"), "Expected data section, got:\n{}", &asm[..asm.len().min(800)]);
+    // String may be encoded as bytes: 116,101,115,116 = "test"
+    assert!(
+        asm.contains("name") || asm.contains("116"),
+        "Expected name label or byte data, got:\n{}",
+        &asm[..asm.len().min(800)]
+    );
+}

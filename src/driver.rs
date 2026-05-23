@@ -118,7 +118,8 @@ impl CompilerDriver {
         }
 
         if !ir.globals.is_empty() {
-            let globals_asm = crate::codegen::AsmGenerator::generate_globals_asm(&ir.globals);
+            let mut globals_asm = String::from("bits 64\ndefault rel\nsection .data\n");
+            globals_asm.push_str(&crate::codegen::AsmGenerator::generate_globals_asm(&ir.globals));
             let path = Path::new(output_dir).join("globals.asm");
             let _ = fs::write(&path, &globals_asm);
         }

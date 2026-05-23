@@ -248,7 +248,6 @@ impl AsmGenerator {
         if globals.is_empty() {
             return output;
         }
-        output.push_str("bits 64\ndefault rel\nsection .data\n");
         for global in globals {
             match &global.ty {
                 IrType::Int | IrType::Bool => {
@@ -256,14 +255,14 @@ impl AsmGenerator {
                         Some(crate::ir::Constant::Int(v)) => *v,
                         _ => 0,
                     };
-                    output.push_str(&format!("global {} dd {}\n", global.name, val));
+                    output.push_str(&format!("{} dd {}\n", global.name, val));
                 }
                 IrType::String => {
                     let s = match &global.initializer {
                         Some(crate::ir::Constant::String(s)) => s.clone(),
                         _ => String::new(),
                     };
-                    output.push_str(&format!("global {} db ", global.name));
+                    output.push_str(&format!("{} db ", global.name));
                     let bytes: Vec<u8> = s.bytes().collect();
                     if bytes.is_empty() {
                         output.push_str("0");
@@ -276,7 +275,7 @@ impl AsmGenerator {
                     output.push_str(", 0\n");
                 }
                 IrType::Array(elem_type, size) => {
-                    let label = format!("global {}", global.name);
+                    let label = global.name.clone();
                     match elem_type.as_ref() {
                         IrType::Int => {
                             output.push_str(&format!("{} dd ", label));

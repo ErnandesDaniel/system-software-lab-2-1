@@ -190,7 +190,8 @@ impl AsmGenerator {
                     self.output
                         .push_str(&format!("    mov {}, {}\n", dest, src_reg));
                 } else {
-                    self.output.push_str(&format!("    mov {}, 0\n", dest));
+                    self.output
+                        .push_str(&format!("    mov {}, [rel {}]\n", dest, name));
                 }
             }
             IrOperand::Constant(c) => self.load_constant(c, dest),
@@ -233,6 +234,9 @@ impl AsmGenerator {
             self.temp_counter += 1;
             self.output
                 .push_str(&format!("    mov [rbp + {}], {}\n", offset, src));
+        } else {
+            // Assume it's a global variable
+            self.output.push_str(&format!("    mov [rel {}], {}\n", name, src));
         }
     }
 }

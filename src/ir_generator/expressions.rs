@@ -10,7 +10,28 @@ impl IrGenerator {
             Expr::Parenthesized(inner) => self.visit_expr(block, inner),
             Expr::Call(call) => self.visit_call_expr(block, call),
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
-            Expr::Identifier(id) => (id.name.clone(), self.get_ident_type(id)),
+            Expr::Identifier(id) => {
+                if self.global_names.contains(&id.name) {
+                    let tmp = self.generate_temp();
+                    let ir_type = self.function_return_types
+                        .get(&id.name)
+                        .cloned()
+                        .unwrap_or(IrType::Int);
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::Load,
+                        result: Some(tmp.clone()),
+                        result_type: Some(ir_type.clone()),
+                        operands: vec![IrOperand::Variable(id.name.clone(), ir_type)],
+                        jump_target: None,
+                        true_target: None,
+                        false_target: None,
+                        span: crate::ast::Span::new(0, 0),
+                    });
+                    (tmp, IrType::Int)
+                } else {
+                    (id.name.clone(), self.get_ident_type(id))
+                }
+            }
             Expr::Literal(lit) => self.visit_literal_expr(block, lit),
             Expr::ArrayLiteral(elements) => {
                 for elem in elements {
