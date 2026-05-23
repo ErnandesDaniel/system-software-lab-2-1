@@ -13,6 +13,10 @@ impl SemanticsAnalyzer {
                 SourceItem::FuncDeclaration(decl) => {
                     self.collect_func_declaration(decl)?;
                 }
+                SourceItem::GlobalDecl(global) => {
+                    let ty = self.convert_type(&global.ty);
+                    self.global_scope.insert(global.name.name.clone(), ty).ok();
+                }
             }
         }
         Ok(())

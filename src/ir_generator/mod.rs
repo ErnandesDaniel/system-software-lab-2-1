@@ -72,10 +72,29 @@ impl IrGenerator {
                     self.function_return_types
                         .insert(def.signature.name.name.clone(), ret_type);
                 }
+                SourceItem::GlobalDecl(_) => {
+                    // Globals are collected separately
+                }
             }
         }
 
-        // Second pass: generate IR for each function definition
+        // Second pass: collect globals and generate IR for each function definition
+        let mut globals = Vec::new();
+        for item in &program.items {
+            match item {
+                SourceItem::GlobalDecl(global) => {
+                    let ir_ty = self.convert_type(&global.ty);
+                    let init = global.initializer.as_ref()
+                        .and_then(|e| self.expr_to_constant(e));
+                    globals.push(crate::ir::IrGlobal {
+                        name: global.name.name.clone(),
+                        ty: ir_ty,
+                        initializer: init,
+                    });
+                }
+                _ => {}
+            }
+        }
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
                 self.block_counter = 0;
@@ -85,7 +104,7 @@ impl IrGenerator {
             }
         }
 
-        IrProgram { functions }
+        IrProgram { functions, globals }
     }
 
     pub fn generate_function(&mut self, def: &FuncDefinition) -> IrFunction {
@@ -185,6 +204,18 @@ impl IrGenerator {
         }
     }
 
+    pub fn expr_to_constant(&self, expr: &crate::ast::Expr) -> Option<crate::ir::Constant> {
+        match expr {
+            crate::ast::Expr::Literal(lit) => match lit {
+                crate::ast::Literal::Dec(v) => Some(crate::ir::Constant::Int(*v as i64)),
+                crate::ast::Literal::Str(s) => Some(crate::ir::Constant::String(s.clone())),
+                crate::ast::Literal::Char(c) => Some(crate::ir::Constant::Char(*c as u8)),
+                crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(if *b { 1 } else { 0 })),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
 }
 
 #[allow(dead_code)]

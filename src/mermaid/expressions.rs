@@ -118,6 +118,14 @@ impl MermaidGenerator {
 
                 self.generate_expr(e, output, Some(&format!("N{}", paren_id)));
             }
+            Expr::ArrayLiteral(elements) => {
+                let arr_id = self.next_id();
+                output.push_str(&format!("N{}[\"array_literal [{}]\"]\n", arr_id, elements.len()));
+                output.push_str(&format!("N{} --> N{}\n", id, arr_id));
+                for elem in elements {
+                    self.generate_expr(elem, output, Some(&format!("N{}", arr_id)));
+                }
+            }
         }
     }
 

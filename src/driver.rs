@@ -117,6 +117,12 @@ impl CompilerDriver {
             }
         }
 
+        if !ir.globals.is_empty() {
+            let globals_asm = crate::codegen::AsmGenerator::generate_globals_asm(&ir.globals);
+            let path = Path::new(output_dir).join("globals.asm");
+            let _ = fs::write(&path, &globals_asm);
+        }
+
         let mut obj_files = Vec::new();
         for func in &ir.functions {
             let asm_path = Path::new(output_dir).join(format!("{}.asm", func.name));
@@ -137,6 +143,21 @@ impl CompilerDriver {
                     }
                 }
                 Err(e) => eprintln!("Failed to run NASM: {}", e),
+            }
+        }
+
+        let globals_asm = Path::new(output_dir).join("globals.asm");
+        if globals_asm.exists() {
+            let globals_obj = Path::new(output_dir).join("globals.obj");
+            let output = Command::new("nasm")
+                .args(["-f", "win64", "-o"])
+                .arg(globals_obj.to_str().unwrap())
+                .arg(globals_asm.to_str().unwrap())
+                .output();
+            if let Ok(out) = output {
+                if out.status.success() {
+                    obj_files.push(globals_obj);
+                }
             }
         }
 

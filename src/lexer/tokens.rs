@@ -13,6 +13,8 @@ pub enum Token {
     End,
     #[token("extern")]
     Extern,
+    #[token("global")]
+    Global,
     #[token("if")]
     If,
     #[token("then")]

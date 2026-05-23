@@ -139,6 +139,19 @@ impl<'source> Parser<'source> {
                     span,
                 }))
             }
+            Some(Token::LBracket) => {
+                self.advance();
+                let mut elements = Vec::new();
+                if self.current_token() != Some(&Token::RBracket) {
+                    elements.push(self.parse_expression(0)?);
+                    while self.current_token() == Some(&Token::Comma) {
+                        self.advance();
+                        elements.push(self.parse_expression(0)?);
+                    }
+                }
+                self.expect(Token::RBracket)?;
+                Ok(Expr::ArrayLiteral(elements))
+            }
             _ => Err("Expected expression".to_string()),
         }
     }
@@ -257,6 +270,7 @@ impl Expr {
             Expr::Slice(e) => e.span,
             Expr::Identifier(e) => e.span,
             Expr::Literal(_) => Span::new(0, 0),
+            Expr::ArrayLiteral(_) => Span::new(0, 0),
         }
     }
 }

@@ -16,6 +16,7 @@ impl SemanticsAnalyzer {
             Expr::Slice(slice) => self.check_slice_expr(scope, slice),
             Expr::Identifier(id) => self.check_identifier(scope, id),
             Expr::Literal(lit) => Ok(self.literal_type(lit)),
+            Expr::ArrayLiteral(_) => Ok(SemanticType::Array(Box::new(SemanticType::Int), 0)),
         }
     }
 

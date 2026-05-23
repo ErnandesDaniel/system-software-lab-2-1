@@ -4,6 +4,14 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IrProgram {
     pub functions: Vec<IrFunction>,
+    pub globals: Vec<IrGlobal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IrGlobal {
+    pub name: String,
+    pub ty: IrType,
+    pub initializer: Option<Constant>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

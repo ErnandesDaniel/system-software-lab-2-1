@@ -85,9 +85,10 @@ impl AsmGenerator {
             self.generate_function_internal(func);
         }
 
-        if !self.data_section.is_empty() {
+        if !self.data_section.is_empty() || !program.globals.is_empty() {
             self.output.push_str("\nsection .data\n");
             self.output.push_str(&self.data_section);
+            self.output.push_str(&Self::generate_globals_asm(&program.globals));
         }
 
         self.output.clone()
@@ -241,6 +242,62 @@ impl AsmGenerator {
             id.to_string()
         }
     }
+
+    pub fn generate_globals_asm(globals: &[crate::ir::IrGlobal]) -> String {
+        let mut output = String::new();
+        if globals.is_empty() {
+            return output;
+        }
+        output.push_str("bits 64\ndefault rel\nsection .data\n");
+        for global in globals {
+            match &global.ty {
+                IrType::Int | IrType::Bool => {
+                    let val = match &global.initializer {
+                        Some(crate::ir::Constant::Int(v)) => *v,
+                        _ => 0,
+                    };
+                    output.push_str(&format!("global {} dd {}\n", global.name, val));
+                }
+                IrType::String => {
+                    let s = match &global.initializer {
+                        Some(crate::ir::Constant::String(s)) => s.clone(),
+                        _ => String::new(),
+                    };
+                    output.push_str(&format!("global {} db ", global.name));
+                    let bytes: Vec<u8> = s.bytes().collect();
+                    if bytes.is_empty() {
+                        output.push_str("0");
+                    } else {
+                        for (i, b) in bytes.iter().enumerate() {
+                            if i > 0 { output.push_str(", "); }
+                            output.push_str(&format!("{}", b));
+                        }
+                    }
+                    output.push_str(", 0\n");
+                }
+                IrType::Array(elem_type, size) => {
+                    let label = format!("global {}", global.name);
+                    match elem_type.as_ref() {
+                        IrType::Int => {
+                            output.push_str(&format!("{} dd ", label));
+                            for i in 0..*size {
+                                if i > 0 { output.push_str(", "); }
+                                output.push_str("0");
+                            }
+                            output.push('\n');
+                        }
+                        IrType::String => {
+                            output.push_str(&format!("{} dq 0\n", label));
+                        }
+                        _ => {}
+                    }
+                }
+                _ => {}
+            }
+        }
+        output
+    }
+
 }
 
 pub mod block;

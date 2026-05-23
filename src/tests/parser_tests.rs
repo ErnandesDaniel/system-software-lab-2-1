@@ -157,3 +157,44 @@ fn test_extern_with_params_and_return() {
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }
+
+#[test]
+fn test_global_int() {
+    let source = "global counter of int = 0;";
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_global_string() {
+    let source = "global name of string = \"hello\";";
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_global_array_of_int() {
+    let source = "global arr of int[3] = [1, 2, 3];";
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_global_no_init() {
+    let source = "global counter of int;";
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+}
+
+#[test]
+fn test_global_with_extern_and_def() {
+    let source = r#"
+        global counter of int = 0;
+        extern puts
+        def main() of int
+            return counter
+        end
+    "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 3);
+}

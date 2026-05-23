@@ -43,7 +43,7 @@ impl<'source> Parser<'source> {
                 continue;
             }
 
-            if !matches!(token, Token::Def | Token::Extern) {
+            if !matches!(token, Token::Def | Token::Extern | Token::Global) {
                 break;
             }
 
@@ -53,6 +53,9 @@ impl<'source> Parser<'source> {
                 }
                 Token::Extern => {
                     items.push(SourceItem::FuncDeclaration(self.parse_declaration()?));
+                }
+                Token::Global => {
+                    items.push(SourceItem::GlobalDecl(self.parse_global()?));
                 }
                 _ => {
                     return Err(format!(

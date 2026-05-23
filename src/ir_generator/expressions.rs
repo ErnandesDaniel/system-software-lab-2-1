@@ -12,6 +12,13 @@ impl IrGenerator {
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
             Expr::Identifier(id) => (id.name.clone(), self.get_ident_type(id)),
             Expr::Literal(lit) => self.visit_literal_expr(block, lit),
+            Expr::ArrayLiteral(elements) => {
+                for elem in elements {
+                    self.visit_expr(block, elem);
+                }
+                let tmp = self.generate_temp();
+                (tmp, IrType::Int)
+            }
         }
     }
 

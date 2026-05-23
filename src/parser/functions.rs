@@ -222,4 +222,33 @@ impl<'source> Parser<'source> {
 
         Ok(TypeRef::BuiltinType(base_type))
     }
+
+    pub(crate) fn parse_global(&mut self) -> Result<GlobalDecl, String> {
+        let start = self.current_span();
+        self.expect(Token::Global)?;
+
+        let (_n, n_span) = self.expect(Token::Identifier)?;
+        let name = self.get_text(&n_span).to_string();
+
+        if self.current_token() == Some(&Token::Of) {
+            self.expect(Token::Of)?;
+        }
+
+        let ty = self.parse_type()?;
+
+        let initializer = if self.current_token() == Some(&Token::Assign) {
+            self.expect(Token::Assign)?;
+            Some(self.parse_expression(0)?)
+        } else {
+            None
+        };
+
+        let span = start.merge(self.current_span());
+        Ok(GlobalDecl {
+            name: Identifier { name, span: n_span.into() },
+            ty,
+            initializer,
+            span,
+        })
+    }
 }

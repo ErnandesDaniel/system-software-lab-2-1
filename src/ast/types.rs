@@ -9,6 +9,15 @@ pub struct Program {
 pub enum SourceItem {
     FuncDeclaration(FuncDeclaration),
     FuncDefinition(FuncDefinition),
+    GlobalDecl(GlobalDecl),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GlobalDecl {
+    pub name: Identifier,
+    pub ty: TypeRef,
+    pub initializer: Option<Expr>,
+    pub span: Span,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -139,6 +148,7 @@ pub enum Expr {
     Parenthesized(Box<Expr>),
     Call(CallExpr),
     Slice(SliceExpr),
+    ArrayLiteral(Vec<Expr>),
     Identifier(Identifier),
     Literal(Literal),
 }
