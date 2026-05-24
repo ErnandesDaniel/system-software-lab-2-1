@@ -1,12 +1,13 @@
-// scheduling/demo.mylang — демо: две корутины печатают цифры по очереди
+// scheduling/demo.mylang — демонстрация корутин (планировщик встроен в NASM)
 
 extern putchar
 extern puts
+extern run_scheduler
 
 coroutine worker1() of int
     i = 0;
-    while i < 5 {
-        putchar(49);
+    while i < 3 {
+        puts("1");
         yield;
         i = i + 1;
     }
@@ -16,11 +17,20 @@ end
 
 coroutine worker2() of int
     i = 0;
-    while i < 3 {
-        putchar(50);
+    while i < 2 {
+        puts("2");
         yield;
         i = i + 1;
     }
     loop_end
     return 0;
+end
+
+def main() of int
+begin
+    puts("Scheduler demo");
+    run_scheduler();
+    puts("Done");
+    return 0;
+end
 end

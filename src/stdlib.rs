@@ -62,6 +62,11 @@ impl StdLib {
         funcs.insert("shm_wait_event");
         funcs.insert("shm_find_null");
 
+        // Coroutine runtime
+        funcs.insert("resume_coroutine");
+        funcs.insert("create_coroutine");
+        funcs.insert("run_scheduler");
+
         funcs
     }
 
@@ -106,6 +111,10 @@ impl StdLib {
             ("shm_write_resp", ("result: int, payload: string", "")),
             ("shm_wait_event", ("", "")),
             ("shm_find_null", ("start: int", "int")),
+            // Coroutine runtime
+            ("resume_coroutine", ("handle: int", "int")),
+            ("create_coroutine", ("", "")),
+            ("run_scheduler", ("", "int")),
         ];
         decls
             .into_iter()

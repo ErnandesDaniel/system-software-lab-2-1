@@ -138,23 +138,6 @@ impl CompilerDriver {
 
         let mut obj_files = Vec::new();
         if has_coroutines {
-            let mut real_main = String::from("bits 64\ndefault rel\nsection .text\n\n");
-            real_main.push_str("global _real_main\n");
-            real_main.push_str("extern start\n");
-            real_main.push_str("extern main\n");
-            real_main.push_str("_real_main:\n");
-            real_main.push_str("    push rbp\n");
-            real_main.push_str("    mov rbp, rsp\n");
-            real_main.push_str("    sub rsp, 32\n");
-            real_main.push_str("    call start\n");
-            real_main.push_str("    call main\n");
-            real_main.push_str("    leave\n");
-            real_main.push_str("    ret\n");
-            let path = Path::new(output_dir).join("_real_main.asm");
-            let _ = fs::write(&path, &real_main);
-        }
-
-        if has_coroutines {
             let mut helper = String::from("bits 64\ndefault rel\n\n");
 
             // State structs for each coroutine in .data
@@ -167,7 +150,7 @@ impl CompilerDriver {
             helper.push_str("\nsection .text\n");
             helper.push_str("global resume_coroutine\nresume_coroutine:\n");
             helper.push_str("    mov eax, [rcx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
-            helper.push_str("    push rbp\n    mov rbp, rsp\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n\n");
+            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n\n");
 
             helper.push_str("global create_coroutine\ncreate_coroutine:\n");
             helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
@@ -181,6 +164,26 @@ impl CompilerDriver {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
                 helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
+            }
+            helper.push_str("    leave\n    ret\n\n");
+
+            // Built-in round-robin scheduler
+            helper.push_str("global run_scheduler\nrun_scheduler:\n");
+            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n");
+            helper.push_str("    call __coro_init\n");
+            
+            let coro_names: Vec<_> = ir.functions.iter().filter(|f| f.yield_count > 0).collect();
+            if !coro_names.is_empty() {
+                helper.push_str("  .loop:\n");
+                helper.push_str("    mov dword [rsp], 0\n");
+                for f in &coro_names {
+                    helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
+                    helper.push_str("    call resume_coroutine\n");
+                    helper.push_str(&format!("    cmp eax, 0\n    jne .next_{}\n", f.name));
+                    helper.push_str("    mov dword [rsp], 1\n");
+                    helper.push_str(&format!("  .next_{}:\n", f.name));
+                }
+                helper.push_str("    cmp dword [rsp], 1\n    je .loop\n");
             }
             helper.push_str("    leave\n    ret\n");
 
@@ -243,10 +246,6 @@ impl CompilerDriver {
                 .collect();
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
-
-            if has_coroutines {
-                args.push("-Wl,-e,_real_main".to_string());
-            }
 
             match Command::new("clang").args(&args).output() {
                 Ok(out) => {

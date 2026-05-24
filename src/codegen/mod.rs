@@ -256,6 +256,7 @@ impl AsmGenerator {
             return output;
         }
         for global in globals {
+            output.push_str(&format!("global {}\n", global.name));
             match &global.ty {
                 IrType::Int | IrType::Bool => {
                     let val = match &global.initializer {
