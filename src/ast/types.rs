@@ -86,6 +86,11 @@ pub enum TypeRef {
         size: u64,
         span: Span,
     },
+    Function {
+        params: Vec<TypeRef>,
+        return_type: Box<TypeRef>,
+        span: Span,
+    },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,6 +116,7 @@ pub enum Statement {
     Block(BlockStatement),
     VarDecl(VarDeclStatement),
     Yield(YieldStatement),
+    FuncDef(FuncDefinition),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,6 +195,7 @@ pub enum Expr {
     FieldAccess(Box<Expr>, Identifier),
     Identifier(Identifier),
     Literal(Literal),
+    FuncLiteral(FuncDefinition),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

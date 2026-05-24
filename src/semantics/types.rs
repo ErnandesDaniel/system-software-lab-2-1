@@ -7,6 +7,7 @@ pub enum SemanticType {
     Bool,
     String,
     Array(Box<SemanticType>, usize),
+    Function(Vec<SemanticType>, Box<SemanticType>),
     Void,
     Unknown,
 }

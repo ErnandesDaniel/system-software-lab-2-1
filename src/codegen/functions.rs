@@ -128,6 +128,9 @@ impl AsmGenerator {
         if let Some(operand) = inst.operands.first() {
             match operand {
                 IrOperand::Constant(c) => self.load_constant(c, "eax"),
+                IrOperand::FuncRef(name) => {
+                    self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                }
                 IrOperand::Variable(name, ty) => {
                     let is_pointer = ty.is_pointer();
                     if let Some(offset) = self.temps.get(name) {
@@ -169,12 +172,35 @@ impl AsmGenerator {
         self.output.push_str("    ret\n");
     }
 
-    pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, _is_pointer: bool) {
+    pub fn generate_call_indirect(&mut self, inst: &IrInstruction) {
+        if let Some(func_ptr) = inst.operands.first() {
+            // Load function pointer into rax
+            self.load_operand(func_ptr, "rax", true);
+            // Load arguments (operands[1..]) into registers
+            for (i, arg) in inst.operands.iter().enumerate().skip(1) {
+                if i < 4 {
+                    let is_pointer = arg.get_type().is_pointer();
+                    let load_reg = self.get_param_register(i - 1, is_pointer);
+                    self.load_operand(arg, &load_reg, is_pointer);
+                }
+            }
+            self.output.push_str("    sub rsp, 32\n");
+            self.output.push_str("    call rax\n");
+            self.output.push_str("    add rsp, 32\n");
+            if let Some(ref result) = inst.result {
+                let is_pointer = inst.result_type.as_ref().map(|t| t.is_pointer()).unwrap_or(false);
+                let reg = if is_pointer { "rax" } else { "eax" };
+                self.store_variable(result, reg, is_pointer);
+            }
+        }
+    }
+
+    pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, is_pointer: bool) {
         use crate::codegen::traits::OperandLoader;
         
         match operand {
             IrOperand::Variable(name, ty) => {
-                let is_ptr = ty.is_pointer();
+                let is_ptr = ty.is_pointer() || is_pointer;
                 let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
                     if self.is_coroutine {
@@ -235,6 +261,12 @@ impl AsmGenerator {
                 }
             }
             IrOperand::Constant(c) => self.load_constant(c, dest),
+            IrOperand::FuncRef(func_name) => {
+                self.output.push_str(&format!("    lea rax, [rel {}]\n", func_name));
+                if dest != "rax" {
+                    self.output.push_str(&format!("    mov {}, rax\n", dest));
+                }
+            }
         }
     }
 
@@ -288,6 +320,122 @@ impl AsmGenerator {
         } else {
             // Assume it's a global variable
             self.output.push_str(&format!("    mov [rel {}], {}\n", name, src));
+        }
+    }
+
+    pub fn generate_make_closure(&mut self, inst: &IrInstruction) {
+        // operands[0] = FuncRef(mangled_name) — identifies the inner function
+        // operands[1..] = captured variable operands
+        // result = env temp name
+        if let Some(ref result) = inst.result {
+            let num_captures = inst.operands.len().saturating_sub(1);
+            // Env slots are pre-allocated as locals (__env_slot_N) in the function frame
+            // Find the first env slot offset (all slots are consecutive from env base)
+            let env_base_offset = if num_captures > 0 {
+                // The env slots are named "__env_slot_0", "__env_slot_1", etc.
+                // They were added as locals during IR generation and are already in the frame
+                if let Some(&first_slot_offset) = self.locals.get("__env_slot_0") {
+                    first_slot_offset
+                } else {
+                    0
+                }
+            } else {
+                0
+            };
+            // Store addresses of captured variables into env slots (rbp-relative)
+            for (i, op) in inst.operands.iter().enumerate().skip(1) {
+                if let IrOperand::Variable(name, _) = op {
+                    let env_slot = i - 1;
+                    // Get the address of the captured variable
+                    if let Some(offset) = self.locals.get(name) {
+                        self.output.push_str(&format!("    lea rax, [rbp + {}]\n", offset));
+                    } else if let Some(offset) = self.temps.get(name) {
+                        self.output.push_str(&format!("    lea rax, [rbp + {}]\n", offset));
+                    } else {
+                        self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                    }
+                    self.output.push_str(&format!("    mov [rbp + {}], rax\n", env_base_offset + env_slot as i32 * 8));
+                }
+            }
+            // Store env pointer into result temp (pointer to env struct in frame)
+            self.output.push_str(&format!("    lea rax, [rbp + {}]\n", env_base_offset));
+            self.store_variable(result, "rax", true);
+        }
+    }
+
+    pub fn generate_call_closure(&mut self, inst: &IrInstruction) {
+        // operands[0] = func ptr variable
+        // operands[1] = env ptr variable
+        // operands[2..] = regular args
+        if let (Some(func_op), Some(env_op)) = (inst.operands.first(), inst.operands.get(1)) {
+            // Load function pointer into rax
+            self.load_operand(func_op, "rax", true);
+            // Load env pointer into rcx (hidden first param)
+            self.load_operand(env_op, "rcx", true);
+            // Load regular args (shifted: params start from edx)
+            for (i, arg) in inst.operands.iter().enumerate().skip(2) {
+                if (i - 2) < 3 {
+                    let is_pointer = arg.get_type().is_pointer();
+                    let reg = match i - 2 {
+                        0 => if is_pointer { "rdx" } else { "edx" },
+                        1 => if is_pointer { "r8" } else { "r8d" },
+                        2 => if is_pointer { "r9" } else { "r9d" },
+                        _ => "eax",
+                    };
+                    self.load_operand(arg, reg, is_pointer);
+                }
+            }
+            self.output.push_str("    sub rsp, 32\n");
+            self.output.push_str("    call rax\n");
+            self.output.push_str("    add rsp, 32\n");
+            if let Some(ref result) = inst.result {
+                let is_pointer = inst.result_type.as_ref().map(|t| t.is_pointer()).unwrap_or(false);
+                let reg = if is_pointer { "rax" } else { "eax" };
+                self.store_variable(result, reg, is_pointer);
+            }
+        }
+    }
+
+    pub fn generate_load_captured(&mut self, inst: &IrInstruction) {
+        // operands[0] = env variable (__env)
+        // operands[1] = slot index (constant)
+        // result = value loaded through env
+        if let (Some(env_op), Some(slot_op)) = (inst.operands.first(), inst.operands.get(1)) {
+            let slot = match slot_op {
+                IrOperand::Constant(crate::ir::Constant::Int(v)) => *v as usize,
+                _ => 0,
+            };
+            // Load env pointer into rax
+            self.load_operand(env_op, "rax", true);
+            // Load captured variable's address from env[slot]
+            self.output.push_str(&format!("    mov rax, [rax + {}]\n", slot * 8));
+            // Load value from that address
+            self.output.push_str("    mov eax, [rax]\n");
+            if let Some(ref result) = inst.result {
+                self.store_variable(result, "eax", false);
+            }
+        }
+    }
+
+    pub fn generate_store_captured(&mut self, inst: &IrInstruction) {
+        // operands[0] = env variable (__env)
+        // operands[1] = slot index (constant)
+        // operands[2] = value to store
+        if let (Some(env_op), Some(slot_op), Some(val_op)) = (inst.operands.first(), inst.operands.get(1), inst.operands.get(2)) {
+            let slot = match slot_op {
+                IrOperand::Constant(crate::ir::Constant::Int(v)) => *v as usize,
+                _ => 0,
+            };
+            // Load env pointer into rax
+            self.load_operand(env_op, "rax", true);
+            // Load captured variable's address from env[slot]
+            self.output.push_str(&format!("    mov rax, [rax + {}]\n", slot * 8));
+            // Load value into ecx
+            let is_pointer = val_op.get_type().is_pointer();
+            let reg = if is_pointer { "rcx" } else { "ecx" };
+            self.load_operand(val_op, reg, is_pointer);
+            // Store value through the address
+            self.output.push_str(&format!("    mov [rax], {}\n", if is_pointer { "rcx" } else { "ecx" }));
         }
     }
 }

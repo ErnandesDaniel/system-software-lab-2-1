@@ -139,7 +139,7 @@ impl LlvmGenerator {
         
         match op {
             IrOperand::Constant(c) => (String::new(), self.const_to_str(c)),
-            IrOperand::Variable(name, ty) => {
+                IrOperand::Variable(name, ty) => {
                 let llvm_ty = self.ir_type_to_llvm(ty);
                 // Use trait method to check if temp
                 if Self::is_temp(name) {
@@ -159,6 +159,9 @@ impl LlvmGenerator {
                         format!("%{}" ,  tmp)
                     )
                 }
+            }
+            IrOperand::FuncRef(name) => {
+                (String::new(), format!("@{}", name))
             }
         }
     }

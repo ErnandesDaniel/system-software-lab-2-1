@@ -22,12 +22,9 @@ impl<'source> Parser<'source> {
             ) {
                 break;
             }
-            // Don't break on LParen when the left side is an identifier (function call)
+            // LParen: allow calling any expression (function pointer, func literal, etc.)
             if matches!(token, Token::LParen) {
-                if let Expr::Identifier(_) = left {
-                } else {
-                    break;
-                }
+                // just fall through to parse_infix
             }
             if matches!(token, Token::LBracket) {
                 // Array indexing / slice
@@ -35,7 +32,8 @@ impl<'source> Parser<'source> {
             if matches!(token, Token::Dot) {
                 // Field access
             }
-            if matches!(token, Token::Semi | Token::Identifier) {
+            // Break on tokens that start new statements / have no expression meaning
+            if matches!(token, Token::Semi | Token::Identifier | Token::Return | Token::If | Token::While | Token::Until | Token::Break | Token::Def | Token::Extern | Token::Yield | Token::Begin | Token::LBrace) {
                 break;
             }
             let token_copy = *token;
@@ -153,6 +151,10 @@ impl<'source> Parser<'source> {
                 }
                 self.expect(Token::RBracket)?;
                 Ok(Expr::ArrayLiteral(elements))
+            }
+            Some(Token::Def) => {
+                let func_def = self.parse_function()?;
+                Ok(Expr::FuncLiteral(func_def))
             }
             _ => Err("Expected expression".to_string()),
         }
@@ -290,6 +292,7 @@ impl Expr {
             Expr::Literal(_) => Span::new(0, 0),
             Expr::ArrayLiteral(_) => Span::new(0, 0),
             Expr::FieldAccess(e, _) => e.span(),
+            Expr::FuncLiteral(f) => f.span,
         }
     }
 }

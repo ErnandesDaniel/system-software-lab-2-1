@@ -30,6 +30,9 @@ impl JvmGenerator {
                 code.push(instr);
             }
             IrOperand::Constant(c) => self.emit_load_constant(code, c),
+            IrOperand::FuncRef(_) => {
+                code.push(Instruction::Lconst_0);
+            }
         }
     }
 

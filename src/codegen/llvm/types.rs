@@ -8,6 +8,7 @@ impl LlvmGenerator {
             IrType::Void => "void".to_string(),
             IrType::String => "i8*".to_string(),
             IrType::Array(t, sz) => format!("[{} x {}]", sz, self.ir_type_to_llvm(t)),
+            IrType::Function(_, _) => "i8*".to_string(),
         }
     }
 

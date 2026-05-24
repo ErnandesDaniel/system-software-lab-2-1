@@ -44,8 +44,9 @@ impl SemanticsAnalyzer {
             }
         }
 
+        let sem_params: Vec<SemanticType> = params.iter().map(|(_, t)| t.clone()).collect();
         self.global_scope
-            .insert(def.signature.name.name.clone(), SemanticType::Unknown)
+            .insert(def.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type.clone())))
             .ok();
 
         self.functions.push(FunctionSig {
@@ -105,11 +106,16 @@ impl SemanticsAnalyzer {
             (return_type, params)
         };
 
+        let sem_params: Vec<SemanticType> = params.iter().map(|(_, t)| t.clone()).collect();
         self.functions.push(FunctionSig {
             name: decl.signature.name.name.clone(),
-            return_type,
+            return_type: return_type.clone(),
             parameters: params,
         });
+
+        self.global_scope
+            .insert(decl.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type)))
+            .ok();
         Ok(())
     }
 

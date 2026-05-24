@@ -216,6 +216,22 @@ impl CfgMermaidGenerator {
             IrOpcode::CoroYield => {
                 "yield".to_string()
             }
+            IrOpcode::CallIndirect => {
+                let target = self.get_single_operand(inst);
+                let args = inst
+                    .operands
+                    .iter()
+                    .skip(1)
+                    .map(|op| self.format_operand(op))
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                format!(
+                    "{} = {}({}) (indirect)",
+                    inst.result.as_deref().unwrap_or("?"),
+                    target,
+                    args
+                )
+            }
             IrOpcode::Ret => {
                 if inst.operands.is_empty() {
                     "return".to_string()
@@ -273,6 +289,36 @@ impl CfgMermaidGenerator {
                     b
                 )
             }
+            IrOpcode::MakeClosure => {
+                let target = self.get_single_operand(inst);
+                format!(
+                    "{} = make_closure({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    target
+                )
+            }
+            IrOpcode::CallClosure => {
+                let target = self.get_single_operand(inst);
+                let args: Vec<String> = inst.operands.iter().skip(2)
+                    .map(|op| self.format_operand(op)).collect();
+                format!(
+                    "{} = {}({}) (closure)",
+                    inst.result.as_deref().unwrap_or("?"),
+                    target,
+                    args.join(", ")
+                )
+            }
+            IrOpcode::LoadCaptured => {
+                let target = self.get_single_operand(inst);
+                format!(
+                    "{} = load_captured({})",
+                    inst.result.as_deref().unwrap_or("?"),
+                    target
+                )
+            }
+            IrOpcode::StoreCaptured => {
+                "store_captured".to_string()
+            }
 
         }
     }
@@ -305,6 +351,7 @@ impl CfgMermaidGenerator {
     fn format_operand(&self, op: &IrOperand) -> String {
         match op {
             IrOperand::Variable(name, _) => name.clone(),
+            IrOperand::FuncRef(name) => name.clone(),
             IrOperand::Constant(c) => match c {
                 Constant::Int(n) => n.to_string(),
                 Constant::Bool(b) => b.to_string(),

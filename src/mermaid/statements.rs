@@ -84,6 +84,11 @@ impl MermaidGenerator {
                 output.push_str(&format!("N{}[\"var_decl {}\"]\n", id, vd.name.name));
                 if let Some(p) = parent_id { output.push_str(&format!("{} --> N{}\n", p, id)); }
             }
+            Statement::FuncDef(fd) => {
+                let stmt_id = self.next_id();
+                output.push_str(&format!("N{}[\"local_func {}()\"]\n", stmt_id, fd.signature.name.name));
+                output.push_str(&format!("N{} --> N{}\n", id, stmt_id));
+            }
         }
     }
 

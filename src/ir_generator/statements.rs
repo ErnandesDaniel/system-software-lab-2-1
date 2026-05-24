@@ -95,6 +95,109 @@ impl IrGenerator {
                 });
                 block_stack.push(old_block);
             }
+            Statement::FuncDef(fd) => {
+                let mangled = format!("__lambda_{}", self.lambda_counter);
+                self.lambda_counter += 1;
+
+                let saved_locals = self.locals.clone();
+                let saved_declared = self.declared_vars.clone();
+                let saved_used = self.used_functions.clone();
+                let saved_block = self.block_counter;
+
+                let param_types: Vec<IrType> = fd.signature.parameters.as_ref().map(|args| {
+                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Int)).collect()
+                }).unwrap_or_default();
+                let ret_type = fd.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Void);
+
+                // Scan for captures
+                let captures = self.scan_captures(&fd.body, &fd.signature.parameters, &saved_locals);
+                let has_captures = !captures.is_empty();
+
+                let mut inner_def = fd.clone();
+                inner_def.signature.name.name = mangled.clone();
+
+                if has_captures {
+                    // Add __env as hidden first parameter
+                    let env_param = crate::ast::Arg {
+                        name: crate::ast::Identifier { name: "__env".to_string(), span: crate::ast::Span::new(0, 0) },
+                        ty: None,
+                        span: crate::ast::Span::new(0, 0),
+                    };
+                    let mut new_params = vec![env_param];
+                    if let Some(ref args) = inner_def.signature.parameters {
+                        new_params.extend(args.clone());
+                    }
+                    inner_def.signature.parameters = Some(new_params);
+                }
+
+                self.captured_vars = captures.iter().cloned().collect();
+                let ir_func = self.generate_function(&inner_def);
+                self.pending_functions.push(ir_func);
+                self.captured_vars.clear();
+
+                self.locals = saved_locals;
+                self.declared_vars = saved_declared;
+                self.used_functions = saved_used;
+                self.block_counter = saved_block;
+
+                let func_type = IrType::Function(param_types, Box::new(ret_type));
+
+                if !self.declared_vars.contains(&fd.signature.name.name) {
+                    self.locals.insert(fd.signature.name.name.clone(), IrLocal {
+                        name: fd.signature.name.name.clone(),
+                        ty: func_type.clone(),
+                        stack_offset: None,
+                    });
+                    self.declared_vars.insert(fd.signature.name.name.clone());
+                }
+
+                let tmp = self.generate_temp();
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Assign,
+                    result: Some(tmp.clone()),
+                    result_type: Some(func_type.clone()),
+                    operands: vec![IrOperand::FuncRef(mangled.clone())],
+                    jump_target: None, true_target: None, false_target: None,
+                    span: fd.span,
+                });
+
+                if has_captures {
+                    let env_tmp = self.generate_temp();
+                    let mut env_operands: Vec<IrOperand> = captures.iter().map(|(name, _)| {
+                        IrOperand::Variable(name.clone(), IrType::Int)
+                    }).collect();
+                    env_operands.insert(0, IrOperand::FuncRef(mangled.clone()));
+                    // Add env slot locals so the frame size accounts for them
+                    for (i, _) in captures.iter().enumerate() {
+                        let slot_name = format!("__env_slot_{}", i);
+                        self.locals.insert(slot_name.clone(), IrLocal {
+                            name: slot_name,
+                            ty: IrType::Int,
+                            stack_offset: None,
+                        });
+                    }
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::MakeClosure,
+                        result: Some(env_tmp.clone()),
+                        result_type: Some(IrType::Int),
+                        operands: env_operands,
+                        jump_target: Some(mangled.clone()),
+                        true_target: None, false_target: None,
+                        span: fd.span,
+                    });
+                    self.closure_envs.insert(tmp.clone(), env_tmp.clone());
+                    self.closure_envs.insert(fd.signature.name.name.clone(), env_tmp);
+                }
+
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Assign,
+                    result: Some(fd.signature.name.name.clone()),
+                    result_type: Some(func_type.clone()),
+                    operands: vec![IrOperand::Variable(tmp, func_type.clone())],
+                    jump_target: None, true_target: None, false_target: None,
+                    span: fd.span,
+                });
+            }
             }
         }
 

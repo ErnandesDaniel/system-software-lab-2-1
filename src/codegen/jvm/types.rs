@@ -26,6 +26,7 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
         IrType::Int => "I".to_string(),
         IrType::String => "Ljava/lang/String;".to_string(),
         IrType::Array(elem, _) => format!("[{}]", ir_type_to_jvm_descriptor(elem)),
+        IrType::Function(_, _) => "J".to_string(),
     }
 }
 

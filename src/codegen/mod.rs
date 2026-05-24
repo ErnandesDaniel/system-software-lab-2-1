@@ -118,12 +118,20 @@ impl AsmGenerator {
             unique_externs.insert(ext_func.clone());
         }
 
-        // Also add user-defined functions that are called from this function
+        // Also add user-defined functions that are called (direct or indirect)
         for block in &func.blocks {
             for inst in &block.instructions {
-                if let IrOpcode::Call = inst.opcode {
-                    if let Some(target) = &inst.jump_target {
-                        unique_externs.insert(target.clone());
+                match inst.opcode {
+                    IrOpcode::Call => {
+                        if let Some(target) = &inst.jump_target {
+                            unique_externs.insert(target.clone());
+                        }
+                    }
+                    _ => {}
+                }
+                for op in &inst.operands {
+                    if let IrOperand::FuncRef(name) = op {
+                        unique_externs.insert(name.clone());
                     }
                 }
             }

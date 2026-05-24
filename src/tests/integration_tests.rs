@@ -1037,3 +1037,36 @@ fn test_exe_if_else_false_compiles() {
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "should compile and run");
 }
+
+#[test]
+fn test_exe_closure_simple() {
+    let source = r#"
+        def main() of int
+            x = 10;
+            def inner() of int
+                return x
+            end
+            return inner()
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(10), "closure should capture x");
+}
+
+#[test]
+fn test_exe_closure_mutate() {
+    let source = r#"
+        def main() of int
+            x = 0;
+            def inc() 
+                x = x + 1
+            end
+            inc();
+            inc();
+            inc();
+            return x
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(3), "closure should mutate captured x");
+}

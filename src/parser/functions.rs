@@ -199,6 +199,32 @@ impl<'source> Parser<'source> {
                 let name = self.get_text(&span).to_string();
                 return Ok(TypeRef::Custom(Identifier { name, span }));
             }
+            Some(Token::Def) => {
+                let start = self.current_span();
+                self.expect(Token::Def)?;
+                self.expect(Token::LParen)?;
+                let mut params = Vec::new();
+                while self.current_token() != Some(&Token::RParen) {
+                    if !params.is_empty() {
+                        self.expect(Token::Comma)?;
+                    }
+                    let ty = self.parse_type()?;
+                    params.push(ty);
+                }
+                self.expect(Token::RParen)?;
+                let return_type = if self.current_token() == Some(&Token::Of) {
+                    self.expect(Token::Of)?;
+                    self.parse_type()?
+                } else {
+                    TypeRef::BuiltinType(BuiltinType::Int)
+                };
+                let span = start.merge(self.current_span());
+                return Ok(TypeRef::Function {
+                    params,
+                    return_type: Box::new(return_type),
+                    span,
+                });
+            }
             _ => return Err("Expected type".to_string()),
         };
 

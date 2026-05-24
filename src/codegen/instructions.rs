@@ -35,6 +35,11 @@ impl AsmGenerator {
             IrOpcode::Store => self.generate_store(inst),
             IrOpcode::Cast => {}
             IrOpcode::CoroYield => self.generate_yield(inst),
+            IrOpcode::CallIndirect => self.generate_call_indirect(inst),
+            IrOpcode::MakeClosure => self.generate_make_closure(inst),
+            IrOpcode::CallClosure => self.generate_call_closure(inst),
+            IrOpcode::LoadCaptured => self.generate_load_captured(inst),
+            IrOpcode::StoreCaptured => self.generate_store_captured(inst),
         }
     }
 

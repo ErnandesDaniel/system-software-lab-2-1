@@ -11,6 +11,22 @@ impl IrGenerator {
             Expr::Call(call) => self.visit_call_expr(block, call),
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
             Expr::Identifier(id) => {
+                // Check if this is a captured variable (closure env)
+                if let Some(slot) = self.captured_vars.get(&id.name).copied() {
+                    let tmp = self.generate_temp();
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::LoadCaptured,
+                        result: Some(tmp.clone()),
+                        result_type: Some(IrType::Int),
+                        operands: vec![
+                            IrOperand::Variable("__env".to_string(), IrType::Int),
+                            IrOperand::Constant(Constant::Int(slot as i64)),
+                        ],
+                        jump_target: None, true_target: None, false_target: None,
+                        span: crate::ast::Span::new(0, 0),
+                    });
+                    return (tmp, IrType::Int);
+                }
                 if self.global_names.contains(&id.name) {
                     let ir_type = self.global_types
                         .get(&id.name)
@@ -44,6 +60,114 @@ impl IrGenerator {
                 }
                 let tmp = self.generate_temp();
                 (tmp, IrType::Int)
+            }
+            Expr::FuncLiteral(f) => {
+                let mangled = format!("__lambda_{}", self.lambda_counter);
+                self.lambda_counter += 1;
+
+                // Save state
+                let saved_locals = self.locals.clone();
+                let saved_declared = self.declared_vars.clone();
+                let saved_used = self.used_functions.clone();
+                let saved_block = self.block_counter;
+
+                // Build function type for this literal
+                let param_types: Vec<IrType> = f.signature.parameters.as_ref().map(|args| {
+                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Int)).collect()
+                }).unwrap_or_default();
+                let ret_type = f.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Void);
+
+                // Scan for captures before generating inner function
+                let captures = self.scan_captures(&f.body, &f.signature.parameters, &saved_locals);
+                let has_captures = !captures.is_empty();
+
+                let mut inner_def = f.clone();
+                inner_def.signature.name.name = mangled.clone();
+
+                if has_captures {
+                    // Add __env as hidden first parameter
+                    let env_param = crate::ast::Arg {
+                        name: crate::ast::Identifier { name: "__env".to_string(), span: crate::ast::Span::new(0, 0) },
+                        ty: None,
+                        span: crate::ast::Span::new(0, 0),
+                    };
+                    let mut new_params = vec![env_param];
+                    if let Some(ref args) = inner_def.signature.parameters {
+                        new_params.extend(args.clone());
+                    }
+                    inner_def.signature.parameters = Some(new_params);
+                }
+
+                // Set captured vars context for inner function generation
+                self.captured_vars = captures.iter().cloned().collect();
+                let ir_func = self.generate_function(&inner_def);
+                self.pending_functions.push(ir_func);
+                self.captured_vars.clear();
+
+                // Restore state
+                self.locals = saved_locals;
+                self.declared_vars = saved_declared;
+                self.used_functions = saved_used;
+                self.block_counter = saved_block;
+
+                if has_captures {
+                    // Closure path: allocate env + store func ptr
+                    let func_type = IrType::Function(param_types, Box::new(ret_type));
+                    let func_tmp = self.generate_temp();
+                    let env_tmp = self.generate_temp();
+
+                    // Store func ptr
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::Assign,
+                        result: Some(func_tmp.clone()),
+                        result_type: Some(func_type.clone()),
+                        operands: vec![IrOperand::FuncRef(mangled.clone())],
+                        jump_target: None, true_target: None, false_target: None,
+                        span: f.span,
+                    });
+
+                    // Create closure env: stores addresses of captured vars
+                    let mut env_operands: Vec<IrOperand> = captures.iter().map(|(name, _)| {
+                        IrOperand::Variable(name.clone(), IrType::Int)
+                    }).collect();
+                    env_operands.insert(0, IrOperand::FuncRef(mangled.clone()));
+                    // Add env slot locals so the frame size accounts for them
+                    for (i, _) in captures.iter().enumerate() {
+                        let slot_name = format!("__env_slot_{}", i);
+                        self.locals.insert(slot_name.clone(), IrLocal {
+                            name: slot_name,
+                            ty: IrType::Int,
+                            stack_offset: None,
+                        });
+                    }
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::MakeClosure,
+                        result: Some(env_tmp.clone()),
+                        result_type: Some(IrType::Int),
+                        operands: env_operands,
+                        jump_target: Some(mangled.clone()),
+                        true_target: None, false_target: None,
+                        span: f.span,
+                    });
+
+                    // Track closure: func_tmp -> env_tmp mapping
+                    self.closure_envs.insert(func_tmp.clone(), env_tmp.clone());
+
+                    (func_tmp, func_type)
+                } else {
+                    // Non-closure path: just store func pointer (existing)
+                    let func_type = IrType::Function(param_types, Box::new(ret_type));
+                    let tmp = self.generate_temp();
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::Assign,
+                        result: Some(tmp.clone()),
+                        result_type: Some(func_type.clone()),
+                        operands: vec![IrOperand::FuncRef(mangled)],
+                        jump_target: None, true_target: None, false_target: None,
+                        span: f.span,
+                    });
+                    (tmp, func_type)
+                }
             }
             Expr::FieldAccess(base, field) => {
                 if let Expr::Slice(slice) = base.as_ref() {
@@ -177,6 +301,23 @@ impl IrGenerator {
 
                         let right_type = right_type.clone();
 
+                        // Check if target is a captured variable (closure write)
+                        if let Some(slot) = self.captured_vars.get(&target_name) {
+                            block.instructions.push(IrInstruction {
+                                opcode: IrOpcode::StoreCaptured,
+                                result: None,
+                                result_type: None,
+                                operands: vec![
+                                    IrOperand::Variable("__env".to_string(), IrType::Int),
+                                    IrOperand::Constant(Constant::Int(*slot as i64)),
+                                    IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                ],
+                                jump_target: None, true_target: None, false_target: None,
+                                span: expr.span,
+                            });
+                            return (right_temp, right_type);
+                        }
+
                         block.instructions.push(IrInstruction {
                             opcode: IrOpcode::Assign,
                             result: Some(target_name.clone()),
@@ -197,7 +338,12 @@ impl IrGenerator {
                                     stack_offset: None,
                                 },
                             );
-                            self.declared_vars.insert(target_name);
+                            self.declared_vars.insert(target_name.clone());
+                        }
+                        // Propagate closure env from right temp to target variable
+                        if self.closure_envs.contains_key(&right_temp) {
+                            let env_tmp = self.closure_envs[&right_temp].clone();
+                            self.closure_envs.insert(target_name.clone(), env_tmp);
                         }
                         return (right_temp, right_type);
                     }
@@ -250,38 +396,102 @@ impl IrGenerator {
 
     pub fn visit_call_expr(&mut self, block: &mut IrBlock, expr: &CallExpr) -> (String, IrType) {
         let func_name = match *expr.function.clone() {
-            Expr::Identifier(id) => id.name,
+            Expr::Identifier(ref id) => id.name.clone(),
             _ => String::new(),
         };
 
-        let mut args = Vec::new();
-        for arg in &expr.arguments {
-            let (temp, arg_type) = self.visit_expr(block, arg);
-            args.push(IrOperand::Variable(temp, arg_type));
+        // If calling a known function by name, use direct Call
+        let is_direct = !func_name.is_empty()
+            && (self.function_return_types.contains_key(&func_name)
+                || self.is_external_function(&func_name));
+
+        if is_direct {
+            let mut args = Vec::new();
+            for arg in &expr.arguments {
+                let (temp, arg_type) = self.visit_expr(block, arg);
+                args.push(IrOperand::Variable(temp, arg_type));
+            }
+
+            let result_return_type = self.function_return_types
+                .get(&func_name)
+                .cloned()
+                .unwrap_or(IrType::Int);
+
+            let is_void = matches!(result_return_type, IrType::Void);
+            let result_temp = if is_void { String::new() } else { self.generate_temp() };
+
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Call,
+                result: if is_void { None } else { Some(result_temp.clone()) },
+                result_type: Some(result_return_type.clone()),
+                operands: args,
+                jump_target: Some(func_name.clone()),
+                true_target: None,
+                false_target: None,
+                span: expr.span,
+            });
+
+            self.used_functions.push(func_name);
+            (result_temp, result_return_type)
+        } else {
+            // Indirect call through function pointer or closure
+            let (func_temp, func_ty) = self.visit_expr(block, &expr.function);
+
+            // Check if this is a closure (has an associated env)
+            if let Some(env_tmp) = self.closure_envs.get(&func_temp) {
+                let mut return_type = IrType::Int;
+                if let IrType::Function(_, ret) = &func_ty {
+                    return_type = *ret.clone();
+                }
+                let mut operands = vec![
+                    IrOperand::Variable(func_temp.clone(), func_ty.clone()),
+                    IrOperand::Variable(env_tmp.clone(), IrType::Int),
+                ];
+                for arg in &expr.arguments {
+                    let (temp, arg_type) = self.visit_expr(block, arg);
+                    operands.push(IrOperand::Variable(temp, arg_type));
+                }
+                let is_void = matches!(return_type, IrType::Void);
+                let result_temp = if is_void { String::new() } else { self.generate_temp() };
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::CallClosure,
+                    result: if is_void { None } else { Some(result_temp.clone()) },
+                    result_type: Some(return_type.clone()),
+                    operands,
+                    jump_target: None, true_target: None, false_target: None,
+                    span: expr.span,
+                });
+                (result_temp, return_type)
+            } else {
+                // Regular indirect call
+                let mut return_type = IrType::Int;
+                if let IrType::Function(_, ret) = &func_ty {
+                    return_type = *ret.clone();
+                }
+                let mut operands = vec![IrOperand::Variable(func_temp, func_ty)];
+
+                for arg in &expr.arguments {
+                    let (temp, arg_type) = self.visit_expr(block, arg);
+                    operands.push(IrOperand::Variable(temp, arg_type));
+                }
+
+                let is_void = matches!(return_type, IrType::Void);
+                let result_temp = if is_void { String::new() } else { self.generate_temp() };
+
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::CallIndirect,
+                    result: if is_void { None } else { Some(result_temp.clone()) },
+                    result_type: Some(return_type.clone()),
+                    operands,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
+                });
+
+                (result_temp, return_type)
+            }
         }
-
-        let result_return_type = self.function_return_types
-            .get(&func_name)
-            .cloned()
-            .unwrap_or(IrType::Int);
-
-        let is_void = matches!(result_return_type, IrType::Void);
-        let result_temp = if is_void { String::new() } else { self.generate_temp() };
-
-        block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Call,
-            result: if is_void { None } else { Some(result_temp.clone()) },
-            result_type: Some(result_return_type.clone()),
-            operands: args,
-            jump_target: Some(func_name.clone()),
-            true_target: None,
-            false_target: None,
-            span: expr.span,
-        });
-
-        self.used_functions.push(func_name.clone());
-
-        (result_temp, result_return_type)
     }
 
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {

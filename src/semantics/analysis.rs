@@ -1,7 +1,7 @@
 use crate::ast::*;
 use crate::semantics::types::{SemanticType, SymbolTable};
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct FunctionSig {
     pub name: String,
     pub return_type: SemanticType,
@@ -50,6 +50,10 @@ impl SemanticsAnalyzer {
             TypeRef::Array {
                 element_type, size, ..
             } => SemanticType::Array(Box::new(self.convert_type(element_type)), *size as usize),
+            TypeRef::Function { params, return_type, .. } => {
+                let p: Vec<SemanticType> = params.iter().map(|t| self.convert_type(t)).collect();
+                SemanticType::Function(p, Box::new(self.convert_type(return_type)))
+            }
         }
     }
 

@@ -18,6 +18,13 @@ impl SemanticsAnalyzer {
             Expr::Literal(lit) => Ok(self.literal_type(lit)),
             Expr::ArrayLiteral(_) => Ok(SemanticType::Array(Box::new(SemanticType::Int), 0)),
             Expr::FieldAccess(_, _) => Ok(SemanticType::Int),
+            Expr::FuncLiteral(f) => {
+                let params = f.signature.parameters.as_ref().map(|args| {
+                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Int)).collect()
+                }).unwrap_or_default();
+                let ret = f.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Void);
+                Ok(SemanticType::Function(params, Box::new(ret)))
+            }
         }
     }
 
@@ -85,39 +92,60 @@ impl SemanticsAnalyzer {
 
     fn check_call_expr(
         &mut self,
-        _scope: &mut SymbolTable,
+        scope: &mut SymbolTable,
         call: &CallExpr,
     ) -> Result<SemanticType, Vec<String>> {
-        let func_name = match *call.function.clone() {
-            Expr::Identifier(id) => id.name,
-            _ => return Ok(SemanticType::Int),
-        };
+        // Try to get function type via expression check (works for variables, func literals, etc.)
+        let func_type = self.check_expression(scope, &call.function)?;
 
-        let builtin_funcs = [
-            "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
-        ];
-        if builtin_funcs.contains(&func_name.as_str()) {
+        if let SemanticType::Function(ref params, ref ret) = func_type {
+            let expected = params.len();
+            let actual = call.arguments.len();
+            if expected != actual {
+                self.add_error(format!(
+                    "Function expected {} arguments, got {}", expected, actual
+                ));
+            }
+            for (i, arg) in call.arguments.iter().enumerate() {
+                if i >= params.len() { break; }
+                let arg_type = self.check_expression(scope, arg)?;
+                if arg_type != params[i] {
+                    self.add_error(format!(
+                        "Argument {} type mismatch: expected {:?}, got {:?}",
+                        i, params[i], arg_type
+                    ));
+                }
+            }
+            return Ok(*ret.clone());
+        }
+
+        // Fallback: check by function name (for functions not yet registered in scope)
+        if let Expr::Identifier(id) = call.function.as_ref() {
+            let builtin_funcs = [
+                "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
+            ];
+            if builtin_funcs.contains(&id.name.as_str()) {
+                return Ok(SemanticType::Int);
+            }
+
+            if let Some(sig) = self.get_function_sig(&id.name).cloned() {
+                let expected = sig.parameters.len();
+                let actual = call.arguments.len();
+                if expected != actual {
+                    self.add_error(format!(
+                        "Function '{}' expected {} arguments, got {}",
+                        id.name, expected, actual
+                    ));
+                }
+                return Ok(sig.return_type);
+            }
+
+            self.add_error(format!("Call to undefined function '{}'", id.name));
             return Ok(SemanticType::Int);
         }
 
-        let sig = self.get_function_sig(&func_name);
-        if sig.is_none() {
-            self.add_error(format!("Call to undefined function '{}'", func_name));
-            return Ok(SemanticType::Int);
-        }
-
-        let sig = sig.unwrap();
-        let expected = sig.parameters.len();
-        let actual = call.arguments.len();
-        let return_type = sig.return_type.clone();
-        if expected != actual {
-            self.add_error(format!(
-                "Function '{}' expected {} arguments, got {}",
-                func_name, expected, actual
-            ));
-        }
-
-        Ok(return_type)
+        self.add_error("Call target is not a function".to_string());
+        Ok(SemanticType::Int)
     }
 
     fn check_slice_expr(

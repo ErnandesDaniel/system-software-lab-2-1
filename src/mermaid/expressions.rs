@@ -132,6 +132,11 @@ impl MermaidGenerator {
                 output.push_str(&format!("N{} --> N{}\n", id, fa_id));
                 self.generate_expr(base, output, Some(&format!("N{}", fa_id)));
             }
+            Expr::FuncLiteral(f) => {
+                let fl_id = self.next_id();
+                output.push_str(&format!("N{}[\"func_literal {}\"]\n", fl_id, f.signature.name.name));
+                output.push_str(&format!("N{} --> N{}\n", id, fl_id));
+            }
         }
     }
 

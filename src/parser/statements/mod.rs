@@ -21,6 +21,13 @@ impl<'source> Parser<'source> {
                 if self.current_token() == Some(&Token::Semi) { self.advance(); }
                 Ok(Statement::Yield(YieldStatement { span }))
             }
+            Some(Token::Def) => {
+                let func_def = self.parse_function()?;
+                if self.current_token() == Some(&Token::Semi) {
+                    self.advance();
+                }
+                Ok(Statement::FuncDef(func_def))
+            }
             Some(Token::Identifier) => self.parse_identifier_based_statement(),
             _ => self.parse_expression_statement(),
         }

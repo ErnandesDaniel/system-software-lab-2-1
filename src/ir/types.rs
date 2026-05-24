@@ -41,11 +41,8 @@ pub struct IrLocal {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum IrType {
-    Void,
-    Bool,
-    Int,
-    String,
-    Array(Box<IrType>, usize),
+    Void, Bool, Int, String, Array(Box<IrType>, usize),
+    Function(Vec<IrType>, Box<IrType>),
 }
 
 impl IrType {
@@ -56,11 +53,12 @@ impl IrType {
             IrType::Bool | IrType::Int => 4,
             IrType::String => 8,
             IrType::Array(elem, size) => elem.size() * *size as u32,
+            IrType::Function(_, _) => 8,
         }
     }
 
     pub fn is_pointer(&self) -> bool {
-        matches!(self, IrType::String)
+        matches!(self, IrType::String | IrType::Function(_, _))
     }
 }
 
@@ -114,42 +112,22 @@ impl IrInstruction {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum IrOpcode {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    And,
-    Or,
-    Not,
-    BitNot,
-    BitAnd,
-    BitOr,
-    Neg,
-    Pos,
-    Assign,
-    Call,
-    Jump,
-    CondBr,
-    Ret,
-    Load,
-    Store,
-    Slice,
-    Alloca,
-    Cast,
-    CoroYield,
+    Add, Sub, Mul, Div, Mod, Eq, Ne, Lt, Le, Gt, Ge,
+    And, Or, Not, BitNot, BitAnd, BitOr, Neg, Pos,
+    Assign, Call, Jump, CondBr, Ret, Load, Store, Slice,
+    Alloca, Cast, CoroYield,
+    CallIndirect,
+    MakeClosure,
+    CallClosure,
+    LoadCaptured,
+    StoreCaptured,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum IrOperand {
     Variable(String, IrType),
     Constant(Constant),
+    FuncRef(String),
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -173,6 +151,7 @@ impl IrOperand {
                 Constant::Char(_) => IrType::Int,
                 Constant::Array(_) => IrType::Int,
             },
+            IrOperand::FuncRef(_) => IrType::Function(Vec::new(), Box::new(IrType::Int)),
         }
     }
 

@@ -61,6 +61,26 @@ impl SemanticsAnalyzer {
             Statement::Break(_) => {}
             Statement::VarDecl(_) => {}
             Statement::Yield(_) => {}
+            Statement::FuncDef(fd) => {
+                // Register the local function name in scope
+                let param_types: Vec<SemanticType> = fd.signature.parameters.as_ref().map(|args| {
+                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Int)).collect()
+                }).unwrap_or_default();
+                let ret_type = fd.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Void);
+                let func_type = SemanticType::Function(param_types, Box::new(ret_type));
+                scope.insert(fd.signature.name.name.clone(), func_type);
+                // Check the function body in a new scope
+                let mut inner_scope = scope.clone();
+                if let Some(ref args) = fd.signature.parameters {
+                    for arg in args {
+                        let pty = arg.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Int);
+                        inner_scope.insert(arg.name.name.clone(), pty);
+                    }
+                }
+                for s in &fd.body {
+                    self.check_statement(&mut inner_scope, s)?;
+                }
+            }
         }
         Ok(())
     }
