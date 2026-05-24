@@ -14,3 +14,5 @@ daemon_*.txt
 mylang_shm.dat
 jna-*/
 output/lib/
+**/out/
+**/out/**

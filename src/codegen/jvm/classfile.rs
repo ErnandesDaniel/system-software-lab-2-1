@@ -169,11 +169,12 @@ impl JvmGenerator {
                 let mut slot = 1;
                 for param in &func.parameters {
                     if param.name == "__env" { continue; }
+                    let use_aload = param.ty == IrType::String || matches!(param.ty, IrType::Function(_, _));
                     match slot {
-                        1 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_1); } else { instance_call_code.push(Instruction::Iload_1); }
-                        2 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_2); } else { instance_call_code.push(Instruction::Iload_2); }
-                        3 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_3); } else { instance_call_code.push(Instruction::Iload_3); }
-                        _ => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload(slot as u8)); } else { instance_call_code.push(Instruction::Iload(slot as u8)); }
+                        1 => if use_aload { instance_call_code.push(Instruction::Aload_1); } else { instance_call_code.push(Instruction::Iload_1); }
+                        2 => if use_aload { instance_call_code.push(Instruction::Aload_2); } else { instance_call_code.push(Instruction::Iload_2); }
+                        3 => if use_aload { instance_call_code.push(Instruction::Aload_3); } else { instance_call_code.push(Instruction::Iload_3); }
+                        _ => if use_aload { instance_call_code.push(Instruction::Aload(slot as u8)); } else { instance_call_code.push(Instruction::Iload(slot as u8)); }
                     }
                     slot += 1;
                 }

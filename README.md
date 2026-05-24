@@ -94,6 +94,47 @@ java -cp output MainRunner square 7
 
 ---
 
+## Лабораторные работы (lab-2 / lab-4)
+
+### lab-2: Функции первого класса + локальные функции + замыкания
+
+```powershell
+# Компиляция в NASM
+cargo run -- labs-examples/vitrual-machines/lab-2/all_examples.mylang -o output -t nasm
+gcc output/main.obj output/__lambda_*.obj -o output/all_examples.exe
+.\output\all_examples.exe
+
+# Компиляция в JVM (Java bytecode)
+cargo run -- labs-examples/vitrual-machines/lab-2/all_examples.mylang -o output -t jvm
+java -cp output Main
+```
+
+`all_examples.mylang` объединяет все сценарии в одном файле:
+
+| # | Сценарий | Результат |
+|---|----------|-----------|
+| 1 | Локальная `double(21)` | `42` |
+| 2 | Функциональный литерал `square(5)` | `25` |
+| 3 | Композиция `apply_twice(double, 3)` | `12` |
+| 4 | Замыкание (read-only) `read_x()` | `10` |
+| 5 | Замыкание (мутация) `inc_y()` ×3 | `y = 3` |
+| 6 | Счётчик через замыкание `inc_count()` ×3 | `123` |
+| 7 | Комбинация всего | `2730` |
+
+### lab-4: PHP ↔ JVM через Shared Memory
+
+```powershell
+# 1. Скомпилировать MyLang-сервер в JVM
+cargo run -- labs-examples/vitrual-machines/lab-4/server.mylang -o output -t jvm
+
+# 2. Запустить PHP CLI (автоматически стартует JVM-демон)
+php labs-examples/vitrual-machines/lab-4/cli_app.php
+```
+
+Всё в одном PHP-файле (`cli_app.php`) — `SHMClient` и интерактивная консоль.
+
+---
+
 ## Техническое задание: Корутины и Планировщик
 
 Реализация **кооперативной многозадачности** с автоматическим планировщиком.

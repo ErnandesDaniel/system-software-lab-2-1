@@ -1,0 +1,107 @@
+// lab-2: Все примеры в одном файле
+// Демонстрация: локальные функции, функциональные литералы,
+// композиция, замыкания (read-only и mutate), счётчик
+
+extern puts
+extern printf
+
+def main() of int
+
+    // ========== 1. Локальная функция ==========
+    puts("--- 1. Local function ---");
+
+    def double(x of int) of int
+        return x * 2
+    end
+
+    r1 = double(21);
+    printf("double(21) = %d\n", r1);
+
+    // ========== 2. Функциональный литерал ==========
+    puts("--- 2. Function literal ---");
+
+    f = def square(x of int) of int
+        return x * x
+    end
+
+    r2 = f(5);
+    printf("square(5) = %d\n", r2);
+
+    // ========== 3. Композиция функций ==========
+    puts("--- 3. Function composition ---");
+
+    double2 = def dbl(x of int) of int
+        return x * 2
+    end
+
+    def apply_twice(f of def(int) of int, x of int) of int
+        return f(f(x))
+    end
+
+    r3 = apply_twice(double2, 3);
+    printf("apply_twice(double, 3) = %d\n", r3);
+
+    // ========== 4. Замыкание (read-only capture) ==========
+    puts("--- 4. Closure (read-only) ---");
+
+    x = 10;
+
+    def read_x() of int
+        return x
+    end
+
+    r4 = read_x();
+    printf("read_x() = %d\n", r4);
+
+    // ========== 5. Замыкание (мутация) ==========
+    puts("--- 5. Closure (mutation) ---");
+
+    y = 0;
+
+    def inc_y()
+        y = y + 1
+    end
+
+    inc_y();
+    inc_y();
+    inc_y();
+    printf("y after 3x inc_y() = %d\n", y);
+
+    // ========== 6. Счётчик через замыкание ==========
+    puts("--- 6. Counter via closure ---");
+
+    count = 0;
+
+    def inc_count() of int
+        count = count + 1;
+        return count
+    end
+
+    c1 = inc_count();
+    c2 = inc_count();
+    c3 = inc_count();
+    printf("counter: %d\n", c1 * 100 + c2 * 10 + c3);
+
+    // ========== 7. Комбинация всего ==========
+    puts("--- 7. All together ---");
+
+    mul3 = def triple(x of int) of int
+        return x * 3
+    end
+
+    counter = 0;
+    def tick() of int
+        counter = counter + 1;
+        return counter
+    end
+
+    tick();
+    tick();
+
+    r7 = apply_twice(mul3, 3) * 100 + tick() * 10 + 0;
+    printf("combo result = %d\n", r7);
+
+    puts("--- All done ---");
+
+    return 0
+end
