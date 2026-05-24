@@ -71,7 +71,11 @@ impl AsmGenerator {
                 .push_str(&format!("    sub rsp, {}\n", frame_size));
         }
 
-        for block in &func.blocks {
+        let mut blocks: Vec<_> = func.blocks.iter().collect();
+        blocks.sort_by_key(|b| {
+            b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0)
+        });
+        for block in &blocks {
             self.generate_block(block);
         }
     }

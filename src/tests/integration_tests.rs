@@ -23,37 +23,143 @@ fn compile_only(source: &str) -> (TempDir, String) {
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
 
-    let mut asm_gen = AsmGenerator::new();
-    let asm = asm_gen.generate(&ir);
+    let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
+    let mut all_asm = String::new();
+    let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
 
-    let asm_path = temp_dir.path().join("program.asm");
-    fs::write(&asm_path, &asm).unwrap();
+    // Generate per-function ASM files (like the real driver)
+    for func in &ir.functions {
+        let mut gen = AsmGenerator::new();
+        if func.yield_count > 0 {
+            gen.set_coroutine(func.yield_count);
+        }
+        let mut asm = gen.generate_single_function(func);
+        // Add extern declarations for globals
+        if !ir.globals.is_empty() {
+            let mut externs = String::new();
+            for g in &ir.globals {
+                externs.push_str(&format!("extern {}\n", g.name));
+            }
+            asm.insert_str(0, &externs);
+        }
+        let asm_path = temp_dir.path().join(format!("{}.asm", func.name));
+        fs::write(&asm_path, &asm).unwrap();
+        all_asm.push_str(&asm);
 
-    let obj_path = temp_dir.path().join("program.obj");
-    let nasm_result = Command::new("nasm")
-        .args([
-            "-f",
-            "win64",
-            "-o",
-            obj_path.to_str().unwrap(),
-            asm_path.to_str().unwrap(),
-        ])
-        .output();
-
-    if !nasm_result
-        .as_ref()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        panic!(
-            "NASM error: {}",
-            String::from_utf8_lossy(&nasm_result.unwrap().stderr)
-        );
+        let obj_path = temp_dir.path().join(format!("{}.obj", func.name));
+        let nasm_flags = if func.yield_count > 0 {
+            vec!["-f", "win64", "-O0", "-o"]
+        } else {
+            vec!["-f", "win64", "-o"]
+        };
+        let nasm_result = Command::new("nasm")
+            .args(&nasm_flags)
+            .arg(obj_path.to_str().unwrap())
+            .arg(asm_path.to_str().unwrap())
+            .output();
+        if !nasm_result
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            panic!(
+                "NASM error for {}: {}",
+                func.name,
+                String::from_utf8_lossy(&nasm_result.unwrap().stderr)
+            );
+        }
+        obj_files.push(obj_path);
     }
 
+    // Generate globals.asm if needed
+    if !ir.globals.is_empty() {
+        let globals_asm = format!(
+            "bits 64\ndefault rel\nsection .data\n{}",
+            AsmGenerator::generate_globals_asm(&ir.globals)
+        );
+        all_asm.push_str(&globals_asm);
+        let globals_path = temp_dir.path().join("globals.asm");
+        fs::write(&globals_path, &globals_asm).unwrap();
+        let globals_obj = temp_dir.path().join("globals.obj");
+        let nasm_result = Command::new("nasm")
+            .args(["-f", "win64", "-o"])
+            .arg(globals_obj.to_str().unwrap())
+            .arg(globals_path.to_str().unwrap())
+            .output();
+        if nasm_result
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            obj_files.push(globals_obj);
+        }
+    }
+
+    // Generate coroutine helpers if needed
+    if has_coroutines {
+        let mut helper = String::from("bits 64\ndefault rel\n\n");
+        helper.push_str("section .data\n");
+        helper.push_str("co_states dq 0, 0, 0, 0, 0, 0, 0, 0\n");
+        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            helper.push_str(&format!("state_{} dd 0, 0, 0, 0, 0, 0\n", f.name));
+        }
+        helper.push_str("\nsection .text\n");
+        helper.push_str("global resume_coroutine\nresume_coroutine:\n");
+        helper.push_str("    ; rcx = index\n");
+        helper.push_str("    lea rax, [rel co_states]\n");
+        helper.push_str("    mov rax, [rax + rcx * 8]\n");
+        helper.push_str("    test rax, rax\n    jz .empty\n");
+        helper.push_str("    mov rcx, rax\n");
+        helper.push_str("    mov eax, [rcx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
+        helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n");
+        helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
+        helper.push_str("global create_coroutine\ncreate_coroutine:\n");
+        helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
+        helper.push_str("global coro_init\n");
+        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            helper.push_str(&format!("extern {}\n", f.name));
+        }
+        helper.push_str("coro_init:\n    push rbp\n    mov rbp, rsp\n");
+        let mut idx = 0;
+        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
+            helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
+            helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
+            helper.push_str("    lea rax, [rel co_states]\n");
+            helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
+            helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
+            idx += 1;
+        }
+        helper.push_str("    leave\n    ret\n");
+
+        let helper_path = temp_dir.path().join("coro_helpers.asm");
+        fs::write(&helper_path, &helper).unwrap();
+        let helper_obj = temp_dir.path().join("coro_helpers.obj");
+        let nasm_result = Command::new("nasm")
+            .args(["-f", "win64", "-o"])
+            .arg(helper_obj.to_str().unwrap())
+            .arg(helper_path.to_str().unwrap())
+            .output();
+        if nasm_result
+            .as_ref()
+            .map(|o| o.status.success())
+            .unwrap_or(false)
+        {
+            obj_files.push(helper_obj);
+        }
+    }
+
+    // Link all .obj files together
     let exe_path = temp_dir.path().join("program.exe");
+    let mut gcc_args: Vec<std::ffi::OsString> = Vec::new();
+    for obj in &obj_files {
+        gcc_args.push(obj.into());
+    }
+    gcc_args.push("-o".into());
+    gcc_args.push(exe_path.into());
+
     let gcc_result = Command::new("gcc")
-        .args([obj_path.to_str().unwrap(), "-o", exe_path.to_str().unwrap()])
+        .args(&gcc_args)
         .output();
 
     if !gcc_result
@@ -67,7 +173,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
         );
     }
 
-    (temp_dir, asm)
+    (temp_dir, all_asm)
 }
 
 fn compile_and_run(source: &str) -> std::process::Output {
@@ -649,7 +755,6 @@ fn test_exe_if_else_true_branch() {
 }
 
 #[test]
-#[ignore = "> comparison on false condition returns wrong value (compiler bug)"]
 fn test_exe_if_else_false_branch() {
     let source = r#"
         def main() of int
@@ -702,7 +807,6 @@ fn test_exe_nested_if_exact() {
 // per-function codegen that the real driver uses. These pass via the real
 // compiler driver (`cargo run -- ...`) but not via compile_and_run().
 #[test]
-#[ignore = "multi-function needs per-function asm files (driver uses, test helper doesn't)"]
 fn test_exe_function_call() {
     let source = r#"
         def double(x of int) of int
@@ -717,7 +821,6 @@ fn test_exe_function_call() {
 }
 
 #[test]
-#[ignore = "multi-function needs per-function asm files"]
 fn test_exe_multi_param_call() {
     let source = r#"
         def add(a of int, b of int) of int
@@ -857,7 +960,6 @@ fn test_exe_binary_literal() {
 }
 
 #[test]
-#[ignore = "multi-function needs per-function asm files"]
 fn test_exe_multiple_return_paths() {
     let source = r#"
         def max(a of int, b of int) of int

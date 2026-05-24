@@ -158,6 +158,13 @@ impl AsmGenerator {
             self.locals.insert(local.name.clone(), offset);
         }
 
+        self.param_registers.clear();
+        for (i, param) in func.parameters.iter().enumerate() {
+            if i < 4 {
+                self.param_registers.push(param.name.clone());
+            }
+        }
+
         self.coro_ctx_offset = if self.is_coroutine {
             let off = -8 * local_counter;
             local_counter += 1;
