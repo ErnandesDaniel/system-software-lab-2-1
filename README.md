@@ -18,9 +18,6 @@ cargo fmt
 
 # Статический анализ (clippy)
 cargo clippy
-
-# Проверка форматирования без изменений (CI)
-cargo fmt --check
 ```
 
 ## Сборка
@@ -133,6 +130,12 @@ cargo run -- labs-examples/system-programms/lab-1/input.mylang -o output -t nasm
 ```powershell
 cargo run -- labs-examples/system-programms/lab-1/metrics.mylang -o output -t nasm
 .\output\program.exe
+```
+
+### lab-2: Своя БД
+
+```powershell
+
 ```
 
 ## Виртуальные машины
