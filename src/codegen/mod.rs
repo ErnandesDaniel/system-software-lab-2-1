@@ -173,6 +173,15 @@ impl AsmGenerator {
             }
         }
 
+        // Allocate stack slots for parameters (so they survive across calls)
+        let mut param_save_offsets: Vec<i32> = Vec::new();
+        for param_name in &self.param_registers {
+            let offset = -8 * local_counter;
+            local_counter += 1;
+            param_save_offsets.push(offset);
+            self.locals.insert(param_name.clone(), offset);
+        }
+
         self.coro_ctx_offset = if self.is_coroutine {
             let off = -8 * local_counter;
             local_counter += 1;
@@ -210,6 +219,20 @@ impl AsmGenerator {
         self.output.push_str("    mov rbp, rsp\n");
         self.output
             .push_str(&format!("    sub rsp, {}\n", final_stack));
+
+        // Save parameter register values to allocated stack slots
+        // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
+        for (i, param_name) in self.param_registers.iter().enumerate() {
+            let reg = match i {
+                0 => "rcx",
+                1 => "rdx",
+                2 => "r8",
+                3 => "r9",
+                _ => "rax",
+            };
+            let offset = param_save_offsets[i];
+            self.output.push_str(&format!("    mov [rbp + {}], {}\n", offset, reg));
+        }
 
         if self.is_coroutine {
             self.output.push_str(&format!("    mov [rbp + {}], rcx\n", self.coro_ctx_offset));

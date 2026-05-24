@@ -62,13 +62,44 @@ impl AsmGenerator {
             }
         }
 
+        // Allocate stack slots for parameters and save them from registers
+        // This ensures function pointer params survive across calls (rcx is caller-saved)
+        let param_save_count = self.param_registers.len();
+        let mut param_save_offsets: Vec<i32> = Vec::new();
+        for (i, param_name) in self.param_registers.iter().enumerate() {
+            let offset = -8 * (self.locals.len() as i32 + self.temps.len() as i32 + 1 + i as i32);
+            param_save_offsets.push(offset);
+            self.locals.insert(param_name.clone(), offset);
+        }
+
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
 
-        let frame_size = self.calculate_frame_size(func);
+        let mut frame_size = self.calculate_frame_size(func);
+        // Ensure frame is large enough for param save slots
+        if param_save_count > 0 {
+            let param_area = (param_save_count as i32) * 8;
+            if frame_size < param_area {
+                frame_size = ((param_area + 15) / 16) * 16;
+            }
+        }
         if frame_size > 0 {
             self.output
                 .push_str(&format!("    sub rsp, {}\n", frame_size));
+        }
+
+        // Save parameter register values to the allocated stack slots
+        // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
+        for (i, param_name) in self.param_registers.iter().enumerate() {
+            let reg = match i {
+                0 => "rcx",
+                1 => "rdx",
+                2 => "r8",
+                3 => "r9",
+                _ => "rax",
+            };
+            let offset = param_save_offsets[i];
+            self.output.push_str(&format!("    mov [rbp + {}], {}\n", offset, reg));
         }
 
         let mut blocks: Vec<_> = func.blocks.iter().collect();

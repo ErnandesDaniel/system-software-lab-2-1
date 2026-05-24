@@ -1,5 +1,5 @@
 use crate::codegen::traits::OperandLoader;
-use crate::codegen::jvm::types::{capitalize_first, get_method_descriptor, ir_type_to_jvm_descriptor};
+use crate::codegen::jvm::types::{capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor};
 use crate::ir::types::*;
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
@@ -37,6 +37,9 @@ pub struct JvmGenerator {
     closure_targets: HashMap<String, String>,
     anewarray_int_class_idx: Option<u16>,
     wrapped_vars: HashSet<String>,
+    func_ref_targets: HashSet<String>,
+    interface_method_refs: HashMap<String, u16>,
+    func_ref_init_refs: HashMap<String, (u16, u16)>, // func_name → (class_idx, init_ref_idx)
 }
 
 impl JvmGenerator {
@@ -54,11 +57,44 @@ impl JvmGenerator {
             closure_targets: HashMap::new(),
             anewarray_int_class_idx: None,
             wrapped_vars: HashSet::new(),
+            func_ref_targets: HashSet::new(),
+            interface_method_refs: HashMap::new(),
+            func_ref_init_refs: HashMap::new(),
         }
     }
 
     pub fn generate_program(&mut self, program: &IrProgram) -> Vec<(String, Vec<u8>)> {
         let mut classes = Vec::new();
+
+        // Pre-pass: collect all FuncRef targets across all functions
+        self.func_ref_targets.clear();
+        for func in &program.functions {
+            for block in &func.blocks {
+                for inst in &block.instructions {
+                    for op in &inst.operands {
+                        if let IrOperand::FuncRef(name) = op {
+                            self.func_ref_targets.insert(name.clone());
+                        }
+                    }
+                }
+            }
+        }
+
+        // Pre-pass: generate all needed functional interface class files
+        let mut generated_ifaces = HashSet::new();
+        for func in &program.functions {
+            if self.func_ref_targets.contains(&func.name) {
+                let user_params: Vec<IrType> = func.parameters.iter()
+                    .filter(|p| p.name != "__env")
+                    .map(|p| p.ty.clone())
+                    .collect();
+                let iface_name = get_fn_interface_name(&user_params, &func.return_type);
+                if generated_ifaces.insert(iface_name.clone()) {
+                    let class_data = self.generate_fn_interface(&user_params, &func.return_type);
+                    classes.push((iface_name, class_data));
+                }
+            }
+        }
 
         for func in &program.functions {
             let class_name = if func.name == "main" {
@@ -89,6 +125,24 @@ impl JvmGenerator {
     fn collect_external_calls(&mut self, func: &IrFunction) {
         let runtime_stub_class = self.constant_pool.add_class("RuntimeStub").unwrap();
         
+        // Pre-pass: collect FuncRef targets for new/init refs
+        for block in &func.blocks {
+            for inst in &block.instructions {
+                for op in &inst.operands {
+                    if let IrOperand::FuncRef(func_name) = op {
+                        if !self.func_ref_init_refs.contains_key(func_name) {
+                            let class_name = crate::codegen::jvm::types::capitalize_first(func_name);
+                            let class_idx = self.constant_pool.add_class(&class_name).unwrap();
+                            let init_ref = self.constant_pool
+                                .add_method_ref(class_idx, "<init>", "()V")
+                                .unwrap();
+                            self.func_ref_init_refs.insert(func_name.clone(), (class_idx, init_ref));
+                        }
+                    }
+                }
+            }
+        }
+
         for block in &func.blocks {
             for inst in &block.instructions {
                 for operand in &inst.operands {
@@ -167,6 +221,23 @@ impl JvmGenerator {
                             self.anewarray_int_class_idx = Some(self.constant_pool.add_class("[I").unwrap());
                         }
                     }
+                    IrOpcode::CallIndirect => {
+                        // Register invokeinterface method ref for the functional interface
+                        if let Some(func_op) = inst.operands.first() {
+                            if let IrType::Function(params, ret) = func_op.get_type() {
+                                let iface_name = get_fn_interface_name(&params, &ret);
+                                if self.interface_method_refs.contains_key(&iface_name) {
+                                    continue;
+                                }
+                                let iface_class = self.constant_pool.add_class(&iface_name).unwrap();
+                                let method_desc = self.build_user_method_descriptor(&params, Some(&ret));
+                                let method_idx = self.constant_pool
+                                    .add_interface_method_ref(iface_class, "apply", &method_desc)
+                                    .unwrap();
+                                self.interface_method_refs.insert(iface_name, method_idx);
+                            }
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -200,6 +271,9 @@ impl JvmGenerator {
         self.closure_targets.clear();
         self.anewarray_int_class_idx = None;
         self.wrapped_vars.clear();
+        self.interface_method_refs.clear();
+        self.func_ref_init_refs.clear();
+        // func_ref_targets is NOT cleared — it's populated in generate_program pre-pass
     }
 
     fn setup_local_variables(&mut self, func: &IrFunction) {
@@ -354,10 +428,15 @@ impl JvmGenerator {
             .filter_map(|name| self.locals.get(name))
             .copied()
             .collect();
+        let fn_slot_nums: HashSet<u16> = func.locals.iter()
+            .filter(|l| matches!(l.ty, IrType::Function(_, _)))
+            .filter_map(|l| self.locals.get(&l.name))
+            .copied()
+            .collect();
         let num_params = func.parameters.len() as u16;
         for slot in num_params..self.next_local_slot {
             if self.locals.values().any(|&s| s == slot) {
-                if string_slots.contains(&slot) || env_slot_nums.contains(&slot) {
+                if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) {
                     instructions.push(JvmInst::Real(Instruction::Aconst_null));
                     instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
                 } else if wrapped_slot_nums.contains(&slot) {

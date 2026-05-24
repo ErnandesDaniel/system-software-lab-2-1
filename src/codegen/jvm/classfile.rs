@@ -2,7 +2,7 @@ use ristretto_classfile::attributes::{Attribute, Instruction};
 use ristretto_classfile::{ClassAccessFlags, ClassFile, Method, MethodAccessFlags};
 use crate::ir::types::*;
 use crate::codegen::jvm::JvmGenerator;
-use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
+use crate::codegen::jvm::types::{ir_type_to_jvm_descriptor, get_fn_interface_name};
 
 impl JvmGenerator {
     pub fn build_class_file(&mut self, class_name: &str, func: &IrFunction, code: Vec<ristretto_classfile::attributes::Instruction>) -> Vec<u8> {
@@ -21,6 +21,10 @@ impl JvmGenerator {
         }
 
         let mut methods = Vec::new();
+
+        let is_func_ref_target = self.func_ref_targets.contains(&func.name);
+        let has_env_param = func.parameters.first().map(|p| p.name == "__env").unwrap_or(false);
+        let is_func_ref_no_env = is_func_ref_target && !has_env_param;
 
         let param_types: String = func.parameters.iter()
             .map(|p| if p.name == "__env" {
@@ -108,7 +112,95 @@ impl JvmGenerator {
                 attributes: vec![call_code_attr],
             };
             methods.push(call_method);
+
+            if is_func_ref_target {
+                // Default constructor: public <init>()V
+                let init_name_idx = self.constant_pool.add_utf8("<init>").unwrap();
+                let init_desc_idx = self.constant_pool.add_utf8("()V").unwrap();
+                let obj_class = self.constant_pool.add_class("java/lang/Object").unwrap();
+                let obj_init_ref = self.constant_pool
+                    .add_method_ref(obj_class, "<init>", "()V")
+                    .unwrap();
+                let init_code = vec![
+                    Instruction::Aload_0,
+                    Instruction::Invokespecial(obj_init_ref),
+                    Instruction::Return,
+                ];
+                methods.push(Method {
+                    access_flags: MethodAccessFlags::PUBLIC,
+                    name_index: init_name_idx,
+                    descriptor_index: init_desc_idx,
+                    attributes: vec![Attribute::Code {
+                        name_index: code_attr_name_idx,
+                        max_stack: 1,
+                        max_locals: 1,
+                        code: init_code,
+                        exception_table: vec![],
+                        attributes: vec![],
+                    }],
+                });
+
+            }
+            if is_func_ref_no_env {
+                // Instance apply method that delegates to static call (for functional interface dispatch)
+                let apply_name_idx = self.constant_pool.add_utf8("apply").unwrap();
+                let user_param_types: Vec<IrType> = func.parameters.iter()
+                    .filter(|p| p.name != "__env")
+                    .map(|p| p.ty.clone())
+                    .collect();
+                let instance_call_desc = format!("({}){}",
+                    user_param_types.iter().map(|t| ir_type_to_jvm_descriptor(t)).collect::<String>(),
+                    ir_type_to_jvm_descriptor(&func.return_type));
+                let instance_call_desc_idx = self.constant_pool.add_utf8(&instance_call_desc).unwrap();
+                let static_call_ref = self.constant_pool
+                    .add_method_ref(this_class, "call", &call_desc)
+                    .unwrap();
+
+                let mut instance_call_code = Vec::new();
+                let mut slot = 1;
+                for param in &func.parameters {
+                    if param.name == "__env" { continue; }
+                    match slot {
+                        1 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_1); } else { instance_call_code.push(Instruction::Iload_1); }
+                        2 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_2); } else { instance_call_code.push(Instruction::Iload_2); }
+                        3 => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload_3); } else { instance_call_code.push(Instruction::Iload_3); }
+                        _ => if param.ty == IrType::String { instance_call_code.push(Instruction::Aload(slot as u8)); } else { instance_call_code.push(Instruction::Iload(slot as u8)); }
+                    }
+                    slot += 1;
+                }
+                instance_call_code.push(Instruction::Invokestatic(static_call_ref));
+                match &func.return_type {
+                    IrType::Void => instance_call_code.push(Instruction::Return),
+                    IrType::String => instance_call_code.push(Instruction::Areturn),
+                    _ => instance_call_code.push(Instruction::Ireturn),
+                }
+
+                methods.push(Method {
+                    access_flags: MethodAccessFlags::PUBLIC,
+                    name_index: apply_name_idx,
+                    descriptor_index: instance_call_desc_idx,
+                    attributes: vec![Attribute::Code {
+                        name_index: code_attr_name_idx,
+                        max_stack: max_stack.max(4),
+                        max_locals: slot.max(1),
+                        code: instance_call_code,
+                        exception_table: vec![],
+                        attributes: vec![],
+                    }],
+                });
+            }
         }
+
+        let interfaces: Vec<u16> = if is_func_ref_no_env {
+            let user_params: Vec<IrType> = func.parameters.iter()
+                .filter(|p| p.name != "__env")
+                .map(|p| p.ty.clone())
+                .collect();
+            let iface_name = get_fn_interface_name(&user_params, &func.return_type);
+            vec![self.constant_pool.add_class(&iface_name).unwrap()]
+        } else {
+            vec![]
+        };
 
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,
@@ -116,7 +208,7 @@ impl JvmGenerator {
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
             super_class,
-            interfaces: vec![],
+            interfaces,
             fields: vec![],
             methods,
             attributes: vec![],
@@ -130,6 +222,42 @@ impl JvmGenerator {
                 panic!("Failed to serialize class file: {:?}. max_stack={}, max_locals={}, code_len={}",
                        e, max_stack, max_locals, code.len());
             }
+        }
+    }
+
+    pub fn generate_fn_interface(&mut self, params: &[IrType], ret: &IrType) -> Vec<u8> {
+        let iface_name = get_fn_interface_name(params, ret);
+        let this_class = self.constant_pool.add_class(&iface_name).unwrap();
+        let super_class = self.constant_pool.add_class("java/lang/Object").unwrap();
+
+        let method_desc = format!("({}){}",
+            params.iter().map(|t| ir_type_to_jvm_descriptor(t)).collect::<String>(),
+            ir_type_to_jvm_descriptor(ret));
+        let method_name_idx = self.constant_pool.add_utf8("apply").unwrap();
+        let method_desc_idx = self.constant_pool.add_utf8(&method_desc).unwrap();
+
+        let class_file = ClassFile {
+            version: ristretto_classfile::JAVA_5,
+            constant_pool: self.constant_pool.clone(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
+            this_class,
+            super_class,
+            interfaces: vec![],
+            fields: vec![],
+            methods: vec![Method {
+                access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
+                name_index: method_name_idx,
+                descriptor_index: method_desc_idx,
+                attributes: vec![],
+            }],
+            attributes: vec![],
+            code_source_url: None,
+        };
+
+        let mut buffer = Vec::new();
+        match class_file.to_bytes(&mut buffer) {
+            Ok(_) => buffer,
+            Err(e) => panic!("Failed to generate interface class: {:?}", e),
         }
     }
 

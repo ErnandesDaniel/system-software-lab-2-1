@@ -37,7 +37,7 @@ impl JvmGenerator {
             IrOpcode::Store => {}
             IrOpcode::Cast => {}
             IrOpcode::CoroYield => {}
-            IrOpcode::CallIndirect => {}
+            IrOpcode::CallIndirect => self.generate_call_indirect(code, inst),
             IrOpcode::MakeClosure => self.generate_make_closure(code, inst),
             IrOpcode::CallClosure => self.generate_call_closure(code, inst),
             IrOpcode::LoadCaptured => self.generate_load_captured(code, inst),
@@ -64,7 +64,7 @@ impl JvmGenerator {
                 self.emit_load_operand(code, operand);
                 let slot = self.get_local_slot(result);
                 match operand.get_type() {
-                    IrType::String => code.push(Instruction::Astore(slot as u8)),
+                    IrType::String | IrType::Function(_, _) => code.push(Instruction::Astore(slot as u8)),
                     _ => code.push(Instruction::Istore(slot as u8)),
                 }
             }
@@ -130,11 +130,9 @@ impl JvmGenerator {
 
             if let Some(ref result) = inst.result {
                 let slot = self.get_local_slot(result);
-                let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
-                if is_string {
-                    code.push(Instruction::Astore(slot as u8));
-                } else {
-                    code.push(Instruction::Istore(slot as u8));
+                match inst.result_type.as_ref() {
+                    Some(IrType::String) | Some(IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
+                    _ => code.push(Instruction::Istore(slot as u8)),
                 }
             }
         }
@@ -143,10 +141,9 @@ impl JvmGenerator {
     fn generate_return(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let Some(operand) = inst.operands.first() {
             self.emit_load_operand(code, operand);
-            if operand.get_type() == IrType::String {
-                code.push(Instruction::Areturn);
-            } else {
-                code.push(Instruction::Ireturn);
+            match operand.get_type() {
+                IrType::String | IrType::Function(_, _) => code.push(Instruction::Areturn),
+                _ => code.push(Instruction::Ireturn),
             }
         } else {
             code.push(Instruction::Return);
@@ -266,11 +263,48 @@ impl JvmGenerator {
             // Store result if any
             if let Some(ref result) = inst.result {
                 let slot = self.get_local_slot(result);
-                let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
-                if is_string {
-                    code.push(Instruction::Astore(slot as u8));
+                match inst.result_type.as_ref() {
+                    Some(IrType::String) | Some(IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
+                    _ => code.push(Instruction::Istore(slot as u8)),
+                }
+            }
+        }
+    }
+
+    fn generate_call_indirect(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // operands[0] = function variable (reference to functional interface instance)
+        // operands[1..] = arguments
+        if let Some(func_op) = inst.operands.first() {
+            if let IrType::Function(params, ret) = func_op.get_type() {
+                let iface_name = crate::codegen::jvm::types::get_fn_interface_name(&params, &ret);
+                if let Some(&method_idx) = self.interface_method_refs.get(&iface_name) {
+                    // Load the function reference (aload — it's stored as reference)
+                    self.emit_load_operand(code, func_op);
+                    // Load arguments
+                    for arg in inst.operands.iter().skip(1) {
+                        self.emit_load_operand(code, arg);
+                    }
+                    // invokeinterface: count = args + 1 (for `this`)
+                    let count = (inst.operands.len()) as u8; // func_ref + args
+                    code.push(Instruction::Invokeinterface(method_idx, count));
+                    // Store result if any
+                    if let Some(ref result) = inst.result {
+                        let slot = self.get_local_slot(result);
+                        if matches!(&*ret, IrType::String) {
+                            code.push(Instruction::Astore(slot as u8));
+                        } else {
+                            code.push(Instruction::Istore(slot as u8));
+                        }
+                    }
                 } else {
-                    code.push(Instruction::Istore(slot as u8));
+                    // Fallback: push dummy result
+                    if inst.result.is_some() {
+                        code.push(Instruction::Iconst_0);
+                        if let Some(ref result) = inst.result {
+                            let slot = self.get_local_slot(result);
+                            code.push(Instruction::Istore(slot as u8));
+                        }
+                    }
                 }
             }
         }

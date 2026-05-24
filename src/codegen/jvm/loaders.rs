@@ -20,31 +20,36 @@ impl JvmGenerator {
                     code.push(Instruction::Iaload);
                     return;
                 }
-                let instr = match ty {
-                    IrType::String => {
+                match ty {
+                    IrType::String | IrType::Function(_, _) => {
                         match slot {
-                            0 => Instruction::Aload_0,
-                            1 => Instruction::Aload_1,
-                            2 => Instruction::Aload_2,
-                            3 => Instruction::Aload_3,
-                            _ => Instruction::Aload(slot as u8),
+                            0 => code.push(Instruction::Aload_0),
+                            1 => code.push(Instruction::Aload_1),
+                            2 => code.push(Instruction::Aload_2),
+                            3 => code.push(Instruction::Aload_3),
+                            _ => code.push(Instruction::Aload(slot as u8)),
                         }
                     }
                     _ => {
                         match slot {
-                            0 => Instruction::Iload_0,
-                            1 => Instruction::Iload_1,
-                            2 => Instruction::Iload_2,
-                            3 => Instruction::Iload_3,
-                            _ => Instruction::Iload(slot as u8),
+                            0 => code.push(Instruction::Iload_0),
+                            1 => code.push(Instruction::Iload_1),
+                            2 => code.push(Instruction::Iload_2),
+                            3 => code.push(Instruction::Iload_3),
+                            _ => code.push(Instruction::Iload(slot as u8)),
                         }
                     }
                 };
-                code.push(instr);
             }
             IrOperand::Constant(c) => self.emit_load_constant(code, c),
-            IrOperand::FuncRef(_) => {
-                code.push(Instruction::Iconst_0);
+            IrOperand::FuncRef(func_name) => {
+                if let Some(&(class_idx, init_ref)) = self.func_ref_init_refs.get(func_name) {
+                    code.push(Instruction::New(class_idx));
+                    code.push(Instruction::Dup);
+                    code.push(Instruction::Invokespecial(init_ref));
+                } else {
+                    code.push(Instruction::Iconst_0);
+                }
             }
         }
     }

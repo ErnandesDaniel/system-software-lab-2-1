@@ -1,4 +1,4 @@
-use crate::ast::*;
+﻿use crate::ast::*;
 use crate::ir::*;
 use crate::stdlib::StdLib;
 use std::collections::{HashMap, HashSet};
@@ -174,6 +174,13 @@ impl IrGenerator {
         }
 
         self.locals.clear();
+        for param in &params {
+            self.locals.insert(param.name.clone(), IrLocal {
+                name: param.name.clone(),
+                ty: param.ty.clone(),
+                stack_offset: None,
+            });
+        }
         self.used_functions.clear();
         let mut block_stack = Vec::new();
         let mut current_block = IrBlock {
@@ -246,7 +253,7 @@ impl IrGenerator {
         };
         self.block_counter += 1;
 
-        // Generate body — yield statements will set current_yield_state
+        // Generate body тАФ yield statements will set current_yield_state
         for stmt in &def.body {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
