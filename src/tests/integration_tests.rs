@@ -104,7 +104,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
             helper.push_str(&format!("state_{} dd 0, 0, 0, 0, 0, 0\n", f.name));
         }
         helper.push_str("\nsection .text\n");
-        helper.push_str("global resume_coroutine\nresume_coroutine:\n");
+        helper.push_str("global resume_coroutine_nasm\nresume_coroutine_nasm:\n");
         helper.push_str("    ; rcx = index\n");
         helper.push_str("    lea rax, [rel co_states]\n");
         helper.push_str("    mov rax, [rax + rcx * 8]\n");
@@ -113,18 +113,18 @@ fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("    mov eax, [rcx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
         helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n");
         helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
-        helper.push_str("global create_coroutine\ncreate_coroutine:\n");
+        helper.push_str("global create_coroutine_nasm\ncreate_coroutine_nasm:\n");
         helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
-        helper.push_str("global coro_init\n");
+        helper.push_str("global coro_init_nasm\n");
         for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
             helper.push_str(&format!("extern {}\n", f.name));
         }
-        helper.push_str("coro_init:\n    push rbp\n    mov rbp, rsp\n");
+        helper.push_str("coro_init_nasm:\n    push rbp\n    mov rbp, rsp\n");
         let mut idx = 0;
         for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
             helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
             helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
-            helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
+            helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
             helper.push_str("    lea rax, [rel co_states]\n");
             helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
             helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));

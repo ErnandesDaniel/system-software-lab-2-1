@@ -261,9 +261,9 @@ impl JvmGenerator {
     
     fn is_external_function(&self, name: &str) -> bool {
         matches!(name, "puts" | "putchar" | "getchar" | "printf" | "rand" | "srand" | "time" | "Sleep"
-            | "map_put" | "map_get" | "map_remove" | "map_has" | "map_size" | "map_key" | "map_list"
-            | "shm_read_state" | "shm_read_byte" | "shm_read_str" | "shm_write_state" | "shm_write_resp" | "shm_wait_event"
-            | "shm_find_null")
+            | "map_put_jvm" | "map_get_jvm" | "map_remove_jvm" | "map_has_jvm" | "map_size_jvm" | "map_key_jvm" | "map_list_jvm"
+            | "shm_read_state_jvm" | "shm_read_byte_jvm" | "shm_read_str_jvm" | "shm_write_state_jvm" | "shm_write_resp_jvm" | "shm_wait_event_jvm"
+            | "shm_find_null_jvm")
     }
     
     fn build_user_method_descriptor(&self, param_types: &[IrType], return_type: Option<&IrType>) -> String {

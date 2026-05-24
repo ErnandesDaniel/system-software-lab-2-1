@@ -46,28 +46,28 @@ impl StdLib {
         funcs.insert("system");
 
         // EntityStore functions (JVM daemon)
-        funcs.insert("map_put");
-        funcs.insert("map_get");
-        funcs.insert("map_remove");
-        funcs.insert("map_has");
-        funcs.insert("map_size");
-        funcs.insert("map_key");
-        funcs.insert("map_list");
+        funcs.insert("map_put_jvm");
+        funcs.insert("map_get_jvm");
+        funcs.insert("map_remove_jvm");
+        funcs.insert("map_has_jvm");
+        funcs.insert("map_size_jvm");
+        funcs.insert("map_key_jvm");
+        funcs.insert("map_list_jvm");
 
         // SHM functions (JVM daemon)
-        funcs.insert("shm_read_state");
-        funcs.insert("shm_read_byte");
-        funcs.insert("shm_read_str");
-        funcs.insert("shm_write_state");
-        funcs.insert("shm_write_resp");
-        funcs.insert("shm_wait_event");
-        funcs.insert("shm_find_null");
+        funcs.insert("shm_read_state_jvm");
+        funcs.insert("shm_read_byte_jvm");
+        funcs.insert("shm_read_str_jvm");
+        funcs.insert("shm_write_state_jvm");
+        funcs.insert("shm_write_resp_jvm");
+        funcs.insert("shm_wait_event_jvm");
+        funcs.insert("shm_find_null_jvm");
 
-        // Coroutine runtime
-        funcs.insert("resume_coroutine");
-        funcs.insert("create_coroutine");
-        funcs.insert("coro_init");
-        funcs.insert("run_scheduler");
+        // Coroutine runtime (NASM)
+        funcs.insert("resume_coroutine_nasm");
+        funcs.insert("create_coroutine_nasm");
+        funcs.insert("coro_init_nasm");
+        funcs.insert("run_scheduler_nasm");
 
         funcs
     }
@@ -106,16 +106,16 @@ impl StdLib {
             ("Sleep", ("ms: int", "int")),  // Windows Sleep (milliseconds) - blocking
             ("putchar", ("c: int", "int")),
             // SHM functions (JVM daemon)
-            ("shm_read_state", ("", "int")),
-            ("shm_read_byte", ("pos: int", "int")),
-            ("shm_read_str", ("pos: int", "string")),
-            ("shm_write_state", ("state: int", "")),
-            ("shm_write_resp", ("result: int, payload: string", "")),
-            ("shm_wait_event", ("", "")),
-            ("shm_find_null", ("start: int", "int")),
-            // Coroutine runtime
-            ("resume_coroutine", ("index: int", "int")),
-            ("create_coroutine", ("", "")),
+            ("shm_read_state_jvm", ("", "int")),
+            ("shm_read_byte_jvm", ("pos: int", "int")),
+            ("shm_read_str_jvm", ("pos: int", "string")),
+            ("shm_write_state_jvm", ("state: int", "")),
+            ("shm_write_resp_jvm", ("result: int, payload: string", "")),
+            ("shm_wait_event_jvm", ("", "")),
+            ("shm_find_null_jvm", ("start: int", "int")),
+            // Coroutine runtime (NASM)
+            ("resume_coroutine_nasm", ("index: int", "int")),
+            ("create_coroutine_nasm", ("", "")),
         ];
         decls
             .into_iter()

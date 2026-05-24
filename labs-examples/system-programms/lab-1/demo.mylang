@@ -1,8 +1,8 @@
 // scheduling/demo.mylang — корутины + планировщик
 
 extern puts
-extern resume_coroutine
-extern coro_init
+extern resume_coroutine_nasm
+extern coro_init_nasm
 
 coroutine worker1() of int
     puts("1")
@@ -24,10 +24,10 @@ begin
     f1 = 0
     while f0 == 0 || f1 == 0 {
         if f0 == 0 then
-            f0 = resume_coroutine(0)
+            f0 = resume_coroutine_nasm(0)
         end
         if f1 == 0 then
-            f1 = resume_coroutine(1)
+            f1 = resume_coroutine_nasm(1)
         end
     }
     return 0
@@ -36,7 +36,7 @@ end
 
 def main() of int
 begin
-    coro_init()
+    coro_init_nasm()
     run()
     return 0
 end

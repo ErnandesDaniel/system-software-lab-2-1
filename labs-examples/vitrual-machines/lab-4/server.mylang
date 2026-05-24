@@ -1,21 +1,21 @@
-extern shm_read_state
-extern shm_read_byte
-extern shm_read_str
-extern shm_write_state
-extern shm_write_resp
-extern shm_wait_event
-extern shm_find_null
+extern shm_read_state_jvm
+extern shm_read_byte_jvm
+extern shm_read_str_jvm
+extern shm_write_state_jvm
+extern shm_write_resp_jvm
+extern shm_wait_event_jvm
+extern shm_find_null_jvm
 
-extern map_put
-extern map_get
-extern map_has
-extern map_remove
-extern map_list
+extern map_put_jvm
+extern map_get_jvm
+extern map_has_jvm
+extern map_remove_jvm
+extern map_list_jvm
 
 def handle_create(key of string, value of string) of int
 begin
-    if map_has(key) == 0 then {
-        map_put(key, value);
+    if map_has_jvm(key) == 0 then {
+        map_put_jvm(key, value);
         return 0;
     }
     return 1;
@@ -24,14 +24,14 @@ end
 
 def handle_get(key of string) of string
 begin
-    return map_get(key);
+    return map_get_jvm(key);
 end
 end
 
 def handle_set(key of string, value of string) of int
 begin
-    if map_has(key) == 1 then {
-        map_put(key, value);
+    if map_has_jvm(key) == 1 then {
+        map_put_jvm(key, value);
         return 0;
     }
     return 1;
@@ -40,8 +40,8 @@ end
 
 def handle_delete(key of string) of int
 begin
-    if map_has(key) == 1 then {
-        map_remove(key);
+    if map_has_jvm(key) == 1 then {
+        map_remove_jvm(key);
         return 0;
     }
     return 1;
@@ -53,43 +53,43 @@ begin
     if opcode == 0 then {
         r = handle_create(key, value);
         if r == 0 then {
-            shm_write_resp(0, "");
+            shm_write_resp_jvm(0, "");
         }
         if r == 1 then {
-            shm_write_resp(1, "Key already exists");
+            shm_write_resp_jvm(1, "Key already exists");
         }
     }
     if opcode == 1 then {
-        if map_has(key) == 0 then {
-            shm_write_resp(1, "Key not found");
+        if map_has_jvm(key) == 0 then {
+            shm_write_resp_jvm(1, "Key not found");
         }
-        if map_has(key) == 1 then {
-            shm_write_resp(0, handle_get(key));
+        if map_has_jvm(key) == 1 then {
+            shm_write_resp_jvm(0, handle_get(key));
         }
     }
     if opcode == 2 then {
         r = handle_set(key, value);
         if r == 0 then {
-            shm_write_resp(0, "");
+            shm_write_resp_jvm(0, "");
         }
         if r == 1 then {
-            shm_write_resp(1, "Key not found");
+            shm_write_resp_jvm(1, "Key not found");
         }
     }
     if opcode == 3 then {
         r = handle_delete(key);
         if r == 0 then {
-            shm_write_resp(0, "");
+            shm_write_resp_jvm(0, "");
         }
         if r == 1 then {
-            shm_write_resp(1, "Key not found");
+            shm_write_resp_jvm(1, "Key not found");
         }
     }
     if opcode == 4 then {
-        shm_write_resp(0, map_list());
+        shm_write_resp_jvm(0, map_list_jvm());
     }
     if opcode == 5 then {
-        shm_write_resp(0, "");
+        shm_write_resp_jvm(0, "");
     }
     return;
 end
@@ -97,18 +97,18 @@ end
 
 def main() of int
 begin
-    shm_write_state(0);
+    shm_write_state_jvm(0);
     exit_flag = 0;
     while exit_flag == 0 {
-        shm_wait_event();
-        state = shm_read_state();
+        shm_wait_event_jvm();
+        state = shm_read_state_jvm();
         if state == 1 then {
-            opcode = shm_read_byte(4);
-            key = shm_read_str(5);
-            keyEnd = shm_find_null(5);
-            value = shm_read_str(keyEnd + 1);
+            opcode = shm_read_byte_jvm(4);
+            key = shm_read_str_jvm(5);
+            keyEnd = shm_find_null_jvm(5);
+            value = shm_read_str_jvm(keyEnd + 1);
             dispatch(opcode, key, value);
-            shm_write_state(2);
+            shm_write_state_jvm(2);
         }
         if state == 3 then {
             exit_flag = 1;

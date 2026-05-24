@@ -153,7 +153,7 @@ fn test_multiple_statements_in_sequence() {
 
 #[test]
 fn test_extern_with_params_and_return() {
-    let source = "extern def map_put(name of string, value of string) of int end";
+    let source = "extern def map_put_jvm(name of string, value of string) of int end";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }

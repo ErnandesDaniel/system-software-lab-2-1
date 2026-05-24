@@ -149,7 +149,7 @@ impl CompilerDriver {
             }
 
             helper.push_str("\nsection .text\n");
-            helper.push_str("global resume_coroutine\nresume_coroutine:\n");
+            helper.push_str("global resume_coroutine_nasm\nresume_coroutine_nasm:\n");
             helper.push_str("    ; rcx = index\n");
             helper.push_str("    lea rax, [rel co_states]\n");
             helper.push_str("    mov rax, [rax + rcx * 8]\n");
@@ -159,20 +159,20 @@ impl CompilerDriver {
             helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n");
             helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
 
-            helper.push_str("global create_coroutine\ncreate_coroutine:\n");
+            helper.push_str("global create_coroutine_nasm\ncreate_coroutine_nasm:\n");
             helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
 
             // Init: fill co_states table
-            helper.push_str("global coro_init\n");
+            helper.push_str("global coro_init_nasm\n");
             for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
                 helper.push_str(&format!("extern {}\n", f.name));
             }
-            helper.push_str("coro_init:\n    push rbp\n    mov rbp, rsp\n");
+            helper.push_str("coro_init_nasm:\n    push rbp\n    mov rbp, rsp\n");
             let mut idx = 0;
             for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
-                helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
+                helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
                 helper.push_str(&format!("    lea rax, [rel co_states]\n"));
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
@@ -509,19 +509,19 @@ public class RuntimeStub {
         try { Thread.sleep(ms); } catch (InterruptedException e) {}
     }
 
-    // --- SHM functions ---
+    // --- SHM functions (JVM) ---
 
-    public static int shm_read_state() {
+    public static int shm_read_state_jvm() {
         ensureShm();
         return buf.getInt(0);
     }
 
-    public static int shm_read_byte(int pos) {
+    public static int shm_read_byte_jvm(int pos) {
         ensureShm();
         return buf.get(pos) & 0xFF;
     }
 
-    public static String shm_read_str(int pos) {
+    public static String shm_read_str_jvm(int pos) {
         ensureShm();
         int len = 0;
         while (pos + len < SHM_SIZE && buf.get(pos + len) != 0) len++;
@@ -531,12 +531,12 @@ public class RuntimeStub {
         return new String(bytes, StandardCharsets.UTF_8);
     }
 
-    public static void shm_write_state(int state) {
+    public static void shm_write_state_jvm(int state) {
         ensureShm();
         buf.putInt(0, state);
     }
 
-    public static void shm_write_resp(int result, String payload) {
+    public static void shm_write_resp_jvm(int result, String payload) {
         ensureShm();
         try {
             byte[] pbytes = payload != null ? payload.getBytes(StandardCharsets.UTF_8) : new byte[0];
@@ -551,7 +551,7 @@ public class RuntimeStub {
         }
     }
 
-    public static void shm_wait_event() {
+    public static void shm_wait_event_jvm() {
         ensureShm();
         try {
             java.lang.reflect.Method invokeMethod = kernel32WaitFn.getClass()
@@ -563,7 +563,7 @@ public class RuntimeStub {
         }
     }
 
-    public static int shm_find_null(int start) {
+    public static int shm_find_null_jvm(int start) {
         ensureShm();
         for (int i = start; i < SHM_SIZE; i++) {
             if (buf.get(i) == 0) return i;
@@ -571,29 +571,29 @@ public class RuntimeStub {
         return SHM_SIZE;
     }
 
-    // --- Map functions ---
+    // --- Map functions (JVM) ---
 
-    public static int map_put(String name, String value) {
+    public static int map_put_jvm(String name, String value) {
         synchronized (store) { store.put(name, value); return 1; }
     }
 
-    public static String map_get(String name) {
+    public static String map_get_jvm(String name) {
         synchronized (store) { return store.get(name); }
     }
 
-    public static int map_has(String name) {
+    public static int map_has_jvm(String name) {
         synchronized (store) { return store.containsKey(name) ? 1 : 0; }
     }
 
-    public static int map_remove(String name) {
+    public static int map_remove_jvm(String name) {
         synchronized (store) { return store.remove(name) != null ? 1 : 0; }
     }
 
-    public static int map_size() {
+    public static int map_size_jvm() {
         synchronized (store) { return store.size(); }
     }
 
-    public static String map_key(int i) {
+    public static String map_key_jvm(int i) {
         synchronized (store) {
             int idx = 0;
             for (String k : store.keySet()) {
@@ -604,7 +604,7 @@ public class RuntimeStub {
         }
     }
 
-    public static String map_list() {
+    public static String map_list_jvm() {
         synchronized (store) { return String.join(",", store.keySet()); }
     }
 }
