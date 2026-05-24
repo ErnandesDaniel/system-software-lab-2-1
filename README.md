@@ -9,6 +9,7 @@
 - Clang (линковщик): `choco install llvm`
 - Java JDK 21+ (для target `jvm`): `choco install openjdk`
 - PHP 8.1+ с FFI (для PHP-демок): `choco install php`
+- SQLite (для верификации lab-2): `choco install sqlite`
 
 ## Линты
 
@@ -132,11 +133,67 @@ cargo run -- labs-examples/system-programms/lab-1/metrics.mylang -o output -t na
 .\output\program.exe
 ```
 
-### lab-2: Своя БД
+### lab-2: Map-Reduce конвейер (СПО)
 
-```powershell
+Реализация 7 SQL-запросов (вариант 59) в виде конвейера процедур-обработчиков, соединённых
+байтовыми потоками (pipe'ами). Каждый этап обработки — отдельная корутина (кооперативная
+многозадачность с passive waiting через групповое ожидание).
+
+**Файлы:**
 
 ```
+labs-examples/system-programms/lab-2/
+├── csv-data/                    # Тестовые CSV-файлы (выдуманные данные)
+│   ├── people.csv               # Н_ЛЮДИ — люди
+│   ├── studies.csv              # Н_ОБУЧЕНИЯ — информация об обучении
+│   ├── students.csv             # Н_УЧЕНИКИ — студенты
+│   ├── vedomosti.csv            # Н_ВЕДОМОСТИ — оценки
+│   ├── types_vedomostei.csv     # Н_ТИПЫ_ВЕДОМОСТЕЙ — типы ведомостей
+│   └── group_plans.csv          # Н_ГРУППЫ_ПЛАНОВ — планы групп
+└── sql/                         # Верификация через SQLite
+    ├── init.sql                 # DDL + импорт CSV
+    ├── init_abs.sql             # То же с абсолютными путями
+    ├── queries.sql              # 7 запросов (как в задании)
+    ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
+    └── ucheb_test.db            # Готовая БД
+```
+
+**Верификация через SQLite:**
+
+```powershell
+# Установить SQLite (если ещё нет)
+choco install sqlite
+
+# Создать БД и выполнить 7 запросов
+labs-examples\system-programms\lab-2\sql\run_verification.cmd
+
+# Или вручную:
+sqlite3 labs-examples/system-programms/lab-2/sql/ucheb_test.db ^
+  < labs-examples/system-programms/lab-2/sql/init_abs.sql
+sqlite3 -header -column labs-examples/system-programms/lab-2/sql/ucheb_test.db ^
+  < labs-examples/system-programms/lab-2/sql/queries.sql
+```
+
+Ожидаемые результаты запросов:
+
+| # | Результат |
+|---|-----------|
+| 1 | 4 строки (Дифзачет с датами) |
+| 2 | 1 строка (Крылов Кирилл, НЗК=OK500) |
+| 3 | 6 (студентов ФКТИУ без отчества) |
+| 4 | 2 плана (101: 3 группы, 104: 3 группы) |
+| 5 | 2 студента (Григорьев 5.0, Зайцев 5.0) |
+| 6 | 4 студента (заочные 1 курс после 2012) |
+| 7 | 12 строк (6 пар с одинаковыми фамилиями) |
+
+**Как писать программу на MyLang:**
+
+1. Добавить `extern` для CRT-функций (`fopen`, `fclose`, `fread`, `feof`, `memcpy` и т.д.) в stdlib
+2. Определить структуры для записей таблиц и для Pipe
+3. Реализовать in-memory pipe через `malloc`/`memcpy` (кольцевой буфер)
+4. Каждый этап обработки (Filter, Join, Projection, Aggregation) — отдельная `coroutine`
+5. Соединить корутины pipe'ами, запустить через `resume_coroutine_nasm` в цикле с `yield`
+6. Сверить вывод с результатами SQLite-запросов из `queries.sql`
 
 ## Виртуальные машины
 
