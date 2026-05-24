@@ -90,7 +90,7 @@ impl AsmGenerator {
 
         // Save parameter register values to the allocated stack slots
         // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
-        for (i, param_name) in self.param_registers.iter().enumerate() {
+        for (i, _param_name) in self.param_registers.iter().enumerate() {
             let reg = match i {
                 0 => "rcx",
                 1 => "rdx",

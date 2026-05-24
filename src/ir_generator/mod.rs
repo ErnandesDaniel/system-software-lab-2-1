@@ -412,7 +412,7 @@ impl IrGenerator {
             Statement::Block(b) => {
                 Self::scan_exprs_in_stmts(&b.body, outer_locals, param_names, found, seen);
             }
-            Statement::VarDecl(vd) => {
+            Statement::VarDecl(_vd) => {
                 // var decls inside the inner function body create new locals,
                 // not captured vars
             }

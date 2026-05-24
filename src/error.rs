@@ -1,3 +1,5 @@
+//! Shared error types for the compiler pipeline.
+
 use std::fmt;
 
 #[derive(Debug)]

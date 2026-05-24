@@ -40,6 +40,7 @@ impl AsmGenerator {
         self.yield_counter = yield_count;
     }
 
+    #[cfg(test)]
     pub fn generate(&mut self, program: &IrProgram) -> String {
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
@@ -222,7 +223,7 @@ impl AsmGenerator {
 
         // Save parameter register values to allocated stack slots
         // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
-        for (i, param_name) in self.param_registers.iter().enumerate() {
+        for (i, _param_name) in self.param_registers.iter().enumerate() {
             let reg = match i {
                 0 => "rcx",
                 1 => "rdx",

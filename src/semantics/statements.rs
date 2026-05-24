@@ -68,13 +68,13 @@ impl SemanticsAnalyzer {
                 }).unwrap_or_default();
                 let ret_type = fd.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Void);
                 let func_type = SemanticType::Function(param_types, Box::new(ret_type));
-                scope.insert(fd.signature.name.name.clone(), func_type);
+                let _ = scope.insert(fd.signature.name.name.clone(), func_type);
                 // Check the function body in a new scope
                 let mut inner_scope = scope.clone();
                 if let Some(ref args) = fd.signature.parameters {
                     for arg in args {
                         let pty = arg.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Int);
-                        inner_scope.insert(arg.name.name.clone(), pty);
+                        let _ = inner_scope.insert(arg.name.name.clone(), pty);
                     }
                 }
                 for s in &fd.body {
