@@ -1,17 +1,13 @@
-// scheduling/demo.mylang — планировщик и корутины на чистом MyLang
+// scheduling/demo.mylang — корутины + планировщик
 
 extern puts
 extern resume_coroutine
 extern coro_init
 
-// ─── Корутины ──────────────────────────────────────────
-
 coroutine worker1() of int
     puts("1")
     yield
     puts("2")
-    yield
-    puts("3")
     return 0
 end
 
@@ -22,19 +18,17 @@ coroutine worker2() of int
     return 0
 end
 
-// ─── Планировщик (round-robin) ─────────────────────────
-
 def run() of int
 begin
     f0 = 0
     f1 = 0
     while f0 == 0 || f1 == 0 {
-        if f0 == 0 then {
+        if f0 == 0 then
             f0 = resume_coroutine(0)
-        }
-        if f1 == 0 then {
+        end
+        if f1 == 0 then
             f1 = resume_coroutine(1)
-        }
+        end
     }
     return 0
 end
@@ -42,10 +36,8 @@ end
 
 def main() of int
 begin
-    puts("Start")
     coro_init()
     run()
-    puts("Done")
     return 0
 end
 end

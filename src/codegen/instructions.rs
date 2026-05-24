@@ -34,6 +34,7 @@ impl AsmGenerator {
             IrOpcode::Pos => self.generate_pos(inst),
             IrOpcode::Store => self.generate_store(inst),
             IrOpcode::Cast => {}
+            IrOpcode::CoroYield => self.generate_yield(inst),
         }
     }
 

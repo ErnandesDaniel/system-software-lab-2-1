@@ -35,7 +35,7 @@ impl<'source> Parser<'source> {
             if matches!(token, Token::Dot) {
                 // Field access
             }
-            if matches!(token, Token::Semi) {
+            if matches!(token, Token::Semi | Token::Identifier) {
                 break;
             }
             let token_copy = *token;

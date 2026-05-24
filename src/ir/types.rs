@@ -143,6 +143,7 @@ pub enum IrOpcode {
     Slice,
     Alloca,
     Cast,
+    CoroYield,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

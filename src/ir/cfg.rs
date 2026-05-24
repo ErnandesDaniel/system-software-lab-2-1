@@ -213,6 +213,9 @@ impl CfgMermaidGenerator {
                     self.format_block_id(inst.false_target.as_deref().unwrap_or("?"))
                 )
             }
+            IrOpcode::CoroYield => {
+                "yield".to_string()
+            }
             IrOpcode::Ret => {
                 if inst.operands.is_empty() {
                     "return".to_string()

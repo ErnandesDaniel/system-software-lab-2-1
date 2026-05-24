@@ -35,6 +35,7 @@ impl JvmGenerator {
             IrOpcode::Alloca => {}
             IrOpcode::Store => {}
             IrOpcode::Cast => {}
+        IrOpcode::CoroYield => {}
         }
     }
 

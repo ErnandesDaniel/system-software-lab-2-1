@@ -13,6 +13,7 @@ pub struct AsmGenerator {
     temp_counter: usize,
     is_coroutine: bool,
     yield_counter: usize,
+    coro_ctx_offset: i32,
 }
 
 impl AsmGenerator {
@@ -30,6 +31,7 @@ impl AsmGenerator {
             temp_counter: 0,
             is_coroutine: false,
             yield_counter: 0,
+            coro_ctx_offset: 0,
         }
     }
 
@@ -156,6 +158,15 @@ impl AsmGenerator {
             self.locals.insert(local.name.clone(), offset);
         }
 
+        self.coro_ctx_offset = if self.is_coroutine {
+            let off = -8 * local_counter;
+            local_counter += 1;
+            self.locals.insert("__co_ctx".to_string(), off);
+            off
+        } else {
+            0
+        };
+
         let mut temp_offset: i32 = -(8 * local_counter);
         for block in &func.blocks {
             for inst in &block.instructions {
@@ -180,18 +191,19 @@ impl AsmGenerator {
 
         self.output.push_str(&format!("{}:\n", func.name));
 
+        self.output.push_str("    push rbp\n");
+        self.output.push_str("    mov rbp, rsp\n");
+        self.output
+            .push_str(&format!("    sub rsp, {}\n", final_stack));
+
         if self.is_coroutine {
+            self.output.push_str(&format!("    mov [rbp + {}], rcx\n", self.coro_ctx_offset));
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {}\n", s));
                 self.output.push_str(&format!("    je .co_{}\n", s));
             }
         }
-
-        self.output.push_str("    push rbp\n");
-        self.output.push_str("    mov rbp, rsp\n");
-        self.output
-            .push_str(&format!("    sub rsp, {}\n", final_stack));
 
         if self.is_coroutine {
             let mut blocks: Vec<_> = func.blocks.iter().collect();
@@ -201,7 +213,12 @@ impl AsmGenerator {
                 self.generate_block(block);
             }
         } else {
-            for block in &func.blocks {
+            let mut blocks: Vec<_> = func.blocks.iter().collect();
+            blocks.sort_by_key(|b| {
+                let num = b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0);
+                num
+            });
+            for block in &blocks {
                 self.generate_block(block);
             }
         }

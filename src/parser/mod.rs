@@ -33,6 +33,7 @@ impl<'source> Parser<'source> {
         while self.current_token().is_some() {
             let token = self.current_token().unwrap();
 
+
             if token == &Token::End {
                 self.advance();
                 continue;

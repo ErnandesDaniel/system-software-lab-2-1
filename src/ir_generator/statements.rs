@@ -78,7 +78,7 @@ impl IrGenerator {
             Statement::Yield(_) => {
                 self.current_yield_state += 1;
                 block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Ret,
+                    opcode: IrOpcode::CoroYield,
                     result: None,
                     result_type: Some(IrType::Int),
                     operands: vec![IrOperand::Constant(Constant::Int(self.current_yield_state as i64))],
@@ -362,6 +362,6 @@ impl IrGenerator {
 
 fn ends_with_control_flow(block: &IrBlock) -> bool {
     block.instructions.last().map_or(false, |inst| {
-        matches!(inst.opcode, IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr)
+        matches!(inst.opcode, IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr | IrOpcode::CoroYield)
     })
 }

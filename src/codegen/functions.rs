@@ -3,6 +3,12 @@ use crate::ir::types::*;
 use super::AsmGenerator;
 
 impl AsmGenerator {
+    fn restore_coro_ctx(&mut self) {
+        if self.is_coroutine {
+            self.output.push_str(&format!("    mov rcx, [rbp + {}]\n", self.coro_ctx_offset));
+        }
+    }
+
     pub fn generate_call(&mut self, inst: &IrInstruction) {
         if let Some(ref func_name) = inst.jump_target {
             self.used_functions.push(func_name.clone());
@@ -106,17 +112,19 @@ impl AsmGenerator {
         }
     }
 
-    pub fn generate_ret(&mut self, inst: &IrInstruction) {
-        if self.is_coroutine && !inst.operands.is_empty() {
-            if let IrOperand::Constant(c) = &inst.operands[0] {
-                // Coroutine yield: store state number to rip
+    pub fn generate_yield(&mut self, inst: &IrInstruction) {
+        if let Some(operand) = inst.operands.first() {
+            if let IrOperand::Constant(c) = operand {
                 self.load_constant(c, "eax");
+                self.restore_coro_ctx();
                 self.output.push_str("    mov [rcx], eax\n");
                 self.output.push_str("    leave\n");
                 self.output.push_str("    ret\n");
-                return;
             }
         }
+    }
+
+    pub fn generate_ret(&mut self, inst: &IrInstruction) {
         if let Some(operand) = inst.operands.first() {
             match operand {
                 IrOperand::Constant(c) => self.load_constant(c, "eax"),
@@ -153,8 +161,9 @@ impl AsmGenerator {
             }
         }
         if self.is_coroutine {
-            self.output.push_str("    mov dword [rcx + 16], 1\n");
-            self.output.push_str("    mov dword [rcx + 20], eax\n");
+            self.restore_coro_ctx();
+            self.output.push_str("    mov dword [rcx], -1\n");
+            self.output.push_str("    mov dword [rcx + 16], eax\n");
         }
         self.output.push_str("    leave\n");
         self.output.push_str("    ret\n");
@@ -170,6 +179,7 @@ impl AsmGenerator {
                 if let Some(offset) = self.locals.get(name) {
                     if self.is_coroutine {
                         let co_off = 24 + (-offset) as i32;
+                        self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov {}, [rcx + {}]\n", dest, co_off));
                     } else {
                         self.output
@@ -258,6 +268,7 @@ impl AsmGenerator {
         if self.is_coroutine {
             if let Some(offset) = self.locals.get(name) {
                 let co_off = 24 + (-offset) as i32;
+                self.restore_coro_ctx();
                 self.output.push_str(&format!("    mov [rcx + {}], {}\n", co_off, src));
                 return;
             }

@@ -33,6 +33,9 @@ impl<'source> Parser<'source> {
         } else {
             None
         };
+        if self.current_token() == Some(&Token::End) {
+            self.expect(Token::End)?;
+        }
         let span = start.merge(self.current_span());
         Ok(Statement::If(IfStatement {
             condition,

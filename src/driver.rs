@@ -110,6 +110,7 @@ impl CompilerDriver {
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
 
         for func in &ir.functions {
+
             let mut gen = codegen::AsmGenerator::new();
             if func.yield_count > 0 {
                 gen.set_coroutine(func.yield_count);
@@ -240,6 +241,7 @@ impl CompilerDriver {
                 .iter()
                 .map(|p| p.to_string_lossy().to_string())
                 .collect();
+            args.push("-Wl,/subsystem:console".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
 
