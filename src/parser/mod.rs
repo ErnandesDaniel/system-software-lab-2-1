@@ -3,7 +3,7 @@ pub mod functions;
 
 mod statements;
 
-use crate::ast::*;
+use crate::ast::{Program, SourceItem, Span};
 use crate::lexer::iter::Lexer;
 use crate::lexer::Token;
 use std::ops::Range;
@@ -20,11 +20,7 @@ impl<'source> Parser<'source> {
         let current = lexer
             .next()
             .and_then(|r: Result<(Token, Range<usize>), crate::lexer::LexerError>| r.ok());
-        Self {
-            lexer,
-            current,
-            source,
-        }
+        Self { lexer, current, source }
     }
 
     pub fn parse(&mut self) -> Result<Program, String> {
@@ -32,7 +28,6 @@ impl<'source> Parser<'source> {
 
         while self.current_token().is_some() {
             let token = self.current_token().unwrap();
-
 
             if token == &Token::End {
                 self.advance();
@@ -44,7 +39,10 @@ impl<'source> Parser<'source> {
                 continue;
             }
 
-            if !matches!(token, Token::Def | Token::Extern | Token::Global | Token::Struct | Token::Coroutine) {
+            if !matches!(
+                token,
+                Token::Def | Token::Extern | Token::Global | Token::Struct | Token::Coroutine
+            ) {
                 break;
             }
 
@@ -65,10 +63,7 @@ impl<'source> Parser<'source> {
                     items.push(SourceItem::CoroutineDef(self.parse_coroutine()?));
                 }
                 _ => {
-                    return Err(format!(
-                        "Expected function definition or declaration, got {:?}",
-                        token
-                    ));
+                    return Err(format!("Expected function definition or declaration, got {token:?}"));
                 }
             }
 
@@ -102,11 +97,10 @@ impl<'source> Parser<'source> {
     pub(crate) fn current_span(&self) -> Span {
         self.current
             .as_ref()
-            .map(|(_, span)| Span {
+            .map_or(Span { start: 0, end: 0 }, |(_, span)| Span {
                 start: span.start,
                 end: span.end,
             })
-            .unwrap_or(Span { start: 0, end: 0 })
     }
 
     pub(crate) fn expect(&mut self, token: Token) -> Result<(Token, Span), String> {
@@ -117,7 +111,7 @@ impl<'source> Parser<'source> {
             self.advance();
             Ok((tok_clone, span))
         } else {
-            Err(format!("Expected {:?} but got {:?}", token, tok_clone))
+            Err(format!("Expected {token:?} but got {tok_clone:?}"))
         }
     }
 }

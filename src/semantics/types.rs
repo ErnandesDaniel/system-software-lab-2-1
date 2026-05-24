@@ -43,7 +43,7 @@ impl SymbolTable {
 
     pub fn add(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
         if self.symbols.contains_key(&name) {
-            return Err(format!("Symbol '{}' already exists", name));
+            return Err(format!("Symbol '{name}' already exists"));
         }
         self.symbols.insert(name.clone(), Symbol::new(name, ty));
         Ok(())

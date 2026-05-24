@@ -8,10 +8,10 @@ fn test_jvm_generation_simple() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     assert_eq!(classes.len(), 1);
     assert_eq!(classes[0].0, "Main");
     // Check that the class file was generated (has magic number 0xCAFEBABE)
@@ -30,10 +30,10 @@ fn test_jvm_generation_with_locals() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     assert_eq!(classes.len(), 1);
     assert_eq!(classes[0].0, "Main");
     // Class file should be valid
@@ -53,10 +53,10 @@ fn test_jvm_generation_arithmetic() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     assert_eq!(classes.len(), 1);
     assert_eq!(classes[0].0, "Calc");
     // Class file should be valid
@@ -74,10 +74,10 @@ fn test_jvm_generation_comparison() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     assert_eq!(classes.len(), 1);
     // Class file should be valid
     assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
@@ -98,13 +98,13 @@ fn test_jvm_multiple_functions() {
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
-    
+
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    
+
     // Should generate 2 classes (one per function)
     assert_eq!(classes.len(), 2);
-    
+
     // Both should be valid class files
     for (_, bytes) in &classes {
         assert_eq!(bytes[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);

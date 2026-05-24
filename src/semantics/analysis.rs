@@ -1,4 +1,4 @@
-use crate::ast::*;
+use crate::ast::{BuiltinType, Literal, Program, TypeRef};
 use crate::semantics::types::{SemanticType, SymbolTable};
 
 #[derive(Debug, Clone)]
@@ -27,10 +27,10 @@ impl SemanticsAnalyzer {
         self.collect_functions(program)?;
         self.check_functions(program)?;
 
-        if !self.errors.is_empty() {
-            Err(std::mem::take(&mut self.errors))
-        } else {
+        if self.errors.is_empty() {
             Ok(())
+        } else {
+            Err(std::mem::take(&mut self.errors))
         }
     }
 
@@ -47,22 +47,22 @@ impl SemanticsAnalyzer {
                 | BuiltinType::Char => SemanticType::Int,
             },
             TypeRef::Custom(_) => SemanticType::Int,
-            TypeRef::Array {
-                element_type, size, ..
-            } => SemanticType::Array(Box::new(self.convert_type(element_type)), *size as usize),
-            TypeRef::Function { params, return_type, .. } => {
+            TypeRef::Array { element_type, size, .. } => {
+                SemanticType::Array(Box::new(self.convert_type(element_type)), *size as usize)
+            }
+            TypeRef::Function {
+                params, return_type, ..
+            } => {
                 let p: Vec<SemanticType> = params.iter().map(|t| self.convert_type(t)).collect();
                 SemanticType::Function(p, Box::new(self.convert_type(return_type)))
             }
         }
     }
 
-    pub fn literal_type(&self, lit: &Literal) -> SemanticType {
+    pub fn literal_type(lit: &Literal) -> SemanticType {
         match lit {
             Literal::Bool(_) => SemanticType::Bool,
-            Literal::Dec(_) | Literal::Hex(_) | Literal::Bits(_) | Literal::Char(_) => {
-                SemanticType::Int
-            }
+            Literal::Dec(_) | Literal::Hex(_) | Literal::Bits(_) | Literal::Char(_) => SemanticType::Int,
             Literal::Str(_) => SemanticType::String,
         }
     }

@@ -1,38 +1,41 @@
-use crate::ast::*;
+use crate::ast::{BinaryExpr, BinaryOp, CallExpr, Expr, Identifier, SliceExpr, UnaryExpr, UnaryOp};
 use crate::semantics::analysis::SemanticsAnalyzer;
 use crate::semantics::types::{SemanticType, SymbolTable};
 
 impl SemanticsAnalyzer {
-    pub fn check_expression(
-        &mut self,
-        scope: &mut SymbolTable,
-        expr: &Expr,
-    ) -> Result<SemanticType, Vec<String>> {
+    pub fn check_expression(&mut self, scope: &mut SymbolTable, expr: &Expr) -> Result<SemanticType, Vec<String>> {
         match expr {
             Expr::Binary(bin) => self.check_binary_expr(scope, bin),
             Expr::Unary(un) => self.check_unary_expr(scope, un),
             Expr::Parenthesized(inner) => self.check_expression(scope, inner),
             Expr::Call(call) => self.check_call_expr(scope, call),
             Expr::Slice(slice) => self.check_slice_expr(scope, slice),
-            Expr::Identifier(id) => self.check_identifier(scope, id),
-            Expr::Literal(lit) => Ok(self.literal_type(lit)),
+            Expr::Identifier(id) => Ok(self.check_identifier(scope, id)),
+            Expr::Literal(lit) => Ok(Self::literal_type(lit)),
             Expr::ArrayLiteral(_) => Ok(SemanticType::Array(Box::new(SemanticType::Int), 0)),
             Expr::FieldAccess(_, _) => Ok(SemanticType::Int),
             Expr::FuncLiteral(f) => {
-                let params = f.signature.parameters.as_ref().map(|args| {
-                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Int)).collect()
-                }).unwrap_or_default();
-                let ret = f.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(SemanticType::Void);
+                let params = f
+                    .signature
+                    .parameters
+                    .as_ref()
+                    .map(|args| {
+                        args.iter()
+                            .map(|a| a.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t)))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let ret = f
+                    .signature
+                    .return_type
+                    .as_ref()
+                    .map_or(SemanticType::Void, |t| self.convert_type(t));
                 Ok(SemanticType::Function(params, Box::new(ret)))
             }
         }
     }
 
-    fn check_binary_expr(
-        &mut self,
-        scope: &mut SymbolTable,
-        bin: &BinaryExpr,
-    ) -> Result<SemanticType, Vec<String>> {
+    fn check_binary_expr(&mut self, scope: &mut SymbolTable, bin: &BinaryExpr) -> Result<SemanticType, Vec<String>> {
         if matches!(bin.operator, BinaryOp::Assign) {
             if let Expr::Identifier(id) = &*bin.left {
                 scope.add(id.name.clone(), SemanticType::Int).ok();
@@ -48,11 +51,7 @@ impl SemanticsAnalyzer {
                 }
                 Ok(right_type)
             }
-            BinaryOp::Add
-            | BinaryOp::Subtract
-            | BinaryOp::Multiply
-            | BinaryOp::Divide
-            | BinaryOp::Modulo => {
+            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::Modulo => {
                 if left_type != SemanticType::Int || right_type != SemanticType::Int {
                     self.add_error("Arithmetic operations require int operands".to_string());
                 }
@@ -73,11 +72,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn check_unary_expr(
-        &mut self,
-        scope: &mut SymbolTable,
-        un: &UnaryExpr,
-    ) -> Result<SemanticType, Vec<String>> {
+    fn check_unary_expr(&mut self, scope: &mut SymbolTable, un: &UnaryExpr) -> Result<SemanticType, Vec<String>> {
         let operand_type = self.check_expression(scope, &un.operand)?;
         match un.operator {
             UnaryOp::Not => {
@@ -95,11 +90,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn check_call_expr(
-        &mut self,
-        scope: &mut SymbolTable,
-        call: &CallExpr,
-    ) -> Result<SemanticType, Vec<String>> {
+    fn check_call_expr(&mut self, scope: &mut SymbolTable, call: &CallExpr) -> Result<SemanticType, Vec<String>> {
         if let Expr::Identifier(id) = call.function.as_ref() {
             let builtin_funcs = [
                 "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
@@ -127,12 +118,12 @@ impl SemanticsAnalyzer {
             let expected = params.len();
             let actual = call.arguments.len();
             if expected != actual {
-                self.add_error(format!(
-                    "Function expected {} arguments, got {}", expected, actual
-                ));
+                self.add_error(format!("Function expected {expected} arguments, got {actual}"));
             }
             for (i, arg) in call.arguments.iter().enumerate() {
-                if i >= params.len() { break; }
+                if i >= params.len() {
+                    break;
+                }
                 let arg_type = self.check_expression(scope, arg)?;
                 if arg_type != params[i] {
                     self.add_error(format!(
@@ -153,11 +144,7 @@ impl SemanticsAnalyzer {
         Ok(SemanticType::Int)
     }
 
-    fn check_slice_expr(
-        &mut self,
-        scope: &mut SymbolTable,
-        slice: &SliceExpr,
-    ) -> Result<SemanticType, Vec<String>> {
+    fn check_slice_expr(&mut self, scope: &mut SymbolTable, slice: &SliceExpr) -> Result<SemanticType, Vec<String>> {
         let array_type = self.check_expression(scope, &slice.array)?;
         if let SemanticType::Array(elem, _) = array_type {
             if let Some(range) = slice.ranges.first() {
@@ -170,18 +157,14 @@ impl SemanticsAnalyzer {
         Ok(SemanticType::Int)
     }
 
-    fn check_identifier(
-        &mut self,
-        scope: &mut SymbolTable,
-        id: &Identifier,
-    ) -> Result<SemanticType, Vec<String>> {
+    fn check_identifier(&mut self, scope: &mut SymbolTable, id: &Identifier) -> SemanticType {
         if let Some(symbol) = scope.get(&id.name) {
-            return Ok(symbol.ty.clone());
+            return symbol.ty.clone();
         }
         if let Some(symbol) = self.get_global_symbol(&id.name) {
-            return Ok(symbol.ty.clone());
+            return symbol.ty.clone();
         }
         self.add_error(format!("Undeclared identifier '{}'", id.name));
-        Ok(SemanticType::Int)
+        SemanticType::Int
     }
 }

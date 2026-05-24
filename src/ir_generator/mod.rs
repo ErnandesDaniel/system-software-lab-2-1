@@ -1,5 +1,8 @@
-﻿use crate::ast::*;
-use crate::ir::*;
+use crate::ast::{
+    Arg, BuiltinType, CoroutineDefinition, Expr, FuncDefinition, Identifier, Program, SourceItem, Span, Statement,
+    TypeRef,
+};
+use crate::ir::{IrBlock, IrFunction, IrInstruction, IrLocal, IrOpcode, IrParameter, IrProgram, IrType};
 use crate::stdlib::StdLib;
 use std::collections::{HashMap, HashSet};
 
@@ -77,18 +80,21 @@ impl IrGenerator {
         for item in &program.items {
             match item {
                 SourceItem::FuncDeclaration(decl) => {
-                    self.external_functions
-                        .insert(decl.signature.name.name.clone());
-                    let ret_type = decl.signature.return_type.as_ref()
-                        .map(|t| self.convert_type(t))
-                        .unwrap_or(IrType::Int);
+                    self.external_functions.insert(decl.signature.name.name.clone());
+                    let ret_type = decl
+                        .signature
+                        .return_type
+                        .as_ref()
+                        .map_or(IrType::Int, |t| self.convert_type(t));
                     self.function_return_types
                         .insert(decl.signature.name.name.clone(), ret_type);
                 }
                 SourceItem::FuncDefinition(def) => {
-                    let ret_type = def.signature.return_type.as_ref()
-                        .map(|t| self.convert_type(t))
-                        .unwrap_or(IrType::Void);
+                    let ret_type = def
+                        .signature
+                        .return_type
+                        .as_ref()
+                        .map_or(IrType::Void, |t| self.convert_type(t));
                     self.function_return_types
                         .insert(def.signature.name.name.clone(), ret_type);
                 }
@@ -98,7 +104,8 @@ impl IrGenerator {
                     self.global_types.insert(global.name.name.clone(), ir_ty);
                     if let crate::ast::TypeRef::Custom(ref id) = global.ty {
                         if self.struct_fields.contains_key(&id.name) {
-                            self.global_struct_type_names.insert(global.name.name.clone(), id.name.clone());
+                            self.global_struct_type_names
+                                .insert(global.name.name.clone(), id.name.clone());
                         }
                     }
                 }
@@ -122,18 +129,14 @@ impl IrGenerator {
         // Second pass: collect globals and generate IR for each function definition
         let mut globals = Vec::new();
         for item in &program.items {
-            match item {
-                SourceItem::GlobalDecl(global) => {
-                    let ir_ty = self.convert_type(&global.ty);
-                    let init = global.initializer.as_ref()
-                        .and_then(|e| self.expr_to_constant(e));
-                    globals.push(crate::ir::IrGlobal {
-                        name: global.name.name.clone(),
-                        ty: ir_ty,
-                        initializer: init,
-                    });
-                }
-                _ => {}
+            if let SourceItem::GlobalDecl(global) = item {
+                let ir_ty = self.convert_type(&global.ty);
+                let init = global.initializer.as_ref().and_then(|e| self.expr_to_constant(e));
+                globals.push(crate::ir::IrGlobal {
+                    name: global.name.name.clone(),
+                    ty: ir_ty,
+                    initializer: init,
+                });
             }
         }
         for item in &program.items {
@@ -173,20 +176,24 @@ impl IrGenerator {
         let mut params = Vec::new();
         if let Some(ref args) = def.signature.parameters {
             for arg in args {
-                let param_type = arg.ty.as_ref()
-                    .map(|t| self.convert_type(t))
-                    .unwrap_or(IrType::Int);
-                params.push(IrParameter { name: arg.name.name.clone(), ty: param_type });
+                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                params.push(IrParameter {
+                    name: arg.name.name.clone(),
+                    ty: param_type,
+                });
             }
         }
 
         self.locals.clear();
         for param in &params {
-            self.locals.insert(param.name.clone(), IrLocal {
-                name: param.name.clone(),
-                ty: param.ty.clone(),
-                stack_offset: None,
-            });
+            self.locals.insert(
+                param.name.clone(),
+                IrLocal {
+                    name: param.name.clone(),
+                    ty: param.ty.clone(),
+                    stack_offset: None,
+                },
+            );
         }
         self.used_functions.clear();
         let mut block_stack = Vec::new();
@@ -243,10 +250,11 @@ impl IrGenerator {
         let mut params = Vec::new();
         if let Some(ref args) = def.signature.parameters {
             for arg in args {
-                let param_type = arg.ty.as_ref()
-                    .map(|t| self.convert_type(t))
-                    .unwrap_or(IrType::Int);
-                params.push(IrParameter { name: arg.name.name.clone(), ty: param_type });
+                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                params.push(IrParameter {
+                    name: arg.name.name.clone(),
+                    ty: param_type,
+                });
             }
         }
 
@@ -287,10 +295,7 @@ impl IrGenerator {
     }
 
     pub fn get_ident_type(&self, id: &Identifier) -> IrType {
-        self.locals
-            .get(&id.name)
-            .map(|l| l.ty.clone())
-            .unwrap_or(IrType::Int)
+        self.locals.get(&id.name).map_or(IrType::Int, |l| l.ty.clone())
     }
 
     pub fn convert_type(&self, ty: &TypeRef) -> IrType {
@@ -317,10 +322,12 @@ impl IrGenerator {
                     IrType::Int
                 }
             }
-            TypeRef::Array {
-                element_type, size, ..
-            } => IrType::Array(Box::new(self.convert_type(element_type)), *size as usize),
-            TypeRef::Function { params, return_type, .. } => {
+            TypeRef::Array { element_type, size, .. } => {
+                IrType::Array(Box::new(self.convert_type(element_type)), *size as usize)
+            }
+            TypeRef::Function {
+                params, return_type, ..
+            } => {
                 let p: Vec<IrType> = params.iter().map(|t| self.convert_type(t)).collect();
                 IrType::Function(p, Box::new(self.convert_type(return_type)))
             }
@@ -333,7 +340,7 @@ impl IrGenerator {
                 crate::ast::Literal::Dec(v) => Some(crate::ir::Constant::Int(*v as i64)),
                 crate::ast::Literal::Str(s) => Some(crate::ir::Constant::String(s.clone())),
                 crate::ast::Literal::Char(c) => Some(crate::ir::Constant::Char(*c as u8)),
-                crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(if *b { 1 } else { 0 })),
+                crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(i64::from(*b))),
                 _ => None,
             },
             crate::ast::Expr::ArrayLiteral(elements) => {
@@ -348,18 +355,18 @@ impl IrGenerator {
     }
 
     /// Scan a function body AST for variables captured from the outer scope.
-    /// Returns a list of (var_name, env_slot_index) for variables that are
+    /// Returns a list of (`var_name`, `env_slot_index`) for variables that are
     /// used in the body but belong to an outer (saved) locals table.
     pub fn scan_captures(
-        &self,
         body: &[Statement],
         params: &Option<Vec<Arg>>,
         outer_locals: &std::collections::HashMap<String, IrLocal>,
     ) -> Vec<(String, usize)> {
         use std::collections::HashSet;
-        let param_names: HashSet<String> = params.as_ref().map(|args| {
-            args.iter().map(|a| a.name.name.clone()).collect()
-        }).unwrap_or_default();
+        let param_names: HashSet<String> = params
+            .as_ref()
+            .map(|args| args.iter().map(|a| a.name.name.clone()).collect())
+            .unwrap_or_default();
         let mut found: Vec<String> = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
         Self::scan_exprs_in_stmts(body, outer_locals, &param_names, &mut found, &mut seen);
@@ -454,10 +461,7 @@ impl IrGenerator {
                 }
             }
             Expr::Identifier(id) => {
-                if outer_locals.contains_key(&id.name)
-                    && !param_names.contains(&id.name)
-                    && !seen.contains(&id.name)
-                {
+                if outer_locals.contains_key(&id.name) && !param_names.contains(&id.name) && !seen.contains(&id.name) {
                     seen.insert(id.name.clone());
                     found.push(id.name.clone());
                 }
@@ -473,7 +477,7 @@ impl IrGenerator {
     }
 
     pub fn find_field_offset_for_array(&self, _base: &str, field: &str) -> usize {
-        for (_, fields) in &self.struct_fields {
+        for fields in self.struct_fields.values() {
             for (fname, _, offset) in fields {
                 if fname == field {
                     return *offset;
@@ -483,7 +487,7 @@ impl IrGenerator {
         0
     }
 
-    pub fn struct_size_for_var(&self, _base: &str) -> usize {
+    pub fn struct_size_for_var(_base: &str) -> usize {
         4
     }
 
@@ -492,22 +496,25 @@ impl IrGenerator {
             crate::ast::Expr::FieldAccess(base, field) => {
                 let (base_name, base_offset) = self.resolve_field_chain(base);
                 // Find which struct the base variable belongs to
-                let struct_name = self.local_struct_types.get(&base_name)
-                    .map(|s| s.as_str())
+                let struct_name = self
+                    .local_struct_types
+                    .get(&base_name)
+                    .map(std::string::String::as_str)
                     .or_else(|| {
                         // Check if base is a global with a struct type
-                        self.global_struct_type_names.get(&base_name).map(|s| s.as_str())
+                        self.global_struct_type_names
+                            .get(&base_name)
+                            .map(std::string::String::as_str)
                     })
                     .unwrap_or(&base_name);
-                let field_offset = self.struct_fields.get(struct_name)
-                    .and_then(|fields| fields.iter().find(|(n,_,_)| n == &field.name))
-                    .map(|(_,_,o)| *o)
-                    .unwrap_or(0);
+                let field_offset = self
+                    .struct_fields
+                    .get(struct_name)
+                    .and_then(|fields| fields.iter().find(|(n, _, _)| n == &field.name))
+                    .map_or(0, |(_, _, o)| *o);
                 (base_name, base_offset + field_offset)
             }
-            crate::ast::Expr::Identifier(id) => {
-                (id.name.clone(), 0)
-            }
+            crate::ast::Expr::Identifier(id) => (id.name.clone(), 0),
             _ => (String::new(), 0),
         }
     }

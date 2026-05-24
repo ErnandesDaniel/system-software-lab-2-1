@@ -1,8 +1,11 @@
 use super::Parser;
-use crate::ast::*;
+use crate::ast::{
+    Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
+    Statement, StructDefinition, StructField, TypeRef,
+};
 use crate::lexer::Token;
 
-impl<'source> Parser<'source> {
+impl Parser<'_> {
     pub(crate) fn parse_function(&mut self) -> Result<FuncDefinition, String> {
         let start = self.current_span();
         self.expect(Token::Def)?;
@@ -10,9 +13,7 @@ impl<'source> Parser<'source> {
 
         let mut body = Vec::new();
 
-        if self.current_token() == Some(&Token::Begin)
-            || self.current_token() == Some(&Token::LBrace)
-        {
+        if self.current_token() == Some(&Token::Begin) || self.current_token() == Some(&Token::LBrace) {
             let block_stmt = self.parse_block_like()?;
             if let Statement::Block(block) = block_stmt {
                 body = block.body;
@@ -36,7 +37,9 @@ impl<'source> Parser<'source> {
                     self.advance();
                 }
 
-                if self.current_token() == Some(&Token::End) { break; }
+                if self.current_token() == Some(&Token::End) {
+                    break;
+                }
             }
 
             if self.current_token() == Some(&Token::End) {
@@ -63,10 +66,7 @@ impl<'source> Parser<'source> {
             let span = start.merge(name_span);
             return Ok(FuncDeclaration {
                 signature: FuncSignature {
-                    name: Identifier {
-                        name: func_name,
-                        span,
-                    },
+                    name: Identifier { name: func_name, span },
                     parameters: None,
                     return_type: None,
                     span,
@@ -82,10 +82,7 @@ impl<'source> Parser<'source> {
 
         let sig = self.parse_signature()?;
         let span = start.merge(self.current_span());
-        Ok(FuncDeclaration {
-            signature: sig,
-            span,
-        })
+        Ok(FuncDeclaration { signature: sig, span })
     }
 
     pub(crate) fn parse_signature(&mut self) -> Result<FuncSignature, String> {
@@ -112,10 +109,10 @@ impl<'source> Parser<'source> {
             params.push(Arg {
                 name: Identifier {
                     name: param_name,
-                    span: n_span.into(),
+                    span: n_span,
                 },
                 ty: Some(ty),
-                span: n_span.into(),
+                span: n_span,
             });
         }
 
@@ -130,10 +127,7 @@ impl<'source> Parser<'source> {
 
         let span = start.merge(self.current_span());
         Ok(FuncSignature {
-            name: Identifier {
-                name: func_name,
-                span,
-            },
+            name: Identifier { name: func_name, span },
             parameters: Some(params),
             return_type,
             span,
@@ -286,7 +280,7 @@ impl<'source> Parser<'source> {
 
         let span = start.merge(self.current_span());
         Ok(GlobalDecl {
-            name: Identifier { name, span: n_span.into() },
+            name: Identifier { name, span: n_span },
             ty,
             initializer,
             span,
@@ -318,9 +312,12 @@ impl<'source> Parser<'source> {
             }
 
             fields.push(StructField {
-                name: Identifier { name: field_name, span: f_span.into() },
+                name: Identifier {
+                    name: field_name,
+                    span: f_span,
+                },
                 ty,
-                span: f_span.into(),
+                span: f_span,
             });
         }
 
@@ -328,7 +325,7 @@ impl<'source> Parser<'source> {
 
         let span = start.merge(self.current_span());
         Ok(StructDefinition {
-            name: Identifier { name, span: n_span.into() },
+            name: Identifier { name, span: n_span },
             fields,
             span,
         })
@@ -354,13 +351,19 @@ impl<'source> Parser<'source> {
             while self.current_token() == Some(&Token::Semi) {
                 self.advance();
             }
-            if self.current_token() == Some(&Token::End) { break; }
+            if self.current_token() == Some(&Token::End) {
+                break;
+            }
         }
         if self.current_token() == Some(&Token::End) {
             self.expect(Token::End)?;
         }
 
         let span = start.merge(self.current_span());
-        Ok(CoroutineDefinition { signature: sig, body, span })
+        Ok(CoroutineDefinition {
+            signature: sig,
+            body,
+            span,
+        })
     }
 }

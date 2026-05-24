@@ -1,8 +1,10 @@
 use super::Parser;
-use crate::ast::*;
+use crate::ast::{
+    BinaryExpr, BinaryOp, CallExpr, Expr, Identifier, Literal, Range, SliceExpr, Span, UnaryExpr, UnaryOp,
+};
 use crate::lexer::Token;
 
-impl<'source> Parser<'source> {
+impl Parser<'_> {
     pub(crate) fn parse_expression(&mut self, min_prec: u8) -> Result<Expr, String> {
         let mut left = self.parse_prefix()?;
 
@@ -33,7 +35,21 @@ impl<'source> Parser<'source> {
                 // Field access
             }
             // Break on tokens that start new statements / have no expression meaning
-            if matches!(token, Token::Semi | Token::Identifier | Token::Return | Token::If | Token::While | Token::Until | Token::Break | Token::Def | Token::Extern | Token::Yield | Token::Begin | Token::LBrace) {
+            if matches!(
+                token,
+                Token::Semi
+                    | Token::Identifier
+                    | Token::Return
+                    | Token::If
+                    | Token::While
+                    | Token::Until
+                    | Token::Break
+                    | Token::Def
+                    | Token::Extern
+                    | Token::Yield
+                    | Token::Begin
+                    | Token::LBrace
+            ) {
                 break;
             }
             let token_copy = *token;
@@ -160,12 +176,7 @@ impl<'source> Parser<'source> {
         }
     }
 
-    pub(crate) fn parse_infix(
-        &mut self,
-        left: Expr,
-        token: Token,
-        prec: u8,
-    ) -> Result<Expr, String> {
+    pub(crate) fn parse_infix(&mut self, left: Expr, token: Token, prec: u8) -> Result<Expr, String> {
         let start = left.span();
 
         match token {
@@ -224,8 +235,7 @@ impl<'source> Parser<'source> {
             }
             Token::LParen => {
                 let mut args = Vec::new();
-                while self.current_token() != Some(&Token::RParen) && self.current_token().is_some()
-                {
+                while self.current_token() != Some(&Token::RParen) && self.current_token().is_some() {
                     if !args.is_empty() {
                         self.expect(Token::Comma)?;
                     }
@@ -254,7 +264,7 @@ impl<'source> Parser<'source> {
                 let (_tok, f_span) = self.expect(Token::Identifier)?;
                 let field = Identifier {
                     name: self.get_text(&f_span).to_string(),
-                    span: f_span.into(),
+                    span: f_span,
                 };
                 let _span = start.merge(self.current_span());
                 Ok(Expr::FieldAccess(Box::new(left), field))
@@ -272,8 +282,7 @@ impl<'source> Parser<'source> {
             Token::Plus | Token::Minus => 50,
             Token::Star | Token::Slash | Token::Percent => 60,
             Token::Assign => 5,
-            Token::LParen => 70,
-            Token::LBracket => 70,
+            Token::LParen | Token::LBracket => 70,
             Token::Dot => 80,
             _ => 0,
         }
@@ -281,18 +290,17 @@ impl<'source> Parser<'source> {
 }
 
 impl Expr {
+    #[must_use]
     pub fn span(&self) -> Span {
         match self {
             Expr::Binary(e) => e.span,
             Expr::Unary(e) => e.span,
-            Expr::Parenthesized(e) => e.span(),
-            Expr::Call(e) => e.span,
+            Expr::Parenthesized(e) | Expr::FieldAccess(e, _) => e.span(),
+            Expr::Call(c) => c.span,
             Expr::Slice(e) => e.span,
-            Expr::Identifier(e) => e.span,
-            Expr::Literal(_) => Span::new(0, 0),
-            Expr::ArrayLiteral(_) => Span::new(0, 0),
-            Expr::FieldAccess(e, _) => e.span(),
+            Expr::Identifier(id) => id.span,
             Expr::FuncLiteral(f) => f.span,
+            Expr::Literal(_) | Expr::ArrayLiteral(_) => Span::new(0, 0),
         }
     }
 }

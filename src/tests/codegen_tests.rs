@@ -32,10 +32,7 @@ fn test_extern_short_form_codegen() {
     let ir = ir_gen.generate(&program);
     let mut asm_gen = AsmGenerator::new();
     let asm = asm_gen.generate(&ir);
-    assert!(
-        asm.contains("extern puts"),
-        "Expected 'extern puts' in asm output"
-    );
+    assert!(asm.contains("extern puts"), "Expected 'extern puts' in asm output");
 }
 
 #[test]

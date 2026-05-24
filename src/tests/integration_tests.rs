@@ -53,11 +53,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
             .arg(obj_path.to_str().unwrap())
             .arg(asm_path.to_str().unwrap())
             .output();
-        if !nasm_result
-            .as_ref()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
+        if !nasm_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
             panic!(
                 "NASM error for {}: {}",
                 func.name,
@@ -82,11 +78,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
             .arg(globals_obj.to_str().unwrap())
             .arg(globals_path.to_str().unwrap())
             .output();
-        if nasm_result
-            .as_ref()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
+        if nasm_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
             obj_files.push(globals_obj);
         }
     }
@@ -136,11 +128,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
             .arg(helper_obj.to_str().unwrap())
             .arg(helper_path.to_str().unwrap())
             .output();
-        if nasm_result
-            .as_ref()
-            .map(|o| o.status.success())
-            .unwrap_or(false)
-        {
+        if nasm_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
             obj_files.push(helper_obj);
         }
     }
@@ -154,19 +142,10 @@ fn compile_only(source: &str) -> (TempDir, String) {
     gcc_args.push("-o".into());
     gcc_args.push(exe_path.into());
 
-    let gcc_result = Command::new("gcc")
-        .args(&gcc_args)
-        .output();
+    let gcc_result = Command::new("gcc").args(&gcc_args).output();
 
-    if !gcc_result
-        .as_ref()
-        .map(|o| o.status.success())
-        .unwrap_or(false)
-    {
-        panic!(
-            "GCC error: {}",
-            String::from_utf8_lossy(&gcc_result.unwrap().stderr)
-        );
+    if !gcc_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+        panic!("GCC error: {}", String::from_utf8_lossy(&gcc_result.unwrap().stderr));
     }
 
     (temp_dir, all_asm)
@@ -175,9 +154,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
 fn compile_and_run(source: &str) -> std::process::Output {
     let (temp_dir, _) = compile_only(source);
     let exe_path = temp_dir.path().join("program.exe");
-    Command::new(exe_path.to_str().unwrap())
-        .output()
-        .unwrap()
+    Command::new(exe_path.to_str().unwrap()).output().unwrap()
 }
 
 #[test]
@@ -193,8 +170,7 @@ fn test_extern_short_form_semantics() {
 fn test_cfg_generation() {
     use crate::ir::cfg::CfgMermaidGenerator;
 
-    let source =
-        "def square(x of int) of int return x * x; end def main() of int return 42; end";
+    let source = "def square(x of int) of int return x * x; end def main() of int return 42; end";
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
 
@@ -387,7 +363,11 @@ fn test_asm_global_in_data_section() {
         end
     "#;
     let (_, asm) = compile_only(source);
-    assert!(asm.contains("counter"), "Expected global label in asm, got:\n{}", &asm[..asm.len().min(800)]);
+    assert!(
+        asm.contains("counter"),
+        "Expected global label in asm, got:\n{}",
+        &asm[..asm.len().min(800)]
+    );
     assert!(asm.contains("section .data"), "Expected data section");
     assert!(asm.contains("dd 42"), "Expected dd 42");
 }
@@ -415,7 +395,11 @@ fn test_exe_global_string() {
         end
     "#;
     let (_, asm) = compile_only(source);
-    assert!(asm.contains("section .data"), "Expected data section, got:\n{}", &asm[..asm.len().min(800)]);
+    assert!(
+        asm.contains("section .data"),
+        "Expected data section, got:\n{}",
+        &asm[..asm.len().min(800)]
+    );
     // String may be encoded as bytes: 116,101,115,116 = "test"
     assert!(
         asm.contains("name") || asm.contains("116"),
@@ -731,7 +715,10 @@ fn test_exe_while_loop_sum() {
         end
     "#;
     let output = compile_and_run(source);
-    assert!(output.status.code() != Some(-1), "while loop sum should compile and run");
+    assert!(
+        output.status.code() != Some(-1),
+        "while loop sum should compile and run"
+    );
 }
 
 #[test]

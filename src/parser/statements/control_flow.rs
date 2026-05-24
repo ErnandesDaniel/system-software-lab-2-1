@@ -1,8 +1,10 @@
-use crate::ast::*;
-use crate::lexer::Token;
 use super::Parser;
+use crate::ast::{
+    BreakStatement, IfStatement, LoopKeyword, LoopStatement, RepeatStatement, ReturnStatement, Statement,
+};
+use crate::lexer::Token;
 
-impl<'source> Parser<'source> {
+impl Parser<'_> {
     pub(crate) fn parse_return(&mut self) -> Result<Statement, String> {
         let start = self.current_span();
         self.expect(Token::Return)?;

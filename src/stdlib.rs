@@ -39,7 +39,7 @@ impl StdLib {
         funcs.insert("time");
         funcs.insert("clock");
         funcs.insert("sleep");
-        funcs.insert("Sleep");  // Windows Sleep (ms) - blocking
+        funcs.insert("Sleep"); // Windows Sleep (ms) - blocking
 
         // Process functions
         funcs.insert("exit");
@@ -102,7 +102,7 @@ impl StdLib {
             ("strstr", ("haystack: string, needle: string", "string")),
             ("system", ("command: string", "int")),
             ("clock", ("", "int")),
-            ("Sleep", ("ms: int", "int")),  // Windows Sleep (milliseconds) - blocking
+            ("Sleep", ("ms: int", "int")), // Windows Sleep (milliseconds) - blocking
             // SHM functions (JVM daemon)
             ("shm_read_state_jvm", ("", "int")),
             ("shm_read_byte_jvm", ("pos: int", "int")),
@@ -115,10 +115,6 @@ impl StdLib {
             ("resume_coroutine_nasm", ("index: int", "int")),
             ("create_coroutine_nasm", ("", "")),
         ];
-        decls
-            .into_iter()
-            .find(|(n, _)| *n == name)
-            .map(|(_, sig)| sig)
+        decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }
-
 }

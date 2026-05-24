@@ -7,6 +7,6 @@
 
 pub use types::*;
 
-pub mod types;
 pub mod cfg;
+pub mod types;
 pub mod validator;

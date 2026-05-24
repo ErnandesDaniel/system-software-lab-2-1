@@ -1,6 +1,6 @@
 use super::IrGenerator;
-use crate::ast::*;
-use crate::ir::*;
+use crate::ast::{BinaryExpr, BinaryOp, CallExpr, Expr, Literal, SliceExpr, Span, UnaryExpr, UnaryOp};
+use crate::ir::{Constant, IrBlock, IrInstruction, IrLocal, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
     pub fn visit_expr(&mut self, block: &mut IrBlock, expr: &Expr) -> (String, IrType) {
@@ -22,16 +22,15 @@ impl IrGenerator {
                             IrOperand::Variable("__env".to_string(), IrType::Int),
                             IrOperand::Constant(Constant::Int(slot as i64)),
                         ],
-                        jump_target: None, true_target: None, false_target: None,
+                        jump_target: None,
+                        true_target: None,
+                        false_target: None,
                         span: crate::ast::Span::new(0, 0),
                     });
                     return (tmp, IrType::Int);
                 }
                 if self.global_names.contains(&id.name) {
-                    let ir_type = self.global_types
-                        .get(&id.name)
-                        .cloned()
-                        .unwrap_or(IrType::Int);
+                    let ir_type = self.global_types.get(&id.name).cloned().unwrap_or(IrType::Int);
                     if matches!(ir_type, IrType::Array(..)) {
                         // For array globals, return the name directly — Slice will use it as base
                         (id.name.clone(), ir_type)
@@ -72,13 +71,24 @@ impl IrGenerator {
                 let saved_block = self.block_counter;
 
                 // Build function type for this literal
-                let param_types: Vec<IrType> = f.signature.parameters.as_ref().map(|args| {
-                    args.iter().map(|a| a.ty.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Int)).collect()
-                }).unwrap_or_default();
-                let ret_type = f.signature.return_type.as_ref().map(|t| self.convert_type(t)).unwrap_or(IrType::Void);
+                let param_types: Vec<IrType> = f
+                    .signature
+                    .parameters
+                    .as_ref()
+                    .map(|args| {
+                        args.iter()
+                            .map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t)))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let ret_type = f
+                    .signature
+                    .return_type
+                    .as_ref()
+                    .map_or(IrType::Void, |t| self.convert_type(t));
 
                 // Scan for captures before generating inner function
-                let captures = self.scan_captures(&f.body, &f.signature.parameters, &saved_locals);
+                let captures = Self::scan_captures(&f.body, &f.signature.parameters, &saved_locals);
                 let has_captures = !captures.is_empty();
 
                 let mut inner_def = f.clone();
@@ -87,7 +97,10 @@ impl IrGenerator {
                 if has_captures {
                     // Add __env as hidden first parameter
                     let env_param = crate::ast::Arg {
-                        name: crate::ast::Identifier { name: "__env".to_string(), span: crate::ast::Span::new(0, 0) },
+                        name: crate::ast::Identifier {
+                            name: "__env".to_string(),
+                            span: crate::ast::Span::new(0, 0),
+                        },
                         ty: None,
                         span: crate::ast::Span::new(0, 0),
                     };
@@ -122,23 +135,29 @@ impl IrGenerator {
                         result: Some(func_tmp.clone()),
                         result_type: Some(func_type.clone()),
                         operands: vec![IrOperand::FuncRef(mangled.clone())],
-                        jump_target: None, true_target: None, false_target: None,
+                        jump_target: None,
+                        true_target: None,
+                        false_target: None,
                         span: f.span,
                     });
 
                     // Create closure env: stores addresses of captured vars
-                    let mut env_operands: Vec<IrOperand> = captures.iter().map(|(name, _)| {
-                        IrOperand::Variable(name.clone(), IrType::Int)
-                    }).collect();
+                    let mut env_operands: Vec<IrOperand> = captures
+                        .iter()
+                        .map(|(name, _)| IrOperand::Variable(name.clone(), IrType::Int))
+                        .collect();
                     env_operands.insert(0, IrOperand::FuncRef(mangled.clone()));
                     // Add env slot locals so the frame size accounts for them
                     for (i, _) in captures.iter().enumerate() {
-                        let slot_name = format!("__env_slot_{}", i);
-                        self.locals.insert(slot_name.clone(), IrLocal {
-                            name: slot_name,
-                            ty: IrType::Int,
-                            stack_offset: None,
-                        });
+                        let slot_name = format!("__env_slot_{i}");
+                        self.locals.insert(
+                            slot_name.clone(),
+                            IrLocal {
+                                name: slot_name,
+                                ty: IrType::Int,
+                                stack_offset: None,
+                            },
+                        );
                     }
                     block.instructions.push(IrInstruction {
                         opcode: IrOpcode::MakeClosure,
@@ -146,7 +165,8 @@ impl IrGenerator {
                         result_type: Some(IrType::Int),
                         operands: env_operands,
                         jump_target: Some(mangled.clone()),
-                        true_target: None, false_target: None,
+                        true_target: None,
+                        false_target: None,
                         span: f.span,
                     });
 
@@ -163,7 +183,9 @@ impl IrGenerator {
                         result: Some(tmp.clone()),
                         result_type: Some(func_type.clone()),
                         operands: vec![IrOperand::FuncRef(mangled)],
-                        jump_target: None, true_target: None, false_target: None,
+                        jump_target: None,
+                        true_target: None,
+                        false_target: None,
                         span: f.span,
                     });
                     (tmp, func_type)
@@ -176,7 +198,7 @@ impl IrGenerator {
                     if let Some(range) = slice.ranges.first() {
                         let (idx_temp, _) = self.visit_expr(block, &range.start);
                         let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                        let elem_size = self.struct_size_for_var(&arr_name);
+                        let elem_size = Self::struct_size_for_var(&arr_name);
                         let tmp = self.generate_temp();
                         block.instructions.push(IrInstruction {
                             opcode: IrOpcode::Load,
@@ -188,7 +210,9 @@ impl IrGenerator {
                                 IrOperand::Variable(idx_temp, IrType::Int),
                                 IrOperand::Constant(Constant::Int(elem_size as i64)),
                             ],
-                            jump_target: None, true_target: None, false_target: None,
+                            jump_target: None,
+                            true_target: None,
+                            false_target: None,
                             span: crate::ast::Span::new(0, 0),
                         });
                         return (tmp, IrType::Int);
@@ -215,11 +239,7 @@ impl IrGenerator {
         }
     }
 
-    pub fn visit_binary_expr(
-        &mut self,
-        block: &mut IrBlock,
-        expr: &BinaryExpr,
-    ) -> (String, IrType) {
+    pub fn visit_binary_expr(&mut self, block: &mut IrBlock, expr: &BinaryExpr) -> (String, IrType) {
         let left_temp = self.visit_expr(block, &expr.left).0;
         let (right_temp, right_type) = self.visit_expr(block, &expr.right);
 
@@ -275,7 +295,9 @@ impl IrGenerator {
                                         IrOperand::Variable(right_temp.clone(), right_type.clone()),
                                         IrOperand::Variable(idx, IrType::Int),
                                     ],
-                                    jump_target: None, true_target: None, false_target: None,
+                                    jump_target: None,
+                                    true_target: None,
+                                    false_target: None,
                                     span: expr.span,
                                 });
                                 return (right_temp, right_type);
@@ -288,7 +310,9 @@ impl IrGenerator {
                             result: Some(target_name.clone()),
                             result_type: Some(right_type.clone()),
                             operands: vec![IrOperand::Variable(right_temp.clone(), right_type.clone())],
-                            jump_target: None, true_target: None, false_target: None,
+                            jump_target: None,
+                            true_target: None,
+                            false_target: None,
                             span: expr.span,
                         });
                         return (right_temp, right_type);
@@ -312,7 +336,9 @@ impl IrGenerator {
                                     IrOperand::Constant(Constant::Int(*slot as i64)),
                                     IrOperand::Variable(right_temp.clone(), right_type.clone()),
                                 ],
-                                jump_target: None, true_target: None, false_target: None,
+                                jump_target: None,
+                                true_target: None,
+                                false_target: None,
                                 span: expr.span,
                             });
                             return (right_temp, right_type);
@@ -401,8 +427,7 @@ impl IrGenerator {
 
         // If calling a known function by name, use direct Call
         let is_direct = !func_name.is_empty()
-            && (self.function_return_types.contains_key(&func_name)
-                || self.is_external_function(&func_name));
+            && (self.function_return_types.contains_key(&func_name) || self.is_external_function(&func_name));
 
         if is_direct {
             let mut args = Vec::new();
@@ -411,7 +436,8 @@ impl IrGenerator {
                 args.push(IrOperand::Variable(temp, arg_type));
             }
 
-            let result_return_type = self.function_return_types
+            let result_return_type = self
+                .function_return_types
                 .get(&func_name)
                 .cloned()
                 .unwrap_or(IrType::Int);
@@ -457,7 +483,9 @@ impl IrGenerator {
                     result: if is_void { None } else { Some(result_temp.clone()) },
                     result_type: Some(return_type.clone()),
                     operands,
-                    jump_target: None, true_target: None, false_target: None,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
                     span: expr.span,
                 });
                 (result_temp, return_type)
@@ -509,7 +537,9 @@ impl IrGenerator {
                         IrOperand::Constant(Constant::Int(total_offset as i64)),
                         IrOperand::Variable(index_temp, IrType::Int),
                     ],
-                    jump_target: None, true_target: None, false_target: None,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
                     span: expr.span,
                 });
                 return (result_temp, IrType::Int);
@@ -581,33 +611,7 @@ impl IrGenerator {
                 });
                 (result_temp, IrType::Bool)
             }
-            Literal::Dec(v) => {
-                block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Assign,
-                    result: Some(result_temp.clone()),
-                    result_type: Some(IrType::Int),
-                    operands: vec![IrOperand::Constant(Constant::Int(*v as i64))],
-                    jump_target: None,
-                    true_target: None,
-                    false_target: None,
-                    span: Span::new(0, 0),
-                });
-                (result_temp, IrType::Int)
-            }
-            Literal::Hex(v) => {
-                block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Assign,
-                    result: Some(result_temp.clone()),
-                    result_type: Some(IrType::Int),
-                    operands: vec![IrOperand::Constant(Constant::Int(*v as i64))],
-                    jump_target: None,
-                    true_target: None,
-                    false_target: None,
-                    span: Span::new(0, 0),
-                });
-                (result_temp, IrType::Int)
-            }
-            Literal::Bits(v) => {
+            Literal::Dec(v) | Literal::Hex(v) | Literal::Bits(v) => {
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Assign,
                     result: Some(result_temp.clone()),

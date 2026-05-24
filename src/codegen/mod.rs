@@ -1,5 +1,8 @@
-use crate::ir::types::*;
+use crate::ir::types::{IrFunction, IrOpcode, IrOperand, IrType};
 use std::collections::HashMap;
+
+#[cfg(test)]
+use crate::ir::types::IrProgram;
 
 pub struct AsmGenerator {
     output: String,
@@ -113,8 +116,7 @@ impl AsmGenerator {
         self.output.push_str("default rel\n");
         self.output.push_str("section .text\n\n");
 
-        let mut unique_externs: std::collections::HashSet<String> =
-            std::collections::HashSet::new();
+        let mut unique_externs: std::collections::HashSet<String> = std::collections::HashSet::new();
         for ext_func in &func.used_functions {
             unique_externs.insert(ext_func.clone());
         }
@@ -122,13 +124,10 @@ impl AsmGenerator {
         // Also add user-defined functions that are called (direct or indirect)
         for block in &func.blocks {
             for inst in &block.instructions {
-                match inst.opcode {
-                    IrOpcode::Call => {
-                        if let Some(target) = &inst.jump_target {
-                            unique_externs.insert(target.clone());
-                        }
+                if inst.opcode == IrOpcode::Call {
+                    if let Some(target) = &inst.jump_target {
+                        unique_externs.insert(target.clone());
                     }
-                    _ => {}
                 }
                 for op in &inst.operands {
                     if let IrOperand::FuncRef(name) = op {
@@ -147,12 +146,12 @@ impl AsmGenerator {
         externs.sort();
         for ext_func in &externs {
             if !ext_func.is_empty() {
-                self.output.push_str(&format!("extern {}\n", ext_func));
+                self.output.push_str(&format!("extern {ext_func}\n"));
             }
         }
 
         if !externs.is_empty() {
-            self.output.push_str("\n");
+            self.output.push('\n');
         }
 
         self.current_function = Some(func.name.clone());
@@ -206,11 +205,7 @@ impl AsmGenerator {
 
         let total_vars = local_counter + ((-temp_offset / 8) - local_counter);
         let stack_size = -8 * total_vars;
-        let abs_stack = if stack_size < 0 {
-            -stack_size
-        } else {
-            stack_size
-        };
+        let abs_stack = if stack_size < 0 { -stack_size } else { stack_size };
         let aligned = ((abs_stack + 15) / 16) * 16;
         let final_stack = aligned.max(16);
 
@@ -218,8 +213,7 @@ impl AsmGenerator {
 
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
-        self.output
-            .push_str(&format!("    sub rsp, {}\n", final_stack));
+        self.output.push_str(&format!("    sub rsp, {final_stack}\n"));
 
         // Save parameter register values to allocated stack slots
         // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
@@ -232,15 +226,16 @@ impl AsmGenerator {
                 _ => "rax",
             };
             let offset = param_save_offsets[i];
-            self.output.push_str(&format!("    mov [rbp + {}], {}\n", offset, reg));
+            self.output.push_str(&format!("    mov [rbp + {offset}], {reg}\n"));
         }
 
         if self.is_coroutine {
-            self.output.push_str(&format!("    mov [rbp + {}], rcx\n", self.coro_ctx_offset));
+            self.output
+                .push_str(&format!("    mov [rbp + {}], rcx\n", self.coro_ctx_offset));
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
-                self.output.push_str(&format!("    cmp eax, {}\n", s));
-                self.output.push_str(&format!("    je co_{}\n", s));
+                self.output.push_str(&format!("    cmp eax, {s}\n"));
+                self.output.push_str(&format!("    je co_{s}\n"));
             }
         }
 
@@ -248,7 +243,7 @@ impl AsmGenerator {
             let mut blocks: Vec<_> = func.blocks.iter().collect();
             blocks.reverse();
             for (i, block) in blocks.iter().enumerate() {
-                self.output.push_str(&format!("co_{}:\n", i));
+                self.output.push_str(&format!("co_{i}:\n"));
                 self.generate_block(block);
             }
         } else {
@@ -272,16 +267,16 @@ impl AsmGenerator {
 
     fn emit_string_data(&mut self, label: &str, s: &str) {
         let bytes = self.escape_string(s);
-        self.data_section.push_str(&format!("{} db ", label));
+        self.data_section.push_str(&format!("{label} db "));
 
         if bytes.is_empty() {
-            self.data_section.push_str("0");
+            self.data_section.push('0');
         } else {
             for (i, b) in bytes.iter().enumerate() {
                 if i > 0 {
                     self.data_section.push_str(", ");
                 }
-                self.data_section.push_str(&format!("{}", b));
+                self.data_section.push_str(&format!("{b}"));
             }
         }
         self.data_section.push_str(", 0\n");
@@ -347,11 +342,13 @@ impl AsmGenerator {
                     output.push_str(&format!("{} db ", global.name));
                     let bytes: Vec<u8> = s.bytes().collect();
                     if bytes.is_empty() {
-                        output.push_str("0");
+                        output.push('0');
                     } else {
                         for (i, b) in bytes.iter().enumerate() {
-                            if i > 0 { output.push_str(", "); }
-                            output.push_str(&format!("{}", b));
+                            if i > 0 {
+                                output.push_str(", ");
+                            }
+                            output.push_str(&format!("{b}"));
                         }
                     }
                     output.push_str(", 0\n");
@@ -360,24 +357,30 @@ impl AsmGenerator {
                     let label = global.name.clone();
                     match elem_type.as_ref() {
                         IrType::Int => {
-                            output.push_str(&format!("{} dd ", label));
+                            output.push_str(&format!("{label} dd "));
                             if let Some(crate::ir::Constant::Array(elems)) = &global.initializer {
                                 for (i, elem) in elems.iter().enumerate() {
-                                    if i > 0 { output.push_str(", "); }
+                                    if i > 0 {
+                                        output.push_str(", ");
+                                    }
                                     if let crate::ir::Constant::Int(v) = elem {
-                                        output.push_str(&format!("{}", v));
+                                        output.push_str(&format!("{v}"));
                                     } else {
-                                        output.push_str("0");
+                                        output.push('0');
                                     }
                                 }
                                 for i in elems.len()..*size {
-                                    if i > 0 || !elems.is_empty() { output.push_str(", "); }
-                                    output.push_str("0");
+                                    if i > 0 || !elems.is_empty() {
+                                        output.push_str(", ");
+                                    }
+                                    output.push('0');
                                 }
                             } else {
                                 for i in 0..*size {
-                                    if i > 0 { output.push_str(", "); }
-                                    output.push_str("0");
+                                    if i > 0 {
+                                        output.push_str(", ");
+                                    }
+                                    output.push('0');
                                 }
                             }
                             output.push('\n');
@@ -387,19 +390,23 @@ impl AsmGenerator {
                                 for (i, elem) in elems.iter().enumerate() {
                                     let slabel = format!("{}_{}", global.name, i);
                                     if let crate::ir::Constant::String(s) = elem {
-                                        output.push_str(&format!("{} db ", slabel));
+                                        output.push_str(&format!("{slabel} db "));
                                         let bytes: Vec<u8> = s.bytes().collect();
                                         for (j, b) in bytes.iter().enumerate() {
-                                            if j > 0 { output.push_str(", "); }
-                                            output.push_str(&format!("{}", b));
+                                            if j > 0 {
+                                                output.push_str(", ");
+                                            }
+                                            output.push_str(&format!("{b}"));
                                         }
                                         output.push_str(", 0\n");
                                     }
                                 }
                             }
-                            output.push_str(&format!("{} dq ", label));
+                            output.push_str(&format!("{label} dq "));
                             for i in 0..*size {
-                                if i > 0 { output.push_str(", "); }
+                                if i > 0 {
+                                    output.push_str(", ");
+                                }
                                 output.push_str(&format!("{}_{}", global.name, i));
                             }
                             output.push('\n');
@@ -415,7 +422,6 @@ impl AsmGenerator {
         }
         output
     }
-
 }
 
 pub mod block;
@@ -423,10 +429,10 @@ pub mod functions;
 pub mod instructions;
 pub mod traits;
 
-pub mod llvm;
 pub mod jvm;
-pub use llvm::LlvmGenerator;
+pub mod llvm;
 pub use jvm::JvmGenerator;
+pub use llvm::LlvmGenerator;
 
 impl Default for AsmGenerator {
     fn default() -> Self {

@@ -7,9 +7,7 @@ pub struct CfgMermaidGenerator {
 #[allow(dead_code)]
 impl CfgMermaidGenerator {
     pub fn new() -> Self {
-        Self {
-            output: String::new(),
-        }
+        Self { output: String::new() }
     }
 
     pub fn generate(&mut self, program: &IrProgram) -> String {
@@ -37,25 +35,23 @@ impl CfgMermaidGenerator {
             for succ in &block.successors {
                 self.output.push_str(&format!(
                     "{} --> {}\n",
-                    self.format_block_id(&block.id),
-                    self.format_block_id(succ)
+                    Self::format_block_id(&block.id),
+                    Self::format_block_id(succ)
                 ));
             }
         }
     }
 
-    fn format_block_id(&self, id: &str) -> String {
+    fn format_block_id(id: &str) -> String {
         id.replace("BB", "BB_")
     }
 
     fn generate_block(&mut self, block: &IrBlock) {
-        let formatted_id = self.format_block_id(&block.id);
+        let formatted_id = Self::format_block_id(&block.id);
         let instructions = self.format_block_instructions(block);
 
-        self.output.push_str(&format!(
-            "    {}[\"{}\\n{}\"]\n",
-            formatted_id, block.id, instructions
-        ));
+        self.output
+            .push_str(&format!("    {}[\"{}\\n{}\"]\n", formatted_id, block.id, instructions));
     }
 
     fn format_block_instructions(&self, block: &IrBlock) -> String {
@@ -82,101 +78,101 @@ impl CfgMermaidGenerator {
     fn format_instruction(&self, inst: &IrInstruction) -> String {
         match &inst.opcode {
             IrOpcode::Add => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} + {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Sub => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} - {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Mul => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} * {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Div => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} / {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Mod => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} % {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Eq => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, "==")
+                    Self::format_cmp(&a, &b, "==")
                 )
             }
             IrOpcode::Ne => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, "!=")
+                    Self::format_cmp(&a, &b, "!=")
                 )
             }
             IrOpcode::Lt => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, "<")
+                    Self::format_cmp(&a, &b, "<")
                 )
             }
             IrOpcode::Gt => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, ">")
+                    Self::format_cmp(&a, &b, ">")
                 )
             }
             IrOpcode::Le => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, "<=")
+                    Self::format_cmp(&a, &b, "<=")
                 )
             }
             IrOpcode::Ge => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!(
                     "{} = ({})",
                     inst.result.as_deref().unwrap_or("?"),
-                    self.format_cmp(&a, &b, ">=")
+                    Self::format_cmp(&a, &b, ">=")
                 )
             }
             IrOpcode::And => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} && {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Or => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 format!("{} = {} || {}", inst.result.as_deref().unwrap_or("?"), a, b)
             }
             IrOpcode::Not => {
-                let a = self.get_single_operand(inst);
+                let a = Self::get_single_operand(inst);
                 format!("{} = !{}", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::Neg => {
-                let a = self.get_single_operand(inst);
+                let a = Self::get_single_operand(inst);
                 format!("{} = -{}", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::Pos => {
-                let a = self.get_single_operand(inst);
+                let a = Self::get_single_operand(inst);
                 format!("{} = +{}", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::BitNot => {
-                let a = self.get_single_operand(inst);
+                let a = Self::get_single_operand(inst);
                 format!("{} = ~{}", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::Assign => {
                 if let Some(ref result) = inst.result {
                     if let Some(op) = inst.operands.first() {
-                        let a = self.format_operand(op);
+                        let a = Self::format_operand(op);
                         if a == *result {
                             return format!("{}", a);
                         }
@@ -190,39 +186,32 @@ impl CfgMermaidGenerator {
                 let args = inst
                     .operands
                     .iter()
-                    .map(|op| self.format_operand(op))
+                    .map(|op| Self::format_operand(op))
                     .collect::<Vec<_>>()
                     .join(", ");
-                format!(
-                    "{} = {}({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    target,
-                    args
-                )
+                format!("{} = {}({})", inst.result.as_deref().unwrap_or("?"), target, args)
             }
             IrOpcode::Jump => {
                 let target = inst.jump_target.as_deref().unwrap_or("?");
-                format!("goto {}", self.format_block_id(target))
+                format!("goto {}", Self::format_block_id(target))
             }
             IrOpcode::CondBr => {
-                let cond = self.get_single_operand(inst);
+                let cond = Self::get_single_operand(inst);
                 format!(
                     "if {} goto {} else {}",
                     cond,
-                    self.format_block_id(inst.true_target.as_deref().unwrap_or("?")),
-                    self.format_block_id(inst.false_target.as_deref().unwrap_or("?"))
+                    Self::format_block_id(inst.true_target.as_deref().unwrap_or("?")),
+                    Self::format_block_id(inst.false_target.as_deref().unwrap_or("?"))
                 )
             }
-            IrOpcode::CoroYield => {
-                "yield".to_string()
-            }
+            IrOpcode::CoroYield => "yield".to_string(),
             IrOpcode::CallIndirect => {
-                let target = self.get_single_operand(inst);
+                let target = Self::get_single_operand(inst);
                 let args = inst
                     .operands
                     .iter()
                     .skip(1)
-                    .map(|op| self.format_operand(op))
+                    .map(|op| Self::format_operand(op))
                     .collect::<Vec<_>>()
                     .join(", ");
                 format!(
@@ -236,71 +225,50 @@ impl CfgMermaidGenerator {
                 if inst.operands.is_empty() {
                     "return".to_string()
                 } else {
-                    let a = self.get_single_operand(inst);
+                    let a = Self::get_single_operand(inst);
                     format!("return {}", a)
                 }
             }
             IrOpcode::Load => {
-                let (arr, idx) = self.get_operands(inst);
-                format!(
-                    "{} = {}[{}]",
-                    inst.result.as_deref().unwrap_or("?"),
-                    arr,
-                    idx
-                )
+                let (arr, idx) = Self::get_operands(inst);
+                format!("{} = {}[{}]", inst.result.as_deref().unwrap_or("?"), arr, idx)
             }
             IrOpcode::Store => {
-                let (arr, idx) = self.get_operands(inst);
-                format!(
-                    "{}[{}] = {}",
-                    arr,
-                    idx,
-                    inst.result.as_deref().unwrap_or("?")
-                )
+                let (arr, idx) = Self::get_operands(inst);
+                format!("{}[{}] = {}", arr, idx, inst.result.as_deref().unwrap_or("?"))
             }
             IrOpcode::Slice => {
-                let (arr, start) = self.get_operands(inst);
-                format!(
-                    "{} = {}[{}:]",
-                    inst.result.as_deref().unwrap_or("?"),
-                    arr,
-                    start
-                )
+                let (arr, start) = Self::get_operands(inst);
+                format!("{} = {}[{}:]", inst.result.as_deref().unwrap_or("?"), arr, start)
             }
             IrOpcode::Alloca => {
                 format!("alloca {}", inst.result.as_deref().unwrap_or("?"))
             }
             IrOpcode::Cast => {
-                let a = self.get_single_operand(inst);
+                let a = Self::get_single_operand(inst);
                 format!("{} = cast({})", inst.result.as_deref().unwrap_or("?"), a)
             }
             IrOpcode::BitAnd | IrOpcode::BitOr => {
-                let (a, b) = self.get_operands(inst);
+                let (a, b) = Self::get_operands(inst);
                 let op = if matches!(inst.opcode, IrOpcode::BitAnd) {
                     "&"
                 } else {
                     "|"
                 };
-                format!(
-                    "{} = {} {} {}",
-                    inst.result.as_deref().unwrap_or("?"),
-                    a,
-                    op,
-                    b
-                )
+                format!("{} = {} {} {}", inst.result.as_deref().unwrap_or("?"), a, op, b)
             }
             IrOpcode::MakeClosure => {
-                let target = self.get_single_operand(inst);
-                format!(
-                    "{} = make_closure({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    target
-                )
+                let target = Self::get_single_operand(inst);
+                format!("{} = make_closure({})", inst.result.as_deref().unwrap_or("?"), target)
             }
             IrOpcode::CallClosure => {
-                let target = self.get_single_operand(inst);
-                let args: Vec<String> = inst.operands.iter().skip(2)
-                    .map(|op| self.format_operand(op)).collect();
+                let target = Self::get_single_operand(inst);
+                let args: Vec<String> = inst
+                    .operands
+                    .iter()
+                    .skip(2)
+                    .map(|op| Self::format_operand(op))
+                    .collect();
                 format!(
                     "{} = {}({}) (closure)",
                     inst.result.as_deref().unwrap_or("?"),
@@ -309,49 +277,41 @@ impl CfgMermaidGenerator {
                 )
             }
             IrOpcode::LoadCaptured => {
-                let target = self.get_single_operand(inst);
-                format!(
-                    "{} = load_captured({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    target
-                )
+                let target = Self::get_single_operand(inst);
+                format!("{} = load_captured({})", inst.result.as_deref().unwrap_or("?"), target)
             }
-            IrOpcode::StoreCaptured => {
-                "store_captured".to_string()
-            }
-
+            IrOpcode::StoreCaptured => "store_captured".to_string(),
         }
     }
 
-    fn format_cmp(&self, a: &str, b: &str, op: &str) -> String {
+    fn format_cmp(a: &str, b: &str, op: &str) -> String {
         format!("{} {} {}", a, op, b)
     }
 
-    fn get_operands(&self, inst: &IrInstruction) -> (String, String) {
+    fn get_operands(inst: &IrInstruction) -> (String, String) {
         let a = inst
             .operands
             .first()
-            .map(|op| self.format_operand(op))
+            .map(|op| Self::format_operand(op))
             .unwrap_or_else(|| "?".to_string());
         let b = inst
             .operands
             .get(1)
-            .map(|op| self.format_operand(op))
+            .map(|op| Self::format_operand(op))
             .unwrap_or_else(|| "?".to_string());
         (a, b)
     }
 
-    fn get_single_operand(&self, inst: &IrInstruction) -> String {
+    fn get_single_operand(inst: &IrInstruction) -> String {
         inst.operands
             .first()
-            .map(|op| self.format_operand(op))
+            .map(|op| Self::format_operand(op))
             .unwrap_or_else(|| "?".to_string())
     }
 
-    fn format_operand(&self, op: &IrOperand) -> String {
+    fn format_operand(op: &IrOperand) -> String {
         match op {
-            IrOperand::Variable(name, _) => name.clone(),
-            IrOperand::FuncRef(name) => name.clone(),
+            IrOperand::Variable(name, _) | IrOperand::FuncRef(name) => name.clone(),
             IrOperand::Constant(c) => match c {
                 Constant::Int(n) => n.to_string(),
                 Constant::Bool(b) => b.to_string(),

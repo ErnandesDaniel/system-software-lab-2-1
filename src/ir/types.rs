@@ -41,22 +41,27 @@ pub struct IrLocal {
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(dead_code)]
 pub enum IrType {
-    Void, Bool, Int, String, Array(Box<IrType>, usize),
+    Void,
+    Bool,
+    Int,
+    String,
+    Array(Box<IrType>, usize),
     Function(Vec<IrType>, Box<IrType>),
 }
 
 impl IrType {
     #[allow(dead_code)]
+    #[must_use]
     pub fn size(&self) -> u32 {
         match self {
             IrType::Void => 0,
             IrType::Bool | IrType::Int => 4,
-            IrType::String => 8,
+            IrType::String | IrType::Function(_, _) => 8,
             IrType::Array(elem, size) => elem.size() * *size as u32,
-            IrType::Function(_, _) => 8,
         }
     }
 
+    #[must_use]
     pub fn is_pointer(&self) -> bool {
         matches!(self, IrType::String | IrType::Function(_, _))
     }
@@ -83,6 +88,7 @@ pub struct IrInstruction {
 
 #[allow(dead_code)]
 impl IrInstruction {
+    #[must_use]
     pub fn new(opcode: IrOpcode) -> Self {
         Self {
             opcode,
@@ -97,6 +103,7 @@ impl IrInstruction {
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn with_result(mut self, result: String, ty: IrType) -> Self {
         self.result = Some(result);
         self.result_type = Some(ty);
@@ -104,6 +111,7 @@ impl IrInstruction {
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn with_operand(mut self, operand: IrOperand) -> Self {
         self.operands.push(operand);
         self
@@ -112,10 +120,36 @@ impl IrInstruction {
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum IrOpcode {
-    Add, Sub, Mul, Div, Mod, Eq, Ne, Lt, Le, Gt, Ge,
-    And, Or, Not, BitNot, BitAnd, BitOr, Neg, Pos,
-    Assign, Call, Jump, CondBr, Ret, Load, Store, Slice,
-    Alloca, Cast, CoroYield,
+    Add,
+    Sub,
+    Mul,
+    Div,
+    Mod,
+    Eq,
+    Ne,
+    Lt,
+    Le,
+    Gt,
+    Ge,
+    And,
+    Or,
+    Not,
+    BitNot,
+    BitAnd,
+    BitOr,
+    Neg,
+    Pos,
+    Assign,
+    Call,
+    Jump,
+    CondBr,
+    Ret,
+    Load,
+    Store,
+    Slice,
+    Alloca,
+    Cast,
+    CoroYield,
     CallIndirect,
     MakeClosure,
     CallClosure,
@@ -141,26 +175,27 @@ pub enum Constant {
 
 #[allow(dead_code)]
 impl IrOperand {
+    #[must_use]
     pub fn get_type(&self) -> IrType {
         match self {
             IrOperand::Variable(_, ty) => ty.clone(),
             IrOperand::Constant(c) => match c {
-                Constant::Int(_) => IrType::Int,
                 Constant::Bool(_) => IrType::Bool,
                 Constant::String(_) => IrType::String,
-                Constant::Char(_) => IrType::Int,
-                Constant::Array(_) => IrType::Int,
+                Constant::Int(_) | Constant::Char(_) | Constant::Array(_) => IrType::Int,
             },
             IrOperand::FuncRef(_) => IrType::Function(Vec::new(), Box::new(IrType::Int)),
         }
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn int(value: i64) -> Self {
         IrOperand::Constant(Constant::Int(value))
     }
 
     #[allow(dead_code)]
+    #[must_use]
     pub fn bool(value: bool) -> Self {
         IrOperand::Constant(Constant::Bool(value))
     }

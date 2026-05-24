@@ -14,11 +14,11 @@ pub enum CompilerError {
 impl fmt::Display for CompilerError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            CompilerError::IoError(msg) => write!(f, "IO Error: {}", msg),
-            CompilerError::ParseError(msg) => write!(f, "Parse Error: {}", msg),
-            CompilerError::SemanticError(msg) => write!(f, "Semantic Error: {}", msg),
-            CompilerError::CodegenError(msg) => write!(f, "Codegen Error: {}", msg),
-            CompilerError::LinkError(msg) => write!(f, "Link Error: {}", msg),
+            CompilerError::IoError(msg) => write!(f, "IO Error: {msg}"),
+            CompilerError::ParseError(msg) => write!(f, "Parse Error: {msg}"),
+            CompilerError::SemanticError(msg) => write!(f, "Semantic Error: {msg}"),
+            CompilerError::CodegenError(msg) => write!(f, "Codegen Error: {msg}"),
+            CompilerError::LinkError(msg) => write!(f, "Link Error: {msg}"),
         }
     }
 }

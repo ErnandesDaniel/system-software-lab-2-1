@@ -3,13 +3,13 @@ use std::path::Path;
 
 use crate::ast;
 use crate::codegen::{self, LlvmGenerator};
-use crate::CodeGenTarget;
 use crate::ir::cfg::CfgMermaidGenerator;
 use crate::ir::validator::IrValidator;
 use crate::ir_generator::IrGenerator;
 use crate::mermaid::MermaidGenerator;
 use crate::parser::Parser;
 use crate::semantics::analysis::SemanticsAnalyzer;
+use crate::CodeGenTarget;
 
 pub struct CompilerDriver;
 
@@ -18,105 +18,103 @@ impl CompilerDriver {
         Self
     }
 
-    pub fn compile(&self, args: &crate::cli::Args) {
-        let source = self.read_source(&args.source_path);
-        let ast = self.parse(&source);
-        self.create_output_dir(&args.output_dir);
-        self.generate_ast_diagrams(&ast, &args.output_dir);
-        self.run_semantic_analysis(&ast);
-        let ir_program = self.generate_ir(&ast);
+    pub fn compile(args: &crate::cli::Args) {
+        let source = Self::read_source(&args.source_path);
+        let ast = Self::parse(&source);
+        Self::create_output_dir(&args.output_dir);
+        Self::generate_ast_diagrams(&ast, &args.output_dir);
+        Self::run_semantic_analysis(&ast);
+        let ir_program = Self::generate_ir(&ast);
         if let Err(errors) = IrValidator::validate(&ir_program) {
             for err in errors {
-                eprintln!("IR validation error: {}", err);
+                eprintln!("IR validation error: {err}");
             }
         }
-        self.generate_cfg_diagrams(&ir_program, &args.output_dir);
-        
+        Self::generate_cfg_diagrams(&ir_program, &args.output_dir);
+
         match args.target {
-            CodeGenTarget::NASM => self.generate_nasm(&ir_program, &args.output_dir),
-            CodeGenTarget::LLVM => self.generate_llvm(&ir_program, &args.output_dir),
-            CodeGenTarget::WASM => self.generate_wasm(&ir_program, &args.output_dir),
-            CodeGenTarget::JVM => self.generate_jvm(&ir_program, &args.output_dir),
+            CodeGenTarget::NASM => Self::generate_nasm(&ir_program, &args.output_dir),
+            CodeGenTarget::LLVM => Self::generate_llvm(&ir_program, &args.output_dir),
+            CodeGenTarget::WASM => Self::generate_wasm(&ir_program, &args.output_dir),
+            CodeGenTarget::JVM => Self::generate_jvm(&ir_program, &args.output_dir),
         }
     }
 
-    fn read_source(&self, path: &str) -> String {
+    fn read_source(path: &str) -> String {
         match fs::read_to_string(path) {
             Ok(s) => s,
             Err(e) => {
-                eprintln!("Failed to read file: {}", e);
+                eprintln!("Failed to read file: {e}");
                 std::process::exit(1);
             }
         }
     }
 
-    fn parse(&self, source: &str) -> ast::Program {
+    fn parse(source: &str) -> ast::Program {
         let mut parser = Parser::new(source);
         match parser.parse() {
             Ok(a) => a,
             Err(e) => {
-                eprintln!("Parse error: {}", e);
+                eprintln!("Parse error: {e}");
                 std::process::exit(1);
             }
         }
     }
 
-    fn create_output_dir(&self, path: &str) {
+    fn create_output_dir(path: &str) {
         if let Err(e) = fs::create_dir_all(path) {
-            eprintln!("Failed to create output directory: {}", e);
+            eprintln!("Failed to create output directory: {e}");
             std::process::exit(1);
         }
     }
 
-    fn generate_ast_diagrams(&self, ast: &ast::Program, output_dir: &str) {
+    fn generate_ast_diagrams(ast: &ast::Program, output_dir: &str) {
         for item in &ast.items {
             if let ast::SourceItem::FuncDefinition(func) = item {
-                let path = Path::new(output_dir)
-                    .join(format!("{}-ast.mmd", func.signature.name.name));
+                let path = Path::new(output_dir).join(format!("{}-ast.mmd", func.signature.name.name));
                 let mut gen = MermaidGenerator::new();
                 let diagram = gen.generate_function(func);
-                
+
                 if let Err(e) = fs::write(&path, &diagram) {
-                    eprintln!("Failed to write AST: {}", e);
+                    eprintln!("Failed to write AST: {e}");
                 }
             }
         }
     }
 
-    fn run_semantic_analysis(&self, ast: &ast::Program) {
+    fn run_semantic_analysis(ast: &ast::Program) {
         let mut analyzer = SemanticsAnalyzer::new();
         if let Err(errors) = analyzer.analyze(ast) {
             for err in errors {
-                eprintln!("Semantic error: {}", err);
+                eprintln!("Semantic error: {err}");
             }
             std::process::exit(1);
         }
     }
 
-    fn generate_ir(&self, ast: &ast::Program) -> crate::ir::IrProgram {
+    fn generate_ir(ast: &ast::Program) -> crate::ir::IrProgram {
         let mut ir_gen = IrGenerator::new();
         ir_gen.generate(ast)
     }
 
-    fn generate_cfg_diagrams(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_cfg_diagrams(ir: &crate::ir::IrProgram, output_dir: &str) {
         for func in &ir.functions {
             let path = Path::new(output_dir).join(format!("{}-cfg.mmd", func.name));
             let mut gen = CfgMermaidGenerator::new();
             let diagram = gen.generate_function_only(func);
-            
+
             if let Err(e) = fs::write(&path, &diagram) {
-                eprintln!("Failed to write CFG: {}", e);
+                eprintln!("Failed to write CFG: {e}");
             }
         }
     }
 
-    fn generate_nasm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_nasm(ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
 
         for func in &ir.functions {
-
             let mut gen = codegen::AsmGenerator::new();
             if func.yield_count > 0 {
                 gen.set_coroutine(func.yield_count);
@@ -130,9 +128,9 @@ impl CompilerDriver {
                 asm.insert_str(0, &externs);
             }
             let path = Path::new(output_dir).join(format!("{}.asm", func.name));
-            
+
             if let Err(e) = fs::write(&path, &asm) {
-                eprintln!("Failed to write assembly: {}", e);
+                eprintln!("Failed to write assembly: {e}");
             }
         }
 
@@ -174,15 +172,13 @@ impl CompilerDriver {
                 helper.push_str(&format!("extern {}\n", f.name));
             }
             helper.push_str("coro_init_nasm:\n    push rbp\n    mov rbp, rsp\n");
-            let mut idx = 0;
-            for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            for (idx, f) in ir.functions.iter().filter(|f| f.yield_count > 0).enumerate() {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
                 helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
-                helper.push_str(&format!("    lea rax, [rel co_states]\n"));
+                helper.push_str("    lea rax, [rel co_states]\n");
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
-                idx += 1;
             }
             helper.push_str("    leave\n    ret\n");
 
@@ -196,7 +192,9 @@ impl CompilerDriver {
                 .arg(path.to_str().unwrap())
                 .output();
             if let Ok(out) = output {
-                if out.status.success() { obj_files.push(obj); }
+                if out.status.success() {
+                    obj_files.push(obj);
+                }
             }
         }
 
@@ -206,11 +204,24 @@ impl CompilerDriver {
 
             let output = if func.yield_count > 0 {
                 Command::new("nasm")
-                    .args(["-f", "win64", "-O0", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .args([
+                        "-f",
+                        "win64",
+                        "-O0",
+                        "-o",
+                        obj_path.to_str().unwrap(),
+                        asm_path.to_str().unwrap(),
+                    ])
                     .output()
             } else {
                 Command::new("nasm")
-                    .args(["-f", "win64", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .args([
+                        "-f",
+                        "win64",
+                        "-o",
+                        obj_path.to_str().unwrap(),
+                        asm_path.to_str().unwrap(),
+                    ])
                     .output()
             };
 
@@ -222,7 +233,7 @@ impl CompilerDriver {
                         eprintln!("NASM failed: {}", String::from_utf8_lossy(&out.stderr));
                     }
                 }
-                Err(e) => eprintln!("Failed to run NASM: {}", e),
+                Err(e) => eprintln!("Failed to run NASM: {e}"),
             }
         }
 
@@ -243,10 +254,7 @@ impl CompilerDriver {
 
         if !obj_files.is_empty() {
             let exe_path = Path::new(output_dir).join("program.exe");
-            let mut args: Vec<String> = obj_files
-                .iter()
-                .map(|p| p.to_string_lossy().to_string())
-                .collect();
+            let mut args: Vec<String> = obj_files.iter().map(|p| p.to_string_lossy().to_string()).collect();
             args.push("-Wl,/subsystem:console".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
@@ -257,12 +265,12 @@ impl CompilerDriver {
                         eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
                     }
                 }
-                Err(e) => eprintln!("Failed to run Clang: {}", e),
+                Err(e) => eprintln!("Failed to run Clang: {e}"),
             }
         }
     }
 
-    fn generate_llvm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_llvm(ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
         let mut gen = LlvmGenerator::new();
@@ -270,7 +278,7 @@ impl CompilerDriver {
 
         let ll_path = Path::new(output_dir).join("program.ll");
         if let Err(e) = fs::write(&ll_path, &llvm_ir) {
-            eprintln!("Failed to write LLVM IR: {}", e);
+            eprintln!("Failed to write LLVM IR: {e}");
             return;
         }
 
@@ -289,7 +297,7 @@ impl CompilerDriver {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to run Clang: {}", e);
+                eprintln!("Failed to run Clang: {e}");
                 return;
             }
         }
@@ -306,11 +314,11 @@ impl CompilerDriver {
                     eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
                 }
             }
-            Err(e) => eprintln!("Failed to run Clang: {}", e),
+            Err(e) => eprintln!("Failed to run Clang: {e}"),
         }
     }
 
-    fn generate_wasm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_wasm(ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
         let mut gen = LlvmGenerator::new();
@@ -318,7 +326,7 @@ impl CompilerDriver {
 
         let ll_path = Path::new(output_dir).join("program.ll");
         if let Err(e) = fs::write(&ll_path, &llvm_ir) {
-            eprintln!("Failed to write LLVM IR: {}", e);
+            eprintln!("Failed to write LLVM IR: {e}");
             return;
         }
 
@@ -333,7 +341,7 @@ impl CompilerDriver {
                 "-Wl,--allow-undefined",
                 "-o",
                 wasm_path.to_str().unwrap(),
-                ll_path.to_str().unwrap()
+                ll_path.to_str().unwrap(),
             ])
             .output();
 
@@ -344,12 +352,12 @@ impl CompilerDriver {
                 }
             }
             Err(e) => {
-                eprintln!("Failed to run Clang: {}", e);
+                eprintln!("Failed to run Clang: {e}");
             }
         }
     }
 
-    fn generate_jvm(&self, ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_jvm(ir: &crate::ir::IrProgram, output_dir: &str) {
         use crate::codegen::JvmGenerator;
         use std::process::Command;
 
@@ -357,13 +365,13 @@ impl CompilerDriver {
         let classes = gen.generate_program(ir);
 
         for (class_name, class_bytes) in classes {
-            let path = Path::new(output_dir).join(format!("{}.class", class_name));
+            let path = Path::new(output_dir).join(format!("{class_name}.class"));
             if let Err(e) = fs::write(&path, &class_bytes) {
-                eprintln!("Failed to write class file: {}", e);
+                eprintln!("Failed to write class file: {e}");
             }
         }
 
-        self.generate_jvm_stub(output_dir);
+        Self::generate_jvm_stub(output_dir);
 
         // Create lib/ in output dir and copy JNA jar for manual compilation too
         let output_lib = Path::new(output_dir).join("lib");
@@ -374,7 +382,7 @@ impl CompilerDriver {
             let _ = fs::copy(&jna_src, &jna_dst);
         }
 
-        let jna_cp = format!(".;lib/jna-5.14.0.jar");
+        let jna_cp = ".;lib/jna-5.14.0.jar".to_string();
 
         let stub_file = "RuntimeStub.java";
         let stub_output = Command::new("javac")
@@ -401,10 +409,9 @@ impl CompilerDriver {
             eprintln!("{}", String::from_utf8_lossy(&runner_output.stderr));
             std::process::exit(1);
         }
-
     }
 
-    fn generate_jvm_stub(&self, output_dir: &str) {
+    fn generate_jvm_stub(output_dir: &str) {
         let stub = r#"import java.io.*;
 import java.nio.*;
 import java.nio.channels.*;
@@ -614,7 +621,7 @@ public class RuntimeStub {
 "#;
         let stub_path = Path::new(output_dir).join("RuntimeStub.java");
         if let Err(e) = fs::write(&stub_path, stub) {
-            eprintln!("Failed to write RuntimeStub: {}", e);
+            eprintln!("Failed to write RuntimeStub: {e}");
         }
 
         let runner = r#"import java.lang.reflect.Method;
@@ -701,7 +708,7 @@ public class MainRunner {
 "#;
         let runner_path = Path::new(output_dir).join("MainRunner.java");
         if let Err(e) = fs::write(&runner_path, runner) {
-            eprintln!("Failed to write MainRunner: {}", e);
+            eprintln!("Failed to write MainRunner: {e}");
         }
     }
 }

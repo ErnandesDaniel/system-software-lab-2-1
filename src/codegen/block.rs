@@ -1,4 +1,7 @@
-use crate::ir::types::*;
+use crate::ir::types::IrBlock;
+
+#[cfg(test)]
+use crate::ir::types::IrFunction;
 
 use super::AsmGenerator;
 
@@ -75,7 +78,9 @@ impl AsmGenerator {
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
 
-        let mut frame_size: i32 = func.locals.iter()
+        let mut frame_size: i32 = func
+            .locals
+            .iter()
             .filter_map(|l| l.stack_offset)
             .map(|o| -o)
             .max()
@@ -83,8 +88,7 @@ impl AsmGenerator {
             .max(param_save_count as i32 * 8);
         frame_size = ((frame_size + 15) / 16) * 16;
         if frame_size > 0 {
-            self.output
-                .push_str(&format!("    sub rsp, {}\n", frame_size));
+            self.output.push_str(&format!("    sub rsp, {}\n", frame_size));
         }
 
         // Save parameter register values to the allocated stack slots
@@ -102,9 +106,7 @@ impl AsmGenerator {
         }
 
         let mut blocks: Vec<_> = func.blocks.iter().collect();
-        blocks.sort_by_key(|b| {
-            b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0)
-        });
+        blocks.sort_by_key(|b| b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0));
         for block in &blocks {
             self.generate_block(block);
         }
@@ -116,7 +118,7 @@ impl AsmGenerator {
         } else {
             block.id.clone()
         };
-        self.output.push_str(&format!("{}:\n", label));
+        self.output.push_str(&format!("{label}:\n"));
 
         for inst in &block.instructions {
             self.generate_instruction(inst);

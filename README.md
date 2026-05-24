@@ -10,6 +10,19 @@
 - Java JDK 21+ (для target `jvm`): `choco install openjdk`
 - PHP 8.1+ с FFI (для PHP-демок): `choco install php`
 
+## Линты
+
+```powershell
+# Форматирование кода
+cargo fmt
+
+# Статический анализ (clippy)
+cargo clippy
+
+# Проверка форматирования без изменений (CI)
+cargo fmt --check
+```
+
 ## Сборка
 
 ```powershell

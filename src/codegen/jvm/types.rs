@@ -19,7 +19,7 @@ pub enum ComparisonOp {
     Ge,
 }
 
-/// Build a class-name-safe element descriptor from an IrType (no L...; wrapping).
+/// Build a class-name-safe element descriptor from an `IrType` (no L...; wrapping).
 /// Used to construct functional interface names.
 fn ir_type_short_descriptor(ty: &IrType) -> &'static str {
     match ty {
@@ -33,8 +33,8 @@ fn ir_type_short_descriptor(ty: &IrType) -> &'static str {
 }
 
 /// Deterministic functional interface class name for a function type.
-/// Example: `get_fn_interface_name(&[], &IrType::Int)` → "FnV_I"
-///          `get_fn_interface_name(&[IrType::Int], &IrType::Int)` → "FnI_I"
+/// Example: `get_fn_interface_name(&[], &IrType::Int)` → "`FnV_I`"
+///          `get_fn_interface_name(&[IrType::Int], &IrType::Int)` → "`FnI_I`"
 pub fn get_fn_interface_name(params: &[IrType], ret: &IrType) -> String {
     let mut name = String::from("Fn");
     for p in params {
@@ -54,7 +54,7 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
         IrType::Array(elem, _) => format!("[{}]", ir_type_to_jvm_descriptor(elem)),
         IrType::Function(params, ret) => {
             let iface_name = get_fn_interface_name(params, ret);
-            format!("L{};", iface_name)
+            format!("L{iface_name};")
         }
     }
 }

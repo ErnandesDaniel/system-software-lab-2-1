@@ -7,6 +7,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
+    #[must_use]
     pub fn new(source: &str) -> Self {
         let mut lexer = Token::lexer(source);
         let mut tokens = Vec::new();
@@ -14,16 +15,13 @@ impl Lexer {
         while let Some(result) = lexer.next() {
             let token = match result {
                 Ok(token) => token,
-                Err(_) => continue,
+                Err(()) => continue,
             };
             let span = lexer.span();
             tokens.push((token, span.start..span.end));
         }
 
-        Self {
-            tokens,
-            index: 0,
-        }
+        Self { tokens, index: 0 }
     }
 }
 

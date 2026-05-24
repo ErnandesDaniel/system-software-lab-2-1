@@ -1,8 +1,11 @@
-use crate::ast::*;
-use crate::lexer::Token;
 use super::Parser;
+use crate::ast::{
+    BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, Range, SliceExpr, Span, Statement,
+    VarDeclStatement,
+};
+use crate::lexer::Token;
 
-impl<'source> Parser<'source> {
+impl Parser<'_> {
     pub(crate) fn parse_identifier_based_statement(&mut self) -> Result<Statement, String> {
         let (_name, span) = self.expect(Token::Identifier)?;
         let var_name = self.get_text(&span).to_string();
@@ -82,10 +85,7 @@ impl<'source> Parser<'source> {
                 span: span.merge(end_span),
             }))
         } else {
-            let mut left = Expr::Identifier(Identifier {
-                name: var_name,
-                span,
-            });
+            let mut left = Expr::Identifier(Identifier { name: var_name, span });
 
             while let Some(token) = self.current_token() {
                 if matches!(
@@ -138,12 +138,8 @@ impl<'source> Parser<'source> {
             _ => return Err("Expected 'begin' or '{'".to_string()),
         };
         let mut body = Vec::new();
-        loop {
-            if let Some(tok) = self.current_token() {
-                if *tok == end_token {
-                    break;
-                }
-            } else {
+        while let Some(tok) = self.current_token() {
+            if *tok == end_token {
                 break;
             }
 

@@ -1,4 +1,4 @@
-//! Lexer — tokenises MyLang source text into a stream of [`Token`]s.
+//! Lexer — tokenises `MyLang` source text into a stream of [`Token`]s.
 //!
 //! Uses the [`logos`](logos) crate for fast, zero-copy tokenisation.
 //! Sub-modules:

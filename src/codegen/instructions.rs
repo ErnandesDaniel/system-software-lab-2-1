@@ -1,4 +1,4 @@
-use crate::ir::types::*;
+use crate::ir::types::{IrInstruction, IrOpcode, IrOperand, IrType};
 
 use super::AsmGenerator;
 
@@ -59,20 +59,16 @@ impl AsmGenerator {
     }
 
     fn binary_op(&mut self, inst: &IrInstruction, op: &str) {
-        if let (Some(result), Some(left), Some(right)) =
-            (&inst.result, inst.operands.get(0), inst.operands.get(1))
-        {
+        if let (Some(result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             self.load_operand(left, "eax", false);
             self.load_operand(right, "ebx", false);
-            self.output.push_str(&format!("    {} eax, ebx\n", op));
+            self.output.push_str(&format!("    {op} eax, ebx\n"));
             self.store_variable(result, "eax", false);
         }
     }
 
     fn binary_op_div(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(left), Some(right)) =
-            (&inst.result, inst.operands.get(0), inst.operands.get(1))
-        {
+        if let (Some(result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             self.load_operand(left, "eax", false);
             self.load_operand(right, "ebx", false);
             self.output.push_str("    cdq\n");
@@ -82,9 +78,7 @@ impl AsmGenerator {
     }
 
     fn binary_op_mod(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(left), Some(right)) =
-            (&inst.result, inst.operands.get(0), inst.operands.get(1))
-        {
+        if let (Some(result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             self.load_operand(left, "eax", false);
             self.load_operand(right, "ebx", false);
             self.output.push_str("    cdq\n");
@@ -94,13 +88,11 @@ impl AsmGenerator {
     }
 
     fn compare_op(&mut self, inst: &IrInstruction, set_op: &str) {
-        if let (Some(result), Some(left), Some(right)) =
-            (&inst.result, inst.operands.get(0), inst.operands.get(1))
-        {
+        if let (Some(result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             self.load_operand(left, "eax", false);
             self.load_operand(right, "ebx", false);
             self.output.push_str("    cmp eax, ebx\n");
-            self.output.push_str(&format!("    {} al\n", set_op));
+            self.output.push_str(&format!("    {set_op} al\n"));
             self.output.push_str("    movzx eax, al\n");
             self.store_variable(result, "eax", false);
         }
@@ -131,7 +123,7 @@ impl AsmGenerator {
     fn generate_jump(&mut self, inst: &IrInstruction) {
         if let Some(ref target) = inst.jump_target {
             let formatted = self.format_block_label(target);
-            self.output.push_str(&format!("    jmp {}\n", formatted));
+            self.output.push_str(&format!("    jmp {formatted}\n"));
         }
     }
 
@@ -148,27 +140,27 @@ impl AsmGenerator {
                         self.load_operand(value, "eax", false);
                         self.load_operand(index, "ebx", false);
                         if *off == 0 {
-                            self.output.push_str(&format!("    lea rcx, [rel {}]\n", name));
+                            self.output.push_str(&format!("    lea rcx, [rel {name}]\n"));
                         } else {
-                            self.output.push_str(&format!("    lea rcx, [rel {} + {}]\n", name, off));
+                            self.output.push_str(&format!("    lea rcx, [rel {name} + {off}]\n"));
                         }
                         self.output.push_str("    mov [rcx + rbx * 4], eax\n");
                     } else {
                         self.load_operand(value, "eax", false);
                         if let Some(local_off) = self.locals.get(name) {
                             let addr = local_off + *off as i32;
-                            self.output.push_str(&format!("    mov [rbp + {}], eax\n", addr));
+                            self.output.push_str(&format!("    mov [rbp + {addr}], eax\n"));
                         } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
                             let reg = self.get_param_register(param_idx, true);
                             if *off == 0 {
-                                self.output.push_str(&format!("    mov [{}], eax\n", reg));
+                                self.output.push_str(&format!("    mov [{reg}], eax\n"));
                             } else {
-                                self.output.push_str(&format!("    mov [{} + {}], eax\n", reg, off));
+                                self.output.push_str(&format!("    mov [{reg} + {off}], eax\n"));
                             }
                         } else if *off == 0 {
-                            self.output.push_str(&format!("    mov [rel {}], eax\n", name));
+                            self.output.push_str(&format!("    mov [rel {name}], eax\n"));
                         } else {
-                            self.output.push_str(&format!("    mov [rel {} + {}], eax\n", name, off));
+                            self.output.push_str(&format!("    mov [rel {name} + {off}], eax\n"));
                         }
                     }
                 }
@@ -177,25 +169,29 @@ impl AsmGenerator {
     }
 
     fn generate_load(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(_operand0)) = (&inst.result, inst.operands.get(0)) {
+        if let (Some(result), Some(_operand0)) = (&inst.result, inst.operands.first()) {
             if inst.operands.len() == 1 {
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
-                    self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
+                    self.output.push_str(&format!("    mov eax, [rel {name}]\n"));
                     self.store_variable(result, "eax", false);
                 }
             } else if inst.operands.len() == 4 {
                 // Array of structs: base + field_offset + index + elem_size
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
-                    if let (IrOperand::Constant(crate::ir::Constant::Int(field_off)),
-                            IrOperand::Constant(crate::ir::Constant::Int(elem_sz))) = (&inst.operands[1], &inst.operands[3]) {
+                    if let (
+                        IrOperand::Constant(crate::ir::Constant::Int(field_off)),
+                        IrOperand::Constant(crate::ir::Constant::Int(elem_sz)),
+                    ) = (&inst.operands[1], &inst.operands[3])
+                    {
                         self.load_operand(&inst.operands[2], "ebx", false);
                         if *field_off == 0 {
-                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                            self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
                         } else {
-                            self.output.push_str(&format!("    lea rax, [rel {} + {}]\n", name, field_off));
+                            self.output
+                                .push_str(&format!("    lea rax, [rel {name} + {field_off}]\n"));
                         }
                         if *elem_sz != 1 {
-                            self.output.push_str(&format!("    imul ebx, {}\n", elem_sz));
+                            self.output.push_str(&format!("    imul ebx, {elem_sz}\n"));
                         }
                         self.output.push_str("    add rax, rbx\n");
                         self.output.push_str("    mov eax, [rax]\n");
@@ -208,9 +204,9 @@ impl AsmGenerator {
                     if let IrOperand::Constant(crate::ir::Constant::Int(off)) = &inst.operands[1] {
                         self.load_operand(&inst.operands[2], "ebx", false);
                         if *off == 0 {
-                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
+                            self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
                         } else {
-                            self.output.push_str(&format!("    lea rax, [rel {} + {}]\n", name, off));
+                            self.output.push_str(&format!("    lea rax, [rel {name} + {off}]\n"));
                         }
                         self.output.push_str("    mov eax, [rax + rbx * 4]\n");
                         self.store_variable(result, "eax", false);
@@ -219,56 +215,50 @@ impl AsmGenerator {
             } else if inst.operands.len() == 2 {
                 let first = &inst.operands[0];
                 let second = &inst.operands[1];
-                match second {
-                    IrOperand::Constant(c) => {
-                        if let IrOperand::Variable(name, _) = first {
-                            if let crate::ir::Constant::Int(offset) = c {
-                                if let Some(local_off) = self.locals.get(name) {
-                                    let addr = local_off + *offset as i32;
-                                    self.output.push_str(&format!("    mov eax, [rbp + {}]\n", addr));
-                                } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
-                                    let reg = self.get_param_register(param_idx, true);
-                                    if *offset == 0 {
-                                        self.output.push_str(&format!("    mov eax, [{}]\n", reg));
-                                    } else {
-                                        self.output.push_str(&format!("    mov eax, [{} + {}]\n", reg, offset));
-                                    }
-                                } else if *offset == 0 {
-                                    self.output.push_str(&format!("    mov eax, [rel {}]\n", name));
+                if let IrOperand::Constant(c) = second {
+                    if let IrOperand::Variable(name, _) = first {
+                        if let crate::ir::Constant::Int(offset) = c {
+                            if let Some(local_off) = self.locals.get(name) {
+                                let addr = local_off + *offset as i32;
+                                self.output.push_str(&format!("    mov eax, [rbp + {addr}]\n"));
+                            } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+                                let reg = self.get_param_register(param_idx, true);
+                                if *offset == 0 {
+                                    self.output.push_str(&format!("    mov eax, [{reg}]\n"));
                                 } else {
-                                    self.output.push_str(&format!("    mov eax, [rel {} + {}]\n", name, offset));
+                                    self.output.push_str(&format!("    mov eax, [{reg} + {offset}]\n"));
                                 }
-                                self.store_variable(result, "eax", false);
+                            } else if *offset == 0 {
+                                self.output.push_str(&format!("    mov eax, [rel {name}]\n"));
+                            } else {
+                                self.output.push_str(&format!("    mov eax, [rel {name} + {offset}]\n"));
                             }
+                            self.store_variable(result, "eax", false);
                         }
                     }
-                    _ => {
-                        // Array access: base + index
-                        if let IrOperand::Variable(name, _) = first {
-                            self.output.push_str(&format!("    lea rax, [rel {}]\n", name));
-                        } else {
-                            self.load_operand(first, "rax", true);
-                        }
-                        self.load_operand(second, "ebx", false);
-                        self.output.push_str("    mov eax, [rax + rbx * 4]\n");
-                        self.store_variable(result, "eax", false);
+                } else {
+                    // Array access: base + index
+                    if let IrOperand::Variable(name, _) = first {
+                        self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
+                    } else {
+                        self.load_operand(first, "rax", true);
                     }
+                    self.load_operand(second, "ebx", false);
+                    self.output.push_str("    mov eax, [rax + rbx * 4]\n");
+                    self.store_variable(result, "eax", false);
                 }
             }
         }
     }
 
     fn generate_slice(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(array), Some(start)) =
-            (&inst.result, inst.operands.get(0), inst.operands.get(1))
-        {
+        if let (Some(result), Some(array), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             let arr_type = array.get_type();
             if let IrType::Array(elem_type, _size) = arr_type {
                 self.load_operand(array, "rax", true);
                 self.load_operand(start, "ebx", false);
                 let elem_size = elem_type.size() as i32;
-                self.output
-                    .push_str(&format!("    imul ebx, ebx, {}\n", elem_size));
+                self.output.push_str(&format!("    imul ebx, ebx, {elem_size}\n"));
                 self.output.push_str("    add rax, rbx\n");
                 self.store_variable(result, "rax", true);
             }
@@ -283,10 +273,8 @@ impl AsmGenerator {
             if let (Some(ref true_t), Some(ref false_t)) = (&inst.true_target, &inst.false_target) {
                 let formatted_true = self.format_block_label(true_t);
                 let formatted_false = self.format_block_label(false_t);
-                self.output
-                    .push_str(&format!("    jne {}\n", formatted_true));
-                self.output
-                    .push_str(&format!("    jmp {}\n", formatted_false));
+                self.output.push_str(&format!("    jne {formatted_true}\n"));
+                self.output.push_str(&format!("    jmp {formatted_false}\n"));
             }
         }
     }

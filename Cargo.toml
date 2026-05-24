@@ -3,6 +3,24 @@ name = "mylang-parser"
 version = "0.1.0"
 edition = "2021"
 
+[lints.rust]
+unsafe_code = "deny"
+unused_imports = "warn"
+dead_code = "warn"
+
+[lints.clippy]
+unwrap_used = "warn"
+expect_used = "warn"
+dbg_macro = "warn"
+todo = "warn"
+panic = "warn"
+print_stdout = "allow"
+print_stderr = "allow"
+wildcard_imports = "warn"
+unused_self = "warn"
+match_same_arms = "warn"
+unnecessary_wraps = "warn"
+
 [dependencies]
 logos = "0.14"
 miette = "0.6"

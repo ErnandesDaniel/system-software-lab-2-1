@@ -26,7 +26,13 @@ fn compile_and_run_nasm(source: &str) -> std::process::Output {
 
     let obj_path = temp_dir.path().join("program.obj");
     let _nasm = Command::new("nasm")
-        .args(["-f", "win64", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+        .args([
+            "-f",
+            "win64",
+            "-o",
+            obj_path.to_str().unwrap(),
+            asm_path.to_str().unwrap(),
+        ])
         .output()
         .expect("NASM not found");
 
@@ -71,7 +77,10 @@ fn jvm_valid(source: &str) -> bool {
     let ir = generate_ir(source);
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    !classes.is_empty() && classes.iter().all(|(_, b)| b.len() >= 4 && b[0..4] == [0xCA, 0xFE, 0xBA, 0xBE])
+    !classes.is_empty()
+        && classes
+            .iter()
+            .all(|(_, b)| b.len() >= 4 && b[0..4] == [0xCA, 0xFE, 0xBA, 0xBE])
 }
 
 // ─── Shared test programs ───────────────────────────────────────────────

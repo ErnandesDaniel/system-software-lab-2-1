@@ -37,7 +37,7 @@ pub fn parse_args() -> Args {
                     match args[i + 1].parse::<CodeGenTarget>() {
                         Ok(t) => target = t,
                         Err(e) => {
-                            eprintln!("Error: {}", e);
+                            eprintln!("Error: {e}");
                             std::process::exit(1);
                         }
                     }
@@ -54,12 +54,11 @@ pub fn parse_args() -> Args {
         }
     }
 
-    let output_dir = match output_dir {
-        Some(d) => d,
-        None => {
-            eprintln!("Error: -o <output_dir> is required");
-            std::process::exit(1);
-        }
+    let output_dir = if let Some(d) = output_dir {
+        d
+    } else {
+        eprintln!("Error: -o <output_dir> is required");
+        std::process::exit(1);
     };
 
     Args {
@@ -70,7 +69,7 @@ pub fn parse_args() -> Args {
 }
 
 fn print_usage(program: &str) {
-    eprintln!("Usage: {} <source_file> -o <output_dir> [options]", program);
+    eprintln!("Usage: {program} <source_file> -o <output_dir> [options]");
     eprintln!("Options:");
     eprintln!("  -o, --output <dir>    Output directory (required)");
     eprintln!("  -t, --target <target>  Target: nasm, llvm, wasm, jvm (default: nasm)");

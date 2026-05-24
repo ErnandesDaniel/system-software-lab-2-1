@@ -1,8 +1,8 @@
-use ristretto_classfile::attributes::Instruction;
-use ristretto_classfile::attributes::ArrayType;
-use crate::ir::types::*;
-use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::BinaryOp;
+use crate::codegen::jvm::JvmGenerator;
+use crate::ir::types::{Constant, IrInstruction, IrOpcode, IrOperand, IrType};
+use ristretto_classfile::attributes::ArrayType;
+use ristretto_classfile::attributes::Instruction;
 
 impl JvmGenerator {
     pub fn generate_instruction(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
@@ -21,12 +21,24 @@ impl JvmGenerator {
             IrOpcode::BitAnd => self.generate_binary_op(code, inst, BinaryOp::BitAnd),
             IrOpcode::BitOr => self.generate_binary_op(code, inst, BinaryOp::BitOr),
             IrOpcode::BitNot => self.generate_bit_not(code, inst),
-            IrOpcode::Eq => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset),
-            IrOpcode::Ne => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne, global_offset),
-            IrOpcode::Lt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt, global_offset),
-            IrOpcode::Le => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le, global_offset),
-            IrOpcode::Gt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt, global_offset),
-            IrOpcode::Ge => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge, global_offset),
+            IrOpcode::Eq => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset);
+            }
+            IrOpcode::Ne => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne, global_offset);
+            }
+            IrOpcode::Lt => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt, global_offset);
+            }
+            IrOpcode::Le => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le, global_offset);
+            }
+            IrOpcode::Gt => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt, global_offset);
+            }
+            IrOpcode::Ge => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge, global_offset);
+            }
             IrOpcode::Call => self.generate_call(code, inst),
             IrOpcode::Ret => self.generate_return(code, inst),
             IrOpcode::Jump => self.generate_jump(code, inst),
@@ -46,7 +58,7 @@ impl JvmGenerator {
     }
 
     fn generate_assign(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let (Some(ref result), Some(ref operand)) = (&inst.result, inst.operands.first()) {
+        if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
             if self.wrapped_vars.contains(result) {
                 // Store through wrapper: aload wrapper; iconst_0; <value>; iastore
                 let slot = self.get_local_slot(result);
@@ -72,7 +84,8 @@ impl JvmGenerator {
     }
 
     fn generate_binary_op(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, op: BinaryOp) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, left);
             self.emit_load_operand(code, right);
 
@@ -131,7 +144,7 @@ impl JvmGenerator {
             if let Some(ref result) = inst.result {
                 let slot = self.get_local_slot(result);
                 match inst.result_type.as_ref() {
-                    Some(IrType::String) | Some(IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
+                    Some(IrType::String | IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
                     _ => code.push(Instruction::Istore(slot as u8)),
                 }
             }
@@ -161,7 +174,9 @@ impl JvmGenerator {
     }
 
     fn generate_array_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let (Some(ref result), Some(array), Some(index)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+        if let (Some(ref result), Some(array), Some(index)) =
+            (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, array);
             self.emit_load_operand(code, index);
             code.push(Instruction::Iaload);
@@ -184,7 +199,7 @@ impl JvmGenerator {
 
             // For each capture, store wrapper ref (or create new one) into env array
             for (capture_idx, op) in inst.operands.iter().enumerate().skip(1) {
-                code.push(Instruction::Dup);                   // dup env ref for storing
+                code.push(Instruction::Dup); // dup env ref for storing
                 self.emit_load_constant(code, &Constant::Int((capture_idx - 1) as i64)); // slot index
 
                 // If captured variable is a wrapped var, reuse its existing wrapper
@@ -216,7 +231,7 @@ impl JvmGenerator {
                     code.push(Instruction::Iastore);
                 }
 
-                code.push(Instruction::Aastore);               // env[i] = wrapper
+                code.push(Instruction::Aastore); // env[i] = wrapper
             }
 
             // After filling env array, stack = [env_array]
@@ -229,9 +244,9 @@ impl JvmGenerator {
                 None
             };
 
-            let is_closure = lambda_name.as_ref()
-                .map(|n| self.func_ref_env_field_refs.contains_key(n))
-                .unwrap_or(false);
+            let is_closure = lambda_name
+                .as_ref()
+                .is_some_and(|n| self.func_ref_env_field_refs.contains_key(n));
 
             if is_closure {
                 let name = lambda_name.unwrap();
@@ -305,7 +320,7 @@ impl JvmGenerator {
             if let Some(ref result) = inst.result {
                 let slot = self.get_local_slot(result);
                 match inst.result_type.as_ref() {
-                    Some(IrType::String) | Some(IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
+                    Some(IrType::String | IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
                     _ => code.push(Instruction::Istore(slot as u8)),
                 }
             }
@@ -369,9 +384,9 @@ impl JvmGenerator {
                 self.emit_load_constant(code, &Constant::Int(*slot));
             }
 
-            code.push(Instruction::Aaload);    // [[I → [I  (wrapper array)
+            code.push(Instruction::Aaload); // [[I → [I  (wrapper array)
             code.push(Instruction::Iconst_0);
-            code.push(Instruction::Iaload);     // [I → int (captured value)
+            code.push(Instruction::Iaload); // [I → int (captured value)
 
             let result_slot = self.get_local_slot(result);
             code.push(Instruction::Istore(result_slot as u8));
@@ -396,10 +411,10 @@ impl JvmGenerator {
                 self.emit_load_constant(code, &Constant::Int(*slot));
             }
 
-            code.push(Instruction::Aaload);    // [[I → [I  (wrapper array)
+            code.push(Instruction::Aaload); // [[I → [I  (wrapper array)
             code.push(Instruction::Iconst_0);
             self.emit_load_operand(code, val_op); // value
-            code.push(Instruction::Iastore);     // wrapper[0] = value
+            code.push(Instruction::Iastore); // wrapper[0] = value
         }
     }
 }

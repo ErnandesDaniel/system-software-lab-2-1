@@ -93,10 +93,7 @@ fn test_semantics_if_condition_non_bool() {
 fn test_semantics_extern_non_stdlib() {
     let source = "extern def my_custom_func() of int end";
     let result = analyze(source);
-    assert!(
-        result.is_err(),
-        "Expected error for non-stdlib extern"
-    );
+    assert!(result.is_err(), "Expected error for non-stdlib extern");
     let errors = result.unwrap_err();
     assert!(
         errors.iter().any(|e| e.contains("not a standard library function")),
@@ -347,7 +344,10 @@ fn test_semantics_assign_non_identifier_error() {
         end
     "#;
     let result = analyze(source);
-    assert!(result.is_ok(), "Assignment to non-identifier LHS is allowed (right-hand side is ignored)");
+    assert!(
+        result.is_ok(),
+        "Assignment to non-identifier LHS is allowed (right-hand side is ignored)"
+    );
 }
 
 #[test]

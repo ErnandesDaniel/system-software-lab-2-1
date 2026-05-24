@@ -22,22 +22,16 @@ use driver::CompilerDriver;
 
 pub fn run() {
     let args = parse_args();
-    let driver = CompilerDriver::new();
-    driver.compile(&args);
+    CompilerDriver::compile(&args);
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum CodeGenTarget {
+    #[default]
     NASM,
     LLVM,
     WASM,
     JVM,
-}
-
-impl Default for CodeGenTarget {
-    fn default() -> Self {
-        CodeGenTarget::NASM
-    }
 }
 
 impl std::str::FromStr for CodeGenTarget {
@@ -49,7 +43,7 @@ impl std::str::FromStr for CodeGenTarget {
             "llvm" => Ok(CodeGenTarget::LLVM),
             "wasm" => Ok(CodeGenTarget::WASM),
             "jvm" => Ok(CodeGenTarget::JVM),
-            _ => Err(format!("Unknown target: {}", s)),
+            _ => Err(format!("Unknown target: {s}")),
         }
     }
 }

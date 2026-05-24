@@ -1,24 +1,26 @@
-mod control_flow;
 mod assignments;
+mod control_flow;
 
 use super::Parser;
-use crate::ast::*;
+use crate::ast::{Statement, YieldStatement};
 use crate::lexer::Token;
 
-impl<'source> Parser<'source> {
+impl Parser<'_> {
     pub(crate) fn parse_statement(&mut self) -> Result<Statement, String> {
         match self.current_token() {
             Some(Token::Return) => self.parse_return(),
             Some(Token::If) => self.parse_if(),
-            Some(Token::While) | Some(Token::Until) => self.parse_while(),
+            Some(Token::While | Token::Until) => self.parse_while(),
             Some(Token::Break) => self.parse_break(),
-            Some(Token::Begin) | Some(Token::LBrace) => self.parse_block_like(),
+            Some(Token::Begin | Token::LBrace) => self.parse_block_like(),
             Some(Token::Do) => self.parse_repeat(),
             Some(Token::Yield) => {
                 let start = self.current_span();
                 self.expect(Token::Yield)?;
                 let span = start.merge(self.current_span());
-                if self.current_token() == Some(&Token::Semi) { self.advance(); }
+                if self.current_token() == Some(&Token::Semi) {
+                    self.advance();
+                }
                 Ok(Statement::Yield(YieldStatement { span }))
             }
             Some(Token::Def) => {

@@ -1,7 +1,7 @@
-use ristretto_classfile::attributes::Instruction;
-use crate::ir::types::*;
-use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::ComparisonOp;
+use crate::codegen::jvm::JvmGenerator;
+use crate::ir::types::IrInstruction;
+use ristretto_classfile::attributes::Instruction;
 
 impl JvmGenerator {
     fn emit_if_icmpeq(&self, code: &mut Vec<Instruction>, target_idx: u16) {
@@ -33,7 +33,8 @@ impl JvmGenerator {
     }
 
     pub fn generate_logical_and(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, left);
             let first_ifeq = code.len();
             code.push(Instruction::Ifeq(0)); // placeholder
@@ -58,7 +59,8 @@ impl JvmGenerator {
     }
 
     pub fn generate_logical_or(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, left);
             let first_ifne = code.len();
             code.push(Instruction::Ifne(0)); // placeholder
@@ -101,8 +103,15 @@ impl JvmGenerator {
         }
     }
 
-    pub fn generate_comparison(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, op: ComparisonOp, global_offset: u16) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.get(0), inst.operands.get(1)) {
+    pub fn generate_comparison(
+        &self,
+        code: &mut Vec<Instruction>,
+        inst: &IrInstruction,
+        op: ComparisonOp,
+        global_offset: u16,
+    ) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, left);
             self.emit_load_operand(code, right);
 
@@ -117,7 +126,7 @@ impl JvmGenerator {
                 ComparisonOp::Le => self.emit_if_icmple(code, iconst_1_idx),
                 ComparisonOp::Gt => self.emit_if_icmpgt(code, iconst_1_idx),
                 ComparisonOp::Ge => self.emit_if_icmpge(code, iconst_1_idx),
-            };
+            }
 
             code.push(Instruction::Iconst_0);
             self.emit_goto(code, istore_idx);
