@@ -201,7 +201,7 @@ impl AsmGenerator {
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {}\n", s));
-                self.output.push_str(&format!("    je .co_{}\n", s));
+                self.output.push_str(&format!("    je co_{}\n", s));
             }
         }
 
@@ -209,7 +209,7 @@ impl AsmGenerator {
             let mut blocks: Vec<_> = func.blocks.iter().collect();
             blocks.reverse();
             for (i, block) in blocks.iter().enumerate() {
-                self.output.push_str(&format!(".co_{}:\n", i));
+                self.output.push_str(&format!("co_{}:\n", i));
                 self.generate_block(block);
             }
         } else {

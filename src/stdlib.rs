@@ -38,6 +38,7 @@ impl StdLib {
         // Time functions
         funcs.insert("time");
         funcs.insert("clock");
+        funcs.insert("sleep");
         funcs.insert("Sleep");  // Windows Sleep (ms) - blocking
 
         // Process functions

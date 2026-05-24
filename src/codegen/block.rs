@@ -58,7 +58,7 @@ impl AsmGenerator {
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {}\n", s));
-                self.output.push_str(&format!("    je .co_{}\n", s));
+                self.output.push_str(&format!("    je co_{}\n", s));
             }
         }
 
@@ -94,14 +94,12 @@ impl AsmGenerator {
     }
 
     pub fn generate_block(&mut self, block: &IrBlock) {
-        if !self.is_coroutine {
-            let label = if block.id.starts_with("BB") {
-                format!("BB_{}", block.id.trim_start_matches("BB"))
-            } else {
-                block.id.clone()
-            };
-            self.output.push_str(&format!("{}:\n", label));
-        }
+        let label = if block.id.starts_with("BB") {
+            format!("BB_{}", block.id.trim_start_matches("BB"))
+        } else {
+            block.id.clone()
+        };
+        self.output.push_str(&format!("{}:\n", label));
 
         for inst in &block.instructions {
             self.generate_instruction(inst);

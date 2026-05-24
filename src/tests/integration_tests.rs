@@ -397,8 +397,8 @@ fn test_asm_coroutine_state_machine() {
     asm_gen.set_coroutine(ir.functions[0].yield_count);
     let asm = asm_gen.generate(&ir);
     eprintln!("ASM:\n{}", &asm[..asm.len().min(3000)]);
-    assert!(asm.contains(".co_0"), "Expected state 0 label");
-    assert!(asm.contains(".co_1"), "Expected state 1 label");
+    assert!(asm.contains("co_0"), "Expected state 0 label");
+    assert!(asm.contains("co_1"), "Expected state 1 label");
     assert!(asm.contains("[rcx]"), "Expected state struct access");
     assert!(asm.contains("global worker"), "Expected global worker");
 }
