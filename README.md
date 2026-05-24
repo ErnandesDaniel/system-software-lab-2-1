@@ -40,6 +40,7 @@ cargo run -- input.mylang -o output
 
 Создаст в `output/`: `main.asm`, `main.obj`, `program.exe`
 
+**Запуск:**
 ```powershell
 .\output\program.exe
 ```
@@ -56,11 +57,10 @@ cargo run -- input.mylang -o output -t jvm
 ```powershell
 java -cp output RuntimeStub
 ```
-*Для программ, использующих SHM (server.mylang), потребуется JNA:*
+**Для программ, использующих SHM (server.mylang), потребуется JNA:**
 ```powershell
 java -cp "output;output/lib/jna-5.14.0.jar" RuntimeStub
 ```
-
 **Отладочный вызов отдельной функции через MainRunner:**
 ```powershell
 java -cp output MainRunner square 7
@@ -89,14 +89,15 @@ java -cp output MainRunner square 7
 | `src/ir/`, `src/ir_generator/` | Промежуточное представление |
 | `src/codegen/` | NASM, LLVM, JVM, WASM кодогенераторы |
 | `src/lib/jna-5.14.0.jar` | JNA для RuntimeStub (JVM target) |
-| `examples/` | Примеры программ на MyLang |
 | `output/` | Результаты компиляции (генерируется) |
 
 ---
 
 ## Лабораторные работы
 
-### lab-1 (системное ПО): Планировщик задач (RR + SRT)
+## Системное ПО
+
+### lab-1: Планировщик задач (RR + SRT)
 
 ```powershell
 # Компиляция в NASM
@@ -106,16 +107,19 @@ cargo run -- labs-examples/system-programms/lab-1/input.mylang -o output -t nasm
 .\output\program.exe
 ```
 
-Вариант 19: RR(2) + SRT. Диапазон burst 4–8, средние интервалы 6 и 3.
-Результаты для обоих алгоритмов выводятся в консоль.
+## Виртуальные машины
 
-### lab-2 (виртуальные машины): Функции первого класса + замыкания
+### lab-1: компиляция с target под JVM
 
 ```powershell
-# Компиляция в NASM
-cargo run -- labs-examples/vitrual-machines/lab-2/input.mylang -o output -t nasm
-.\output\program.exe
+# Компиляция в JVM (Java bytecode)
+cargo run -- labs-examples/vitrual-machines/lab-1/input.mylang -o output -t jvm
+java -cp output Main
+```
 
+### lab-2: Функции первого класса + замыкания
+
+```powershell
 # Компиляция в JVM (Java bytecode)
 cargo run -- labs-examples/vitrual-machines/lab-2/input.mylang -o output -t jvm
 java -cp output Main
@@ -133,119 +137,13 @@ java -cp output Main
 | 6 | Счётчик через замыкание `inc_count()` ×3 | `123` |
 | 7 | Комбинация всего | `2730` |
 
-### lab-4 (виртуальные машины): PHP ↔ JVM через Shared Memory
+### lab-4: PHP ↔ JVM через Shared Memory
 
 ```powershell
 # 1. Скомпилировать MyLang-сервер в JVM
 cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
 
 # 2. Запустить PHP CLI (автоматически стартует JVM-демон)
-php labs-examples/vitrual-machines/lab-4/input.php
-```
-
-Всё в одном PHP-файле (`input.php`) — `SHMClient` и интерактивная консоль.
-
----
-
-## Техническое задание: Корутины и Планировщик
-
-Реализация **кооперативной многозадачности** с автоматическим планировщиком.
-
-### Концепция
-
-Пользовательская `main` — **"фиктивная"** функция инициализации. Она регистрирует корутины, а настоящая точка входа скрыта.
-
-```mylang
-coroutine task1() of int
-    puts("Task 1");
-    yield;
-    puts("Task 1 done");
-    return 10;
-end
-
-def main() of int
-    task1();
-    task2();
-    puts("Setup done");
-    return 0;           // здесь автоматически запускается планировщик
-end
-```
-
-**Поток выполнения:**
-1. `_real_main` (скрытая) запускается
-2. Вызывается `user_main` ("фиктивная" main пользователя)
-3. Вызовы корутин внутри `user_main` **регистрируют** их в планировщике (не выполняют код)
-4. После `return` из `user_main` автоматически запускается `run_scheduler()`
-5. Планировщик выполняет все зарегистрированные корутины до завершения
-
-### Синтаксис
-
-| Ключевое слово | Описание |
-|----------------|----------|
-| `coroutine` | Объявление корутины |
-| `yield` | Приостановка выполнения, возврат управления планировщику |
-
-### Генерация кода
-
-#### Точка входа (скрытая)
-
-```nasm
-_real_main:
-    call init_scheduler
-    call user_main
-    call run_scheduler
-    call wait_all_tasks
-    mov eax, [exit_code]
-    ret
-```
-
-#### Корутина (state machine)
-
-```nasm
-task1_coroutine:
-    mov rax, [rcx + state.rip]
-
-    cmp rax, 0
-    je .start
-    cmp rax, 1
-    je .after_yield1
-
-.start:
-    call puts
-    mov qword [rcx + state.rip], 1
-    ret
-
-.after_yield1:
-    ; продолжение после yield
-```
-
-#### Auto-spawn при вызове
-
-```nasm
-user_main:
-    call create_coroutine_task1
-    call scheduler_add
-    ret
-```
-
-### Этапы реализации
-
-
-#### Этап 1: Корутины
-3. **Лексер/Парсер:** токены `coroutine`, `yield`
-4. **AST:** ноды `CoroutineDef`, `YieldStatement`, `CoroutineCall`
-5. **Семантика:** определение корутин vs обычных функций
-6. **Кодогенерация:** state machine, скрытая `_real_main`, auto-spawn
-7. **Runtime (ASM):** `init_scheduler`, `scheduler_add`, `run_scheduler`, `resume_coroutine`
-
----
-
-## Демо: PHP↔JVM CLI (Shared Memory)
-
-Одна из демонстрационных программ. PHP общается с JVM-демоном через разделяемую память (Win32 File Mapping), позволяя интерактивно вызывать CRUD-операции, скомпилированные из `input.mylang`.
-
-```powershell
-cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
 php labs-examples/vitrual-machines/lab-4/input.php
 ```
 
@@ -284,14 +182,5 @@ PHP читает SHM → выводит результат
   [4]     result   byte      0=ok, 1=error
   [5..]   payload\0 string   null-terminated payload
 ```
-
-### Файлы демо
-
-| Файл | Назначение |
-|------|------------|
-| `labs-examples/vitrual-machines/lab-4/input.mylang` | MyLang CRUD-сервер |
-| `labs-examples/vitrual-machines/lab-4/input.php` | PHP CLI `SHMClient` + интерактивная консоль |
-| `output/RuntimeStub.java` | Генерируется: I/O, SHM через JNA, HashMap |
-| `output/MainRunner.java` | Генерируется: отладочный запускатор через рефлексию |
 
 ---
