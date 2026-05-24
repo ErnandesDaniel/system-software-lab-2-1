@@ -85,6 +85,15 @@ impl IrGenerator {
                     jump_target: None, true_target: None, false_target: None,
                     span: crate::ast::Span::new(0, 0),
                 });
+                // Split block: start new block for next state
+                let new_id = format!("BB{}", self.block_counter);
+                self.block_counter += 1;
+                let old_block = std::mem::replace(block, IrBlock {
+                    id: new_id,
+                    instructions: Vec::new(),
+                    successors: Vec::new(),
+                });
+                block_stack.push(old_block);
             }
             }
         }

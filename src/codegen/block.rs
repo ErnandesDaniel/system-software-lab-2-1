@@ -55,16 +55,10 @@ impl AsmGenerator {
         self.output.push_str(&format!("{}:\n", func.name));
 
         if self.is_coroutine {
-            // State machine dispatch: rcx = &CoroutineState
-            self.output.push_str("    ; Coroutine state machine\n");
             self.output.push_str("    mov eax, [rcx]\n");
-            self.output.push_str("    cmp eax, 0\n");
-            self.output.push_str("    je .co_state_0\n");
-            // Generate comparisons for yield states
-            let yield_count = self.yield_counter;
-            for s in 1..=yield_count {
+            for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {}\n", s));
-                self.output.push_str(&format!("    je .co_state_{}\n", s));
+                self.output.push_str(&format!("    je .co_{}\n", s));
             }
         }
 
@@ -100,12 +94,14 @@ impl AsmGenerator {
     }
 
     pub fn generate_block(&mut self, block: &IrBlock) {
-        let label = if block.id.starts_with("BB") {
-            format!("BB_{}", block.id.trim_start_matches("BB"))
-        } else {
-            block.id.clone()
-        };
-        self.output.push_str(&format!("{}:\n", label));
+        if !self.is_coroutine {
+            let label = if block.id.starts_with("BB") {
+                format!("BB_{}", block.id.trim_start_matches("BB"))
+            } else {
+                block.id.clone()
+            };
+            self.output.push_str(&format!("{}:\n", label));
+        }
 
         for inst in &block.instructions {
             self.generate_instruction(inst);

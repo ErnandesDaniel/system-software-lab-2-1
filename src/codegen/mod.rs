@@ -179,13 +179,31 @@ impl AsmGenerator {
         let final_stack = aligned.max(16);
 
         self.output.push_str(&format!("{}:\n", func.name));
+
+        if self.is_coroutine {
+            self.output.push_str("    mov eax, [rcx]\n");
+            for s in 0..=self.yield_counter {
+                self.output.push_str(&format!("    cmp eax, {}\n", s));
+                self.output.push_str(&format!("    je .co_{}\n", s));
+            }
+        }
+
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
         self.output
             .push_str(&format!("    sub rsp, {}\n", final_stack));
 
-        for block in &func.blocks {
-            self.generate_block(block);
+        if self.is_coroutine {
+            let mut blocks: Vec<_> = func.blocks.iter().collect();
+            blocks.reverse();
+            for (i, block) in blocks.iter().enumerate() {
+                self.output.push_str(&format!(".co_{}:\n", i));
+                self.generate_block(block);
+            }
+        } else {
+            for block in &func.blocks {
+                self.generate_block(block);
+            }
         }
 
         if !self.data_section.is_empty() {

@@ -1,36 +1,29 @@
-// scheduling/demo.mylang — демонстрация корутин (планировщик встроен в NASM)
+// scheduling/demo.mylang — минимальная демонстрация корутин
 
-extern putchar
 extern puts
 extern run_scheduler
 
 coroutine worker1() of int
-    i = 0;
-    while i < 3 {
-        puts("1");
-        yield;
-        i = i + 1;
-    }
-    loop_end
+    puts("1");
+    yield;
+    puts("2");
+    yield;
+    puts("3");
     return 0;
 end
 
 coroutine worker2() of int
-    i = 0;
-    while i < 2 {
-        puts("2");
-        yield;
-        i = i + 1;
-    }
-    loop_end
+    puts("A");
+    yield;
+    puts("B");
     return 0;
 end
 
 def main() of int
 begin
-    puts("Scheduler demo");
+    puts("Scheduler start");
     run_scheduler();
-    puts("Done");
+    puts("Scheduler done");
     return 0;
 end
 end

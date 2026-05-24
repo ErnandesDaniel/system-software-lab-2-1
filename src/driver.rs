@@ -205,11 +205,15 @@ impl CompilerDriver {
             let asm_path = Path::new(output_dir).join(format!("{}.asm", func.name));
             let obj_path = Path::new(output_dir).join(format!("{}.obj", func.name));
 
-            let output = Command::new("nasm")
-                .args(["-f", "win64", "-o"])
-                .arg(obj_path.to_str().unwrap())
-                .arg(asm_path.to_str().unwrap())
-                .output();
+            let output = if func.yield_count > 0 {
+                Command::new("nasm")
+                    .args(["-f", "win64", "-O0", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .output()
+            } else {
+                Command::new("nasm")
+                    .args(["-f", "win64", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .output()
+            };
 
             match output {
                 Ok(out) => {
