@@ -1,9 +1,0 @@
-def main() of int
-    def triple(x of int) of int
-        return x * 3
-    end
-    f = def add1(y of int) of int
-        return y + 1
-    end
-    return triple(f(4))
-end

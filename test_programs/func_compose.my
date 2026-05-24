@@ -1,6 +1,0 @@
-def main() of int
-    f = def double(x of int) of int
-        return x * 2
-    end
-    return f(f(3))
-end

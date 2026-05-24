@@ -1,6 +1,0 @@
-def main() of int
-    def double(x of int) of int
-        return x * 2
-    end
-    return double(7)
-end

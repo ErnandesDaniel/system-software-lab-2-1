@@ -1,6 +1,0 @@
-def main() of int
-    f = def square(x of int) of int
-        return x * x
-    end
-    return f(5)
-end
