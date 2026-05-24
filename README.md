@@ -4,11 +4,11 @@
 
 ## Требования
 
-- Rust: `rustup default stable`
+- Rust: `choco install rust`
 - NASM: `choco install nasm`
 - Clang (линковщик): `choco install llvm`
 - Java JDK 21+ (для target `jvm`): `choco install openjdk`
-- PHP 8.1+ с FFI (для PHP-демок)
+- PHP 8.1+ с FFI (для PHP-демок): `choco install php`
 
 ## Сборка
 
