@@ -103,7 +103,6 @@ impl StdLib {
             ("system", ("command: string", "int")),
             ("clock", ("", "int")),
             ("Sleep", ("ms: int", "int")),  // Windows Sleep (milliseconds) - blocking
-            ("putchar", ("c: int", "int")),
             // SHM functions (JVM daemon)
             ("shm_read_state_jvm", ("", "int")),
             ("shm_read_byte_jvm", ("pos: int", "int")),
@@ -122,26 +121,4 @@ impl StdLib {
             .map(|(_, sig)| sig)
     }
 
-    #[allow(dead_code)]
-    pub fn generate_extern_decls() -> Vec<(&'static str, &'static str, &'static str)> {
-        vec![
-            // (name, params, return_type)
-            ("getchar", "", "int"),
-            ("putchar", "c: int", "int"),
-            ("puts", "s: string", "int"),
-            ("printf", "format: string, value: int", "int"),
-            ("scanf", "format: string", "int"),
-            ("strlen", "s: string", "int"),
-            ("strcpy", "dest: string, src: string", "string"),
-            ("strcat", "dest: string, src: string", "string"),
-            ("strcmp", "s1: string, s2: string", "int"),
-            ("malloc", "size: int", "string"),
-            ("free", "ptr: string", ""),
-            ("abs", "n: int", "int"),
-            ("rand", "", "int"),
-            ("srand", "seed: int", ""),
-            ("time", "dummy: int", "int"),
-            ("exit", "code: int", ""),
-        ]
-    }
 }

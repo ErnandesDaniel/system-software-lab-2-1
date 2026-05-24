@@ -2,14 +2,10 @@ use crate::codegen::AsmGenerator;
 use crate::ir_generator::IrGenerator;
 use crate::parser::Parser;
 use crate::semantics::analysis::SemanticsAnalyzer;
+use crate::tests::parse;
 use std::fs;
 use std::process::Command;
 use tempfile::TempDir;
-
-fn parse(source: &str) -> crate::ast::Program {
-    let mut parser = Parser::new(source);
-    parser.parse().unwrap()
-}
 
 fn compile_only(source: &str) -> (TempDir, String) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");

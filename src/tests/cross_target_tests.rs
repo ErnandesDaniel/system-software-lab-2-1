@@ -1,15 +1,10 @@
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::AsmGenerator;
 use crate::ir_generator::IrGenerator;
-use crate::parser::Parser;
+use crate::tests::parse;
 use std::fs;
 use std::process::Command;
 use tempfile::TempDir;
-
-fn parse(source: &str) -> crate::ast::Program {
-    let mut parser = Parser::new(source);
-    parser.parse().unwrap()
-}
 
 fn generate_ir(source: &str) -> crate::ir::IrProgram {
     let program = parse(source);

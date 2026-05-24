@@ -1,91 +1,95 @@
-use crate::parser::Parser;
-
-fn parse(source: &str) -> crate::ast::Program {
-    let mut parser = Parser::new(source);
-    parser.parse().unwrap()
-}
+use crate::tests::parse;
 
 #[test]
 fn test_function_with_params() {
-    let source = "def add(a of int, b of int) return a + b; end";
-    let program = parse(source);
+    let program = parse("def add(a of int, b of int) return a + b; end");
     assert_eq!(program.items.len(), 1);
+    if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[0] {
+        assert_eq!(f.signature.name.name, "add");
+        if let Some(params) = &f.signature.parameters {
+            assert_eq!(params.len(), 2);
+            assert_eq!(params[0].name.name, "a");
+            assert_eq!(params[1].name.name, "b");
+        } else {
+            panic!("Expected parameters");
+        }
+    } else {
+        panic!("Expected FuncDefinition");
+    }
 }
 
 #[test]
 fn test_function_with_return_type() {
-    let source = "def foo() of int return 1; end";
-    let program = parse(source);
+    let program = parse("def foo() of int return 1; end");
     assert_eq!(program.items.len(), 1);
+    if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[0] {
+        assert_eq!(f.signature.name.name, "foo");
+        assert!(f.signature.return_type.is_some(), "Expected return type");
+    }
 }
 
 #[test]
 fn test_if_statement() {
-    let source = "def foo() if x then return 1; end end";
-    let program = parse(source);
+    let program = parse("def foo() if x then return 1; end end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_while_loop() {
-    let source = "def foo() x = 1; while x < 10 { x = x + 1; } loop_end end";
-    let program = parse(source);
+    let program = parse("def foo() x = 1; while x < 10 { x = x + 1; } loop_end end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_extern_declaration() {
-    let source = "extern def print(msg of string) end";
-    let program = parse(source);
+    let program = parse("extern def print(msg of string) end");
     assert_eq!(program.items.len(), 1);
+    if let crate::ast::SourceItem::FuncDeclaration(d) = &program.items[0] {
+        assert_eq!(d.signature.name.name, "print");
+    }
 }
 
 #[test]
 fn test_extern_short_form() {
-    let source = "extern puts";
-    let program = parse(source);
+    let program = parse("extern puts");
     assert_eq!(program.items.len(), 1);
+    if let crate::ast::SourceItem::FuncDeclaration(d) = &program.items[0] {
+        assert_eq!(d.signature.name.name, "puts");
+        assert!(d.signature.parameters.is_none(), "Short form has no params");
+    }
 }
 
 #[test]
 fn test_binary_expressions() {
-    let source = "def foo() x = 1 + 2 * 3; end";
-    let program = parse(source);
+    let program = parse("def foo() x = 1 + 2 * 3; end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_string_literal_assignment() {
-    let source = "def foo() s = \"hello\"; end";
-    let program = parse(source);
+    let program = parse("def foo() s = \"hello\"; end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_begin_end_block() {
-    let source = r#"
-        def foo()
-        begin
-            x = 1;
-        end
-        end
-    "#;
-    let program = parse(source);
+    let program = parse("def foo() begin x = 1; end end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_array_indexed_assignment() {
-    let source = "def foo() arr[0] = 1; end";
-    let program = parse(source);
+    let program = parse("def foo() arr[0] = 1; end");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_function_call_with_args() {
-    let source = "extern puts def main() puts(\"hello\"); end";
-    let program = parse(source);
+    let program = parse("extern puts def main() puts(\"hello\"); end");
     assert_eq!(program.items.len(), 2);
+    if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[1] {
+        assert_eq!(f.signature.name.name, "main");
+    }
 }
 
 #[test]

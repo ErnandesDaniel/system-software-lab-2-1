@@ -59,7 +59,7 @@ impl<'source> Parser<'source> {
             _ => return Err("Expected 'while' or 'until'".to_string()),
         };
 
-        let condition = self.parse_condition_expression()?;
+        let condition = self.parse_expression(0)?;
 
         while self.current_token() == Some(&Token::Semi) {
             self.advance();
@@ -88,41 +88,6 @@ impl<'source> Parser<'source> {
             body,
             span,
         }))
-    }
-
-    pub(crate) fn parse_condition_expression(&mut self) -> Result<Expr, String> {
-        let mut left = self.parse_prefix()?;
-
-        while let Some(token) = self.current_token() {
-            if matches!(
-                token,
-                Token::End
-                    | Token::Semi
-                    | Token::Then
-                    | Token::Else
-                    | Token::Do
-                    | Token::While
-                    | Token::Until
-                    | Token::Comma
-                    | Token::RParen
-                    | Token::RBracket
-                    | Token::LBrace
-            ) {
-                break;
-            }
-            if matches!(token, Token::Assign) {
-                break;
-            }
-            let token_copy = *token;
-            let prec = Self::get_precedence(&token_copy);
-            if prec == 0 {
-                break;
-            }
-            self.advance();
-            left = self.parse_infix(left, token_copy, prec)?;
-        }
-
-        Ok(left)
     }
 
     pub(crate) fn parse_repeat(&mut self) -> Result<Statement, String> {

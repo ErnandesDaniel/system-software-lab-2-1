@@ -1,11 +1,6 @@
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir_generator::IrGenerator;
-use crate::parser::Parser;
-
-fn parse(source: &str) -> crate::ast::Program {
-    let mut parser = Parser::new(source);
-    parser.parse().unwrap()
-}
+use crate::tests::parse;
 
 #[test]
 fn test_jvm_generation_simple() {

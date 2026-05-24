@@ -375,7 +375,6 @@ impl IrGenerator {
 
         let (opcode, result_type) = match expr.operator {
             UnaryOp::Negate => (IrOpcode::Neg, IrType::Int),
-            UnaryOp::Plus => (IrOpcode::Pos, IrType::Int),
             UnaryOp::Not => (IrOpcode::Not, IrType::Bool),
             UnaryOp::BitNot => (IrOpcode::BitNot, IrType::Int),
         };

@@ -44,7 +44,6 @@ impl MermaidGenerator {
                 let un_id = self.next_id();
                 let op_str = match u.operator {
                     UnaryOp::Negate => "-",
-                    UnaryOp::Plus => "+",
                     UnaryOp::Not => "!",
                     UnaryOp::BitNot => "~",
                 };

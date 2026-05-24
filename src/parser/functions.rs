@@ -36,9 +36,7 @@ impl<'source> Parser<'source> {
                     self.advance();
                 }
 
-                if body.len() > 100 {
-                    break;
-                }
+                if self.current_token() == Some(&Token::End) { break; }
             }
 
             if self.current_token() == Some(&Token::End) {
@@ -114,10 +112,10 @@ impl<'source> Parser<'source> {
             params.push(Arg {
                 name: Identifier {
                     name: param_name,
-                    span: start,
+                    span: n_span.into(),
                 },
                 ty: Some(ty),
-                span: start,
+                span: n_span.into(),
             });
         }
 
@@ -356,7 +354,7 @@ impl<'source> Parser<'source> {
             while self.current_token() == Some(&Token::Semi) {
                 self.advance();
             }
-            if body.len() > 100 { break; }
+            if self.current_token() == Some(&Token::End) { break; }
         }
         if self.current_token() == Some(&Token::End) {
             self.expect(Token::End)?;

@@ -33,13 +33,18 @@ impl SemanticsAnalyzer {
         scope: &mut SymbolTable,
         bin: &BinaryExpr,
     ) -> Result<SemanticType, Vec<String>> {
+        if matches!(bin.operator, BinaryOp::Assign) {
+            if let Expr::Identifier(id) = &*bin.left {
+                scope.add(id.name.clone(), SemanticType::Int).ok();
+            }
+        }
         let left_type = self.check_expression(scope, &bin.left)?;
         let right_type = self.check_expression(scope, &bin.right)?;
 
         match bin.operator {
             BinaryOp::Assign => {
                 if let Expr::Identifier(id) = &*bin.left {
-                    scope.insert(id.name.clone(), right_type.clone()).ok();
+                    scope.upsert(id.name.clone(), right_type.clone());
                 }
                 Ok(right_type)
             }
@@ -81,7 +86,7 @@ impl SemanticsAnalyzer {
                 }
                 Ok(SemanticType::Bool)
             }
-            UnaryOp::Negate | UnaryOp::Plus | UnaryOp::BitNot => {
+            UnaryOp::Negate | UnaryOp::BitNot => {
                 if operand_type != SemanticType::Int {
                     self.add_error("Unary arithmetic operators require int operand".to_string());
                 }
@@ -95,7 +100,27 @@ impl SemanticsAnalyzer {
         scope: &mut SymbolTable,
         call: &CallExpr,
     ) -> Result<SemanticType, Vec<String>> {
-        // Try to get function type via expression check (works for variables, func literals, etc.)
+        if let Expr::Identifier(id) = call.function.as_ref() {
+            let builtin_funcs = [
+                "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
+            ];
+            if builtin_funcs.contains(&id.name.as_str()) {
+                return Ok(SemanticType::Int);
+            }
+
+            if let Some(sig) = self.get_function_sig(&id.name).cloned() {
+                let expected = sig.parameters.len();
+                let actual = call.arguments.len();
+                if expected != actual {
+                    self.add_error(format!(
+                        "Function '{}' expected {} arguments, got {}",
+                        id.name, expected, actual
+                    ));
+                }
+                return Ok(sig.return_type);
+            }
+        }
+
         let func_type = self.check_expression(scope, &call.function)?;
 
         if let SemanticType::Function(ref params, ref ret) = func_type {
@@ -119,27 +144,7 @@ impl SemanticsAnalyzer {
             return Ok(*ret.clone());
         }
 
-        // Fallback: check by function name (for functions not yet registered in scope)
         if let Expr::Identifier(id) = call.function.as_ref() {
-            let builtin_funcs = [
-                "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
-            ];
-            if builtin_funcs.contains(&id.name.as_str()) {
-                return Ok(SemanticType::Int);
-            }
-
-            if let Some(sig) = self.get_function_sig(&id.name).cloned() {
-                let expected = sig.parameters.len();
-                let actual = call.arguments.len();
-                if expected != actual {
-                    self.add_error(format!(
-                        "Function '{}' expected {} arguments, got {}",
-                        id.name, expected, actual
-                    ));
-                }
-                return Ok(sig.return_type);
-            }
-
             self.add_error(format!("Call to undefined function '{}'", id.name));
             return Ok(SemanticType::Int);
         }
@@ -176,6 +181,7 @@ impl SemanticsAnalyzer {
         if let Some(symbol) = self.get_global_symbol(&id.name) {
             return Ok(symbol.ty.clone());
         }
+        self.add_error(format!("Undeclared identifier '{}'", id.name));
         Ok(SemanticType::Int)
     }
 }

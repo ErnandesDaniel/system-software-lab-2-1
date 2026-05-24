@@ -234,7 +234,6 @@ pub struct UnaryExpr {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum UnaryOp {
     Negate,
-    Plus,
     Not,
     BitNot,
 }

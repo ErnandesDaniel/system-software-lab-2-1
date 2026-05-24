@@ -15,7 +15,7 @@ impl SemanticsAnalyzer {
                 }
                 SourceItem::GlobalDecl(global) => {
                     let ty = self.convert_type(&global.ty);
-                    self.global_scope.insert(global.name.name.clone(), ty).ok();
+                    self.global_scope.add(global.name.name.clone(), ty).ok();
                 }
                 SourceItem::StructDef(_) => {}
                 SourceItem::CoroutineDef(_) => {}
@@ -46,7 +46,7 @@ impl SemanticsAnalyzer {
 
         let sem_params: Vec<SemanticType> = params.iter().map(|(_, t)| t.clone()).collect();
         self.global_scope
-            .insert(def.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type.clone())))
+            .add(def.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type.clone())))
             .ok();
 
         self.functions.push(FunctionSig {
@@ -60,7 +60,6 @@ impl SemanticsAnalyzer {
     fn collect_func_declaration(&mut self, decl: &FuncDeclaration) -> Result<(), Vec<String>> {
         let func_name = decl.signature.name.name.clone();
 
-        // Check if the function is in the standard library
         if !StdLib::is_stdlib(&func_name) {
             self.add_error(format!(
                 "Error: '{}' is not a standard library function. Only C standard library functions can be declared as extern.",
@@ -68,7 +67,6 @@ impl SemanticsAnalyzer {
             ));
         }
 
-        // If short form (no parameters/return type specified), get from stdlib
         let (return_type, params) = if decl.signature.parameters.is_none()
             && decl.signature.return_type.is_none()
         {
@@ -114,7 +112,7 @@ impl SemanticsAnalyzer {
         });
 
         self.global_scope
-            .insert(decl.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type)))
+            .add(decl.signature.name.name.clone(), SemanticType::Function(sem_params, Box::new(return_type)))
             .ok();
         Ok(())
     }
@@ -138,7 +136,7 @@ impl SemanticsAnalyzer {
                     .as_ref()
                     .map(|t| self.convert_type(t))
                     .unwrap_or(SemanticType::Int);
-                local_scope.insert(arg.name.name.clone(), param_type).ok();
+                local_scope.add(arg.name.name.clone(), param_type).ok();
             }
         }
 

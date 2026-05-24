@@ -5,6 +5,7 @@ use crate::ast;
 use crate::codegen::{self, LlvmGenerator};
 use crate::CodeGenTarget;
 use crate::ir::cfg::CfgMermaidGenerator;
+use crate::ir::validator::IrValidator;
 use crate::ir_generator::IrGenerator;
 use crate::mermaid::MermaidGenerator;
 use crate::parser::Parser;
@@ -24,6 +25,11 @@ impl CompilerDriver {
         self.generate_ast_diagrams(&ast, &args.output_dir);
         self.run_semantic_analysis(&ast);
         let ir_program = self.generate_ir(&ast);
+        if let Err(errors) = IrValidator::validate(&ir_program) {
+            for err in errors {
+                eprintln!("IR validation error: {}", err);
+            }
+        }
         self.generate_cfg_diagrams(&ir_program, &args.output_dir);
         
         match args.target {
@@ -370,7 +376,6 @@ impl CompilerDriver {
 
         let jna_cp = format!(".;lib/jna-5.14.0.jar");
 
-        println!("Compiling RuntimeStub.java with javac...");
         let stub_file = "RuntimeStub.java";
         let stub_output = Command::new("javac")
             .current_dir(output_dir)
@@ -384,7 +389,6 @@ impl CompilerDriver {
             std::process::exit(1);
         }
 
-        println!("Compiling MainRunner.java with javac...");
         let runner_file = "MainRunner.java";
         let runner_output = Command::new("javac")
             .current_dir(output_dir)
@@ -398,7 +402,6 @@ impl CompilerDriver {
             std::process::exit(1);
         }
 
-        println!("JVM compilation complete.");
     }
 
     fn generate_jvm_stub(&self, output_dir: &str) {

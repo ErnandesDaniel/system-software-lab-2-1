@@ -1,15 +1,13 @@
 use crate::lexer::{LexerError, Token};
 use logos::Logos;
 
-#[allow(dead_code)]
-pub struct Lexer<'source> {
+pub struct Lexer {
     tokens: Vec<(Token, std::ops::Range<usize>)>,
     index: usize,
-    _phantom: std::marker::PhantomData<&'source ()>,
 }
 
-impl<'source> Lexer<'source> {
-    pub fn new(source: &'source str) -> Self {
+impl Lexer {
+    pub fn new(source: &str) -> Self {
         let mut lexer = Token::lexer(source);
         let mut tokens = Vec::new();
 
@@ -25,17 +23,11 @@ impl<'source> Lexer<'source> {
         Self {
             tokens,
             index: 0,
-            _phantom: std::marker::PhantomData,
         }
-    }
-
-    #[allow(dead_code)]
-    pub fn source(&self) -> &'source str {
-        unimplemented!()
     }
 }
 
-impl<'source> Iterator for Lexer<'source> {
+impl Iterator for Lexer {
     type Item = Result<(Token, std::ops::Range<usize>), LexerError>;
 
     fn next(&mut self) -> Option<Self::Item> {

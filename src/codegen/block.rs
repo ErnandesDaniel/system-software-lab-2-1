@@ -3,7 +3,7 @@ use crate::ir::types::*;
 use super::AsmGenerator;
 
 impl AsmGenerator {
-    #[allow(dead_code)]
+    #[cfg(test)]
     pub fn generate_function_internal(&mut self, func: &IrFunction) {
         self.current_function = Some(func.name.clone());
         self.locals.clear();
@@ -75,14 +75,13 @@ impl AsmGenerator {
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
 
-        let mut frame_size = self.calculate_frame_size(func);
-        // Ensure frame is large enough for param save slots
-        if param_save_count > 0 {
-            let param_area = (param_save_count as i32) * 8;
-            if frame_size < param_area {
-                frame_size = ((param_area + 15) / 16) * 16;
-            }
-        }
+        let mut frame_size: i32 = func.locals.iter()
+            .filter_map(|l| l.stack_offset)
+            .map(|o| -o)
+            .max()
+            .unwrap_or(0)
+            .max(param_save_count as i32 * 8);
+        frame_size = ((frame_size + 15) / 16) * 16;
         if frame_size > 0 {
             self.output
                 .push_str(&format!("    sub rsp, {}\n", frame_size));
@@ -108,23 +107,6 @@ impl AsmGenerator {
         });
         for block in &blocks {
             self.generate_block(block);
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn calculate_frame_size(&self, func: &IrFunction) -> i32 {
-        let mut size = 0;
-        for local in &func.locals {
-            if let Some(offset) = local.stack_offset {
-                size = size.max(-offset);
-            }
-        }
-
-        let aligned = ((size + 15) / 16) * 16;
-        if aligned == 0 && size > 0 {
-            aligned + 8
-        } else {
-            aligned
         }
     }
 

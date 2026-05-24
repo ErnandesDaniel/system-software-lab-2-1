@@ -1,7 +1,6 @@
 pub use std::collections::HashMap;
 
 #[derive(Debug, Clone, PartialEq)]
-#[allow(dead_code)]
 pub enum SemanticType {
     Int,
     Bool,
@@ -9,28 +8,14 @@ pub enum SemanticType {
     Array(Box<SemanticType>, usize),
     Function(Vec<SemanticType>, Box<SemanticType>),
     Void,
-    Unknown,
-}
-
-#[allow(dead_code)]
-impl SemanticType {
-    pub fn is_array(&self) -> bool {
-        matches!(self, SemanticType::Array(_, _))
-    }
-
-    pub fn element_type(&self) -> Option<SemanticType> {
-        match self {
-            SemanticType::Array(elem, _) => Some(*elem.clone()),
-            _ => None,
-        }
-    }
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)]
 pub struct Symbol {
+    #[allow(dead_code)]
     pub name: String,
     pub ty: SemanticType,
+    #[allow(dead_code)]
     pub stack_offset: Option<i32>,
 }
 
@@ -64,10 +49,6 @@ impl SymbolTable {
         Ok(())
     }
 
-    pub fn insert(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
-        self.add(name, ty)
-    }
-
     pub fn lookup(&self, name: &str) -> Option<&Symbol> {
         self.symbols.get(name)
     }
@@ -76,9 +57,8 @@ impl SymbolTable {
         self.lookup(name)
     }
 
-    #[allow(dead_code)]
-    pub fn contains(&self, name: &str) -> bool {
-        self.symbols.contains_key(name)
+    pub fn upsert(&mut self, name: String, ty: SemanticType) {
+        self.symbols.insert(name.clone(), Symbol::new(name, ty));
     }
 }
 

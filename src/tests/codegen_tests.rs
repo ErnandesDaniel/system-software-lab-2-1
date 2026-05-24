@@ -1,11 +1,6 @@
 use crate::codegen::AsmGenerator;
 use crate::ir_generator::IrGenerator;
-use crate::parser::Parser;
-
-fn parse(source: &str) -> crate::ast::Program {
-    let mut parser = Parser::new(source);
-    parser.parse().unwrap()
-}
+use crate::tests::parse;
 
 #[test]
 fn test_ir_generation_simple() {
@@ -45,9 +40,7 @@ fn test_extern_short_form_codegen() {
 
 #[test]
 fn test_assembler_output_format() {
-    let source = "def square(x of int) of int return x * x; end";
-    let mut parser = Parser::new(source);
-    let ast = parser.parse().unwrap();
+    let ast = parse("def square(x of int) of int return x * x; end");
 
     let mut ir_gen = IrGenerator::new();
     let ir_program = ir_gen.generate(&ast);
@@ -142,7 +135,6 @@ fn test_asm_string_literal() {
     let asm = asm_gen.generate(&ir);
     assert!(asm.contains("main:"));
     assert!(asm.contains("ret"));
-    // String may be stored in data section or as bytes
     assert!(
         asm.contains("hello") || asm.contains("db ") || asm.contains("section .data"),
         "Expected string data in asm, got: {}",

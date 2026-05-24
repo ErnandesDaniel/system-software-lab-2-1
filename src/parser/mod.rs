@@ -9,7 +9,7 @@ use crate::lexer::Token;
 use std::ops::Range;
 
 pub struct Parser<'source> {
-    lexer: Lexer<'source>,
+    lexer: Lexer,
     current: Option<(Token, Range<usize>)>,
     source: &'source str,
 }
@@ -112,7 +112,7 @@ impl<'source> Parser<'source> {
     pub(crate) fn expect(&mut self, token: Token) -> Result<(Token, Span), String> {
         let tok = self.current_token().ok_or("Unexpected end of input")?;
         let tok_clone = *tok;
-        if std::mem::discriminant(&tok_clone) == std::mem::discriminant(&token) {
+        if tok_clone == token {
             let span = self.current_span();
             self.advance();
             Ok((tok_clone, span))

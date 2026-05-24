@@ -5,7 +5,6 @@ use thiserror::Error;
 #[logos(skip r"[ \t\r\n]+")]
 #[logos(skip r"//[^\n]*")]
 #[logos(skip r"/\*[^*]*(?:\*[^/][^*]*)*\*/")]
-#[allow(dead_code)]
 pub enum Token {
     #[token("def")]
     Def,
@@ -145,7 +144,6 @@ pub enum Token {
 }
 
 #[derive(Error, Debug)]
-#[allow(dead_code)]
 pub enum LexerError {
     #[error("Unexpected character")]
     UnexpectedChar,

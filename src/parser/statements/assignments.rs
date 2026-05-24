@@ -140,7 +140,7 @@ impl<'source> Parser<'source> {
         let mut body = Vec::new();
         loop {
             if let Some(tok) = self.current_token() {
-                if std::mem::discriminant(tok) == std::mem::discriminant(&end_token) {
+                if *tok == end_token {
                     break;
                 }
             } else {
@@ -156,16 +156,12 @@ impl<'source> Parser<'source> {
                 }
                 Err(e) => {
                     if let Some(tok) = self.current_token() {
-                        if std::mem::discriminant(tok) == std::mem::discriminant(&end_token) {
+                        if *tok == end_token {
                             break;
                         }
                     }
                     return Err(e);
                 }
-            }
-
-            if body.len() > 100 {
-                break;
             }
         }
         self.expect(end_token)?;
