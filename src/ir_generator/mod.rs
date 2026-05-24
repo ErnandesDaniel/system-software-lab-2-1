@@ -18,6 +18,7 @@ pub struct IrGenerator {
     pub function_return_types: HashMap<String, IrType>,
     pub global_names: HashSet<String>,
     pub global_types: HashMap<String, IrType>,
+    pub global_struct_type_names: HashMap<String, String>,
     pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
     pub local_struct_types: HashMap<String, String>,
     pub current_yield_state: usize,
@@ -41,6 +42,7 @@ impl IrGenerator {
             function_return_types: HashMap::new(),
             global_names: HashSet::new(),
             global_types: HashMap::new(),
+            global_struct_type_names: HashMap::new(),
             struct_fields: HashMap::new(),
             local_struct_types: HashMap::new(),
             current_yield_state: 0,
@@ -94,6 +96,11 @@ impl IrGenerator {
                     self.global_names.insert(global.name.name.clone());
                     let ir_ty = self.convert_type(&global.ty);
                     self.global_types.insert(global.name.name.clone(), ir_ty);
+                    if let crate::ast::TypeRef::Custom(ref id) = global.ty {
+                        if self.struct_fields.contains_key(&id.name) {
+                            self.global_struct_type_names.insert(global.name.name.clone(), id.name.clone());
+                        }
+                    }
                 }
                 SourceItem::CoroutineDef(_) => {
                     // Coroutines are parsed like functions from FuncDefinition items
@@ -489,9 +496,7 @@ impl IrGenerator {
                     .map(|s| s.as_str())
                     .or_else(|| {
                         // Check if base is a global with a struct type
-                        self.global_types.get(&base_name).and_then(|t| {
-                            if let IrType::Array(..) = t { None } else { Some(base_name.as_str()) }
-                        })
+                        self.global_struct_type_names.get(&base_name).map(|s| s.as_str())
                     })
                     .unwrap_or(&base_name);
                 let field_offset = self.struct_fields.get(struct_name)

@@ -94,22 +94,34 @@ java -cp output MainRunner square 7
 
 ---
 
-## Лабораторные работы (lab-2 / lab-4)
+## Лабораторные работы
 
-### lab-2: Функции первого класса + локальные функции + замыкания
+### lab-1 (системное ПО): Планировщик задач (RR + SRT)
 
 ```powershell
 # Компиляция в NASM
-cargo run -- labs-examples/vitrual-machines/lab-2/all_examples.mylang -o output -t nasm
-gcc output/main.obj output/__lambda_*.obj -o output/all_examples.exe
-.\output\all_examples.exe
+cargo run -- labs-examples/system-programms/lab-1/input.mylang -o output -t nasm
+
+# Запуск
+.\output\program.exe
+```
+
+Вариант 19: RR(2) + SRT. Диапазон burst 4–8, средние интервалы 6 и 3.
+Результаты для обоих алгоритмов выводятся в консоль.
+
+### lab-2 (виртуальные машины): Функции первого класса + замыкания
+
+```powershell
+# Компиляция в NASM
+cargo run -- labs-examples/vitrual-machines/lab-2/input.mylang -o output -t nasm
+.\output\program.exe
 
 # Компиляция в JVM (Java bytecode)
-cargo run -- labs-examples/vitrual-machines/lab-2/all_examples.mylang -o output -t jvm
+cargo run -- labs-examples/vitrual-machines/lab-2/input.mylang -o output -t jvm
 java -cp output Main
 ```
 
-`all_examples.mylang` объединяет все сценарии в одном файле:
+В одном файле 7 сценариев:
 
 | # | Сценарий | Результат |
 |---|----------|-----------|
@@ -121,17 +133,17 @@ java -cp output Main
 | 6 | Счётчик через замыкание `inc_count()` ×3 | `123` |
 | 7 | Комбинация всего | `2730` |
 
-### lab-4: PHP ↔ JVM через Shared Memory
+### lab-4 (виртуальные машины): PHP ↔ JVM через Shared Memory
 
 ```powershell
 # 1. Скомпилировать MyLang-сервер в JVM
-cargo run -- labs-examples/vitrual-machines/lab-4/server.mylang -o output -t jvm
+cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
 
 # 2. Запустить PHP CLI (автоматически стартует JVM-демон)
-php labs-examples/vitrual-machines/lab-4/cli_app.php
+php labs-examples/vitrual-machines/lab-4/input.php
 ```
 
-Всё в одном PHP-файле (`cli_app.php`) — `SHMClient` и интерактивная консоль.
+Всё в одном PHP-файле (`input.php`) — `SHMClient` и интерактивная консоль.
 
 ---
 
@@ -230,11 +242,11 @@ user_main:
 
 ## Демо: PHP↔JVM CLI (Shared Memory)
 
-Одна из демонстрационных программ. PHP общается с JVM-демоном через разделяемую память (Win32 File Mapping), позволяя интерактивно вызывать CRUD-операции, скомпилированные из `server.mylang`.
+Одна из демонстрационных программ. PHP общается с JVM-демоном через разделяемую память (Win32 File Mapping), позволяя интерактивно вызывать CRUD-операции, скомпилированные из `input.mylang`.
 
 ```powershell
-cargo run -- cli_app/server.mylang -o output -t jvm
-php cli_app/cli_app.php
+cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
+php labs-examples/vitrual-machines/lab-4/input.php
 ```
 
 ### Команды
@@ -277,10 +289,8 @@ PHP читает SHM → выводит результат
 
 | Файл | Назначение |
 |------|------------|
-| `cli_app/server.mylang` | MyLang CRUD-сервер |
-| `cli_app/cli_app.php` | Интерактивная консоль |
-| `cli_app/shm_client.php` | PHP FFI: kernel32 → SHM |
-| `cli_app/test_shm.php` | Интеграционный тест |
+| `labs-examples/vitrual-machines/lab-4/input.mylang` | MyLang CRUD-сервер |
+| `labs-examples/vitrual-machines/lab-4/input.php` | PHP CLI `SHMClient` + интерактивная консоль |
 | `output/RuntimeStub.java` | Генерируется: I/O, SHM через JNA, HashMap |
 | `output/MainRunner.java` | Генерируется: отладочный запускатор через рефлексию |
 
