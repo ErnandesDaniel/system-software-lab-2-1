@@ -52,6 +52,21 @@ fn jvm_class_count(source: &str) -> usize {
     jvm_gen.generate_program(&ir).len()
 }
 
+fn compile_and_run_jvm(source: &str) -> std::process::Output {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+    let ir = generate_ir(source);
+    let mut jvm_gen = JvmGenerator::new();
+    let classes = jvm_gen.generate_program(&ir);
+    for (name, bytes) in &classes {
+        let path = temp_dir.path().join(format!("{}.class", name));
+        fs::write(&path, bytes).unwrap();
+    }
+    Command::new("java")
+        .args(["-cp", temp_dir.path().to_str().unwrap(), "Main"])
+        .output()
+        .expect("Java not found — JVM tests require java on PATH")
+}
+
 fn jvm_valid(source: &str) -> bool {
     let ir = generate_ir(source);
     let mut jvm_gen = JvmGenerator::new();
@@ -265,4 +280,49 @@ fn test_jvm_modulus() {
 fn test_jvm_multi_var() {
     assert!(jvm_valid(MULTI_VAR));
     assert_eq!(jvm_class_count(MULTI_VAR), 1);
+}
+
+// ─── JVM runtime tests (compile class files & run with java) ────────────
+
+const JVM_RETURN_42: &str = "def main() of int return 42; end";
+
+const JVM_CLOSURE_SIMPLE: &str = r#"
+def main() of int
+    x = 10;
+    def inner() of int
+        return x
+    end
+    return inner()
+end
+"#;
+
+const JVM_CLOSURE_MUTATE: &str = r#"
+def main() of int
+    x = 0;
+    def inc()
+        x = x + 1
+    end
+    inc();
+    inc();
+    inc();
+    return x
+end
+"#;
+
+#[test]
+fn test_jvm_runtime_return_42() {
+    let output = compile_and_run_jvm(JVM_RETURN_42);
+    assert_eq!(output.status.code(), Some(42), "jvm return 42");
+}
+
+#[test]
+fn test_jvm_runtime_closure_simple() {
+    let output = compile_and_run_jvm(JVM_CLOSURE_SIMPLE);
+    assert_eq!(output.status.code(), Some(10), "jvm closure should capture x");
+}
+
+#[test]
+fn test_jvm_runtime_closure_mutate() {
+    let output = compile_and_run_jvm(JVM_CLOSURE_MUTATE);
+    assert_eq!(output.status.code(), Some(3), "jvm closure should mutate captured x");
 }

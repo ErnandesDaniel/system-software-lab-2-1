@@ -1,4 +1,5 @@
 use ristretto_classfile::attributes::Instruction;
+use ristretto_classfile::attributes::ArrayType;
 use crate::ir::types::*;
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::BinaryOp;
@@ -37,21 +38,35 @@ impl JvmGenerator {
             IrOpcode::Cast => {}
             IrOpcode::CoroYield => {}
             IrOpcode::CallIndirect => {}
-            IrOpcode::MakeClosure => {}
-            IrOpcode::CallClosure => {}
-            IrOpcode::LoadCaptured => {}
-            IrOpcode::StoreCaptured => {}
+            IrOpcode::MakeClosure => self.generate_make_closure(code, inst),
+            IrOpcode::CallClosure => self.generate_call_closure(code, inst),
+            IrOpcode::LoadCaptured => self.generate_load_captured(code, inst),
+            IrOpcode::StoreCaptured => self.generate_store_captured(code, inst),
         }
     }
 
     fn generate_assign(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let (Some(ref result), Some(ref operand)) = (&inst.result, inst.operands.first()) {
-            self.emit_load_operand(code, operand);
-            let slot = self.get_local_slot(result);
-            
-            match operand.get_type() {
-                IrType::String => code.push(Instruction::Astore(slot as u8)),
-                _ => code.push(Instruction::Istore(slot as u8)),
+            if self.wrapped_vars.contains(result) {
+                // Store through wrapper: aload wrapper; iconst_0; <value>; iastore
+                let slot = self.get_local_slot(result);
+                match slot {
+                    0 => code.push(Instruction::Aload_0),
+                    1 => code.push(Instruction::Aload_1),
+                    2 => code.push(Instruction::Aload_2),
+                    3 => code.push(Instruction::Aload_3),
+                    _ => code.push(Instruction::Aload(slot as u8)),
+                }
+                code.push(Instruction::Iconst_0);
+                self.emit_load_operand(code, operand);
+                code.push(Instruction::Iastore);
+            } else {
+                self.emit_load_operand(code, operand);
+                let slot = self.get_local_slot(result);
+                match operand.get_type() {
+                    IrType::String => code.push(Instruction::Astore(slot as u8)),
+                    _ => code.push(Instruction::Istore(slot as u8)),
+                }
             }
         }
     }
@@ -155,6 +170,161 @@ impl JvmGenerator {
             code.push(Instruction::Iaload);
             let slot = self.get_local_slot(result);
             code.push(Instruction::Istore(slot as u8));
+        }
+    }
+
+    fn generate_make_closure(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // operands[0] = FuncRef(lambda_name)
+        // operands[1..] = captured variables
+        // result = env temp (holds int[][] reference)
+        if let Some(ref result) = inst.result {
+            let num_captures = inst.operands.len().saturating_sub(1);
+            let anewarray_idx = self.anewarray_int_class_idx.unwrap_or(0);
+
+            // Create env array: int[num_captures][]
+            self.emit_load_constant(code, &Constant::Int(num_captures as i64));
+            code.push(Instruction::Anewarray(anewarray_idx));
+
+            // For each capture, store wrapper ref (or create new one) into env array
+            for (capture_idx, op) in inst.operands.iter().enumerate().skip(1) {
+                code.push(Instruction::Dup);                   // dup env ref for storing
+                self.emit_load_constant(code, &Constant::Int((capture_idx - 1) as i64)); // slot index
+
+                // If captured variable is a wrapped var, reuse its existing wrapper
+                // Otherwise, create a new int[1] wrapper with the current value
+                if let IrOperand::Variable(name, _) = op {
+                    if self.wrapped_vars.contains(name) {
+                        let cap_slot = self.get_local_slot(name);
+                        match cap_slot {
+                            0 => code.push(Instruction::Aload_0),
+                            1 => code.push(Instruction::Aload_1),
+                            2 => code.push(Instruction::Aload_2),
+                            3 => code.push(Instruction::Aload_3),
+                            _ => code.push(Instruction::Aload(cap_slot as u8)),
+                        }
+                    } else {
+                        code.push(Instruction::Iconst_1);
+                        code.push(Instruction::Newarray(ArrayType::Int));
+                        code.push(Instruction::Dup);
+                        code.push(Instruction::Iconst_0);
+                        self.emit_load_operand(code, op);
+                        code.push(Instruction::Iastore);
+                    }
+                } else {
+                    code.push(Instruction::Iconst_1);
+                    code.push(Instruction::Newarray(ArrayType::Int));
+                    code.push(Instruction::Dup);
+                    code.push(Instruction::Iconst_0);
+                    self.emit_load_operand(code, op);
+                    code.push(Instruction::Iastore);
+                }
+
+                code.push(Instruction::Aastore);               // env[i] = wrapper
+            }
+
+            let result_slot = self.get_local_slot(result);
+            code.push(Instruction::Astore(result_slot as u8));
+        }
+    }
+
+    fn generate_call_closure(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // operands[0] = func ptr (Variable, not loaded — used only for IR tracking)
+        // operands[1] = env ptr (Variable)
+        // operands[2..] = call args
+        if let Some(env_operand) = inst.operands.get(1) {
+            // Load env reference (aload since it's a reference type)
+            if let IrOperand::Variable(env_name, _) = env_operand {
+                let env_slot = self.get_local_slot(env_name);
+                match env_slot {
+                    0 => code.push(Instruction::Aload_0),
+                    1 => code.push(Instruction::Aload_1),
+                    2 => code.push(Instruction::Aload_2),
+                    3 => code.push(Instruction::Aload_3),
+                    _ => code.push(Instruction::Aload(env_slot as u8)),
+                }
+            }
+
+            // Load regular args (operands[2..])
+            for arg in inst.operands.iter().skip(2) {
+                self.emit_load_operand(code, arg);
+            }
+
+            // Look up method ref: use closure_targets to find lambda name from env ptr
+            let lambda_name = if let IrOperand::Variable(env_name, _) = env_operand {
+                self.closure_targets.get(env_name).cloned()
+            } else {
+                None
+            };
+
+            if let Some(ref name) = lambda_name {
+                let method_idx = self.method_refs.get(name).copied().unwrap_or(1);
+                code.push(Instruction::Invokestatic(method_idx));
+            } else {
+                code.push(Instruction::Nop);
+            }
+
+            // Store result if any
+            if let Some(ref result) = inst.result {
+                let slot = self.get_local_slot(result);
+                let is_string = inst.result_type.as_ref().map_or(false, |t| matches!(t, IrType::String));
+                if is_string {
+                    code.push(Instruction::Astore(slot as u8));
+                } else {
+                    code.push(Instruction::Istore(slot as u8));
+                }
+            }
+        }
+    }
+
+    fn generate_load_captured(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // operands[0] = __env variable
+        // operands[1] = slot index (Constant::Int)
+        // result = loaded value
+        if let (Some(ref result), Some(slot_op)) = (&inst.result, inst.operands.get(1)) {
+            let env_slot = self.get_local_slot("__env");
+            match env_slot {
+                0 => code.push(Instruction::Aload_0),
+                1 => code.push(Instruction::Aload_1),
+                2 => code.push(Instruction::Aload_2),
+                3 => code.push(Instruction::Aload_3),
+                _ => code.push(Instruction::Aload(env_slot as u8)),
+            }
+
+            if let IrOperand::Constant(Constant::Int(slot)) = slot_op {
+                self.emit_load_constant(code, &Constant::Int(*slot));
+            }
+
+            code.push(Instruction::Aaload);    // [[I → [I  (wrapper array)
+            code.push(Instruction::Iconst_0);
+            code.push(Instruction::Iaload);     // [I → int (captured value)
+
+            let result_slot = self.get_local_slot(result);
+            code.push(Instruction::Istore(result_slot as u8));
+        }
+    }
+
+    fn generate_store_captured(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // operands[0] = __env variable
+        // operands[1] = slot index (Constant::Int)
+        // operands[2] = value to store
+        if let (Some(slot_op), Some(val_op)) = (inst.operands.get(1), inst.operands.get(2)) {
+            let env_slot = self.get_local_slot("__env");
+            match env_slot {
+                0 => code.push(Instruction::Aload_0),
+                1 => code.push(Instruction::Aload_1),
+                2 => code.push(Instruction::Aload_2),
+                3 => code.push(Instruction::Aload_3),
+                _ => code.push(Instruction::Aload(env_slot as u8)),
+            }
+
+            if let IrOperand::Constant(Constant::Int(slot)) = slot_op {
+                self.emit_load_constant(code, &Constant::Int(*slot));
+            }
+
+            code.push(Instruction::Aaload);    // [[I → [I  (wrapper array)
+            code.push(Instruction::Iconst_0);
+            self.emit_load_operand(code, val_op); // value
+            code.push(Instruction::Iastore);     // wrapper[0] = value
         }
     }
 }

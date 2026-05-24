@@ -3,7 +3,7 @@ use crate::codegen::jvm::types::{capitalize_first, get_method_descriptor, ir_typ
 use crate::ir::types::*;
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 mod types;
 mod classfile;
@@ -33,6 +33,10 @@ pub struct JvmGenerator {
     current_function_name: String,
     current_params: Vec<IrParameter>,
     current_return_type: IrType,
+    env_vars: HashSet<String>,
+    closure_targets: HashMap<String, String>,
+    anewarray_int_class_idx: Option<u16>,
+    wrapped_vars: HashSet<String>,
 }
 
 impl JvmGenerator {
@@ -46,6 +50,10 @@ impl JvmGenerator {
             current_function_name: String::new(),
             current_params: Vec::new(),
             current_return_type: IrType::Void,
+            env_vars: HashSet::new(),
+            closure_targets: HashMap::new(),
+            anewarray_int_class_idx: None,
+            wrapped_vars: HashSet::new(),
         }
     }
 
@@ -93,33 +101,73 @@ impl JvmGenerator {
                     }
                 }
                 
-                if let IrOpcode::Call = inst.opcode {
-                    if let Some(ref target) = inst.jump_target {
-                        if self.method_refs.contains_key(target) {
-                            continue;
+                match inst.opcode {
+                    IrOpcode::Call => {
+                        if let Some(ref target) = inst.jump_target {
+                            if self.method_refs.contains_key(target) {
+                                continue;
+                            }
+                            
+                            let param_types: Vec<IrType> = inst.operands.iter()
+                                .map(|op| op.get_type())
+                                .collect();
+                            let return_type = inst.result_type.clone();
+                            
+                            let (class_idx, method_name, descriptor) = if self.is_external_function(target) {
+                                let desc = get_method_descriptor(target);
+                                (runtime_stub_class, target.clone(), desc)
+                            } else {
+                                let class_name = capitalize_first(target);
+                                let user_class = self.constant_pool.add_class(&class_name).unwrap();
+                                let desc = self.build_user_method_descriptor(&param_types, return_type.as_ref());
+                                (user_class, "call".to_string(), desc)
+                            };
+                            
+                            let method_idx = self.constant_pool
+                                .add_method_ref(class_idx, &method_name, &descriptor)
+                                .unwrap();
+                            
+                            self.method_refs.insert(target.clone(), method_idx);
                         }
-                        
-                        let param_types: Vec<IrType> = inst.operands.iter()
-                            .map(|op| op.get_type())
-                            .collect();
-                        let return_type = inst.result_type.clone();
-                        
-                        let (class_idx, method_name, descriptor) = if self.is_external_function(target) {
-                            let desc = get_method_descriptor(target);
-                            (runtime_stub_class, target.clone(), desc)
-                        } else {
-                            let class_name = capitalize_first(target);
-                            let user_class = self.constant_pool.add_class(&class_name).unwrap();
-                            let desc = self.build_user_method_descriptor(&param_types, return_type.as_ref());
-                            (user_class, "call".to_string(), desc)
-                        };
-                        
-                        let method_idx = self.constant_pool
-                            .add_method_ref(class_idx, &method_name, &descriptor)
-                            .unwrap();
-                        
-                        self.method_refs.insert(target.clone(), method_idx);
                     }
+                    IrOpcode::CallClosure => {
+                        // operands[1] = env_ptr → look up lambda name from closure_targets
+                        if let Some(env_operand) = inst.operands.get(1) {
+                            if let IrOperand::Variable(env_name, _) = env_operand {
+                                if let Some(lambda_name) = self.closure_targets.get(env_name) {
+                                    if self.method_refs.contains_key(lambda_name) {
+                                        continue;
+                                    }
+                                    
+                                    let class_name = capitalize_first(lambda_name);
+                                    let user_class = self.constant_pool.add_class(&class_name).unwrap();
+                                    
+                                    // Build descriptor: ([[I<arg_types>)<return_type>
+                                    let mut param_desc = "[[I".to_string();
+                                    for arg in inst.operands.iter().skip(2) {
+                                        param_desc.push_str(&ir_type_to_jvm_descriptor(&arg.get_type()));
+                                    }
+                                    let ret_desc = inst.result_type.as_ref()
+                                        .map(|t| ir_type_to_jvm_descriptor(t))
+                                        .unwrap_or_else(|| "V".to_string());
+                                    let desc = format!("({}){}", param_desc, ret_desc);
+                                    
+                                    let method_idx = self.constant_pool
+                                        .add_method_ref(user_class, "call", &desc)
+                                        .unwrap();
+                                    
+                                    self.method_refs.insert(lambda_name.clone(), method_idx);
+                                }
+                            }
+                        }
+                    }
+                    IrOpcode::MakeClosure => {
+                        // Pre-compute the [I class index for anewarray
+                        if self.anewarray_int_class_idx.is_none() {
+                            self.anewarray_int_class_idx = Some(self.constant_pool.add_class("[I").unwrap());
+                        }
+                    }
+                    _ => {}
                 }
             }
         }
@@ -148,10 +196,17 @@ impl JvmGenerator {
         self.constant_pool = ConstantPool::default();
         self.method_refs.clear();
         self.string_consts.clear();
+        self.env_vars.clear();
+        self.closure_targets.clear();
+        self.anewarray_int_class_idx = None;
+        self.wrapped_vars.clear();
     }
 
     fn setup_local_variables(&mut self, func: &IrFunction) {
         for param in &func.parameters {
+            if param.name == "__env" {
+                self.env_vars.insert(param.name.clone());
+            }
             self.locals.insert(param.name.clone(), self.next_local_slot);
             self.next_local_slot += 1;
         }
@@ -166,9 +221,30 @@ impl JvmGenerator {
         let mut temps_used: Vec<String> = Vec::new();
         for block in &func.blocks {
             for inst in &block.instructions {
-                if let Some(ref result) = inst.result {
-                    if Self::is_temp(result) && !temps_used.contains(result) {
-                        temps_used.push(result.clone());
+                match inst.opcode {
+                    IrOpcode::MakeClosure => {
+                        if let Some(ref result) = inst.result {
+                            if !temps_used.contains(result) {
+                                temps_used.push(result.clone());
+                            }
+                            self.env_vars.insert(result.clone());
+                            if let Some(ref target) = inst.jump_target {
+                                self.closure_targets.insert(result.clone(), target.clone());
+                            }
+                        }
+                        // Track captured variables as wrapped vars (int[1] wrappers)
+                        for op in inst.operands.iter().skip(1) {
+                            if let IrOperand::Variable(name, _) = op {
+                                self.wrapped_vars.insert(name.clone());
+                            }
+                        }
+                    }
+                    _ => {
+                        if let Some(ref result) = inst.result {
+                            if Self::is_temp(result) && !temps_used.contains(result) {
+                                temps_used.push(result.clone());
+                            }
+                        }
                     }
                 }
             }
@@ -270,11 +346,23 @@ impl JvmGenerator {
 
         // Initialize all local (non-parameter) slots for verifier type consistency
         let string_slots = collect_string_slots(self, func);
+        let env_slot_nums: HashSet<u16> = self.env_vars.iter()
+            .filter_map(|name| self.locals.get(name))
+            .copied()
+            .collect();
+        let wrapped_slot_nums: HashSet<u16> = self.wrapped_vars.iter()
+            .filter_map(|name| self.locals.get(name))
+            .copied()
+            .collect();
         let num_params = func.parameters.len() as u16;
         for slot in num_params..self.next_local_slot {
             if self.locals.values().any(|&s| s == slot) {
-                if string_slots.contains(&slot) {
+                if string_slots.contains(&slot) || env_slot_nums.contains(&slot) {
                     instructions.push(JvmInst::Real(Instruction::Aconst_null));
+                    instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                } else if wrapped_slot_nums.contains(&slot) {
+                    instructions.push(JvmInst::Real(Instruction::Iconst_1));
+                    instructions.push(JvmInst::Real(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int)));
                     instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
                 } else {
                     instructions.push(JvmInst::Real(Instruction::Iconst_0));

@@ -7,6 +7,19 @@ impl JvmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 let slot = self.get_local_slot(name);
+                if self.wrapped_vars.contains(name) {
+                    // Wrapped var: load through int[1] wrapper
+                    match slot {
+                        0 => code.push(Instruction::Aload_0),
+                        1 => code.push(Instruction::Aload_1),
+                        2 => code.push(Instruction::Aload_2),
+                        3 => code.push(Instruction::Aload_3),
+                        _ => code.push(Instruction::Aload(slot as u8)),
+                    }
+                    code.push(Instruction::Iconst_0);
+                    code.push(Instruction::Iaload);
+                    return;
+                }
                 let instr = match ty {
                     IrType::String => {
                         match slot {
@@ -31,12 +44,12 @@ impl JvmGenerator {
             }
             IrOperand::Constant(c) => self.emit_load_constant(code, c),
             IrOperand::FuncRef(_) => {
-                code.push(Instruction::Lconst_0);
+                code.push(Instruction::Iconst_0);
             }
         }
     }
 
-    fn emit_load_constant(&self, code: &mut Vec<Instruction>, c: &crate::ir::Constant) {
+    pub fn emit_load_constant(&self, code: &mut Vec<Instruction>, c: &crate::ir::Constant) {
         use crate::ir::Constant;
         match c {
             Constant::Int(n) => {
