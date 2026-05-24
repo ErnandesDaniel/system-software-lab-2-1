@@ -63,11 +63,10 @@ impl StdLib {
         funcs.insert("shm_wait_event_jvm");
         funcs.insert("shm_find_null_jvm");
 
-        // Coroutine runtime (NASM)
+        // Coroutine runtime (NASM) — ручное планирование
         funcs.insert("resume_coroutine_nasm");
         funcs.insert("create_coroutine_nasm");
         funcs.insert("coro_init_nasm");
-        funcs.insert("run_scheduler_nasm");
 
         funcs
     }

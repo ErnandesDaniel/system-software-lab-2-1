@@ -16,6 +16,19 @@
 cargo build
 ```
 
+## Тестирование
+
+```powershell
+# Все тесты
+cargo test
+
+# Фильтр по имени (например, только nasm-тесты)
+cargo test nasm
+cargo test jvm
+cargo test parser
+cargo test codegen
+```
+
 ## Использование
 
 ```powershell
