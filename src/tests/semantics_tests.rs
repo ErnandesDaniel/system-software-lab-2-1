@@ -158,3 +158,168 @@ fn test_semantics_if_else_ok() {
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
 }
+
+#[test]
+fn test_semantics_until_loop_ok() {
+    let source = r#"
+        def main() of int
+            i = 0;
+            until i == 5 {
+                i = i + 1;
+            }
+            loop_end
+            return i
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_do_while_loop_ok() {
+    let source = r#"
+        def main() of int
+            i = 0;
+            do i = i + 1; while i < 5;
+            return i
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_break_inside_loop_ok() {
+    let source = r#"
+        def main() of int
+            while 1 == 1 {
+                break;
+            }
+            loop_end
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_coroutine_ok() {
+    let source = r#"
+        coroutine worker() of int
+            yield
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_global_var_ok() {
+    let source = r#"
+        global counter of int = 0;
+        def main() of int
+            return counter
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_logical_and_on_bools_ok() {
+    let source = r#"
+        def main() of int
+            a = 1 == 1;
+            b = 2 == 2;
+            c = a && b;
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_logical_or_on_bools_ok() {
+    let source = r#"
+        def main() of int
+            a = 1 == 1;
+            b = 2 == 3;
+            c = a || b;
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_not_on_bool_ok() {
+    let source = r#"
+        def main() of int
+            a = 1 == 1;
+            b = !a;
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_comparison_ops_ok() {
+    let source = r#"
+        def main() of int
+            a = 1 == 2;
+            b = 3 != 4;
+            c = 5 < 6;
+            d = 7 > 8;
+            e = 9 <= 10;
+            f = 11 >= 12;
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_unary_negate_on_int_ok() {
+    let source = "def main() of int x = 5; return -x; end";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_bitwise_not_on_int_ok() {
+    let source = "def main() of int x = 5; return ~x; end";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_void_function_ok() {
+    let source = r#"
+        def log(msg of string) 
+            puts(msg)
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_compare_strings_ok() {
+    let source = r#"
+        def main() of int
+            a = "hello";
+            b = "world";
+            c = a == b;
+            return 0
+        end
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}

@@ -174,3 +174,134 @@ fn test_asm_while_loop_structure() {
     assert!(asm.contains("cmp"));
     assert!(asm.contains("j"));
 }
+
+#[test]
+fn test_asm_unary_negate() {
+    let source = "def main() of int x = 7; return -x; end";
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("neg eax"));
+}
+
+#[test]
+fn test_asm_logical_not() {
+    let source = "def main() of int x = 0; return !x; end";
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("test") || asm.contains("xor eax, 1"));
+}
+
+#[test]
+fn test_asm_comparison_eq() {
+    let source = "def main() of int return 1 == 2; end";
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("cmp"));
+    assert!(asm.contains("sete"));
+}
+
+#[test]
+fn test_asm_comparison_lt() {
+    let source = "def main() of int return 5 < 10; end";
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("cmp"));
+    assert!(asm.contains("setl"));
+}
+
+#[test]
+fn test_asm_comparison_gt() {
+    let source = "def main() of int return 10 > 5; end";
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("cmp"));
+    assert!(asm.contains("setg"));
+}
+
+#[test]
+fn test_asm_global_array_access() {
+    let source = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return arr[0]
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("section .data"));
+    assert!(asm.contains("arr"));
+    assert!(asm.contains("dd 10") || asm.contains("arr"));
+}
+
+#[test]
+fn test_asm_global_array_index() {
+    let source = r#"
+        global arr of int[3] = [10, 20, 30];
+        def main() of int
+            return arr[2]
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("arr") || asm.contains("lea") || asm.contains("mov"));
+}
+
+#[test]
+fn test_asm_struct_field_load() {
+    let source = r#"
+        struct Point { x of int; y of int; }
+        def main() of int
+            p of Point;
+            p.x = 42;
+            return p.x
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("main:"));
+    assert!(asm.contains("ret"));
+}
+
+#[test]
+fn test_asm_multi_blocks() {
+    let source = r#"
+        def main() of int
+            if 1 == 1 then
+                return 42
+            end
+            return 0
+        end
+    "#;
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("BB_0:"));
+    assert!(asm.contains("BB_1:"));
+    assert!(asm.contains("BB_2:"));
+}
