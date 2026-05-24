@@ -1,0 +1,20 @@
+// Пример замыкания с мутацией захваченной переменной
+// inc захватывает x и изменяет его через замыкание (write-through)
+
+extern puts
+
+def main() of int
+    x = 0;
+
+    puts("Testing closure with mutation:");
+
+    def inc()
+        x = x + 1   // x захвачен и изменён
+    end
+
+    inc();
+    inc();
+    inc();
+
+    return x   // 3
+end

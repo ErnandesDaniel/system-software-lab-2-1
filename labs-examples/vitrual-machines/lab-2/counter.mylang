@@ -1,0 +1,21 @@
+// Пример счётчика через замыкание с мутацией
+// Локальная функция inc увеличивает и возвращает счётчик
+
+extern puts
+
+def main() of int
+    puts("Testing counter via closure:");
+
+    count = 0;
+
+    def inc() of int
+        count = count + 1;
+        return count
+    end
+
+    a = inc();  // 1
+    b = inc();  // 2
+    c = inc();  // 3
+
+    return a * 100 + b * 10 + c  // 123
+end

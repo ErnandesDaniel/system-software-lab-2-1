@@ -24,7 +24,6 @@ impl JvmGenerator {
 
         let is_func_ref_target = self.func_ref_targets.contains(&func.name);
         let has_env_param = func.parameters.first().map(|p| p.name == "__env").unwrap_or(false);
-        let is_func_ref_no_env = is_func_ref_target && !has_env_param;
 
         let param_types: String = func.parameters.iter()
             .map(|p| if p.name == "__env" {
@@ -141,7 +140,7 @@ impl JvmGenerator {
                 });
 
             }
-            if is_func_ref_no_env {
+            if is_func_ref_target {
                 // Instance apply method that delegates to static call (for functional interface dispatch)
                 let apply_name_idx = self.constant_pool.add_utf8("apply").unwrap();
                 let user_param_types: Vec<IrType> = func.parameters.iter()
@@ -157,6 +156,16 @@ impl JvmGenerator {
                     .unwrap();
 
                 let mut instance_call_code = Vec::new();
+
+                // For closures, load this.__env first
+                if has_env_param {
+                    instance_call_code.push(Instruction::Aload_0);
+                    let env_field_ref = self.constant_pool
+                        .add_field_ref(this_class, "__env", "[[I")
+                        .unwrap();
+                    instance_call_code.push(Instruction::Getfield(env_field_ref));
+                }
+
                 let mut slot = 1;
                 for param in &func.parameters {
                     if param.name == "__env" { continue; }
@@ -191,7 +200,7 @@ impl JvmGenerator {
             }
         }
 
-        let interfaces: Vec<u16> = if is_func_ref_no_env {
+        let interfaces: Vec<u16> = if is_func_ref_target {
             let user_params: Vec<IrType> = func.parameters.iter()
                 .filter(|p| p.name != "__env")
                 .map(|p| p.ty.clone())
@@ -202,6 +211,17 @@ impl JvmGenerator {
             vec![]
         };
 
+        let env_field_name_idx;
+        let env_field_desc_idx;
+        let has_env = has_env_param;
+        if has_env {
+            env_field_name_idx = self.constant_pool.add_utf8("__env").unwrap();
+            env_field_desc_idx = self.constant_pool.add_utf8("[[I").unwrap();
+        } else {
+            env_field_name_idx = 0;
+            env_field_desc_idx = 0;
+        }
+
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
@@ -209,7 +229,17 @@ impl JvmGenerator {
             this_class,
             super_class,
             interfaces,
-            fields: vec![],
+            fields: if has_env {
+                vec![ristretto_classfile::Field {
+                    access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
+                    name_index: env_field_name_idx,
+                    descriptor_index: env_field_desc_idx,
+                    field_type: ristretto_classfile::FieldType::parse("[[I").unwrap(),
+                    attributes: vec![],
+                }]
+            } else {
+                vec![]
+            },
             methods,
             attributes: vec![],
             code_source_url: None,

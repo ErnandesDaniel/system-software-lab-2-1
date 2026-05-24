@@ -40,6 +40,8 @@ pub struct JvmGenerator {
     func_ref_targets: HashSet<String>,
     interface_method_refs: HashMap<String, u16>,
     func_ref_init_refs: HashMap<String, (u16, u16)>, // func_name → (class_idx, init_ref_idx)
+    func_ref_instance_slots: HashMap<String, u16>,  // func_name → local slot of lambda instance
+    func_ref_env_field_refs: HashMap<String, u16>,  // func_name → field ref for __env [[I
 }
 
 impl JvmGenerator {
@@ -60,6 +62,8 @@ impl JvmGenerator {
             func_ref_targets: HashSet::new(),
             interface_method_refs: HashMap::new(),
             func_ref_init_refs: HashMap::new(),
+            func_ref_instance_slots: HashMap::new(),
+            func_ref_env_field_refs: HashMap::new(),
         }
     }
 
@@ -220,6 +224,17 @@ impl JvmGenerator {
                         if self.anewarray_int_class_idx.is_none() {
                             self.anewarray_int_class_idx = Some(self.constant_pool.add_class("[I").unwrap());
                         }
+                        // Pre-compute __env field ref for closure lambda classes
+                        if let Some(IrOperand::FuncRef(func_name)) = inst.operands.first() {
+                            if !self.func_ref_env_field_refs.contains_key(func_name) {
+                                let class_name = crate::codegen::jvm::types::capitalize_first(func_name);
+                                let class_idx = self.constant_pool.add_class(&class_name).unwrap();
+                                let field_ref = self.constant_pool
+                                    .add_field_ref(class_idx, "__env", "[[I")
+                                    .unwrap();
+                                self.func_ref_env_field_refs.insert(func_name.clone(), field_ref);
+                            }
+                        }
                     }
                     IrOpcode::CallIndirect => {
                         // Register invokeinterface method ref for the functional interface
@@ -273,6 +288,8 @@ impl JvmGenerator {
         self.wrapped_vars.clear();
         self.interface_method_refs.clear();
         self.func_ref_init_refs.clear();
+        self.func_ref_instance_slots.clear();
+        self.func_ref_env_field_refs.clear();
         // func_ref_targets is NOT cleared — it's populated in generate_program pre-pass
     }
 
@@ -293,8 +310,16 @@ impl JvmGenerator {
         }
 
         let mut temps_used: Vec<String> = Vec::new();
+        let mut func_ref_instance_temps: HashMap<String, String> = HashMap::new(); // func_name → temp
         for block in &func.blocks {
             for inst in &block.instructions {
+                if inst.opcode == IrOpcode::Assign {
+                    if let Some(IrOperand::FuncRef(name)) = inst.operands.first() {
+                        if let Some(ref result) = inst.result {
+                            func_ref_instance_temps.insert(name.clone(), result.clone());
+                        }
+                    }
+                }
                 match inst.opcode {
                     IrOpcode::MakeClosure => {
                         if let Some(ref result) = inst.result {
@@ -328,6 +353,13 @@ impl JvmGenerator {
             if !self.locals.contains_key(&temp) {
                 self.locals.insert(temp, self.next_local_slot);
                 self.next_local_slot += 1;
+            }
+        }
+
+        // Populate func_ref_instance_slots from temps
+        for (func_name, temp_name) in &func_ref_instance_temps {
+            if let Some(&slot) = self.locals.get(temp_name) {
+                self.func_ref_instance_slots.insert(func_name.clone(), slot);
             }
         }
     }

@@ -219,8 +219,49 @@ impl JvmGenerator {
                 code.push(Instruction::Aastore);               // env[i] = wrapper
             }
 
+            // After filling env array, stack = [env_array]
             let result_slot = self.get_local_slot(result);
-            code.push(Instruction::Astore(result_slot as u8));
+
+            // Check if we need to set __env on the lambda instance
+            let lambda_name = if let IrOperand::FuncRef(name) = &inst.operands[0] {
+                Some(name.clone())
+            } else {
+                None
+            };
+
+            let is_closure = lambda_name.as_ref()
+                .map(|n| self.func_ref_env_field_refs.contains_key(n))
+                .unwrap_or(false);
+
+            if is_closure {
+                let name = lambda_name.unwrap();
+                let field_ref = self.func_ref_env_field_refs[&name];
+                let instance_slot = self.func_ref_instance_slots[&name];
+
+                // stack: env_array
+                code.push(Instruction::Dup);
+                // stack: env_array, env_array
+                code.push(Instruction::Astore(result_slot as u8));
+                // stack: env_array, saved to env_tmp
+
+                // Load lambda instance
+                match instance_slot {
+                    0 => code.push(Instruction::Aload_0),
+                    1 => code.push(Instruction::Aload_1),
+                    2 => code.push(Instruction::Aload_2),
+                    3 => code.push(Instruction::Aload_3),
+                    _ => code.push(Instruction::Aload(instance_slot as u8)),
+                }
+                // stack: env_array, instance_ref
+
+                code.push(Instruction::Swap);
+                // stack: instance_ref, env_array
+
+                code.push(Instruction::Putfield(field_ref));
+                // stack: empty, instance.__env = env
+            } else {
+                code.push(Instruction::Astore(result_slot as u8));
+            }
         }
     }
 

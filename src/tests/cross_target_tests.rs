@@ -61,10 +61,15 @@ fn compile_and_run_jvm(source: &str) -> std::process::Output {
         let path = temp_dir.path().join(format!("{}.class", name));
         fs::write(&path, bytes).unwrap();
     }
-    Command::new("java")
+    let output = Command::new("java")
         .args(["-cp", temp_dir.path().to_str().unwrap(), "Main"])
         .output()
-        .expect("Java not found — JVM tests require java on PATH")
+        .expect("Java not found — JVM tests require java on PATH");
+    if output.status.code() != Some(0) {
+        eprintln!("Java stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("Java stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+    output
 }
 
 fn jvm_valid(source: &str) -> bool {
