@@ -1,9 +1,0 @@
-graph TD
-    BB_3["BB3\nt11 = fclose(f)"]
-    BB_1["BB1\nt9 = buf\[?\]\nt10 = read_line(t9, f)\ngoto BB_3"]
-    BB_2["BB2\ngoto BB_3"]
-    BB_0["BB0\nt1 = opening\nt2 = puts(t1)\nt3 = labs-examples/system-programms/lab-2/csv-data/people.csv\nt4 = r\nt5 = fopen(t3, t4)\nf = t5\nt7 = \nt8 = (f != t7)\nif t8 goto BB_1 else BB_2"]
-BB_1 --> BB_3
-BB_2 --> BB_3
-BB_0 --> BB_1
-BB_0 --> BB_2

@@ -1,4 +1,0 @@
-start
-opened
-read one char
-done
