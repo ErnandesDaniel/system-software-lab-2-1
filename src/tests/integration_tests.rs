@@ -21,7 +21,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
 
     let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
     let uses_byte_helpers = ir.functions.iter().any(|f| {
-        f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte")
+        f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte" || u == "str_offset")
     });
     let mut all_asm = String::new();
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
@@ -149,6 +149,9 @@ fn compile_only(source: &str) -> (TempDir, String) {
         bh.push_str("    ret\n\n");
         bh.push_str("global str_set_byte\nstr_set_byte:\n");
         bh.push_str("    mov [rcx + rdx], r8b\n");
+        bh.push_str("    ret\n\n");
+        bh.push_str("global str_offset\nstr_offset:\n");
+        bh.push_str("    lea rax, [rcx + rdx]\n");
         bh.push_str("    ret\n");
         let bhp = temp_dir.path().join("byte_helpers.asm");
         fs::write(&bhp, &bh).unwrap();
@@ -169,6 +172,8 @@ fn compile_only(source: &str) -> (TempDir, String) {
     for obj in &obj_files {
         gcc_args.push(obj.into());
     }
+    gcc_args.push("-l".into());
+    gcc_args.push("msvcrt".into());
     gcc_args.push("-o".into());
     gcc_args.push(exe_path.into());
 

@@ -114,7 +114,7 @@ impl CompilerDriver {
 
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
         let uses_byte_helpers = ir.functions.iter().any(|f| {
-            f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte")
+            f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte" || u == "str_offset")
         });
 
         let global_names: Vec<String> = ir.globals.iter().map(|g| g.name.clone()).collect();
@@ -214,6 +214,9 @@ impl CompilerDriver {
             bh.push_str("    ret\n\n");
             bh.push_str("global str_set_byte\nstr_set_byte:\n");
             bh.push_str("    mov [rcx + rdx], r8b\n");
+            bh.push_str("    ret\n\n");
+            bh.push_str("global str_offset\nstr_offset:\n");
+            bh.push_str("    lea rax, [rcx + rdx]\n");
             bh.push_str("    ret\n");
             let bpath = Path::new(output_dir).join("byte_helpers.asm");
             fs::write(&bpath, &bh).ok();
@@ -288,6 +291,8 @@ impl CompilerDriver {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files.iter().map(|p| p.to_string_lossy().to_string()).collect();
             args.push("-Wl,/subsystem:console".to_string());
+            args.push("-l".to_string());
+            args.push("msvcrt".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
 
