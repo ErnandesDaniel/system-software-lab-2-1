@@ -1,0 +1,18 @@
+extern puts
+extern str_get_byte
+extern str_set_byte
+
+global buf of string = "hello";
+
+def main() of int
+    c = str_get_byte(buf, 0)
+    if c == 104 then puts("get[0]=h OK") else puts("FAIL g0") end
+    c = str_get_byte(buf, 4)
+    if c == 111 then puts("get[4]=o OK") else puts("FAIL g4") end
+    str_set_byte(buf, 0, 72)
+    c = str_get_byte(buf, 0)
+    if c == 72 then puts("set[0]=H OK") else puts("FAIL s0") end
+    str_set_byte(buf, 0, 104)
+    puts(buf)
+    return 0
+end

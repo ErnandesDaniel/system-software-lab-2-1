@@ -1,0 +1,15 @@
+extern fopen
+extern fclose
+extern fgets
+extern feof
+extern puts
+
+global buf of string = "                                                                                                                                                                                                                                ";
+
+def main() of int
+    puts("open")
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
+    if f == "" then puts("FAIL") else puts("OK") end
+    if f != "" then fclose(f) end
+    return 0
+end

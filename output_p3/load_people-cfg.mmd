@@ -1,0 +1,9 @@
+graph TD
+    BB_3["BB3\nt7 = buf\[?\]\nt8 = 256\nt9 = fgets(t7, t8, f)\nt10 = fclose(f)\nt11 = 0\nreturn t11"]
+    BB_1["BB1\nt6 = 1\nreturn t6"]
+    BB_2["BB2\ngoto BB_3"]
+    BB_0["BB0\nt0 = test.csv\nt1 = r\nt2 = fopen(t0, t1)\nf = t2\nt4 = \nt5 = (f == t4)\nif t5 goto BB_1 else BB_2"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2

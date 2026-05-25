@@ -1,0 +1,44 @@
+graph TD
+    BB_3["BB3\nreturn"]
+    BB_1["BB1\nt2 = 1\nt3 = 1\nt4 = (t2 == t3)\nif t4 goto BB_2 else BB_3"]
+    BB_7["BB7\nt13 = 1\nreturn t13"]
+    BB_8["BB8\ngoto BB_9"]
+    BB_4["BB4\nt9 = 0\nt10 = str_set_byte(dst, i, t9)\nt11 = 0\nt12 = (i == t11)\nif t12 goto BB_7 else BB_8"]
+    BB_9["BB9\nt14 = 0\nreturn t14"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_2["BB2\nt5 = fgetc(f)\nc = t5\nt7 = 0\nt8 = (c < t7)\nif t8 goto BB_4 else BB_5"]
+    BB_10["BB10\nt17 = 0\nt18 = str_set_byte(dst, i, t17)\nt19 = 0\nreturn t19"]
+    BB_11["BB11\ngoto BB_12"]
+    BB_6["BB6\nt15 = 10\nt16 = (c == t15)\nif t16 goto BB_10 else BB_11"]
+    BB_16["BB16\nt29 = str_set_byte(dst, i, c)\nt30 = 1\nt31 = i + t30\ni = t31\nc = nxt\ngoto BB_18"]
+    BB_17["BB17\ngoto BB_18"]
+    BB_13["BB13\nt22 = fgetc(f)\nnxt = t22\nt24 = 10\nt25 = (nxt != t24)\nt26 = 0\nt27 = (nxt >= t26)\nt28 = t25 && t27\nif t28 goto BB_16 else BB_17"]
+    BB_18["BB18\nt34 = 0\nt35 = str_set_byte(dst, i, t34)\nt36 = 0\nreturn t36"]
+    BB_14["BB14\ngoto BB_15"]
+    BB_12["BB12\nt20 = 13\nt21 = (c == t20)\nif t21 goto BB_13 else BB_14"]
+    BB_15["BB15\nt37 = str_set_byte(dst, i, c)\nt38 = 1\nt39 = i + t38\ni = t39\ngoto BB_1"]
+    BB_0["BB0\nt0 = 0\ni = t0\ngoto BB_1"]
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_7 --> BB_9
+BB_8 --> BB_9
+BB_4 --> BB_7
+BB_4 --> BB_8
+BB_9 --> BB_6
+BB_5 --> BB_6
+BB_2 --> BB_4
+BB_2 --> BB_5
+BB_10 --> BB_12
+BB_11 --> BB_12
+BB_6 --> BB_10
+BB_6 --> BB_11
+BB_16 --> BB_18
+BB_17 --> BB_18
+BB_13 --> BB_16
+BB_13 --> BB_17
+BB_18 --> BB_15
+BB_14 --> BB_15
+BB_12 --> BB_13
+BB_12 --> BB_14
+BB_15 --> BB_1
+BB_0 --> BB_1

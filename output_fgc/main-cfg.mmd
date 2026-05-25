@@ -1,0 +1,16 @@
+graph TD
+    BB_6["BB6\nt56 = buf\[?\]\nt57 = puts(t56)\nt58 = buf\[?\]\n? = read_line(t58, f)\nt59 = buf\[?\]\nt60 = puts(t59)\nt61 = fclose(f)"]
+    BB_1["BB1\nt49 = FAIL\nt50 = puts(t49)\ngoto BB_3"]
+    BB_2["BB2\nt51 = OK\nt52 = puts(t51)\ngoto BB_3"]
+    BB_0["BB0\nt41 = opening\nt42 = puts(t41)\nt43 = labs-examples/system-programms/lab-2/csv-data/people.csv\nt44 = r\nt45 = fopen(t43, t44)\nf = t45\nt47 = \nt48 = (f == t47)\nif t48 goto BB_1 else BB_2"]
+    BB_4["BB4\nt55 = buf\[?\]\n? = read_line(t55, f)\ngoto BB_6"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_3["BB3\nt53 = \nt54 = (f != t53)\nif t54 goto BB_4 else BB_5"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_3 --> BB_4
+BB_3 --> BB_5

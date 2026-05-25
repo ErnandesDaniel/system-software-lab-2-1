@@ -1,0 +1,11 @@
+extern puts
+extern str_set_byte
+
+global buf of string = "hello";
+
+def main() of int
+    puts(buf)
+    str_set_byte(buf, 0, 72)
+    puts(buf)
+    return 0
+end

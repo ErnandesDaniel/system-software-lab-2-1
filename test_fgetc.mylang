@@ -1,0 +1,51 @@
+extern fopen
+extern fclose
+extern fgetc
+extern puts
+extern str_get_byte
+extern str_set_byte
+
+global buf of string = "                                                                                                                                                                                                                                ";
+
+def read_line(dst of string, f of string)
+    i = 0
+    while 1 == 1 {
+        c = fgetc(f)
+        if c < 0 then {
+            str_set_byte(dst, i, 0)
+            if i == 0 then return 1 end
+            return 0
+        }
+        if c == 10 then {
+            str_set_byte(dst, i, 0)
+            return 0
+        }
+        if c == 13 then {
+            nxt = fgetc(f)
+            if nxt != 10 && nxt >= 0 then {
+                str_set_byte(dst, i, c)
+                i = i + 1
+                c = nxt
+            }
+            str_set_byte(dst, i, 0)
+            return 0
+        }
+        str_set_byte(dst, i, c)
+        i = i + 1
+    }
+end
+
+def main() of int
+    puts("opening")
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
+    if f == "" then puts("FAIL") else puts("OK") end
+    if f != "" then
+        read_line(buf, f)
+        puts(buf)
+        read_line(buf, f)
+        puts(buf)
+        fclose(f)
+    end
+    puts("done")
+    return 0
+end

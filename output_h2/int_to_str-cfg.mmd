@@ -1,0 +1,16 @@
+graph TD
+    BB_6["BB6\nt99 = 10\nt100 = val / t99\nt101 = 10\nt102 = t100 * t101\nt103 = val - t102\n? = choose_digit(dst, t103)\nreturn"]
+    BB_1["BB1\nt90 = -\nt91 = strcat(dst, t90)\nt92 = 0\nt93 = t92 - val\nval = t93\ngoto BB_3"]
+    BB_2["BB2\ngoto BB_3"]
+    BB_0["BB0\n? = buf_clear(dst)\nt88 = 0\nt89 = (val < t88)\nif t89 goto BB_1 else BB_2"]
+    BB_4["BB4\nt97 = 10\nt98 = val / t97\n? = int_to_str(dst, t98)\ngoto BB_6"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_3["BB3\nt95 = 10\nt96 = (val >= t95)\nif t96 goto BB_4 else BB_5"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_3 --> BB_4
+BB_3 --> BB_5

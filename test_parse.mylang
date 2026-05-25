@@ -1,0 +1,21 @@
+extern puts
+extern str_get_byte
+extern str_set_byte
+
+global tmpbuf of string = "                                                                                ";;
+
+def csv_field(dst of string, line of string, pos of int) of int
+    i = 0
+    while 1 {
+        c = str_get_byte(line, pos + i)
+        if c == 0 then { str_set_byte(dst, i, 0); return pos + i }
+        if c == ',' then { str_set_byte(dst, i, 0); return pos + i + 1 }
+        str_set_byte(dst, i, c)
+        i = i + 1
+    }
+end
+
+def main() of int
+    puts("ok")
+    return 0
+end

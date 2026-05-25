@@ -1,0 +1,32 @@
+graph TD;
+N0["function: main"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["call_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: puts"]
+N5 --> N6
+N7["expr"]
+N4 --> N7
+N8["literal"]
+N7 --> N8
+N9["str: "ok""]
+N8 --> N9
+N10[";"]
+N2 --> N10
+N11["statement"]
+N0 --> N11
+N12["return_statement"]
+N11 --> N12
+N13["expr"]
+N12 --> N13
+N14["literal"]
+N13 --> N14
+N15["dec: 0"]
+N14 --> N15

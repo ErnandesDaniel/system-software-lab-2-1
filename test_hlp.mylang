@@ -1,0 +1,136 @@
+// Lab 2 (SPO) -- 7 SQL queries (variant 59)
+// Data read from CSV files at runtime via fopen/fgets
+
+extern puts
+extern strcat
+extern strcmp
+extern strcpy
+extern strlen
+extern malloc
+extern resume_coroutine_nasm
+extern coro_init_nasm
+extern str_get_byte
+extern str_set_byte
+extern fopen
+extern fclose
+extern fgets
+extern feof
+extern atoi
+
+// ============ Tables (filled at runtime) ============
+global tv_id of int[5];
+global tv_name of string[5];
+global tv_count of int = 0;
+
+global v_id of int[36];
+global v_type_id of int[36];
+global v_person_id of int[36];
+global v_date of string[36];
+global v_mark of int[36];
+global v_count of int = 0;
+
+global p_id of int[31];
+global p_surname of string[31];
+global p_name of string[31];
+global p_patronymic of string[31];
+global p_birthday of string[31];
+global p_count of int = 0;
+
+global o_person_id of int[30];
+global o_nzk of string[30];
+global o_form of string[30];
+global o_department of string[30];
+global o_fac of string[30];
+global o_course of int[30];
+global o_count of int = 0;
+
+global st_person_id of int[30];
+global st_group of string[30];
+global st_start of string[30];
+global st_order of string[30];
+global st_state of string[30];
+global st_count of int = 0;
+
+global gp_plan_id of int[14];
+global gp_group of string[14];
+global gp_dept of string[14];
+global gp_count of int = 0;
+
+// ============ Helpers ============
+global buf of string = "                                                                                                                                                                                                                                ";
+global tmpbuf of string = "                                                                                ";
+
+def buf_clear(b of string)
+    strcpy(b, "")
+end
+
+// Parse CSV field from line at position pos into dst, return new position
+def csv_field(dst of string, line of string, pos of int) of int
+    i = 0
+    while 1 == 1 {
+        c = str_get_byte(line, pos + i)
+        if c == 0 then {
+            str_set_byte(dst, i, 0)
+            return pos + i
+        }
+        if c == 10 then {
+            str_set_byte(dst, i, 0)
+            return pos + i
+        }
+        if c == 13 then {
+            str_set_byte(dst, i, 0)
+            nxt = str_get_byte(line, pos + i + 1)
+            if nxt == 10 then return pos + i + 2
+            return pos + i + 1
+        }
+        if c == ',' then {
+            str_set_byte(dst, i, 0)
+            return pos + i + 1
+        }
+        str_set_byte(dst, i, c)
+        i = i + 1
+    }
+end
+
+global d0 of string = "0";
+global d1 of string = "1";
+global d2 of string = "2";
+global d3 of string = "3";
+global d4 of string = "4";
+global d5 of string = "5";
+global d6 of string = "6";
+global d7 of string = "7";
+global d8 of string = "8";
+global d9 of string = "9";
+
+def choose_digit(dst of string, d of int)
+    if d == 0 then strcat(dst, d0) end
+    if d == 1 then strcat(dst, d1) end
+    if d == 2 then strcat(dst, d2) end
+    if d == 3 then strcat(dst, d3) end
+    if d == 4 then strcat(dst, d4) end
+    if d == 5 then strcat(dst, d5) end
+    if d == 6 then strcat(dst, d6) end
+    if d == 7 then strcat(dst, d7) end
+    if d == 8 then strcat(dst, d8) end
+    if d == 9 then strcat(dst, d9) end
+end
+
+def int_to_str(dst of string, val of int)
+    buf_clear(dst)
+    if val < 0 then {
+        strcat(dst, "-")
+        val = 0 - val
+    }
+    if val >= 10 then {
+        int_to_str(dst, val / 10)
+    }
+    choose_digit(dst, val - (val / 10) * 10)
+end
+
+// ============ CSV Loaders ============
+
+def main() of int
+    puts("ok")
+    return 0
+end

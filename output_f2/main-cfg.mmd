@@ -1,0 +1,9 @@
+graph TD
+    BB_3["BB3\nt13 = puts(b)\nt14 = fclose(f)"]
+    BB_1["BB1\nt11 = 64\nt12 = fgets(b, t11, f)\ngoto BB_3"]
+    BB_2["BB2\ngoto BB_3"]
+    BB_0["BB0\nt0 = start\nt1 = puts(t0)\nt2 = 64\nt3 = malloc(t2)\nb = t3\nt5 = labs-examples/system-programms/lab-2/csv-data/people.csv\nt6 = r\nt7 = fopen(t5, t6)\nf = t7\nt9 = \nt10 = (f != t9)\nif t10 goto BB_1 else BB_2"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2

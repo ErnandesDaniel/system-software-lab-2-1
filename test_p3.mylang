@@ -1,0 +1,19 @@
+extern fopen
+extern fclose
+extern fgets
+extern feof
+
+global buf of string = "                                                                                                                                                                                                                                ";
+
+def load_people() of int
+    f = fopen("test.csv", "r")
+    if f == "" then return 1 end
+    fgets(buf, 256, f)
+    fclose(f)
+    return 0
+end
+
+def main() of int
+    puts("ok")
+    return 0
+end

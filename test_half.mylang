@@ -131,11 +131,12 @@ end
 // ============ CSV Loaders ============
 def load_people() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     p_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         p_id[p_count] = atoi(tmpbuf)
@@ -159,11 +160,12 @@ end
 
 def load_vedomosti() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     v_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         v_id[v_count] = atoi(tmpbuf)
@@ -184,11 +186,12 @@ end
 
 def load_types() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     tv_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         tv_id[tv_count] = atoi(tmpbuf)
@@ -203,11 +206,12 @@ end
 
 def load_studies() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     o_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         o_person_id[o_count] = atoi(tmpbuf)
@@ -234,11 +238,12 @@ end
 
 def load_students() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     st_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         st_person_id[st_count] = atoi(tmpbuf)
@@ -263,11 +268,12 @@ end
 
 def load_plans() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r")
+    if f == "" then return 1 end
     fgets(buf, 256, f)
     gp_count = 0
     while feof(f) == 0 {
         fgets(buf, 256, f)
-        if feof(f) != 0 then break; end
+        if feof(f) != 0 then break end
         pos = 0
         pos = csv_field(tmpbuf, buf, pos)
         gp_plan_id[gp_count] = atoi(tmpbuf)
@@ -386,18 +392,11 @@ def run_q1() of int
     CORO_COUNT = 0
     coro_init_nasm()
     f0 = 0; f1 = 0; f2 = 0
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
+    while f0 == 0 || f1 == 0 || f2 == 0 {
+        if f0 == 0 then f0 = resume_coroutine_nasm(CORO_COUNT + 0) end
+        if f1 == 0 then f1 = resume_coroutine_nasm(CORO_COUNT + 1) end
+        if f2 == 0 then f2 = resume_coroutine_nasm(CORO_COUNT + 2) end
+    }
     CORO_COUNT = CORO_COUNT + 3
     return 0
 end
@@ -406,7 +405,7 @@ end
 def q2_scan() of int
     i = 0
     while i < p_count {
-        if strcmp(p_surname[i], "РЃР»РєРёРЅ") > 0 then {
+        if strcmp(p_surname[i], "Р РѓР В»Р С”Р С‘Р Р…") > 0 then {
             if p_id[i] == 163276 then {
                 j = 0
                 while j < o_count {
@@ -443,7 +442,7 @@ def run_q2() of int
     return 0
 end
 
-// ============ Q3: Count students FKTРU without patronymic ============
+// ============ Q3: Count students FKTР ВU without patronymic ============
 global q3_count of int = 0;
 
 def q3_scan() of int
@@ -455,7 +454,7 @@ def q3_scan() of int
             j = 0
             while j < o_count {
                 if o_person_id[j] == pid then {
-                    if strcmp(o_fac[j], "Р¤РљРўРРЈ") == 0 then {
+                    if strcmp(o_fac[j], "Р В¤Р С™Р СћР ВР Р€") == 0 then {
                         k = 0
                         while k < st_count {
                             if st_person_id[k] == pid then {
@@ -471,7 +470,7 @@ def q3_scan() of int
         }
         i = i + 1
     }
-    puts("=== Query 3: Count FKTРU without patronymic ===")
+    puts("=== Query 3: Count FKTР ВU without patronymic ===")
     buf_clear(buf)
     int_to_str(buf, q3_count)
     puts(buf)
@@ -492,7 +491,7 @@ def q4_scan() of int
     q4_plan_cnt = 0
     i = 0
     while i < gp_count {
-        if strcmp(gp_dept[i], "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё") == 0 then {
+        if strcmp(gp_dept[i], "Р С™Р В°РЎвЂћР ВµР Т‘РЎР‚Р В° Р Р†РЎвЂ№РЎвЂЎР С‘РЎРѓР В»Р С‘РЎвЂљР ВµР В»РЎРЉР Р…Р С•Р в„– РЎвЂљР ВµРЎвЂ¦Р Р…Р С‘Р С”Р С‘") == 0 then {
             plan = gp_plan_id[i]
             k = 0; found = 0
             while k < q4_plan_cnt {
@@ -611,7 +610,7 @@ def q6_scan() of int
             j = 0
             while j < o_count {
                 if o_person_id[j] == pid then {
-                    if strcmp(o_form[j], "Р·Р°РѕС‡РЅР°СЏ") == 0 then {
+                    if strcmp(o_form[j], "Р В·Р В°Р С•РЎвЂЎР Р…Р В°РЎРЏ") == 0 then {
                         if o_course[j] == 1 then {
                             q6_cnt = q6_cnt + 1
                             j = o_count
@@ -695,25 +694,6 @@ end
 
 // ============ Main ============
 def main() of int
-    puts("=== System Software Lab 2: Map-Reduce Pipeline ===")
-    load_data()
-    puts("")
-    run_q1()
-    puts("")
-    run_q2()
-    puts("")
-    run_q3()
-    puts("")
-    run_q4()
-    puts("")
-    run_q5()
-    puts("")
-    run_q6()
-    puts("")
-    run_q7()
-    puts("")
-    puts("=== All queries done ===")
-    return 0
-end
+    puts("ok")
     return 0
 end

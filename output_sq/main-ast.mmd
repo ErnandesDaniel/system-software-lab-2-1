@@ -1,0 +1,148 @@
+graph TD;
+N0["function: main"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["call_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: puts"]
+N5 --> N6
+N7["expr"]
+N4 --> N7
+N8["literal"]
+N7 --> N8
+N9["str: "start""]
+N8 --> N9
+N10[";"]
+N2 --> N10
+N11["statement"]
+N0 --> N11
+N12["expression_statement"]
+N11 --> N12
+N13["expr"]
+N12 --> N13
+N14["binary_expr"]
+N13 --> N14
+N15["expr"]
+N14 --> N15
+N16["identifier: f"]
+N15 --> N16
+N17["="]
+N14 --> N17
+N18["expr"]
+N14 --> N18
+N19["call_expr"]
+N18 --> N19
+N20["expr"]
+N19 --> N20
+N21["identifier: fopen"]
+N20 --> N21
+N22["expr"]
+N19 --> N22
+N23["literal"]
+N22 --> N23
+N24["str: "labs-examples/system-programms/lab-2/csv-data/people.csv""]
+N23 --> N24
+N25["expr"]
+N19 --> N25
+N26["literal"]
+N25 --> N26
+N27["str: "r""]
+N26 --> N27
+N28[";"]
+N12 --> N28
+N29["statement"]
+N0 --> N29
+N30["expression_statement"]
+N29 --> N30
+N31["expr"]
+N30 --> N31
+N32["call_expr"]
+N31 --> N32
+N33["expr"]
+N32 --> N33
+N34["identifier: puts"]
+N33 --> N34
+N35["expr"]
+N32 --> N35
+N36["literal"]
+N35 --> N36
+N37["str: "opened""]
+N36 --> N37
+N38[";"]
+N30 --> N38
+N39["statement"]
+N0 --> N39
+N40["if_statement"]
+N39 --> N40
+N41["if"]
+N40 --> N41
+N42["expr"]
+N40 --> N42
+N43["binary_expr"]
+N42 --> N43
+N44["expr"]
+N43 --> N44
+N45["identifier: f"]
+N44 --> N45
+N46["!="]
+N43 --> N46
+N47["expr"]
+N43 --> N47
+N48["literal"]
+N47 --> N48
+N49["str: """]
+N48 --> N49
+N50["statement"]
+N40 --> N50
+N51["expression_statement"]
+N50 --> N51
+N52["expr"]
+N51 --> N52
+N53["call_expr"]
+N52 --> N53
+N54["expr"]
+N53 --> N54
+N55["identifier: fclose"]
+N54 --> N55
+N56["expr"]
+N53 --> N56
+N57["identifier: f"]
+N56 --> N57
+N58[";"]
+N51 --> N58
+N59["statement"]
+N0 --> N59
+N60["expression_statement"]
+N59 --> N60
+N61["expr"]
+N60 --> N61
+N62["call_expr"]
+N61 --> N62
+N63["expr"]
+N62 --> N63
+N64["identifier: puts"]
+N63 --> N64
+N65["expr"]
+N62 --> N65
+N66["literal"]
+N65 --> N66
+N67["str: "closed""]
+N66 --> N67
+N68[";"]
+N60 --> N68
+N69["statement"]
+N0 --> N69
+N70["return_statement"]
+N69 --> N70
+N71["expr"]
+N70 --> N71
+N72["literal"]
+N71 --> N72
+N73["dec: 0"]
+N72 --> N73

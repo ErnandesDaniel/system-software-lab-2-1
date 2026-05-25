@@ -1,0 +1,72 @@
+graph TD
+    BB_30["BB30\nreturn"]
+    BB_1["BB1\nt50 = d0\[?\]\nt51 = strcat(dst, t50)\ngoto BB_3"]
+    BB_2["BB2\ngoto BB_3"]
+    BB_0["BB0\nt48 = 0\nt49 = (d == t48)\nif t49 goto BB_1 else BB_2"]
+    BB_4["BB4\nt54 = d1\[?\]\nt55 = strcat(dst, t54)\ngoto BB_6"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_3["BB3\nt52 = 1\nt53 = (d == t52)\nif t53 goto BB_4 else BB_5"]
+    BB_7["BB7\nt58 = d2\[?\]\nt59 = strcat(dst, t58)\ngoto BB_9"]
+    BB_8["BB8\ngoto BB_9"]
+    BB_6["BB6\nt56 = 2\nt57 = (d == t56)\nif t57 goto BB_7 else BB_8"]
+    BB_10["BB10\nt62 = d3\[?\]\nt63 = strcat(dst, t62)\ngoto BB_12"]
+    BB_11["BB11\ngoto BB_12"]
+    BB_9["BB9\nt60 = 3\nt61 = (d == t60)\nif t61 goto BB_10 else BB_11"]
+    BB_13["BB13\nt66 = d4\[?\]\nt67 = strcat(dst, t66)\ngoto BB_15"]
+    BB_14["BB14\ngoto BB_15"]
+    BB_12["BB12\nt64 = 4\nt65 = (d == t64)\nif t65 goto BB_13 else BB_14"]
+    BB_16["BB16\nt70 = d5\[?\]\nt71 = strcat(dst, t70)\ngoto BB_18"]
+    BB_17["BB17\ngoto BB_18"]
+    BB_15["BB15\nt68 = 5\nt69 = (d == t68)\nif t69 goto BB_16 else BB_17"]
+    BB_19["BB19\nt74 = d6\[?\]\nt75 = strcat(dst, t74)\ngoto BB_21"]
+    BB_20["BB20\ngoto BB_21"]
+    BB_18["BB18\nt72 = 6\nt73 = (d == t72)\nif t73 goto BB_19 else BB_20"]
+    BB_22["BB22\nt78 = d7\[?\]\nt79 = strcat(dst, t78)\ngoto BB_24"]
+    BB_23["BB23\ngoto BB_24"]
+    BB_21["BB21\nt76 = 7\nt77 = (d == t76)\nif t77 goto BB_22 else BB_23"]
+    BB_25["BB25\nt82 = d8\[?\]\nt83 = strcat(dst, t82)\ngoto BB_27"]
+    BB_26["BB26\ngoto BB_27"]
+    BB_24["BB24\nt80 = 8\nt81 = (d == t80)\nif t81 goto BB_25 else BB_26"]
+    BB_28["BB28\nt86 = d9\[?\]\nt87 = strcat(dst, t86)\ngoto BB_30"]
+    BB_29["BB29\ngoto BB_30"]
+    BB_27["BB27\nt84 = 9\nt85 = (d == t84)\nif t85 goto BB_28 else BB_29"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_3 --> BB_4
+BB_3 --> BB_5
+BB_7 --> BB_9
+BB_8 --> BB_9
+BB_6 --> BB_7
+BB_6 --> BB_8
+BB_10 --> BB_12
+BB_11 --> BB_12
+BB_9 --> BB_10
+BB_9 --> BB_11
+BB_13 --> BB_15
+BB_14 --> BB_15
+BB_12 --> BB_13
+BB_12 --> BB_14
+BB_16 --> BB_18
+BB_17 --> BB_18
+BB_15 --> BB_16
+BB_15 --> BB_17
+BB_19 --> BB_21
+BB_20 --> BB_21
+BB_18 --> BB_19
+BB_18 --> BB_20
+BB_22 --> BB_24
+BB_23 --> BB_24
+BB_21 --> BB_22
+BB_21 --> BB_23
+BB_25 --> BB_27
+BB_26 --> BB_27
+BB_24 --> BB_25
+BB_24 --> BB_26
+BB_28 --> BB_30
+BB_29 --> BB_30
+BB_27 --> BB_28
+BB_27 --> BB_29
