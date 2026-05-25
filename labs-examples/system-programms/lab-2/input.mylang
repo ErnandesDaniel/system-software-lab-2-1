@@ -1,0 +1,687 @@
+// ===================================================================
+// Lab 2 (РЎРџРћ) вЂ” 7 SQL-Р·Р°РїСЂРѕСЃРѕРІ (РІР°СЂРёР°РЅС‚ 59)
+// Map-Reduce РєРѕРЅРІРµР№РµСЂ: РєР°Р¶РґС‹Р№ СЌС‚Р°Рї вЂ” РѕС‚РґРµР»СЊРЅР°СЏ РєРѕСЂСѓС‚РёРЅР°
+// РЎРѕРµРґРёРЅРµРЅРёРµ С‡РµСЂРµР· pipe'С‹ (РіР»РѕР±Р°Р»СЊРЅС‹Рµ РїРµСЂРµРјРµРЅРЅС‹Рµ)
+// ===================================================================
+
+extern puts
+extern putchar
+extern printf
+
+extern strcat
+extern strcmp
+extern strcpy
+extern strchr
+extern strlen
+extern malloc
+extern resume_coroutine_nasm
+extern coro_init_nasm
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_РўРРџР«_Р’Р•Р”РћРњРћРЎРўР•Р™ (5 rows)
+// =============================================================
+global tv_id of int[5] = [1, 2, 3, 4, 5];
+global tv_name of string[5] = ["Р­РєР·Р°РјРµРЅ", "Р—Р°С‡РµС‚", "Р”РёС„Р·Р°С‡РµС‚", "РљСѓСЂСЃРѕРІР°СЏ", "РџСЂР°РєС‚РёРєР°"];
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_Р’Р•Р”РћРњРћРЎРўР (36 rows)
+// =============================================================
+global v_id of int[36] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36];
+global v_type_id of int[36] = [3, 3, 3, 3, 1, 2, 4, 1, 2, 4, 1, 2, 3, 1, 2, 4, 1, 2, 1, 2, 1, 2, 1, 2, 1, 2, 1, 1, 2, 3, 1, 2, 1, 2, 1, 2];
+global v_person_id of int[36] = [153285, 153286, 163249, 153290, 100005, 100005, 100005, 100008, 100008, 100008, 100009, 100009, 100009, 100010, 100010, 100010, 100011, 100011, 100012, 100012, 100013, 100013, 100014, 100014, 100015, 100015, 153285, 163249, 163249, 163249, 153286, 153286, 180000, 180000, 220001, 220001];
+global v_date of string[36] = ["2013-06-03", "2013-06-01", "2013-06-07", "2013-06-02", "2013-12-15", "2014-01-20", "2014-02-10", "2013-12-20", "2014-01-15", "2014-02-05", "2013-12-18", "2014-01-22", "2014-02-01", "2013-12-10", "2014-01-11", "2014-02-12", "2013-12-22", "2014-01-18", "2013-12-05", "2014-01-08", "2013-12-28", "2014-01-30", "2013-12-14", "2014-01-16", "2014-06-10", "2014-06-15", "2013-12-01", "2013-12-03", "2014-01-05", "2014-01-25", "2013-12-11", "2014-01-12", "2013-12-19", "2014-01-23", "2013-12-07", "2014-01-09"];
+global v_mark of int[36] = [5, 4, 5, 4, 4, 5, 5, 3, 4, 4, 4, 5, 3, 5, 5, 5, 4, 3, 5, 4, 3, 4, 5, 5, 4, 3, 5, 5, 5, 4, 4, 3, 4, 5, 3, 4];
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_Р›Р®Р”Р (31 row)
+// =============================================================
+global p_id of int[31] = [100001, 100002, 100003, 100004, 100005, 100006, 100007, 100008, 100009, 100010, 100011, 100012, 100013, 100014, 100015, 100016, 100017, 163276, 153285, 153286, 153290, 163249, 170000, 180000, 190000, 200001, 200002, 210001, 210002, 220001, 153285];
+global p_surname of string[31] = ["РРІР°РЅРѕРІ", "РџРµС‚СЂРѕРІ", "РЎРёРґРѕСЂРѕРІ", "РљСѓР·РЅРµС†РѕРІ", "РЎРјРёСЂРЅРѕРІР°", "Р’Р°СЃРёР»СЊРµРІ", "Р¤РµРґРѕСЂРѕРІ", "РњРѕСЂРѕР·РѕРІ", "РњРѕСЂРѕР·РѕРІ", "Р—Р°Р№С†РµРІ", "Р’РѕР»РєРѕРІ", "РљРѕР·Р»РѕРІ", "РќРѕРІРёРєРѕРІ", "Р“СЂРёРіРѕСЂСЊРµРІ", "РўРёРјРѕС„РµРµРІ", "Р–СѓРєРѕРІ", "Р–СѓРєРѕРІ", "РљСЂС‹Р»РѕРІ", "Р›РёСЃРёРЅ", "РњРµР»СЊРЅРёРєРѕРІ", "РќР°Р·Р°СЂРѕРІ", "РњР°С‚РІРµРµРІ", "РќРѕРІРёРєРѕРІ", "РћСЃРёРїРѕРІР°", "РЃР»РєРёРЅ", "РЎРѕРєРѕР»РѕРІ", "РЎРѕРєРѕР»РѕРІ", "Р‘РµР»РѕРІ", "Р‘РµР»РѕРІ", "РљСЂС‹Р»РѕРІ", "Р›РёСЃРёРЅ"];
+global p_name of string[31] = ["РРІР°РЅ", "РџРµС‚СЂ", "РЎРёРґСЂ", "РђРЅС‚РѕРЅ", "РћР»СЊРіР°", "Р’Р°СЃРёР»РёР№", "Р¤РµРґРѕСЂ", "Р”РјРёС‚СЂРёР№", "РђР»РµРєСЃРµР№", "Р—Р°С…Р°СЂ", "Р’Р»Р°РґРёРјРёСЂ", "РљРѕРЅСЃС‚Р°РЅС‚РёРЅ", "РќРёРєРѕР»Р°Р№", "Р“РµРѕСЂРіРёР№", "РўРёРјСѓСЂ", "Р–Р°РЅ", "Р–РµРЅСЏ", "РљРёСЂРёР»Р»", "РџР°РІРµР»", "Р РѕРјР°РЅ", "РЎРµРјРµРЅ", "Р СѓСЃР»Р°РЅ", "РЎС‚РµРїР°РЅ", "РўР°С‚СЊСЏРЅР°", "Р•РіРѕСЂ", "РњР°РєСЃРёРј", "Р’РёС‚Р°Р»РёР№", "РРІР°РЅ", "РЎРµСЂРіРµР№", "Р”РµРЅРёСЃ", "РџР°РІРµР»"];
+global p_patronymic of string[31] = ["РРІР°РЅРѕРІРёС‡", "РџРµС‚СЂРѕРІРёС‡", "РЎРёРґРѕСЂРѕРІРёС‡", "РђРЅРґСЂРµРµРІРёС‡", "", "Р’Р°СЃРёР»СЊРµРІРёС‡", "Р¤РµРґРѕСЂРѕРІРёС‡", "Р”РјРёС‚СЂРёРµРІРёС‡", "РђР»РµРєСЃРµРµРІРёС‡", "Р—Р°С…Р°СЂРѕРІРёС‡", "Р’Р»Р°РґРёРјРёСЂРѕРІРёС‡", "", "РќРёРєРѕР»Р°РµРІРёС‡", "", "РўРёРјРѕС„РµРµРІРёС‡", "", "", "РљРёСЂРёР»Р»РѕРІРёС‡", "РћР»РµРіРѕРІРёС‡", "РџР°РІР»РѕРІРёС‡", "РџР°РІР»РѕРІРёС‡", "РџРµС‚СЂРѕРІРёС‡", "РђРЅРґСЂРµРµРІРёС‡", "", "Р•РіРѕСЂРѕРІРёС‡", "РњР°РєСЃРёРјРѕРІРёС‡", "Р’РёС‚Р°Р»СЊРµРІРёС‡", "", "", "Р”РµРЅРёСЃРѕРІРёС‡", "РћР»РµРіРѕРІРёС‡"];
+global p_birthday of string[31] = ["2004-01-15", "2003-03-20", "2005-05-10", "2002-07-25", "2001-09-30", "2004-11-12", "2003-02-14", "2005-08-08", "2004-12-01", "2002-06-06", "2001-04-16", "2004-10-22", "2005-01-01", "2002-03-15", "2004-07-07", "2001-12-12", "2003-08-18", "2003-09-09", "2001-10-10", "2002-02-14", "2002-05-20", "2000-09-09", "2004-12-12", "2002-07-07", "2001-06-06", "2003-03-03", "2005-05-05", "2004-04-04", "2002-02-02", "2001-01-01", "2001-10-10"];
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_РћР‘РЈР§Р•РќРРЇ (30 rows)
+// =============================================================
+global o_person_id of int[30] = [100001, 100002, 100003, 100004, 100005, 100006, 100007, 100008, 100009, 100010, 100011, 100012, 100013, 100014, 100015, 100016, 100017, 163276, 153285, 153286, 153290, 163249, 170000, 180000, 190000, 200001, 200002, 210001, 210002, 220001];
+global o_nzk of string[30] = ["ZA001", "ZA002", "ZA003", "ZA004", "ZA005", "ZA006", "ZA007", "OK001", "OK002", "OK003", "OK004", "OK005", "OK006", "OK007", "ZT001", "ZT002", "ZT003", "OK500", "FT285", "FT286", "FT290", "FT249", "ZT700", "ZT800", "ZT900", "FT001", "FT002", "BE001", "BE002", "KR001"];
+global o_form of string[30] = ["Р·Р°РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "Р·Р°РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ", "РѕС‡РЅР°СЏ"];
+global o_department of string[30] = ["РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё"];
+global o_fac of string[30] = ["Р¤РРўРёРџ", "Р¤РРўРёРџ", "Р¤РРўРёРџ", "Р¤РРўРёРџ", "Р¤РљРўРРЈ", "Р¤РРўРёРџ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РРўРёРџ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РРўРёРџ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РљРўРРЈ", "Р¤РРўРёРџ", "Р¤РљРўРРЈ"];
+global o_course of int[30] = [2, 2, 2, 2, 1, 2, 2, 1, 1, 3, 1, 2, 1, 3, 1, 1, 2, 2, 1, 2, 2, 1, 2, 1, 1, 1, 2, 1, 3, 1];
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_РЈР§Р•РќРРљР (30 rows)
+// =============================================================
+global st_person_id of int[30] = [100001, 100002, 100003, 100004, 100005, 100006, 100007, 100008, 100009, 100010, 100011, 100012, 100013, 100014, 100015, 100016, 100017, 163276, 153285, 153286, 153290, 163249, 170000, 180000, 190000, 200001, 200002, 210001, 210002, 220001];
+global st_group of string[30] = ["3100", "3100", "3100", "3100", "4100", "4100", "4100", "4100", "4100", "4100", "4100", "4100", "4100", "4100", "4100", "2100", "2100", "4100", "1100", "4100", "4100", "1100", "2100", "4100", "2100", "2100", "2100", "2100", "2100", "4100"];
+global st_start of string[30] = ["2010-09-01", "2010-09-01", "2010-09-01", "2010-09-01", "2011-09-01", "2010-09-01", "2011-09-01", "2012-09-01", "2012-09-01", "2008-09-01", "2011-09-01", "2009-09-01", "2011-09-01", "2008-09-01", "2013-09-01", "2013-09-01", "2010-09-01", "2008-09-01", "2011-09-01", "2010-09-01", "2011-09-01", "2011-09-01", "2011-09-01", "2011-09-01", "2012-09-01", "2013-09-01", "2011-09-01", "2013-09-01", "2010-09-01", "2009-09-01"];
+global st_order of string[30] = ["PR-001", "PR-002", "PR-003", "PR-004", "PR-005", "PR-006", "PR-007", "PR-008", "PR-009", "PR-010", "PR-011", "PR-012", "PR-013", "PR-014", "PR-015", "PR-016", "PR-017", "PR-276", "PR-285", "PR-286", "PR-290", "PR-249", "PR-700", "PR-800", "PR-900", "PR-001", "PR-002", "PR-003", "PR-004", "PR-005"];
+global st_state of string[30] = ["Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "РџРµСЂРµРІРµРґРµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "РћС‚С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ", "Р—Р°С‡РёСЃР»РµРЅ"];
+
+// =============================================================
+// РўР°Р±Р»РёС†Р°: Рќ_Р“Р РЈРџРџР«_РџР›РђРќРћР’ (14 rows)
+// =============================================================
+global gp_plan_id of int[14] = [101, 101, 101, 101, 102, 102, 103, 103, 103, 104, 104, 104, 105, 105];
+global gp_group of string[14] = ["1100", "2100", "3100", "4100", "5100", "5200", "6100", "7100", "8100", "9100", "1101", "1201", "1301", "1401"];
+global gp_dept of string[14] = ["РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РїСЂРёРєР»Р°РґРЅРѕР№ РјР°С‚РµРјР°С‚РёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РёРЅС„РѕСЂРјР°С†РёРѕРЅРЅС‹С… СЃРёСЃС‚РµРј", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё", "РљР°С„РµРґСЂР° РїСЂРёРєР»Р°РґРЅРѕР№ РјР°С‚РµРјР°С‚РёРєРё", "РљР°С„РµРґСЂР° РїСЂРёРєР»Р°РґРЅРѕР№ РјР°С‚РµРјР°С‚РёРєРё"];
+
+// =============================================================
+// Helpers
+// =============================================================
+global buf of string = "                                                                                                                                                                                                                                ";
+
+def buf_clear(b of string)
+    strcpy(b, "")
+end
+
+global d0 of string = "0";
+global d1 of string = "1";
+global d2 of string = "2";
+global d3 of string = "3";
+global d4 of string = "4";
+global d5 of string = "5";
+global d6 of string = "6";
+global d7 of string = "7";
+global d8 of string = "8";
+global d9 of string = "9";
+
+def choose_digit(dst of string, d of int)
+    if d == 0 then strcat(dst, d0) end
+    if d == 1 then strcat(dst, d1) end
+    if d == 2 then strcat(dst, d2) end
+    if d == 3 then strcat(dst, d3) end
+    if d == 4 then strcat(dst, d4) end
+    if d == 5 then strcat(dst, d5) end
+    if d == 6 then strcat(dst, d6) end
+    if d == 7 then strcat(dst, d7) end
+    if d == 8 then strcat(dst, d8) end
+    if d == 9 then strcat(dst, d9) end
+end
+
+def int_to_str(dst of string, val of int)
+    buf_clear(dst)
+    if val < 0 then {
+        strcat(dst, "-")
+        val = 0 - val
+    }
+    if val >= 10 then {
+        int_to_str(dst, val / 10)
+    }
+    choose_digit(dst, val - (val / 10) * 10)
+end
+
+global CORO_COUNT of int = 0;
+
+// =============================================================
+// Q1: INNER JOIN tv + ved, filter tv.РР”=3, person_id>153285
+// =============================================================
+global q1_pipe_t_ready of int = 0;
+global q1_pipe_t_name of string;
+global q1_pipe_t_done of int = 0;
+global q1_pipe_v_ready of int = 0;
+global q1_pipe_v_date of string;
+global q1_pipe_v_done of int = 0;
+global q1_res_dates of string[10];
+global q1_res_names of string[10];
+global q1_res_count of int = 0;
+
+coroutine q1_scan_types() of int
+    i = 0
+    while i < 5 {
+        if tv_id[i] == 3 then {
+            q1_pipe_t_name = tv_name[i]
+            q1_pipe_t_ready = 1
+            while q1_pipe_t_ready == 1 { yield }
+            i = 5
+        }
+        i = i + 1
+    }
+    q1_pipe_t_done = 1
+    yield
+    return 0
+end
+
+coroutine q1_scan_ved() of int
+    i = 0
+    while i < 36 {
+        if v_type_id[i] == 3 then {
+            if v_person_id[i] > 153285 then {
+                q1_pipe_v_date = v_date[i]
+                q1_pipe_v_ready = 1
+                yield
+                while q1_pipe_v_ready == 1 { yield }
+            }
+        }
+        i = i + 1
+    }
+    q1_pipe_v_done = 1
+    yield
+    return 0
+end
+
+coroutine q1_join_output() of int
+    while q1_pipe_t_ready == 0 && q1_pipe_t_done == 0 { yield }
+    t_name = q1_pipe_t_name
+    q1_pipe_t_ready = 0
+
+    while q1_pipe_v_done == 0 || q1_pipe_v_ready == 1 {
+        if q1_pipe_v_ready == 1 then {
+            q1_res_names[q1_res_count] = t_name
+            q1_res_dates[q1_res_count] = q1_pipe_v_date
+            q1_res_count = q1_res_count + 1
+            q1_pipe_v_ready = 0
+        }
+        yield
+    }
+
+    i = 0
+    while i < q1_res_count {
+        j = i + 1
+        while j < q1_res_count {
+            if strcmp(q1_res_dates[i], q1_res_dates[j]) > 0 then {
+                tmp = q1_res_dates[i]
+                q1_res_dates[i] = q1_res_dates[j]
+                q1_res_dates[j] = tmp
+                tmp_n = q1_res_names[i]
+                q1_res_names[i] = q1_res_names[j]
+                q1_res_names[j] = tmp_n
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+
+    i = 0
+    while i < q1_res_count {
+        buf_clear(buf)
+        strcat(buf, q1_res_names[i])
+        strcat(buf, ", ")
+        strcat(buf, q1_res_dates[i])
+        puts(buf)
+        i = i + 1
+    }
+    return 0
+end
+
+def run_q1() of int
+    puts("=== Query 1: INNER JOIN ===")
+    CORO_COUNT = 0
+    coro_init_nasm()
+    f0 = 0; f1 = 0; f2 = 0
+    while f0 == 0 || f1 == 0 || f2 == 0 {
+        if f0 == 0 then f0 = resume_coroutine_nasm(CORO_COUNT + 0) end
+        if f1 == 0 then f1 = resume_coroutine_nasm(CORO_COUNT + 1) end
+        if f2 == 0 then f2 = resume_coroutine_nasm(CORO_COUNT + 2) end
+    }
+    CORO_COUNT = CORO_COUNT + 3
+    return 0
+end
+
+// =============================================================
+// Q2: LEFT JOIN people + studies + students
+// =============================================================
+global q2_pipe_p_id of int = 0;
+global q2_pipe_p_ready of int = 0;
+global q2_pipe_p_done of int = 0;
+global q2_pipe_o_nzk of string;
+global q2_pipe_o_ready of int = 0;
+global q2_pipe_o_done of int = 0;
+global q2_pipe_st_id of int = 0;
+global q2_pipe_st_ready of int = 0;
+global q2_pipe_st_done of int = 0;
+global q2_res_id of int[5];
+global q2_res_nzk of string[5];
+global q2_res_stid of int[5];
+global q2_res_cnt of int = 0;
+
+coroutine q2_scan_people() of int
+    i = 0
+    while i < 31 {
+        if strcmp(p_surname[i], "РЃР»РєРёРЅ") > 0 then {
+            q2_pipe_p_id = p_id[i]
+            q2_pipe_p_ready = 1
+            yield
+            while q2_pipe_p_ready == 1 { yield }
+        }
+        i = i + 1
+    }
+    q2_pipe_p_done = 1
+    yield
+    return 0
+end
+
+coroutine q2_scan_studies() of int
+    i = 0
+    while i < 30 {
+        if o_person_id[i] == 163276 then {
+            q2_pipe_o_nzk = o_nzk[i]
+            q2_pipe_o_ready = 1
+            yield
+        }
+        i = i + 1
+    }
+    q2_pipe_o_done = 1
+    yield
+    return 0
+end
+
+coroutine q2_scan_students() of int
+    i = 0
+    while i < 30 {
+        if strcmp(st_start[i], "2008-09-01") == 0 then {
+            if strcmp(st_state[i], "Р—Р°С‡РёСЃР»РµРЅ") == 0 then {
+                q2_pipe_st_id = st_person_id[i]
+                q2_pipe_st_ready = 1
+                yield
+            }
+        }
+        i = i + 1
+    }
+    q2_pipe_st_done = 1
+    yield
+    return 0
+end
+
+coroutine q2_join_output() of int
+    // Collect all filtered people
+    while q2_pipe_p_done == 0 || q2_pipe_p_ready == 1 {
+        if q2_pipe_p_ready == 1 then {
+            pid = q2_pipe_p_id
+            // Check study match (pid = 163276)
+            while q2_pipe_o_ready == 0 && q2_pipe_o_done == 0 { yield }
+            if q2_pipe_o_ready == 1 then {
+                nzk = q2_pipe_o_nzk
+                q2_pipe_o_ready = 0
+                // Check student match
+                has_st = 0
+                while q2_pipe_st_ready == 1 || (q2_pipe_st_done == 0 && has_st == 0) {
+                    if q2_pipe_st_ready == 1 then {
+                        if q2_pipe_st_id == pid then {
+                            stid = q2_pipe_st_id
+                            q2_res_id[q2_res_cnt] = pid
+                            q2_res_nzk[q2_res_cnt] = nzk
+                            q2_res_stid[q2_res_cnt] = stid
+                            q2_res_cnt = q2_res_cnt + 1
+                            has_st = 1
+                        }
+                        q2_pipe_st_ready = 0
+                    }
+                    yield
+                }
+            }
+            q2_pipe_p_ready = 0
+        }
+        yield
+    }
+
+    // Output
+    i = 0
+    while i < q2_res_cnt {
+        buf_clear(buf)
+        int_to_str(buf, q2_res_id[i])
+        strcat(buf, ", ")
+        strcat(buf, q2_res_nzk[i])
+        strcat(buf, ", ")
+        tmp_buf = malloc(32)
+        int_to_str(tmp_buf, q2_res_stid[i])
+        strcat(buf, tmp_buf)
+        puts(buf)
+        i = i + 1
+    }
+    return 0
+end
+
+def run_q2() of int
+    puts("=== Query 2: LEFT JOIN ===")
+    coro_init_nasm()
+    f0 = 0; f1 = 0; f2 = 0; f3 = 0
+    while f0 == 0 || f1 == 0 || f2 == 0 || f3 == 0 {
+        if f0 == 0 then f0 = resume_coroutine_nasm(CORO_COUNT + 0) end
+        if f1 == 0 then f1 = resume_coroutine_nasm(CORO_COUNT + 1) end
+        if f2 == 0 then f2 = resume_coroutine_nasm(CORO_COUNT + 2) end
+        if f3 == 0 then f3 = resume_coroutine_nasm(CORO_COUNT + 3) end
+    }
+    CORO_COUNT = CORO_COUNT + 4
+    return 0
+end
+
+// =============================================================
+// Q3: Count students Р¤РљРўРРЈ without patronymic
+// =============================================================
+global q3_count of int = 0;
+
+def q3_scan() of int
+    i = 0
+    while i < 30 {
+        if strcmp(o_fac[i], "Р¤РљРўРРЈ") == 0 then {
+            pid = o_person_id[i]
+            // Find this person in people table
+            j = 0
+            while j < 31 {
+                if p_id[j] == pid then {
+                    // Check no patronymic
+                    if strcmp(p_patronymic[j], "") == 0 then {
+                        q3_count = q3_count + 1
+                        j = 31
+                    }
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    // Output
+    puts("=== Query 3: Count Р¤РљРўРРЈ Р±РµР· РѕС‚С‡РµСЃС‚РІР° ===")
+    buf_clear(buf)
+    int_to_str(buf, q3_count)
+    puts(buf)
+    return 0
+end
+
+def run_q3() of int
+    q3_scan()
+    return 0
+end
+
+// =============================================================
+// Q4: Plan numbers with >2 groups on Р’Рў dept
+// =============================================================
+global q4_plans of int[10];
+global q4_counts of int[10];
+global q4_res_cnt of int = 0;
+global q4_unique_plans of int[10];
+global q4_unique_cnt of int = 0;
+
+def q4_scan() of int
+    // Count groups per plan for Р’Рў dept
+    i = 0
+    while i < 14 {
+        if strcmp(gp_dept[i], "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё") == 0 then {
+            plan = gp_plan_id[i]
+            // Check if plan already tracked
+            k = 0; found = 0
+            while k < q4_unique_cnt {
+                if q4_unique_plans[k] == plan then { found = 1; k = q4_unique_cnt }
+                k = k + 1
+            }
+            if found == 0 then {
+                q4_unique_plans[q4_unique_cnt] = plan
+                q4_unique_cnt = q4_unique_cnt + 1
+            }
+            // Increment count for this plan
+            k = 0
+            while k < q4_res_cnt {
+                if q4_plans[k] == plan then {
+                    q4_counts[k] = q4_counts[k] + 1
+                    k = q4_res_cnt
+                }
+                k = k + 1
+            }
+            if k == q4_res_cnt then {
+                q4_plans[q4_res_cnt] = plan
+                q4_counts[q4_res_cnt] = 1
+                q4_res_cnt = q4_res_cnt + 1
+            }
+        }
+        i = i + 1
+    }
+
+    puts("=== Query 4: Plans >2 groups on Р’Рў ===")
+    i = 0
+    while i < q4_res_cnt {
+        if q4_counts[i] > 2 then {
+            buf_clear(buf)
+            int_to_str(buf, q4_plans[i])
+            strcat(buf, ": ")
+            tmp = malloc(16)
+            int_to_str(tmp, q4_counts[i])
+            strcat(buf, tmp)
+            strcat(buf, " groups")
+            puts(buf)
+        }
+        i = i + 1
+    }
+    return 0
+end
+
+def run_q4() of int
+    q4_scan()
+    return 0
+end
+
+// =============================================================
+// Q5: Average grades group 4100 >= avg of group 1100
+// =============================================================
+global q5_pids of int[20];
+global q5_names of string[20];
+global q5_avgs of int[20];
+global q5_cnt of int = 0;
+global q5_avg_1100 of int = 0;
+
+def q5_scan() of int
+    sum1100 = 0; cnt1100 = 0
+    i = 0
+    while i < 30 {
+        if strcmp(st_group[i], "1100") == 0 then {
+            pid = st_person_id[i]
+            j = 0
+            while j < 36 {
+                if v_person_id[j] == pid then {
+                    sum1100 = sum1100 + v_mark[j]
+                    cnt1100 = cnt1100 + 1
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+    if cnt1100 > 0 then q5_avg_1100 = sum1100 * 100 / cnt1100 end
+
+    i = 0
+    while i < 30 {
+        if strcmp(st_group[i], "4100") == 0 then {
+            pid = st_person_id[i]
+            sum4100 = 0; cnt4100 = 0
+            j = 0
+            while j < 36 {
+                if v_person_id[j] == pid then {
+                    sum4100 = sum4100 + v_mark[j]
+                    cnt4100 = cnt4100 + 1
+                }
+                j = j + 1
+            }
+            if cnt4100 > 0 then {
+                avg4100 = sum4100 * 100 / cnt4100
+                if avg4100 >= q5_avg_1100 then {
+                    q5_cnt = q5_cnt + 1
+                }
+            }
+        }
+        i = i + 1
+    }
+
+    puts("=== Query 5: Avg grades group 4100 >= group 1100 ===")
+    buf_clear(buf)
+    strcat(buf, "Avg 1100 = ")
+    tmp = malloc(16)
+    int_to_str(tmp, q5_avg_1100)
+    strcat(buf, tmp)
+    puts(buf)
+
+    buf_clear(buf)
+    strcat(buf, "Students found: ")
+    tmp = malloc(16)
+    int_to_str(tmp, q5_cnt)
+    strcat(buf, tmp)
+    puts(buf)
+    return 0
+end
+
+def run_q5() of int
+    q5_scan()
+    return 0
+end
+
+// =============================================================
+// Q6: Students enrolled after 2012-09-01, 1st course, Р·Р°РѕС‡
+// =============================================================
+global q6_pids of int[20];
+global q6_groups of string[20];
+global q6_names2 of string[20];
+global q6_orders of string[20];
+global q6_states of string[20];
+global q6_cnt of int = 0;
+global q6_in_set of int[20];
+global q6_in_cnt of int = 0;
+
+def q6_scan() of int
+    // Build IN set: correspondence form, course 1
+    q6_in_cnt = 0
+    i = 0
+    while i < 30 {
+        if strcmp(o_form[i], "Р·Р°РѕС‡РЅР°СЏ") == 0 then {
+            if o_course[i] == 1 then {
+                q6_in_set[q6_in_cnt] = o_person_id[i]
+                q6_in_cnt = q6_in_cnt + 1
+            }
+        }
+        i = i + 1
+    }
+
+    // Scan students starting after 2012-09-01
+    i = 0
+    while i < 30 {
+        if strcmp(st_start[i], "2012-09-01") > 0 then {
+            pid = st_person_id[i]
+            // Check if pid in IN set
+            in_set = 0
+            j = 0
+            while j < q6_in_cnt {
+                if q6_in_set[j] == pid then { in_set = 1; j = q6_in_cnt }
+                j = j + 1
+            }
+            if in_set == 1 then {
+                q6_cnt = q6_cnt + 1
+            }
+        }
+        i = i + 1
+    }
+
+    puts("=== Query 6: Enrolled after 2012-09-01, 1st course, заоч ===")
+    buf_clear(buf)
+    strcat(buf, "Count: ")
+    tmp = malloc(16)
+    int_to_str(tmp, q6_cnt)
+    strcat(buf, tmp)
+    puts(buf)
+    return 0
+end
+
+def run_q6() of int
+    q6_scan()
+    return 0
+end
+
+// =============================================================
+// Q7: Students with same surname, different birthdays
+// =============================================================
+global q7_surnames of string[30];
+global q7_names of string[30];
+global q7_patrs of string[30];
+global q7_bdays of string[30];
+global q7_cnt of int = 0;
+
+def q7_scan() of int
+    // Go through all people
+    i = 0
+    while i < 31 {
+        surname = p_surname[i]
+        // Count people with this surname
+        scount = 0; diff_bday = 0
+        j = 0
+        while j < 31 {
+            if strcmp(p_surname[j], surname) == 0 then {
+                scount = scount + 1
+                // Check different birthday
+                k = 0
+                while k < j {
+                    if strcmp(p_surname[k], surname) == 0 then {
+                        if strcmp(p_birthday[k], p_birthday[j]) != 0 then {
+                            diff_bday = 1
+                        }
+                    }
+                    k = k + 1
+                }
+            }
+            j = j + 1
+        }
+        if scount > 1 && diff_bday == 1 then {
+            // Add all people with this surname (if not already added)
+            j = 0
+            while j < 31 {
+                if strcmp(p_surname[j], surname) == 0 then {
+                    already = 0
+                    k = 0
+                    while k < q7_cnt {
+                        if q7_cnt > 0 && p_id[j] == p_id[0] then { k = q7_cnt } end
+                        k = k + 1
+                    }
+                    q7_surnames[q7_cnt] = p_surname[j]
+                    q7_names[q7_cnt] = p_name[j]
+                    q7_patrs[q7_cnt] = p_patronymic[j]
+                    q7_bdays[q7_cnt] = p_birthday[j]
+                    q7_cnt = q7_cnt + 1
+                }
+                j = j + 1
+            }
+        }
+        i = i + 1
+    }
+
+    puts("=== Query 7: Same surname, different birthdays ===")
+    i = 0
+    while i < q7_cnt {
+        buf_clear(buf)
+        strcat(buf, q7_surnames[i])
+        strcat(buf, " ")
+        strcat(buf, q7_names[i])
+        strcat(buf, " (")
+        strcat(buf, q7_patrs[i])
+        strcat(buf, ") born ")
+        strcat(buf, q7_bdays[i])
+        puts(buf)
+        i = i + 1
+    }
+    return 0
+end
+
+def run_q7() of int
+    q7_scan()
+    return 0
+end
+
+// =============================================================
+// Main
+// =============================================================
+def main() of int
+    puts("=== System Software Lab 2: Map-Reduce Pipeline ===")
+    puts("")
+    run_q1()
+    puts("")
+    run_q2()
+    puts("")
+    run_q3()
+    puts("")
+    run_q4()
+    puts("")
+    run_q5()
+    puts("")
+    run_q6()
+    puts("")
+    run_q7()
+    puts("")
+    puts("=== All queries done ===")
+    return 0
+end

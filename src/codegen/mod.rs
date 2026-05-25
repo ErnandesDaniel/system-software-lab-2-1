@@ -351,8 +351,25 @@ impl AsmGenerator {
                     output.push_str(&format!("{} dd {}\n", global.name, val));
                 }
                 IrType::String => {
-                    // String is a pointer (char*), emit as 8-byte pointer
-                    output.push_str(&format!("{} dq 0\n", global.name));
+                    if let Some(crate::ir::Constant::String(s)) = &global.initializer {
+                        let slabel = format!("{}_str", global.name);
+                        let bytes: Vec<u8> = s.bytes().collect();
+                        output.push_str(&format!("{slabel} db "));
+                        if bytes.is_empty() {
+                            output.push('0');
+                        } else {
+                            for (j, b) in bytes.iter().enumerate() {
+                                if j > 0 {
+                                    output.push_str(", ");
+                                }
+                                output.push_str(&format!("{b}"));
+                            }
+                        }
+                        output.push_str(", 0\n");
+                        output.push_str(&format!("{} dq {}\n", global.name, slabel));
+                    } else {
+                        output.push_str(&format!("{} dq 0\n", global.name));
+                    }
                 }
                 IrType::Array(elem_type, size) => {
                     let label = global.name.clone();

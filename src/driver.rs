@@ -149,7 +149,8 @@ impl CompilerDriver {
 
             // State structs + pointer table
             helper.push_str("section .data\n");
-            helper.push_str("co_states dq 0, 0, 0, 0, 0, 0, 0, 0\n");
+            let coro_count = ir.functions.iter().filter(|f| f.yield_count > 0).count().max(8);
+            helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
             for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
                 let num_locals = f.locals.len();
                 let ctx_bytes = 24 + num_locals * 8 + 4;

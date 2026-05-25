@@ -89,7 +89,8 @@ impl AsmGenerator {
     fn load_pointer_arg(&mut self, arg: &IrOperand, load_reg: &str) {
         match arg {
             IrOperand::Constant(Constant::String(s)) => {
-                let label = format!("str_{}", self.string_counter);
+                let func = self.current_function.as_deref().unwrap_or("anon");
+                let label = format!("{func}_str_{}", self.string_counter);
                 self.string_counter += 1;
                 self.emit_string_data(&label, s);
                 self.output.push_str(&format!("    lea {load_reg}, [{label}]\n"));
@@ -302,7 +303,8 @@ impl AsmGenerator {
             Constant::Int(v) => self.output.push_str(&format!("    mov {dest}, {v}\n")),
             Constant::Bool(b) => self.output.push_str(&format!("    mov {}, {}\n", dest, i32::from(*b))),
             Constant::String(s) => {
-                let label = format!("str_{}", self.string_counter);
+                let func = self.current_function.as_deref().unwrap_or("anon");
+                let label = format!("{func}_str_{}", self.string_counter);
                 self.string_counter += 1;
                 self.emit_string_data(&label, s);
                 let reg = if dest == "eax" { "rax" } else { dest };
