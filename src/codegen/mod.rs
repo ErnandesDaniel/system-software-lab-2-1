@@ -302,25 +302,15 @@ impl AsmGenerator {
         let mut result = Vec::new();
         for c in s.chars() {
             match c {
-                '\n' => {
-                    result.push(10);
-                }
-                '\r' => {
-                    result.push(13);
-                }
-                '\t' => {
-                    result.push(9);
-                }
-                '\\' => {
-                    result.push(92);
-                }
-                '"' => {
-                    result.push(34);
-                }
+                '\n' => { result.push(10); }
+                '\r' => { result.push(13); }
+                '\t' => { result.push(9); }
+                '\\' => { result.push(92); }
+                '"' => { result.push(34); }
                 _ => {
-                    if c as u32 <= 127 {
-                        result.push(c as u8);
-                    }
+                    let mut buf = [0u8; 4];
+                    let encoded = c.encode_utf8(&mut buf);
+                    result.extend_from_slice(encoded.as_bytes());
                 }
             }
         }

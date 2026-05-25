@@ -385,19 +385,18 @@ def run_q1() of int
     puts("=== Query 1: INNER JOIN ===")
     CORO_COUNT = 0
     coro_init_nasm()
-    f0 = 0; f1 = 0; f2 = 0
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
-    f0 = resume_coroutine_nasm(CORO_COUNT + 0)
-    f1 = resume_coroutine_nasm(CORO_COUNT + 1)
-    f2 = resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
     CORO_COUNT = CORO_COUNT + 3
     return 0
 end
@@ -406,7 +405,7 @@ end
 def q2_scan() of int
     i = 0
     while i < p_count {
-        if strcmp(p_surname[i], "РЃР»РєРёРЅ") > 0 then {
+        if strcmp(p_surname[i], "Ёлкин") > 0 then {
             if p_id[i] == 163276 then {
                 j = 0
                 while j < o_count {
@@ -443,7 +442,7 @@ def run_q2() of int
     return 0
 end
 
-// ============ Q3: Count students FKTРU without patronymic ============
+// ============ Q3: Count students FKTИU without patronymic ============
 global q3_count of int = 0;
 
 def q3_scan() of int
@@ -455,7 +454,7 @@ def q3_scan() of int
             j = 0
             while j < o_count {
                 if o_person_id[j] == pid then {
-                    if strcmp(o_fac[j], "Р¤РљРўРРЈ") == 0 then {
+                    if strcmp(o_fac[j], "ФКТИУ") == 0 then {
                         k = 0
                         while k < st_count {
                             if st_person_id[k] == pid then {
@@ -471,7 +470,7 @@ def q3_scan() of int
         }
         i = i + 1
     }
-    puts("=== Query 3: Count FKTРU without patronymic ===")
+    puts("=== Query 3: Count FKTИU without patronymic ===")
     buf_clear(buf)
     int_to_str(buf, q3_count)
     puts(buf)
@@ -492,7 +491,7 @@ def q4_scan() of int
     q4_plan_cnt = 0
     i = 0
     while i < gp_count {
-        if strcmp(gp_dept[i], "РљР°С„РµРґСЂР° РІС‹С‡РёСЃР»РёС‚РµР»СЊРЅРѕР№ С‚РµС…РЅРёРєРё") == 0 then {
+        if strcmp(gp_dept[i], "Кафедра вычислительной техники") == 0 then {
             plan = gp_plan_id[i]
             k = 0; found = 0
             while k < q4_plan_cnt {
@@ -611,7 +610,7 @@ def q6_scan() of int
             j = 0
             while j < o_count {
                 if o_person_id[j] == pid then {
-                    if strcmp(o_form[j], "Р·Р°РѕС‡РЅР°СЏ") == 0 then {
+                    if strcmp(o_form[j], "заочная") == 0 then {
                         if o_course[j] == 1 then {
                             q6_cnt = q6_cnt + 1
                             j = o_count
@@ -713,7 +712,5 @@ def main() of int
     run_q7()
     puts("")
     puts("=== All queries done ===")
-    return 0
-end
     return 0
 end
