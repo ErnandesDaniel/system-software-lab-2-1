@@ -305,34 +305,126 @@ def load_data() of int
     return 0
 end
 
-// ============ Q1: INNER JOIN (direct, like Q2) ============
-def q1_scan() of int
-    puts("=== Query 1: INNER JOIN ===")
+// ============ Q1: INNER JOIN via coroutine pipeline ============
+// Architecture:
+//   q1_scan_types (coroutine) ──pipe──→ q1_join_output (coroutine)
+//   q1_scan_ved   (coroutine) ──pipe──→ q1_join_output
+//   Scheduler: passive waiting, resumes all 3 until done
+
+global q1_pipe_t_ready of int = 0;
+global q1_pipe_t_name of string;
+global q1_pipe_t_done of int = 0;
+global q1_pipe_v_ready of int = 0;
+global q1_pipe_v_date of string;
+global q1_pipe_v_done of int = 0;
+global q1_res_dates of string[10];
+global q1_res_names of string[10];
+global q1_res_count of int = 0;
+
+coroutine q1_scan_types() of int
     i = 0
     while i < 5 {
         if tv_id[i] == 3 then {
-            t_name = tv_name[i]
-            j = 0
-            while j < v_count {
-                if v_type_id[j] == 3 then {
-                    if v_person_id[j] > 153285 then {
-                        buf_clear(buf)
-                        strcat(buf, t_name)
-                        strcat(buf, ", ")
-                        strcat(buf, v_date[j])
-                        puts(buf)
-                    }
-                }
-                j = j + 1
+            q1_pipe_t_name = tv_name[i]
+            q1_pipe_t_ready = 1
+            yield
+            i = 5
+        }
+        i = i + 1
+    }
+    q1_pipe_t_done = 1
+    yield
+    return 0
+end
+
+coroutine q1_scan_ved() of int
+    i = 0
+    while i < v_count {
+        if v_type_id[i] == 3 then {
+            if v_person_id[i] > 153285 then {
+                q1_pipe_v_date = v_date[i]
+                q1_pipe_v_ready = 1
+                yield
             }
         }
+        i = i + 1
+    }
+    q1_pipe_v_done = 1
+    yield
+    return 0
+end
+
+coroutine q1_join_output() of int
+    while q1_pipe_t_ready == 0 && q1_pipe_t_done == 0 { yield }
+    t_name = q1_pipe_t_name
+    q1_pipe_t_ready = 0
+    while q1_pipe_v_done == 0 || q1_pipe_v_ready == 1 {
+        if q1_pipe_v_ready == 1 then {
+            q1_res_names[q1_res_count] = t_name
+            q1_res_dates[q1_res_count] = q1_pipe_v_date
+            q1_res_count = q1_res_count + 1
+            q1_pipe_v_ready = 0
+        }
+        yield
+    }
+    i = 0
+    while i < q1_res_count {
+        j = i + 1
+        while j < q1_res_count {
+            if strcmp(q1_res_dates[i], q1_res_dates[j]) > 0 then {
+                tmp = q1_res_dates[i]
+                q1_res_dates[i] = q1_res_dates[j]
+                q1_res_dates[j] = tmp
+                tmp_n = q1_res_names[i]
+                q1_res_names[i] = q1_res_names[j]
+                q1_res_names[j] = tmp_n
+            }
+            j = j + 1
+        }
+        i = i + 1
+    }
+    i = 0
+    while i < q1_res_count {
+        buf_clear(buf)
+        strcat(buf, q1_res_names[i])
+        strcat(buf, ", ")
+        strcat(buf, q1_res_dates[i])
+        puts(buf)
         i = i + 1
     }
     return 0
 end
 
+global CORO_COUNT of int = 0;
+
 def run_q1() of int
-    q1_scan()
+    puts("=== Query 1: INNER JOIN ===")
+    CORO_COUNT = 0
+    coro_init_nasm()
+    // Scheduler: passive waiting, resume all 3 until done
+    // Each coroutine yields when waiting for consumer, scheduler round-robins
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
+    CORO_COUNT = CORO_COUNT + 3
     return 0
 end
 
