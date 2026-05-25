@@ -1,0 +1,23 @@
+graph TD
+    BB_3["BB3\nt31 = done\nt32 = puts(t31)\nt33 = 0\nreturn t33"]
+    BB_1["BB1\nt16 = 0\nt17 = (f0 == t16)\nt18 = 0\nt19 = (f1 == t18)\nt20 = t17 || t19\nif t20 goto BB_2 else BB_3"]
+    BB_4["BB4\nt23 = 0\nt24 = resume_coroutine_nasm(t23)\nf0 = t24\ngoto BB_6"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_2["BB2\nt21 = 0\nt22 = (f0 == t21)\nif t22 goto BB_4 else BB_5"]
+    BB_7["BB7\nt28 = 0\nt29 = resume_coroutine_nasm(t28)\nf1 = t29\ngoto BB_9"]
+    BB_8["BB8\ngoto BB_9"]
+    BB_6["BB6\nt26 = 0\nt27 = (f1 == t26)\nif t27 goto BB_7 else BB_8"]
+    BB_9["BB9\ngoto BB_1"]
+    BB_0["BB0\nt11 = coro_init_nasm()\nt12 = 0\nf0 = t12\nt14 = 0\nf1 = t14\ngoto BB_1"]
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_2 --> BB_4
+BB_2 --> BB_5
+BB_7 --> BB_9
+BB_8 --> BB_9
+BB_6 --> BB_7
+BB_6 --> BB_8
+BB_9 --> BB_1
+BB_0 --> BB_1

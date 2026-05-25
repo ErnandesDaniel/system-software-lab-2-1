@@ -1,0 +1,9 @@
+graph TD
+    BB_3["BB3\nt20 = done\nt21 = puts(t20)\nt22 = 0\nreturn t22"]
+    BB_1["BB1\nt6 = 0\nt7 = (a == t6)\nt8 = 0\nt9 = (b == t8)\nt10 = t7 || t9\nt11 = 0\nt12 = (c == t11)\nt13 = t10 || t12\nif t13 goto BB_2 else BB_3"]
+    BB_2["BB2\nt14 = 1\na = t14\nt16 = 1\nb = t16\nt18 = 1\nc = t18\ngoto BB_1"]
+    BB_0["BB0\nt0 = 0\na = t0\nt2 = 1\nb = t2\nt4 = 0\nc = t4\ngoto BB_1"]
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_2 --> BB_1
+BB_0 --> BB_1
