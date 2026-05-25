@@ -113,6 +113,9 @@ impl CompilerDriver {
         use std::process::Command;
 
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
+        let uses_byte_helpers = ir.functions.iter().any(|f| {
+            f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte")
+        });
 
         let global_names: Vec<String> = ir.globals.iter().map(|g| g.name.clone()).collect();
         for func in &ir.functions {
@@ -186,7 +189,7 @@ impl CompilerDriver {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
             }
-            helper.push_str("    leave\n    ret\n");
+            helper.push_str("    leave\n    ret\n\n");
 
             let path = Path::new(output_dir).join("coro_helpers.asm");
             fs::write(&path, helper).ok();
@@ -200,6 +203,29 @@ impl CompilerDriver {
             if let Ok(out) = output {
                 if out.status.success() {
                     obj_files.push(obj);
+                }
+            }
+        }
+
+        if uses_byte_helpers {
+            let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
+            bh.push_str("global str_get_byte\nstr_get_byte:\n");
+            bh.push_str("    movzx eax, byte [rcx + rdx]\n");
+            bh.push_str("    ret\n\n");
+            bh.push_str("global str_set_byte\nstr_set_byte:\n");
+            bh.push_str("    mov [rcx + rdx], r8b\n");
+            bh.push_str("    ret\n");
+            let bpath = Path::new(output_dir).join("byte_helpers.asm");
+            fs::write(&bpath, &bh).ok();
+            let bobj = Path::new(output_dir).join("byte_helpers.obj");
+            let out = Command::new("nasm")
+                .args(["-f", "win64", "-o"])
+                .arg(bobj.to_str().unwrap())
+                .arg(bpath.to_str().unwrap())
+                .output();
+            if let Ok(o) = out {
+                if o.status.success() {
+                    obj_files.push(bobj);
                 }
             }
         }

@@ -20,6 +20,9 @@ fn compile_only(source: &str) -> (TempDir, String) {
     let ir = ir_gen.generate(&ast);
 
     let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
+    let uses_byte_helpers = ir.functions.iter().any(|f| {
+        f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte")
+    });
     let mut all_asm = String::new();
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
 
@@ -124,7 +127,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
             helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
             idx += 1;
         }
-        helper.push_str("    leave\n    ret\n");
+        helper.push_str("    leave\n    ret\n\n");
 
         let helper_path = temp_dir.path().join("coro_helpers.asm");
         fs::write(&helper_path, &helper).unwrap();
@@ -136,6 +139,27 @@ fn compile_only(source: &str) -> (TempDir, String) {
             .output();
         if nasm_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
             obj_files.push(helper_obj);
+        }
+    }
+
+    if uses_byte_helpers {
+        let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
+        bh.push_str("global str_get_byte\nstr_get_byte:\n");
+        bh.push_str("    movzx eax, byte [rcx + rdx]\n");
+        bh.push_str("    ret\n\n");
+        bh.push_str("global str_set_byte\nstr_set_byte:\n");
+        bh.push_str("    mov [rcx + rdx], r8b\n");
+        bh.push_str("    ret\n");
+        let bhp = temp_dir.path().join("byte_helpers.asm");
+        fs::write(&bhp, &bh).unwrap();
+        let bho = temp_dir.path().join("byte_helpers.obj");
+        let out = Command::new("nasm")
+            .args(["-f", "win64", "-o"])
+            .arg(bho.to_str().unwrap())
+            .arg(bhp.to_str().unwrap())
+            .output();
+        if out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+            obj_files.push(bho);
         }
     }
 
@@ -161,6 +185,18 @@ fn compile_and_run(source: &str) -> std::process::Output {
     let (temp_dir, _) = compile_only(source);
     let exe_path = temp_dir.path().join("program.exe");
     Command::new(exe_path.to_str().unwrap()).output().unwrap()
+}
+
+fn compile_and_run_with_files(source: &str, files: &[(&str, &str)]) -> std::process::Output {
+    let (temp_dir, _) = compile_only(source);
+    for (name, content) in files {
+        fs::write(temp_dir.path().join(name), content).unwrap();
+    }
+    let exe_path = temp_dir.path().join("program.exe");
+    Command::new(exe_path.to_str().unwrap())
+        .current_dir(temp_dir.path())
+        .output()
+        .unwrap()
 }
 
 #[test]
@@ -1058,4 +1094,283 @@ fn test_exe_closure_mutate() {
     "#;
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(3), "closure should mutate captured x");
+}
+
+// ============ CRT / stdlib integration tests ============
+
+#[test]
+fn test_exe_puts() {
+    let output = compile_and_run("extern puts def main() puts(\"hello\") return 0 end");
+    assert!(output.status.success(), "puts should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("hello"), "should print hello");
+}
+
+#[test]
+fn test_exe_putchar() {
+    let source = "extern putchar def main() putchar(65) putchar(66) return 0 end";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "putchar should succeed");
+    let out = String::from_utf8_lossy(&output.stdout);
+    assert!(out.contains("AB"), "should print AB, got: {}", out);
+}
+
+#[test]
+fn test_exe_strlen() {
+    let source = "extern strlen def main() return strlen(\"hello\") end";
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(5), "strlen(\"hello\") = 5");
+}
+
+#[test]
+fn test_exe_strcpy_strcat() {
+    let source = r#"
+extern strcpy
+extern strcat
+extern puts
+global buf of string = "                                ";
+def main() of int
+    strcpy(buf, "hello ")
+    strcat(buf, "world")
+    puts(buf)
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "strcpy+strcat should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
+}
+
+#[test]
+fn test_exe_strcmp_eq() {
+    let source = "extern strcmp def main() if strcmp(\"abc\", \"abc\") == 0 then return 1 else return 0 end end";
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "strcmp equal should return 0→true");
+}
+
+#[test]
+fn test_exe_strcmp_gt() {
+    let source = "extern strcmp def main() if strcmp(\"b\", \"a\") > 0 then return 1 else return 0 end end";
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "strcmp b>a should be >0");
+}
+
+#[test]
+fn test_exe_strcmp_lt() {
+    let source = "extern strcmp def main() if strcmp(\"a\", \"b\") < 0 then return 1 else return 0 end end";
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "strcmp a<b should be <0");
+}
+
+#[test]
+fn test_exe_strchr() {
+    let source = r#"
+extern strchr
+extern strlen
+def main() of int
+    s = "hello"
+    p = strchr(s, 101)
+    if p == "" then return 99 end
+    return strlen(p)
+end
+"#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(4), "strchr('hello','e') → 'ello', len=4");
+}
+
+#[test]
+fn test_exe_atoi() {
+    let source = "extern atoi def main() return atoi(\"42\") end";
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(42), "atoi(\"42\") = 42");
+}
+
+#[test]
+fn test_exe_malloc_free() {
+    let source = r#"
+extern malloc
+extern free
+def main() of int
+    p = malloc(128)
+    if p == "" then return 1 end
+    free(p)
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(0), "malloc+free should return 0");
+}
+
+#[test]
+fn test_exe_memcpy() {
+    let source = r#"
+extern memcpy
+extern puts
+global buf of string = "                                ";
+def main() of int
+    memcpy(buf, "OK", 2)
+    puts(buf)
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "memcpy should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).starts_with("OK"));
+}
+
+#[test]
+fn test_exe_sprintf() {
+    let source = r#"
+extern sprintf
+extern puts
+global buf of string = "                                ";
+def main() of int
+    sprintf(buf, "%d", 12345)
+    puts(buf)
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "sprintf should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("12345"));
+}
+
+#[test]
+fn test_exe_fopen_fclose() {
+    let source = r#"
+extern fopen
+extern fclose
+extern puts
+def main() of int
+    f = fopen("test.txt", "w")
+    if f == "" then puts("FAIL") else puts("OK") end
+    if f == "" then return 1 end
+    fclose(f)
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "fopen+fclose should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("OK"));
+}
+
+#[test]
+fn test_exe_fopen_read_fgetc() {
+    let source = r#"
+extern fopen
+extern fclose
+extern fgetc
+extern putchar
+def main() of int
+    f = fopen("test.txt", "r")
+    c = fgetc(f)
+    putchar(c)
+    c = fgetc(f)
+    putchar(c)
+    fclose(f)
+    return 0
+end
+"#;
+    let output = compile_and_run_with_files(source, &[("test.txt", "AB")]);
+    assert!(output.status.success(), "fopen+fgetc should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("AB"));
+}
+
+#[test]
+fn test_exe_feof() {
+    let source = r#"
+extern fopen
+extern fclose
+extern fgetc
+extern feof
+extern puts
+def main() of int
+    f = fopen("test.txt", "r")
+    c = fgetc(f)
+    c = fgetc(f)
+    c = fgetc(f)
+    e = feof(f)
+    if e != 0 then puts("EOF") else puts("NOT") end
+    fclose(f)
+    return 0
+end
+"#;
+    let output = compile_and_run_with_files(source, &[("test.txt", "AB")]);
+    assert!(output.status.success(), "feof should succeed");
+    let out = String::from_utf8_lossy(&output.stdout);
+    assert!(out.contains("EOF"), "expected EOF, got: {}", out);
+}
+
+#[test]
+fn test_exe_fgets() {
+    let source = r#"
+extern fopen
+extern fclose
+extern fgets
+extern puts
+global buf of string = "                                ";
+def main() of int
+    f = fopen("test.txt", "r")
+    fgets(buf, 64, f)
+    puts(buf)
+    fclose(f)
+    return 0
+end
+"#;
+    let output = compile_and_run_with_files(source, &[("test.txt", "hello world")]);
+    assert!(output.status.success(), "fgets should succeed");
+    assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
+}
+
+// --- Byte helpers ---
+
+#[test]
+fn test_exe_str_get_byte() {
+    let source = r#"
+extern str_get_byte
+global s of string = "ABC";
+def main() of int
+    if str_get_byte(s, 0) == 65 then return 1 else return 0 end
+end
+"#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "str_get_byte('ABC',0) should be 65('A')");
+}
+
+#[test]
+fn test_exe_str_set_byte() {
+    let source = r#"
+extern str_get_byte
+extern str_set_byte
+global s of string = "ABC";
+def main() of int
+    str_set_byte(s, 0, 88)
+    if str_get_byte(s, 0) == 88 then return 1 else return 0 end
+end
+"#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "str_set_byte then get should return 88('X')");
+}
+
+#[test]
+fn test_exe_str_set_byte_preserves_rest() {
+    let source = r#"
+extern str_get_byte
+extern str_set_byte
+global s of string = "ABCDEF";
+def main() of int
+    str_set_byte(s, 2, 88)
+    if str_get_byte(s, 0) == 65 then
+        if str_get_byte(s, 1) == 66 then
+            if str_get_byte(s, 2) == 88 then
+                if str_get_byte(s, 3) == 68 then
+                    return 1
+                end
+            end
+        end
+    end
+    return 0
+end
+"#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(1), "str_set_byte should only modify one byte");
 }

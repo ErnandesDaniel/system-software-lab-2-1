@@ -45,8 +45,13 @@ impl StdLib {
         funcs.insert("fopen");
         funcs.insert("fclose");
         funcs.insert("fgets");
+        funcs.insert("fgetc");
         funcs.insert("feof");
         funcs.insert("fputs");
+
+        // String byte access helpers (NASM)
+        funcs.insert("str_get_byte");
+        funcs.insert("str_set_byte");
 
         // Conversion functions
         funcs.insert("atoi");
@@ -115,8 +120,11 @@ impl StdLib {
             ("fopen", ("filename: string, mode: string", "string")),
             ("fclose", ("file: string", "int")),
             ("fgets", ("buf: string, maxcount: int, file: string", "string")),
+            ("fgetc", ("file: string", "int")),
             ("feof", ("file: string", "int")),
             ("fputs", ("str: string, file: string", "int")),
+            ("str_get_byte", ("str: string, idx: int", "int")),
+            ("str_set_byte", ("str: string, idx: int, val: int", "int")),
             ("atoi", ("str: string", "int")),
             ("sprintf", ("buf: string, format: string, value: int", "int")),
             ("clock", ("", "int")),
