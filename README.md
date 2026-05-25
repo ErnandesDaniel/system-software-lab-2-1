@@ -139,39 +139,62 @@ cargo run -- labs-examples/system-programms/lab-1/metrics.mylang -o output -t na
 байтовыми потоками (pipe'ами). Каждый этап обработки — отдельная корутина (кооперативная
 многозадачность с passive waiting через групповое ожидание).
 
+Данные для таблиц захардкожены в `.mylang`-файлах в виде глобальных массивов.
+
 **Файлы:**
 
 ```
 labs-examples/system-programms/lab-2/
-├── csv-data/                    # Тестовые CSV-файлы (выдуманные данные)
+├── csv-data/                    # Тестовые CSV-файлы (для справки)
 │   ├── people.csv               # Н_ЛЮДИ — люди
 │   ├── studies.csv              # Н_ОБУЧЕНИЯ — информация об обучении
 │   ├── students.csv             # Н_УЧЕНИКИ — студенты
 │   ├── vedomosti.csv            # Н_ВЕДОМОСТИ — оценки
 │   ├── types_vedomostei.csv     # Н_ТИПЫ_ВЕДОМОСТЕЙ — типы ведомостей
 │   └── group_plans.csv          # Н_ГРУППЫ_ПЛАНОВ — планы групп
-└── sql/                         # Верификация через SQLite
-    ├── init.sql                 # DDL + импорт CSV
-    ├── init_abs.sql             # То же с абсолютными путями
-    ├── queries.sql              # 7 запросов (как в задании)
-    ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
-    └── ucheb_test.db            # Готовая БД
+├── sql/                         # Верификация через SQLite
+│   ├── init.sql                 # DDL + импорт CSV
+│   ├── init_abs.sql             # То же с абсолютными путями
+│   ├── queries.sql              # 7 запросов (как в задании)
+│   ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
+│   └── ucheb_test.db            # Готовая БД
+├── query1.mylang                # Запрос 1: INNER JOIN с фильтрами
+└── ...                          # query2.mylang — query7.mylang (по мере реализации)
+```
+
+**Компиляция и запуск:**
+
+Все результаты компиляции идут в корневую `output/`.
+
+```powershell
+# Запрос 1: INNER JOIN Н_ТИПЫ_ВЕДОМОСТЕЙ + Н_ВЕДОМОСТИ
+cargo run -- labs-examples/system-programms/lab-2/query1.mylang -o output
+.\output\program.exe
+```
+
+Ожидаемый вывод:
+```
+=== Query 1: INNER JOIN ===
+Дифзачет, 2013-06-01
+Дифзачет, 2013-06-02
+Дифзачет, 2013-06-07
+Дифзачет, 2014-01-25
+=== Done ===
 ```
 
 **Верификация через SQLite:**
 
 ```powershell
-# Установить SQLite (если ещё нет)
 choco install sqlite
 
 # Создать БД и выполнить 7 запросов
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
 
 # Или вручную:
-sqlite3 labs-examples/system-programms/lab-2/sql/ucheb_test.db ^
-  < labs-examples/system-programms/lab-2/sql/init_abs.sql
-sqlite3 -header -column labs-examples/system-programms/lab-2/sql/ucheb_test.db ^
-  < labs-examples/system-programms/lab-2/sql/queries.sql
+sqlite3 labs-examples\system-programms\lab-2\sql\ucheb_test.db ^
+  < labs-examples\system-programms\lab-2\sql\init_abs.sql
+sqlite3 -header -column labs-examples\system-programms\lab-2\sql\ucheb_test.db ^
+  < labs-examples\system-programms\lab-2\sql\queries.sql
 ```
 
 Ожидаемые результаты запросов:
@@ -185,15 +208,6 @@ sqlite3 -header -column labs-examples/system-programms/lab-2/sql/ucheb_test.db ^
 | 5 | 2 студента (Григорьев 5.0, Зайцев 5.0) |
 | 6 | 4 студента (заочные 1 курс после 2012) |
 | 7 | 12 строк (6 пар с одинаковыми фамилиями) |
-
-**Как писать программу на MyLang:**
-
-1. Добавить `extern` для CRT-функций (`fopen`, `fclose`, `fread`, `feof`, `memcpy` и т.д.) в stdlib
-2. Определить структуры для записей таблиц и для Pipe
-3. Реализовать in-memory pipe через `malloc`/`memcpy` (кольцевой буфер)
-4. Каждый этап обработки (Filter, Join, Projection, Aggregation) — отдельная `coroutine`
-5. Соединить корутины pipe'ами, запустить через `resume_coroutine_nasm` в цикле с `yield`
-6. Сверить вывод с результатами SQLite-запросов из `queries.sql`
 
 ## Виртуальные машины
 
