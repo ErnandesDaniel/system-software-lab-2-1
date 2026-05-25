@@ -310,7 +310,7 @@ coroutine q1_scan_types() of int
         if tv_id[i] == 3 then {
             q1_pipe_t_name = tv_name[i]
             q1_pipe_t_ready = 1
-            while q1_pipe_t_ready == 1 { yield }
+            yield
             i = tv_count
         }
         i = i + 1
@@ -328,7 +328,6 @@ coroutine q1_scan_ved() of int
                 q1_pipe_v_date = v_date[i]
                 q1_pipe_v_ready = 1
                 yield
-                while q1_pipe_v_ready == 1 { yield }
             }
         }
         i = i + 1
@@ -379,12 +378,13 @@ coroutine q1_join_output() of int
     return 0
 end
 
-global CORO_COUNT of int = 0;
-
 def run_q1() of int
     puts("=== Query 1: INNER JOIN ===")
     CORO_COUNT = 0
     coro_init_nasm()
+    resume_coroutine_nasm(CORO_COUNT + 0)
+    resume_coroutine_nasm(CORO_COUNT + 1)
+    resume_coroutine_nasm(CORO_COUNT + 2)
     resume_coroutine_nasm(CORO_COUNT + 0)
     resume_coroutine_nasm(CORO_COUNT + 1)
     resume_coroutine_nasm(CORO_COUNT + 2)
