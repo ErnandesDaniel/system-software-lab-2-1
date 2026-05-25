@@ -50,9 +50,9 @@ impl StdLib {
         funcs.insert("fputs");
 
         // String byte access helpers (NASM)
-        funcs.insert("str_get_byte");
-        funcs.insert("str_set_byte");
-        funcs.insert("str_offset");
+        funcs.insert("str_get_byte_nasm");
+        funcs.insert("str_set_byte_nasm");
+        funcs.insert("str_offset_nasm");
 
         // Conversion functions
         funcs.insert("atoi");
@@ -124,9 +124,9 @@ impl StdLib {
             ("fgetc", ("file: string", "int")),
             ("feof", ("file: string", "int")),
             ("fputs", ("str: string, file: string", "int")),
-            ("str_get_byte", ("str: string, idx: int", "int")),
-            ("str_set_byte", ("str: string, idx: int, val: int", "int")),
-            ("str_offset", ("str: string, idx: int", "string")),
+            ("str_get_byte_nasm", ("str: string, idx: int", "int")),
+            ("str_set_byte_nasm", ("str: string, idx: int, val: int", "int")),
+            ("str_offset_nasm", ("str: string, idx: int", "string")),
             ("atoi", ("str: string", "int")),
             ("sprintf", ("buf: string, format: string, value: int", "int")),
             ("clock", ("", "int")),

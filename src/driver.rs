@@ -114,7 +114,7 @@ impl CompilerDriver {
 
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
         let uses_byte_helpers = ir.functions.iter().any(|f| {
-            f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte" || u == "str_offset")
+            f.used_functions.iter().any(|u| u == "str_get_byte_nasm" || u == "str_set_byte_nasm" || u == "str_offset_nasm")
         });
 
         let global_names: Vec<String> = ir.globals.iter().map(|g| g.name.clone()).collect();
@@ -209,13 +209,13 @@ impl CompilerDriver {
 
         if uses_byte_helpers {
             let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
-            bh.push_str("global str_get_byte\nstr_get_byte:\n");
+            bh.push_str("global str_get_byte_nasm\nstr_get_byte_nasm:\n");
             bh.push_str("    movzx eax, byte [rcx + rdx]\n");
             bh.push_str("    ret\n\n");
-            bh.push_str("global str_set_byte\nstr_set_byte:\n");
+            bh.push_str("global str_set_byte_nasm\nstr_set_byte_nasm:\n");
             bh.push_str("    mov [rcx + rdx], r8b\n");
             bh.push_str("    ret\n\n");
-            bh.push_str("global str_offset\nstr_offset:\n");
+            bh.push_str("global str_offset_nasm\nstr_offset_nasm:\n");
             bh.push_str("    lea rax, [rcx + rdx]\n");
             bh.push_str("    ret\n");
             let bpath = Path::new(output_dir).join("byte_helpers.asm");

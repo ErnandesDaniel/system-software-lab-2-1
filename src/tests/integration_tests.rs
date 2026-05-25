@@ -21,7 +21,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
 
     let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
     let uses_byte_helpers = ir.functions.iter().any(|f| {
-        f.used_functions.iter().any(|u| u == "str_get_byte" || u == "str_set_byte" || u == "str_offset")
+        f.used_functions.iter().any(|u| u == "str_get_byte_nasm" || u == "str_set_byte_nasm" || u == "str_offset_nasm")
     });
     let mut all_asm = String::new();
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
@@ -144,13 +144,13 @@ fn compile_only(source: &str) -> (TempDir, String) {
 
     if uses_byte_helpers {
         let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
-        bh.push_str("global str_get_byte\nstr_get_byte:\n");
+        bh.push_str("global str_get_byte_nasm\nstr_get_byte_nasm:\n");
         bh.push_str("    movzx eax, byte [rcx + rdx]\n");
         bh.push_str("    ret\n\n");
-        bh.push_str("global str_set_byte\nstr_set_byte:\n");
+        bh.push_str("global str_set_byte_nasm\nstr_set_byte_nasm:\n");
         bh.push_str("    mov [rcx + rdx], r8b\n");
         bh.push_str("    ret\n\n");
-        bh.push_str("global str_offset\nstr_offset:\n");
+        bh.push_str("global str_offset_nasm\nstr_offset_nasm:\n");
         bh.push_str("    lea rax, [rcx + rdx]\n");
         bh.push_str("    ret\n");
         let bhp = temp_dir.path().join("byte_helpers.asm");
@@ -1329,45 +1329,45 @@ end
 // --- Byte helpers ---
 
 #[test]
-fn test_exe_str_get_byte() {
+fn test_exe_str_get_byte_nasm() {
     let source = r#"
-extern str_get_byte
+extern str_get_byte_nasm
 global s of string = "ABC";
 def main() of int
-    if str_get_byte(s, 0) == 65 then return 1 else return 0 end
+    if str_get_byte_nasm(s, 0) == 65 then return 1 else return 0 end
 end
 "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_get_byte('ABC',0) should be 65('A')");
+    assert_eq!(output.status.code(), Some(1), "str_get_byte_nasm('ABC',0) should be 65('A')");
 }
 
 #[test]
-fn test_exe_str_set_byte() {
+fn test_exe_str_set_byte_nasm() {
     let source = r#"
-extern str_get_byte
-extern str_set_byte
+extern str_get_byte_nasm
+extern str_set_byte_nasm
 global s of string = "ABC";
 def main() of int
-    str_set_byte(s, 0, 88)
-    if str_get_byte(s, 0) == 88 then return 1 else return 0 end
+    str_set_byte_nasm(s, 0, 88)
+    if str_get_byte_nasm(s, 0) == 88 then return 1 else return 0 end
 end
 "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_set_byte then get should return 88('X')");
+    assert_eq!(output.status.code(), Some(1), "str_set_byte_nasm then get should return 88('X')");
 }
 
 #[test]
 fn test_exe_str_set_byte_preserves_rest() {
     let source = r#"
-extern str_get_byte
-extern str_set_byte
+extern str_get_byte_nasm
+extern str_set_byte_nasm
 global s of string = "ABCDEF";
 def main() of int
-    str_set_byte(s, 2, 88)
-    if str_get_byte(s, 0) == 65 then
-        if str_get_byte(s, 1) == 66 then
-            if str_get_byte(s, 2) == 88 then
-                if str_get_byte(s, 3) == 68 then
+    str_set_byte_nasm(s, 2, 88)
+    if str_get_byte_nasm(s, 0) == 65 then
+        if str_get_byte_nasm(s, 1) == 66 then
+            if str_get_byte_nasm(s, 2) == 88 then
+                if str_get_byte_nasm(s, 3) == 68 then
                     return 1
                 end
             end
@@ -1377,5 +1377,5 @@ def main() of int
 end
 "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_set_byte should only modify one byte");
+    assert_eq!(output.status.code(), Some(1), "str_set_byte_nasm should only modify one byte");
 }
