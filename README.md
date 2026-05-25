@@ -135,66 +135,81 @@ cargo run -- labs-examples/system-programms/lab-1/metrics.mylang -o output -t na
 
 ### lab-2: Map-Reduce конвейер (СПО)
 
-Реализация 7 SQL-запросов (вариант 59) в виде конвейера процедур-обработчиков, соединённых
-байтовыми потоками (pipe'ами). Каждый этап обработки — отдельная корутина (кооперативная
-многозадачность с passive waiting через групповое ожидание).
+Реализация 7 SQL-запросов (вариант 59). Данные читаются из CSV-файлов
+в рантайме через `fopen`/`fgetc`. Q1 использует корутины и pipe'ы
+(кооперативная многозадачность с passive waiting), Q2-Q7 — прямые циклы.
 
-Данные для таблиц захардкожены в `.mylang`-файлах в виде глобальных массивов.
+Все 7 запросов в одном файле `input.mylang`.
 
 **Файлы:**
 
 ```
 labs-examples/system-programms/lab-2/
-├── csv-data/                    # Тестовые CSV-файлы (для справки)
-│   ├── people.csv               # Н_ЛЮДИ — люди
-│   ├── studies.csv              # Н_ОБУЧЕНИЯ — информация об обучении
-│   ├── students.csv             # Н_УЧЕНИКИ — студенты
-│   ├── vedomosti.csv            # Н_ВЕДОМОСТИ — оценки
-│   ├── types_vedomostei.csv     # Н_ТИПЫ_ВЕДОМОСТЕЙ — типы ведомостей
-│   └── group_plans.csv          # Н_ГРУППЫ_ПЛАНОВ — планы групп
+├── csv-data/                    # CSV-файлы (читаются в рантайме)
+│   ├── people.csv               # Н_ЛЮДИ
+│   ├── studies.csv              # Н_ОБУЧЕНИЯ
+│   ├── students.csv             # Н_УЧЕНИКИ
+│   ├── vedomosti.csv            # Н_ВЕДОМОСТИ
+│   ├── types_vedomostei.csv     # Н_ТИПЫ_ВЕДОМОСТЕЙ
+│   └── group_plans.csv          # Н_ГРУППЫ_ПЛАНОВ
 ├── sql/                         # Верификация через SQLite
-│   ├── init.sql                 # DDL + импорт CSV
-│   ├── init_abs.sql             # То же с абсолютными путями
-│   ├── queries.sql              # 7 запросов (как в задании)
+│   ├── queries.sql              # 7 запросов
 │   ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
 │   └── ucheb_test.db            # Готовая БД
-├── query1.mylang                # Запрос 1: INNER JOIN с фильтрами
-└── ...                          # query2.mylang — query7.mylang (по мере реализации)
+└── input.mylang                 # Все 7 запросов
 ```
 
 **Компиляция и запуск:**
 
-Все результаты компиляции идут в корневую `output/`.
+Все результаты компиляции идут в корневую `output/`. Запускать из корня проекта
+(рабочая директория нужна для путей к CSV-файлам).
 
 ```powershell
-# Запрос 1: INNER JOIN Н_ТИПЫ_ВЕДОМОСТЕЙ + Н_ВЕДОМОСТИ
-cargo run -- labs-examples/system-programms/lab-2/query1.mylang -o output
+# Компиляция
+cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
+
+# Запуск (из корня проекта!)
 .\output\program.exe
 ```
 
-Ожидаемый вывод:
+**Ожидаемый вывод:**
+
 ```
+=== System Software Lab 2: Map-Reduce Pipeline ===
+
 === Query 1: INNER JOIN ===
 Дифзачет, 2013-06-01
 Дифзачет, 2013-06-02
 Дифзачет, 2013-06-07
 Дифзачет, 2014-01-25
-=== Done ===
+
+=== Query 2: LEFT JOIN ===
+163276, OK500, 163276
+
+=== Query 3: Count FKTИU without patronymic ===
+6
+
+=== Query 4: Plans >2 groups on VT ===
+101: 3 groups
+104: 3 groups
+
+=== Query 5: Avg grades group 4100 >= group 1100 ===
+Avg 1100 = 483
+Students found: 2
+
+=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===
+Count: 4
+
+=== Query 7: Same surname, different birthdays ===
+Surname groups: 12
+
+=== All queries done ===
 ```
 
 **Верификация через SQLite:**
 
 ```powershell
-choco install sqlite
-
-# Создать БД и выполнить 7 запросов
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
-
-# Или вручную:
-sqlite3 labs-examples\system-programms\lab-2\sql\ucheb_test.db ^
-  < labs-examples\system-programms\lab-2\sql\init_abs.sql
-sqlite3 -header -column labs-examples\system-programms\lab-2\sql\ucheb_test.db ^
-  < labs-examples\system-programms\lab-2\sql\queries.sql
 ```
 
 Ожидаемые результаты запросов:
