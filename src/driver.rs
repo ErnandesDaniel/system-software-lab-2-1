@@ -114,8 +114,10 @@ impl CompilerDriver {
 
         let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
 
+        let global_names: Vec<String> = ir.globals.iter().map(|g| g.name.clone()).collect();
         for func in &ir.functions {
             let mut gen = codegen::AsmGenerator::new();
+            gen.set_global_names(&global_names);
             if func.yield_count > 0 {
                 gen.set_coroutine(func.yield_count);
             }
@@ -149,7 +151,10 @@ impl CompilerDriver {
             helper.push_str("section .data\n");
             helper.push_str("co_states dq 0, 0, 0, 0, 0, 0, 0, 0\n");
             for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
-                helper.push_str(&format!("state_{} dd 0, 0, 0, 0, 0, 0\n", f.name));
+                let num_locals = f.locals.len();
+                let ctx_bytes = 24 + num_locals * 8 + 4;
+                let ctx_dwords = (ctx_bytes / 4).max(8);
+                helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
             }
 
             helper.push_str("\nsection .text\n");

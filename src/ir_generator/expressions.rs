@@ -303,6 +303,29 @@ impl IrGenerator {
                                 return (right_temp, right_type);
                             }
                         }
+                        // Plain array assignment: arr[i] = value
+                        // Emit Store with base, offset=0, value, index
+                        if let Some(range) = slice.ranges.first() {
+                            let (idx, _) = self.visit_expr(block, &range.start);
+                            let (base_name, _) = self.visit_expr(block, &slice.array);
+                            let array_type = self.global_types.get(&base_name).cloned().unwrap_or(IrType::Int);
+                            block.instructions.push(IrInstruction {
+                                opcode: IrOpcode::Store,
+                                result: None,
+                                result_type: None,
+                                operands: vec![
+                                    IrOperand::Variable(base_name, array_type),
+                                    IrOperand::Constant(Constant::Int(0)),
+                                    IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                    IrOperand::Variable(idx, IrType::Int),
+                                ],
+                                jump_target: None,
+                                true_target: None,
+                                false_target: None,
+                                span: expr.span,
+                            });
+                            return (right_temp, right_type);
+                        }
                         let target_name = left_temp.clone();
                         let right_type = right_type.clone();
                         block.instructions.push(IrInstruction {
@@ -440,6 +463,16 @@ impl IrGenerator {
                 .function_return_types
                 .get(&func_name)
                 .cloned()
+                .or_else(|| {
+                    // Fallback to stdlib signature for extern functions
+                    crate::stdlib::StdLib::get_signature(&func_name)
+                        .and_then(|(_, ret)| match ret {
+                            "string" => Some(IrType::String),
+                            "int" => Some(IrType::Int),
+                            "" => Some(IrType::Void),
+                            _ => None,
+                        })
+                })
                 .unwrap_or(IrType::Int);
 
             let is_void = matches!(result_return_type, IrType::Void);

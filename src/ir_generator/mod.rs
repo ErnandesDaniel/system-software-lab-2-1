@@ -25,6 +25,7 @@ pub struct IrGenerator {
     pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
     pub local_struct_types: HashMap<String, String>,
     pub current_yield_state: usize,
+    pub coroutine_state_blocks: Vec<String>,
     pub pending_functions: Vec<IrFunction>,
     pub lambda_counter: usize,
     pub captured_vars: std::collections::HashMap<String, usize>,
@@ -49,6 +50,7 @@ impl IrGenerator {
             struct_fields: HashMap::new(),
             local_struct_types: HashMap::new(),
             current_yield_state: 0,
+            coroutine_state_blocks: Vec::new(),
             pending_functions: Vec::new(),
             lambda_counter: 0,
             captured_vars: std::collections::HashMap::new(),
@@ -80,14 +82,25 @@ impl IrGenerator {
         for item in &program.items {
             match item {
                 SourceItem::FuncDeclaration(decl) => {
-                    self.external_functions.insert(decl.signature.name.name.clone());
+                    let func_name = decl.signature.name.name.clone();
+                    self.external_functions.insert(func_name.clone());
                     let ret_type = decl
                         .signature
                         .return_type
                         .as_ref()
-                        .map_or(IrType::Int, |t| self.convert_type(t));
+                        .map(|t| self.convert_type(t))
+                        .or_else(|| {
+                            crate::stdlib::StdLib::get_signature(&func_name)
+                                .and_then(|(_, ret)| match ret {
+                                    "string" => Some(IrType::String),
+                                    "int" => Some(IrType::Int),
+                                    "" => Some(IrType::Void),
+                                    _ => None,
+                                })
+                        })
+                        .unwrap_or(IrType::Int);
                     self.function_return_types
-                        .insert(decl.signature.name.name.clone(), ret_type);
+                        .insert(func_name, ret_type);
                 }
                 SourceItem::FuncDefinition(def) => {
                     let ret_type = def
@@ -239,6 +252,7 @@ impl IrGenerator {
             locals: self.locals.values().cloned().collect(),
             used_functions: used,
             yield_count: 0,
+            coroutine_blocks: vec![],
         }
     }
 
@@ -261,19 +275,20 @@ impl IrGenerator {
         self.locals.clear();
         self.used_functions.clear();
         let mut block_stack = Vec::new();
+        let entry_id = format!("BB{}", self.block_counter);
         let mut current_block = IrBlock {
-            id: format!("BB{}", self.block_counter),
+            id: entry_id.clone(),
             instructions: Vec::new(),
             successors: Vec::new(),
         };
         self.block_counter += 1;
 
-        // Generate body тАФ yield statements will set current_yield_state
+        self.coroutine_state_blocks = vec![entry_id];
+
         for stmt in &def.body {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
         }
 
-        // Collect blocks
         let mut blocks = Vec::new();
         blocks.push(current_block);
         for block in block_stack.drain(..) {
@@ -282,6 +297,7 @@ impl IrGenerator {
 
         let mut used = Vec::new();
         std::mem::swap(&mut used, &mut self.used_functions);
+        let state_blocks = std::mem::take(&mut self.coroutine_state_blocks);
 
         IrFunction {
             name: def.signature.name.name.clone(),
@@ -291,6 +307,7 @@ impl IrGenerator {
             locals: self.locals.values().cloned().collect(),
             used_functions: used,
             yield_count: self.current_yield_state,
+            coroutine_blocks: state_blocks,
         }
     }
 

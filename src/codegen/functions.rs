@@ -95,12 +95,28 @@ impl AsmGenerator {
                 self.output.push_str(&format!("    lea {load_reg}, [{label}]\n"));
             }
             IrOperand::Variable(name, _) => {
-                if let Some(offset) = self.locals.get(name) {
-                    self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
-                    self.output.push_str(&format!("    mov {load_reg}, rax\n"));
-                } else if let Some(offset) = self.temps.get(name) {
-                    self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
-                    self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                if self.is_coroutine {
+                    if let Some(offset) = self.locals.get(name) {
+                        let co_off = 24 + (-offset);
+                        self.restore_coro_ctx();
+                        self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
+                        self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                    } else if let Some(offset) = self.temps.get(name) {
+                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                    } else {
+                        self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                    }
+                } else {
+                    if let Some(offset) = self.locals.get(name) {
+                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                    } else if let Some(offset) = self.temps.get(name) {
+                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                    } else {
+                        self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                    }
                 }
             }
             _ => self.load_operand(arg, load_reg, true),
@@ -165,9 +181,12 @@ impl AsmGenerator {
                                     "r9d"
                                 }
                             }
-                            _ => "eax",
+                            _ => {
+                                if is_pointer { "rax" } else { "eax" }
+                            }
                         };
-                        self.output.push_str(&format!("    mov eax, {src_reg}\n"));
+                        let ret_reg = if is_pointer { "rax" } else { "eax" };
+                        self.output.push_str(&format!("    mov {ret_reg}, {src_reg}\n"));
                     }
                 }
             }
@@ -435,9 +454,10 @@ impl AsmGenerator {
             // Load captured variable's address from env[slot]
             self.output.push_str(&format!("    mov rax, [rax + {}]\n", slot * 8));
             // Load value from that address
-            self.output.push_str("    mov eax, [rax]\n");
+            let ptr_reg = if inst.result_type.as_ref().is_some_and(|t| t.is_pointer()) { "rax" } else { "eax" };
+            self.output.push_str(&format!("    mov {ptr_reg}, [rax]\n"));
             if let Some(ref result) = inst.result {
-                self.store_variable(result, "eax", false);
+                self.store_variable(result, ptr_reg, ptr_reg == "rax");
             }
         }
     }

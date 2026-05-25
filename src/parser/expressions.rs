@@ -20,6 +20,7 @@ impl Parser<'_> {
                     | Token::Until
                     | Token::RParen
                     | Token::RBracket
+                    | Token::RBrace
                     | Token::Comma
             ) {
                 break;

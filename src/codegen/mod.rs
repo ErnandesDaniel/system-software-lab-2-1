@@ -1,5 +1,5 @@
 use crate::ir::types::{IrFunction, IrOpcode, IrOperand, IrType};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 #[cfg(test)]
 use crate::ir::types::IrProgram;
@@ -17,6 +17,7 @@ pub struct AsmGenerator {
     is_coroutine: bool,
     yield_counter: usize,
     coro_ctx_offset: i32,
+    global_names: HashSet<String>,
 }
 
 impl AsmGenerator {
@@ -35,7 +36,12 @@ impl AsmGenerator {
             is_coroutine: false,
             yield_counter: 0,
             coro_ctx_offset: 0,
+            global_names: HashSet::new(),
         }
+    }
+
+    pub fn set_global_names(&mut self, names: &[String]) {
+        self.global_names = names.iter().cloned().collect();
     }
 
     pub fn set_coroutine(&mut self, yield_count: usize) {
@@ -45,6 +51,7 @@ impl AsmGenerator {
 
     #[cfg(test)]
     pub fn generate(&mut self, program: &IrProgram) -> String {
+        self.global_names = program.globals.iter().map(|g| g.name.clone()).collect();
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
         self.output.push_str("section .text\n\n");
@@ -161,6 +168,10 @@ impl AsmGenerator {
 
         let mut local_counter: i32 = 1;
         for local in &func.locals {
+            // Skip globals — they are accessed via [rel name], not stack/coroutine context
+            if self.global_names.contains(&local.name) {
+                continue;
+            }
             let offset = -8 * local_counter;
             local_counter += 1;
             self.locals.insert(local.name.clone(), offset);
@@ -240,10 +251,15 @@ impl AsmGenerator {
         }
 
         if self.is_coroutine {
-            let mut blocks: Vec<_> = func.blocks.iter().collect();
-            blocks.reverse();
-            for (i, block) in blocks.iter().enumerate() {
-                self.output.push_str(&format!("co_{i}:\n"));
+            use std::collections::HashMap;
+            let resume_map: HashMap<&str, usize> = func.coroutine_blocks.iter()
+                .enumerate()
+                .map(|(i, id)| (id.as_str(), i))
+                .collect();
+            for block in &func.blocks {
+                if let Some(&state) = resume_map.get(block.id.as_str()) {
+                    self.output.push_str(&format!("co_{state}:\n"));
+                }
                 self.generate_block(block);
             }
         } else {
@@ -335,23 +351,8 @@ impl AsmGenerator {
                     output.push_str(&format!("{} dd {}\n", global.name, val));
                 }
                 IrType::String => {
-                    let s = match &global.initializer {
-                        Some(crate::ir::Constant::String(s)) => s.clone(),
-                        _ => String::new(),
-                    };
-                    output.push_str(&format!("{} db ", global.name));
-                    let bytes: Vec<u8> = s.bytes().collect();
-                    if bytes.is_empty() {
-                        output.push('0');
-                    } else {
-                        for (i, b) in bytes.iter().enumerate() {
-                            if i > 0 {
-                                output.push_str(", ");
-                            }
-                            output.push_str(&format!("{b}"));
-                        }
-                    }
-                    output.push_str(", 0\n");
+                    // String is a pointer (char*), emit as 8-byte pointer
+                    output.push_str(&format!("{} dq 0\n", global.name));
                 }
                 IrType::Array(elem_type, size) => {
                     let label = global.name.clone();
@@ -386,21 +387,29 @@ impl AsmGenerator {
                             output.push('\n');
                         }
                         IrType::String => {
-                            if let Some(crate::ir::Constant::Array(elems)) = &global.initializer {
-                                for (i, elem) in elems.iter().enumerate() {
-                                    let slabel = format!("{}_{}", global.name, i);
-                                    if let crate::ir::Constant::String(s) = elem {
-                                        output.push_str(&format!("{slabel} db "));
-                                        let bytes: Vec<u8> = s.bytes().collect();
-                                        for (j, b) in bytes.iter().enumerate() {
-                                            if j > 0 {
-                                                output.push_str(", ");
-                                            }
-                                            output.push_str(&format!("{b}"));
+                            let init_elems = match &global.initializer {
+                                Some(crate::ir::Constant::Array(elems)) => elems.as_slice(),
+                                _ => &[],
+                            };
+                            for i in 0..*size {
+                                let slabel = format!("{}_{}", global.name, i);
+                                let s = init_elems.get(i).and_then(|e| {
+                                    if let crate::ir::Constant::String(s) = e { Some(s.as_str()) } else { None }
+                                }).unwrap_or("");
+                                output.push_str(&format!("{slabel} db "));
+                                let bytes: Vec<u8> = s.bytes().collect();
+                                if bytes.is_empty() {
+                                    output.push('0');
+                                } else {
+                                    for (j, b) in bytes.iter().enumerate() {
+                                        if j > 0 {
+                                            output.push_str(", ");
                                         }
-                                        output.push_str(", 0\n");
+                                        output.push_str(&format!("{b}"));
                                     }
+                                    output.push_str(", 0");
                                 }
+                                output.push('\n');
                             }
                             output.push_str(&format!("{label} dq "));
                             for i in 0..*size {

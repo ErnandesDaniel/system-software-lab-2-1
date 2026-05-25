@@ -32,10 +32,13 @@ impl IrValidator {
             }
         }
 
-        // Check that all jump targets exist
+        // Check that all jump targets exist (skip Call opcodes — jump_target stores function name)
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref target) = inst.jump_target {
+                    if matches!(inst.opcode, crate::ir::IrOpcode::Call) {
+                        continue;
+                    }
                     if !block_ids.contains(target) && !target.starts_with("bb_") {
                         errors.push(format!("Function {}: jump to unknown block {}", func.name, target));
                     }
@@ -53,6 +56,9 @@ impl IrValidator {
             for block in &func.blocks {
                 if reachable.contains(&block.id) {
                     for inst in &block.instructions {
+                        if matches!(inst.opcode, crate::ir::IrOpcode::Call) {
+                            continue;
+                        }
                         if let Some(ref target) = inst.jump_target {
                             reachable.insert(target.clone());
                         }

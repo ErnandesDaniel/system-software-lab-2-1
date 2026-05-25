@@ -87,6 +87,7 @@ impl IrGenerator {
                 });
                 // Split block: start new block for next state
                 let new_id = format!("BB{}", self.block_counter);
+                self.coroutine_state_blocks.push(new_id.clone());
                 self.block_counter += 1;
                 let old_block = std::mem::replace(
                     block,

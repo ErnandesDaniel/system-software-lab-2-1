@@ -41,6 +41,17 @@ impl StdLib {
         funcs.insert("sleep");
         funcs.insert("Sleep"); // Windows Sleep (ms) - blocking
 
+        // File I/O functions
+        funcs.insert("fopen");
+        funcs.insert("fclose");
+        funcs.insert("fgets");
+        funcs.insert("feof");
+        funcs.insert("fputs");
+
+        // Conversion functions
+        funcs.insert("atoi");
+        funcs.insert("sprintf");
+
         // Process functions
         funcs.insert("exit");
         funcs.insert("system");
@@ -101,6 +112,13 @@ impl StdLib {
             ("strchr", ("s: string, c: int", "string")),
             ("strstr", ("haystack: string, needle: string", "string")),
             ("system", ("command: string", "int")),
+            ("fopen", ("filename: string, mode: string", "string")),
+            ("fclose", ("file: string", "int")),
+            ("fgets", ("buf: string, maxcount: int, file: string", "string")),
+            ("feof", ("file: string", "int")),
+            ("fputs", ("str: string, file: string", "int")),
+            ("atoi", ("str: string", "int")),
+            ("sprintf", ("buf: string, format: string, value: int", "int")),
             ("clock", ("", "int")),
             ("Sleep", ("ms: int", "int")), // Windows Sleep (milliseconds) - blocking
             // SHM functions (JVM daemon)
