@@ -394,10 +394,29 @@ def run_q1() of int
     resume_coroutine_nasm(CORO_COUNT + 0)
     resume_coroutine_nasm(CORO_COUNT + 1)
     resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
     CORO_COUNT = CORO_COUNT + 3
+    return 0
+end
+
+def main() of int
+    puts("=== System Software Lab 2: Map-Reduce Pipeline ===")
+    load_data()
+    puts("")
+    run_q1()
+    puts("")
+    run_q2()
+    puts("")
+    run_q3()
+    puts("")
+    run_q4()
+    puts("")
+    run_q5()
+    puts("")
+    run_q6()
+    puts("")
+    run_q7()
+    puts("")
+    puts("=== All queries done ===")
     return 0
 end
 
