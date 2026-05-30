@@ -3,7 +3,7 @@ use crate::ir::types::IrBlock;
 #[cfg(test)]
 use crate::ir::types::IrFunction;
 
-use super::AsmGenerator;
+use crate::codegen::nasm::AsmGenerator;
 
 impl AsmGenerator {
     #[cfg(test)]

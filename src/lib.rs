@@ -29,8 +29,6 @@ pub fn run() {
 pub enum CodeGenTarget {
     #[default]
     NASM,
-    LLVM,
-    WASM,
     JVM,
 }
 
@@ -40,8 +38,6 @@ impl std::str::FromStr for CodeGenTarget {
     fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "nasm" => Ok(CodeGenTarget::NASM),
-            "llvm" => Ok(CodeGenTarget::LLVM),
-            "wasm" => Ok(CodeGenTarget::WASM),
             "jvm" => Ok(CodeGenTarget::JVM),
             _ => Err(format!("Unknown target: {s}")),
         }

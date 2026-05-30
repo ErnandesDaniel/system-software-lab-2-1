@@ -64,9 +64,11 @@ printf("%c\n", 65); // Выводим символ в консоль
 printf("%d", 65); // Выводим число в консоль
 
 putchar(10);      // выводим перевод строки (\n)
-puts("Before sleep");
-Sleep(3000);  // 3 секунды - ДОЛЖНО ЗАБЛОКИРОВАТЬ!
-puts("After sleep");
+
+//puts("Before sleep");
+// 3 секунды - ДОЛЖНО ЗАБЛОКИРОВАТЬ!
+//Sleep(3000);
+//puts("After sleep");
 
 return r;
 

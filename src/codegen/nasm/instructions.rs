@@ -1,6 +1,6 @@
 use crate::ir::types::{IrInstruction, IrOpcode, IrOperand, IrType};
 
-use super::AsmGenerator;
+use crate::codegen::nasm::AsmGenerator;
 
 impl AsmGenerator {
     pub fn generate_instruction(&mut self, inst: &IrInstruction) {

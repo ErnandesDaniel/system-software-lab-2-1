@@ -1,6 +1,6 @@
 use crate::ir::types::{Constant, IrInstruction, IrOperand};
 
-use super::AsmGenerator;
+use crate::codegen::nasm::AsmGenerator;
 
 impl AsmGenerator {
     fn restore_coro_ctx(&mut self) {
@@ -45,7 +45,7 @@ impl AsmGenerator {
                 let is_pointer = inst
                     .result_type
                     .as_ref()
-                    .is_some_and(super::super::ir::types::IrType::is_pointer);
+                    .is_some_and(crate::ir::types::IrType::is_pointer);
                 let reg = if is_pointer { "rax" } else { "eax" };
                 self.store_variable(result, reg, is_pointer);
             }
@@ -220,7 +220,7 @@ impl AsmGenerator {
                 let is_pointer = inst
                     .result_type
                     .as_ref()
-                    .is_some_and(super::super::ir::types::IrType::is_pointer);
+                    .is_some_and(crate::ir::types::IrType::is_pointer);
                 let reg = if is_pointer { "rax" } else { "eax" };
                 self.store_variable(result, reg, is_pointer);
             }
@@ -435,7 +435,7 @@ impl AsmGenerator {
                 let is_pointer = inst
                     .result_type
                     .as_ref()
-                    .is_some_and(super::super::ir::types::IrType::is_pointer);
+                    .is_some_and(crate::ir::types::IrType::is_pointer);
                 let reg = if is_pointer { "rax" } else { "eax" };
                 self.store_variable(result, reg, is_pointer);
             }

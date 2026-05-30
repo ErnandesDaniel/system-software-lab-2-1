@@ -2,7 +2,7 @@ use std::fs;
 use std::path::Path;
 
 use crate::ast;
-use crate::codegen::{self, LlvmGenerator};
+use crate::codegen;
 use crate::ir::cfg::CfgMermaidGenerator;
 use crate::ir::validator::IrValidator;
 use crate::ir_generator::IrGenerator;
@@ -14,10 +14,6 @@ use crate::CodeGenTarget;
 pub struct CompilerDriver;
 
 impl CompilerDriver {
-    pub fn new() -> Self {
-        Self
-    }
-
     pub fn compile(args: &crate::cli::Args) {
         let source = Self::read_source(&args.source_path);
         let ast = Self::parse(&source);
@@ -34,8 +30,6 @@ impl CompilerDriver {
 
         match args.target {
             CodeGenTarget::NASM => Self::generate_nasm(&ir_program, &args.output_dir),
-            CodeGenTarget::LLVM => Self::generate_llvm(&ir_program, &args.output_dir),
-            CodeGenTarget::WASM => Self::generate_wasm(&ir_program, &args.output_dir),
             CodeGenTarget::JVM => Self::generate_jvm(&ir_program, &args.output_dir),
         }
     }
@@ -291,8 +285,6 @@ impl CompilerDriver {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files.iter().map(|p| p.to_string_lossy().to_string()).collect();
             args.push("-Wl,/subsystem:console".to_string());
-            args.push("-l".to_string());
-            args.push("msvcrt".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
 
@@ -303,93 +295,6 @@ impl CompilerDriver {
                     }
                 }
                 Err(e) => eprintln!("Failed to run Clang: {e}"),
-            }
-        }
-    }
-
-    fn generate_llvm(ir: &crate::ir::IrProgram, output_dir: &str) {
-        use std::process::Command;
-
-        let mut gen = LlvmGenerator::new();
-        let llvm_ir = gen.generate_program(ir);
-
-        let ll_path = Path::new(output_dir).join("program.ll");
-        if let Err(e) = fs::write(&ll_path, &llvm_ir) {
-            eprintln!("Failed to write LLVM IR: {e}");
-            return;
-        }
-
-        let obj_path = Path::new(output_dir).join("program.obj");
-        let compile_result = Command::new("clang")
-            .args(["-c", "-o"])
-            .arg(obj_path.to_str().unwrap())
-            .arg(ll_path.to_str().unwrap())
-            .output();
-
-        match compile_result {
-            Ok(out) => {
-                if !out.status.success() {
-                    eprintln!("Clang failed: {}", String::from_utf8_lossy(&out.stderr));
-                    return;
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to run Clang: {e}");
-                return;
-            }
-        }
-
-        let exe_path = Path::new(output_dir).join("program.exe");
-        match Command::new("clang")
-            .arg(obj_path.to_str().unwrap())
-            .arg("-o")
-            .arg(exe_path.to_str().unwrap())
-            .output()
-        {
-            Ok(out) => {
-                if !out.status.success() {
-                    eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
-                }
-            }
-            Err(e) => eprintln!("Failed to run Clang: {e}"),
-        }
-    }
-
-    fn generate_wasm(ir: &crate::ir::IrProgram, output_dir: &str) {
-        use std::process::Command;
-
-        let mut gen = LlvmGenerator::new();
-        let llvm_ir = gen.generate_program(ir);
-
-        let ll_path = Path::new(output_dir).join("program.ll");
-        if let Err(e) = fs::write(&ll_path, &llvm_ir) {
-            eprintln!("Failed to write LLVM IR: {e}");
-            return;
-        }
-
-        let wasm_path = Path::new(output_dir).join("program.wasm");
-
-        let compile_result = Command::new("clang")
-            .args([
-                "--target=wasm32",
-                "-nostdlib",
-                "-Wl,--no-entry",
-                "-Wl,--export-all",
-                "-Wl,--allow-undefined",
-                "-o",
-                wasm_path.to_str().unwrap(),
-                ll_path.to_str().unwrap(),
-            ])
-            .output();
-
-        match compile_result {
-            Ok(out) => {
-                if !out.status.success() {
-                    eprintln!("Clang compile failed: {}", String::from_utf8_lossy(&out.stderr));
-                }
-            }
-            Err(e) => {
-                eprintln!("Failed to run Clang: {e}");
             }
         }
     }
