@@ -178,6 +178,11 @@ impl CompilerDriver {
             helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
             helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
 
+            helper.push_str("global set_coroutine_param\nset_coroutine_param:\n");
+            helper.push_str("    ; rcx = index, rdx = value\n");
+            helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+            helper.push_str("    mov [rax + 24], edx\n.empty:\n    ret\n\n");
+
             // Init: fill co_states table
             helper.push_str("global coro_init\n");
             for f in ir.functions.iter().filter(|f| f.is_coroutine) {
