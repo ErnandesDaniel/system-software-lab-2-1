@@ -262,7 +262,7 @@ impl JvmGenerator {
         }
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_5,
+            version: ristretto_classfile::JAVA_6,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
@@ -313,7 +313,7 @@ impl JvmGenerator {
         let method_desc_idx = self.constant_pool.add_utf8(&method_desc).unwrap();
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_5,
+            version: ristretto_classfile::JAVA_6,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
             this_class,
