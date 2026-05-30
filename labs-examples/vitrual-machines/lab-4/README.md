@@ -1,11 +1,11 @@
-# lab-4: PHP ↔ JVM взаимодействие
+# lab-4: PHP ↔ MyLang через pipe (stdin/stdout)
 
-Демонстрация межпроцессного взаимодействия (IPC) между PHP (CLI) и JVM (дочерний процесс).
+Демонстрация IPC через pipe: PHP запускает скомпилированный MyLang-сервер как дочерний процесс и общается с ним через stdin/stdout.
 
 ## Компиляция и запуск
 
 ```powershell
-cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
+cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t nasm
 php labs-examples/vitrual-machines/lab-4/input.php
 ```
 
@@ -18,51 +18,40 @@ php labs-examples/vitrual-machines/lab-4/input.php
 | `set <key> <value>` | Обновить |
 | `delete <key>` | Удалить |
 | `list` | Список ключей |
-| `exit` | Остановить демон и выйти |
+| `exit` | Остановить сервер и выйти |
 
-## Способы IPC
+## Протокол
 
-Доступны два протокола обмена, переключаются через флаг `--pipe`:
-
-### --pipe=text (по умолчанию)
+Текстовый, строки разделены `\n`:
 
 ```
-PHP ──stdin──→ JVM: create\0key\0value\0
-PHP ←─stdout── JVM: 0\0payload\0
+PHP -> MyLang: "create mykey myvalue\n"
+MyLang -> PHP: "OK\n"
+
+PHP -> MyLang: "get mykey\n"
+MyLang -> PHP: "OK myvalue\n"
+
+PHP -> MyLang: "delete mykey\n"
+MyLang -> PHP: "OK\n"
+
+PHP -> MyLang: "list\n"
+MyLang -> PHP: "OK key1,key2\n"
+
+PHP -> MyLang: "exit\n"
+MyLang -> PHP: "OK\n"
 ```
 
-Команды и ответы — null-terminated строки. Можно запустить JVM-процесс вручную и общаться через echo:
-
-```powershell
-java -cp output RuntimeStub --pipe=text
-```
-
-### --pipe=binary
-
-```
-PHP ──stdin──→ JVM: [opcode:1B][key_len:2B LE][val_len:2B LE][key][value]
-PHP ←─stdout── JVM: [result:1B][payload_len:2B LE][payload]
-```
-
-Бинарный протокол с фиксированными полями — без разделителей, всё по длине.
+Ошибки: `ERR message\n`
 
 ## Архитектура
 
-Оба режима работают через `proc_open()` в PHP (дочерний JVM-процесс). Протокол переключается опцией `--pipe`:
-
 ```
-PHP (CLI) ──proc_open──→ JVM (RuntimeStub)
+PHP (CLI) ──proc_open──→ program.exe (MyLang-сервер)
    │                        │
-   ├─ stdin ──── команда ──→│
-   └─ stdout ←── ответ ────│
+   ├─ stdin ──── команда ──→│  (getchar)
+   └─ stdout ←── ответ ────│  (putchar)
 ```
 
-```
-PHP → JVM Request:  create key value
-                    get key
-                    delete key
-                    list
-                    exit
-PHP ← JVM Response: OK payload
-                    ERROR description
-```
+- Без JNA, без JVM, без Win32 API
+- Без SHM, без файлов, без Event'ов
+- Сервер — чистый MyLang, ни одного extern-хелпера не требуется (только getchar/putchar)

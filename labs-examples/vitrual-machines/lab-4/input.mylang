@@ -1,119 +1,333 @@
-extern shm_read_state_jvm
-extern shm_read_byte_jvm
-extern shm_read_str_jvm
-extern shm_write_state_jvm
-extern shm_write_resp_jvm
-extern shm_wait_event_jvm
-extern shm_find_null_jvm
+// Lab 4 — MyLang daemon: stdin/stdout pipe protocol
+// Протокол: "opcode key value\n" -> "OK [payload]\n" / "ERR msg\n"
+//
+// Без JNA, без SHM, без Win32 API — только getchar/putchar
 
-extern map_put_jvm
-extern map_get_jvm
-extern map_has_jvm
-extern map_remove_jvm
-extern map_list_jvm
+extern getchar
+extern putchar
+extern str_get_byte_nasm
+extern str_set_byte_nasm
 
-def handle_create(key of string, value of string) of int
-begin
-    if map_has_jvm(key) == 0 then {
-        map_put_jvm(key, value);
-        return 0;
+// ─── Storage pool (2048 байт) ───────────────────────────────────────────────
+//
+//  0..255  — input buffer
+//  256..383 — temp buffer (для list response)
+//  384..1791 — map storage (pool_next)
+//  1792.. — error/command strings (pre-populated в main)
+
+global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+
+// ─── Map state ──────────────────────────────────────────────────────────────
+global pool_next of int = 384
+global map_n of int = 0
+global map_keys of int[8]
+global map_vals of int[8]
+
+// ─── Parse results ──────────────────────────────────────────────────────────
+global r0 of int = 0   // opcode offset
+global r1 of int = -1  // key offset (-1 = none)
+global r2 of int = -1  // value offset (-1 = none)
+
+// ─── String helpers ─────────────────────────────────────────────────────────
+
+def find_space(start of int) of int
+    i = start
+    while 1 == 1 {
+        c = str_get_byte_nasm(pool, i)
+        if c == 32 then { return i }
+        if c == 0 || c == 10 then { return -1 }
+        i = i + 1
     }
-    return 1;
-end
-end
-
-def handle_get(key of string) of string
-begin
-    return map_get_jvm(key);
-end
-end
-
-def handle_set(key of string, value of string) of int
-begin
-    if map_has_jvm(key) == 1 then {
-        map_put_jvm(key, value);
-        return 0;
-    }
-    return 1;
-end
-end
-
-def handle_delete(key of string) of int
-begin
-    if map_has_jvm(key) == 1 then {
-        map_remove_jvm(key);
-        return 0;
-    }
-    return 1;
-end
 end
 
-def dispatch(opcode of int, key of string, value of string)
-begin
-    if opcode == 0 then {
-        r = handle_create(key, value);
-        if r == 0 then {
-            shm_write_resp_jvm(0, "");
-        }
-        if r == 1 then {
-            shm_write_resp_jvm(1, "Key already exists");
-        }
+// Compare null-terminated strings at two pool offsets
+def streq(a of int, b of int) of int
+    i = 0
+    while 1 == 1 {
+        ca = str_get_byte_nasm(pool, a + i)
+        cb = str_get_byte_nasm(pool, b + i)
+        if ca != cb then { return 0 }
+        if ca == 0 then { return 1 }
+        i = i + 1
     }
-    if opcode == 1 then {
-        if map_has_jvm(key) == 0 then {
-            shm_write_resp_jvm(1, "Key not found");
-        }
-        if map_has_jvm(key) == 1 then {
-            shm_write_resp_jvm(0, handle_get(key));
-        }
-    }
-    if opcode == 2 then {
-        r = handle_set(key, value);
-        if r == 0 then {
-            shm_write_resp_jvm(0, "");
-        }
-        if r == 1 then {
-            shm_write_resp_jvm(1, "Key not found");
-        }
-    }
-    if opcode == 3 then {
-        r = handle_delete(key);
-        if r == 0 then {
-            shm_write_resp_jvm(0, "");
-        }
-        if r == 1 then {
-            shm_write_resp_jvm(1, "Key not found");
-        }
-    }
-    if opcode == 4 then {
-        shm_write_resp_jvm(0, map_list_jvm());
-    }
-    if opcode == 5 then {
-        shm_write_resp_jvm(0, "");
-    }
-    return;
 end
+
+// Copy string from src offset to dst offset, returns end offset (past null)
+def strcpy_at(dst of int, src of int) of int
+    i = 0
+    while 1 == 1 {
+        c = str_get_byte_nasm(pool, src + i)
+        str_set_byte_nasm(pool, dst + i, c)
+        if c == 0 then { return dst + i + 1 }
+        i = i + 1
+    }
 end
+
+def putstr_at(off of int)
+    i = 0
+    while 1 == 1 {
+        c = str_get_byte_nasm(pool, off + i)
+        if c == 0 then { return }
+        putchar(c)
+        i = i + 1
+    }
+end
+
+// ─── Map operations ─────────────────────────────────────────────────────────
+
+def map_find(key_off of int) of int
+    i = 0
+    while i < map_n {
+        if streq(map_keys[i], key_off) == 1 then { return i }
+        i = i + 1
+    }
+    return -1
+end
+
+def map_add(key_off of int, val_off of int)
+    if map_n >= 8 then { return }
+    map_keys[map_n] = pool_next
+    pool_next = strcpy_at(pool_next, key_off)
+    map_vals[map_n] = pool_next
+    pool_next = strcpy_at(pool_next, val_off)
+    map_n = map_n + 1
+end
+
+def map_update(idx of int, val_off of int)
+    map_vals[idx] = pool_next
+    pool_next = strcpy_at(pool_next, val_off)
+end
+
+def map_remove(idx of int)
+    while idx < map_n - 1 {
+        map_keys[idx] = map_keys[idx + 1]
+        map_vals[idx] = map_vals[idx + 1]
+        idx = idx + 1
+    }
+    map_n = map_n - 1
+end
+
+def map_build_list()
+    di = 256
+    i = 0
+    while i < map_n {
+        if i > 0 then {
+            str_set_byte_nasm(pool, di, 44)  // comma
+            di = di + 1
+        }
+        di = strcpy_at(di, map_keys[i])
+        i = i + 1
+    }
+    str_set_byte_nasm(pool, di, 0)
+end
+
+// ─── Input ──────────────────────────────────────────────────────────────────
+
+def read_line()
+    i = 0
+    while 1 == 1 {
+        c = getchar()
+        if c == 10 then { str_set_byte_nasm(pool, i, 0); return }
+        if c == -1 then { str_set_byte_nasm(pool, i, 0); return }
+        str_set_byte_nasm(pool, i, c)
+        i = i + 1
+    }
+end
+
+// Парсит строку в pool[0..]: заменяет пробелы на \0,
+// выставляет r0=opcode_off, r1=key_off, r2=value_off(-1 если нет)
+def parse_line()
+    r0 = 0
+    r1 = -1
+    r2 = -1
+
+    sp1 = find_space(0)
+    if sp1 == -1 then { return }
+
+    str_set_byte_nasm(pool, sp1, 0)
+    r1 = sp1 + 1
+
+    sp2 = find_space(r1)
+    if sp2 == -1 then { return }
+
+    str_set_byte_nasm(pool, sp2, 0)
+    r2 = sp2 + 1
+
+    nl = 0
+    while 1 == 1 {
+        c = str_get_byte_nasm(pool, r2 + nl)
+        if c == 0 then { return }
+        if c == 10 then { str_set_byte_nasm(pool, r2 + nl, 0); return }
+        nl = nl + 1
+    }
+end
+
+// ─── Response ───────────────────────────────────────────────────────────────
+
+def respond_ok()
+    putchar(79); putchar(75); putchar(10)  // "OK\n"
+end
+
+def respond_ok_val(off of int)
+    putchar(79); putchar(75); putchar(32)  // "OK "
+    putstr_at(off)
+    putchar(10)
+end
+
+def respond_err(off of int)
+    putchar(69); putchar(82); putchar(82); putchar(32)  // "ERR "
+    putstr_at(off)
+    putchar(10)
+end
+
+// ─── Main ───────────────────────────────────────────────────────────────────
 
 def main() of int
-begin
-    shm_write_state_jvm(0);
-    exit_flag = 0;
-    while exit_flag == 0 {
-        shm_wait_event_jvm();
-        state = shm_read_state_jvm();
-        if state == 1 then {
-            opcode = shm_read_byte_jvm(4);
-            key = shm_read_str_jvm(5);
-            keyEnd = shm_find_null_jvm(5);
-            value = shm_read_str_jvm(keyEnd + 1);
-            dispatch(opcode, key, value);
-            shm_write_state_jvm(2);
+    // ── Pre-populate command/error strings (высокие офсеты, вне map storage) ──
+    // 1792: "exit"
+    str_set_byte_nasm(pool, 1792, 101)  // e
+    str_set_byte_nasm(pool, 1793, 120)  // x
+    str_set_byte_nasm(pool, 1794, 105)  // i
+    str_set_byte_nasm(pool, 1795, 116)  // t
+    str_set_byte_nasm(pool, 1796, 0)    // \0
+
+    // 1797: "list"
+    str_set_byte_nasm(pool, 1797, 108)  // l
+    str_set_byte_nasm(pool, 1798, 105)  // i
+    str_set_byte_nasm(pool, 1799, 115)  // s
+    str_set_byte_nasm(pool, 1800, 116)  // t
+    str_set_byte_nasm(pool, 1801, 0)    // \0
+
+    // 1802: "get"
+    str_set_byte_nasm(pool, 1802, 103)  // g
+    str_set_byte_nasm(pool, 1803, 101)  // e
+    str_set_byte_nasm(pool, 1804, 116)  // t
+    str_set_byte_nasm(pool, 1805, 0)    // \0
+
+    // 1806: "create"
+    str_set_byte_nasm(pool, 1806, 99)   // c
+    str_set_byte_nasm(pool, 1807, 114)  // r
+    str_set_byte_nasm(pool, 1808, 101)  // e
+    str_set_byte_nasm(pool, 1809, 97)   // a
+    str_set_byte_nasm(pool, 1810, 116)  // t
+    str_set_byte_nasm(pool, 1811, 101)  // e
+    str_set_byte_nasm(pool, 1812, 0)    // \0
+
+    // 1813: "set"
+    str_set_byte_nasm(pool, 1813, 115)  // s
+    str_set_byte_nasm(pool, 1814, 101)  // e
+    str_set_byte_nasm(pool, 1815, 116)  // t
+    str_set_byte_nasm(pool, 1816, 0)    // \0
+
+    // 1817: "delete"
+    str_set_byte_nasm(pool, 1817, 100)  // d
+    str_set_byte_nasm(pool, 1818, 101)  // e
+    str_set_byte_nasm(pool, 1819, 108)  // l
+    str_set_byte_nasm(pool, 1820, 101)  // e
+    str_set_byte_nasm(pool, 1821, 116)  // t
+    str_set_byte_nasm(pool, 1822, 101)  // e
+    str_set_byte_nasm(pool, 1823, 0)    // \0
+
+    // 1824: "Key not found"
+    str_set_byte_nasm(pool, 1824, 75)   // K
+    str_set_byte_nasm(pool, 1825, 101)  // e
+    str_set_byte_nasm(pool, 1826, 121)  // y
+    str_set_byte_nasm(pool, 1827, 32)   // (space)
+    str_set_byte_nasm(pool, 1828, 110)  // n
+    str_set_byte_nasm(pool, 1829, 111)  // o
+    str_set_byte_nasm(pool, 1830, 116)  // t
+    str_set_byte_nasm(pool, 1831, 32)   // (space)
+    str_set_byte_nasm(pool, 1832, 102)  // f
+    str_set_byte_nasm(pool, 1833, 111)  // o
+    str_set_byte_nasm(pool, 1834, 117)  // u
+    str_set_byte_nasm(pool, 1835, 110)  // n
+    str_set_byte_nasm(pool, 1836, 100)  // d
+    str_set_byte_nasm(pool, 1837, 0)    // \0
+
+    // 1838: "Exists"
+    str_set_byte_nasm(pool, 1838, 69)   // E
+    str_set_byte_nasm(pool, 1839, 120)  // x
+    str_set_byte_nasm(pool, 1840, 105)  // i
+    str_set_byte_nasm(pool, 1841, 115)  // s
+    str_set_byte_nasm(pool, 1842, 116)  // t
+    str_set_byte_nasm(pool, 1843, 115)  // s
+    str_set_byte_nasm(pool, 1844, 0)    // \0
+
+    // ── Main loop ──
+    while 1 == 1 {
+        read_line()
+        parse_line()
+
+        // exit
+        if r1 == -1 then {
+            if streq(r0, 1792) == 1 then {  // "exit"
+                respond_ok()
+                return 0
+            }
         }
-        if state == 3 then {
-            exit_flag = 1;
+
+        // list
+        if r1 == -1 then {
+            if streq(r0, 1797) == 1 then {  // "list"
+                map_build_list()
+                respond_ok_val(256)
+            }
+        }
+
+        // если нет key — неизвестная команда
+        if r1 == -1 then {
+            respond_err(1824)  // "Key not found" как generic error
+        }
+
+        // get
+        if streq(r0, 1802) == 1 then {  // "get"
+            idx = map_find(r1)
+            if idx >= 0 then {
+                respond_ok_val(map_vals[idx])
+            } else {
+                respond_err(1824)
+            }
+        }
+
+        // create
+        if streq(r0, 1806) == 1 then {  // "create"
+            if r2 == -1 then {
+                respond_err(1824)
+            } else {
+                idx = map_find(r1)
+                if idx >= 0 then {
+                    respond_err(1838)  // "Exists"
+                } else {
+                    map_add(r1, r2)
+                    respond_ok()
+                }
+            }
+        }
+
+        // set
+        if streq(r0, 1813) == 1 then {  // "set"
+            if r2 == -1 then {
+                respond_err(1824)
+            } else {
+                idx = map_find(r1)
+                if idx >= 0 then {
+                    map_update(idx, r2)
+                    respond_ok()
+                } else {
+                    respond_err(1824)
+                }
+            }
+        }
+
+        // delete
+        if streq(r0, 1817) == 1 then {  // "delete"
+            idx = map_find(r1)
+            if idx >= 0 then {
+                map_remove(idx)
+                respond_ok()
+            } else {
+                respond_err(1824)
+            }
         }
     }
-    return 0;
-end
 end

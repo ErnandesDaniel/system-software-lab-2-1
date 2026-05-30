@@ -35,7 +35,7 @@ impl Parser<'_> {
             if matches!(token, Token::Dot) {
                 // Field access
             }
-            // Break on tokens that start new statements / have no expression meaning
+            // Break on tokens that start new statements / declarations
             if matches!(
                 token,
                 Token::Semi
@@ -47,6 +47,9 @@ impl Parser<'_> {
                     | Token::Break
                     | Token::Def
                     | Token::Extern
+                    | Token::Global
+                    | Token::Struct
+                    | Token::Coroutine
                     | Token::Yield
                     | Token::Begin
                     | Token::LBrace
