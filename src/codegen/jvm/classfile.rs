@@ -815,8 +815,8 @@ impl JvmGenerator {
         let coro_info: Vec<(String, u16)> = functions.iter().filter(|f| f.is_coroutine).map(|f| {
             let name = if f.name == "main" { "Main".to_string() } else { capitalize_first(&f.name) };
             let class_idx = self.constant_pool.add_class(&name).unwrap();
-            let init_ref = self.constant_pool.add_method_ref(class_idx, "<init>", "()V").unwrap();
-            let resume_ref = self.constant_pool.add_method_ref(class_idx, "resume", "()I").unwrap();
+            let _ = self.constant_pool.add_method_ref(class_idx, "<init>", "()V").unwrap();
+            let _ = self.constant_pool.add_method_ref(class_idx, "resume", "()I").unwrap();
             (name, class_idx)
         }).collect();
         let count = coro_info.len();
@@ -860,6 +860,27 @@ impl JvmGenerator {
             }
             code.push(Instruction::Iconst_1); code.push(Instruction::Ireturn);
             methods.push(Method { access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC, name_index: resume_name, descriptor_index: resume_desc, attributes: vec![Attribute::Code { name_index: code_attr, max_stack: 4, max_locals: 1, code, exception_table: vec![], attributes: vec![] }] });
+
+            // get_coroutine_state(I)I
+            let state_name = self.constant_pool.add_utf8("get_coroutine_state").unwrap();
+            let state_desc = self.constant_pool.add_utf8("(I)I").unwrap();
+            let mut sc = Vec::new();
+            for (i, (cn, ci)) in coro_info.iter().enumerate() {
+                sc.push(Instruction::Iload_0);
+                push_iconst(&mut sc, i);
+                let skip_at = sc.len(); sc.push(Instruction::If_icmpne(0));
+                sc.push(Instruction::Getstatic(coro_field_ref));
+                push_iconst(&mut sc, i);
+                sc.push(Instruction::Aaload);
+                sc.push(Instruction::Checkcast(*ci));
+                let sm = self.constant_pool.add_method_ref(*ci, "getState", "()I").unwrap();
+                sc.push(Instruction::Invokevirtual(sm));
+                sc.push(Instruction::Ireturn);
+                let off = (sc.len() - skip_at - 1) as u16;
+                sc[skip_at] = Instruction::If_icmpne(off);
+            }
+            sc.push(Instruction::Iconst_m1); sc.push(Instruction::Ireturn);
+            methods.push(Method { access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC, name_index: state_name, descriptor_index: state_desc, attributes: vec![Attribute::Code { name_index: code_attr, max_stack: 4, max_locals: 1, code: sc, exception_table: vec![], attributes: vec![] }] });
         }
 
         fn push_iconst(c: &mut Vec<Instruction>, n: usize) {

@@ -45,7 +45,7 @@ impl JvmGenerator {
             IrOpcode::Jump => self.generate_jump(code, inst),
             IrOpcode::CondBr => self.generate_conditional_branch(code, inst),
             IrOpcode::Load => self.generate_array_load(code, inst),
-            IrOpcode::Slice => {}
+            IrOpcode::Slice => self.generate_slice(code, inst),
             IrOpcode::Alloca => {}
             IrOpcode::Store => self.generate_store(code, inst),
             IrOpcode::Cast => {}
@@ -527,6 +527,24 @@ impl JvmGenerator {
             self.emit_load_operand(code, idx_op);
             self.emit_load_operand(code, val_op);
             code.push(Instruction::Bastore);
+        }
+    }
+
+    fn generate_slice(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let (Some(ref result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+            if matches!(base.get_type(), IrType::String) {
+                self.emit_load_operand(code, base);
+                self.emit_load_operand(code, start);
+                if let Some(end) = inst.operands.get(2) {
+                    self.emit_load_operand(code, end);
+                } else {
+                    code.push(Instruction::Iconst_m1);
+                }
+                if self.string_slice_ref != 0 {
+                    code.push(Instruction::Invokestatic(self.string_slice_ref));
+                }
+                self.emit_store_result(code, result, &IrType::String);
+            }
         }
     }
 

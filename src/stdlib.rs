@@ -60,6 +60,7 @@ impl StdLib {
         funcs.insert("resume_coroutine");
         funcs.insert("create_coroutine");
         funcs.insert("coro_init");
+        funcs.insert("get_coroutine_state");
 
         funcs
     }
@@ -97,6 +98,7 @@ impl StdLib {
             // Coroutine runtime
             ("resume_coroutine", ("index: int", "int")),
             ("create_coroutine", ("", "")),
+            ("get_coroutine_state", ("index: int", "int")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

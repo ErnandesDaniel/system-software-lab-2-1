@@ -312,15 +312,23 @@ impl AsmGenerator {
     }
 
     fn generate_slice(&mut self, inst: &IrInstruction) {
-        if let (Some(result), Some(array), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
-            let arr_type = array.get_type();
-            if let IrType::Array(elem_type, _size) = arr_type {
-                self.load_operand(array, "rax", true);
-                self.load_operand(start, "ebx", false);
-                let elem_size = elem_type.size() as i32;
-                self.output.push_str(&format!("    imul ebx, ebx, {elem_size}\n"));
-                self.output.push_str("    add rax, rbx\n");
-                self.store_variable(result, "rax", true);
+        if let (Some(result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+            match base.get_type() {
+                IrType::String => {
+                    self.load_operand(base, "rcx", true);
+                    self.load_operand(start, "edx", false);
+                    self.output.push_str("    lea rax, [rcx + rdx]\n");
+                    self.store_variable(result, "rax", true);
+                }
+                IrType::Array(elem_type, _size) => {
+                    self.load_operand(base, "rax", true);
+                    self.load_operand(start, "ebx", false);
+                    let elem_size = elem_type.size() as i32;
+                    self.output.push_str(&format!("    imul ebx, ebx, {elem_size}\n"));
+                    self.output.push_str("    add rax, rbx\n");
+                    self.store_variable(result, "rax", true);
+                }
+                _ => {}
             }
         }
     }

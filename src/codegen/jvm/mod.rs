@@ -50,6 +50,7 @@ pub struct JvmGenerator {
     coroutine_state_field: u16,                      // field ref for 'state'
     coroutine_result_field: u16,                     // field ref for 'result'
     coroutine_field_entries: Vec<(u16, u16)>,       // (name_utf8, desc_utf8) for class file fields
+    string_slice_ref: u16,                           // method ref RuntimeStub.string_slice([BII)[B
     struct_field_types: HashMap<String, Vec<(usize, IrType)>>,  // struct_var → [(byte_offset, field_type)]
     struct_uses_object_array: HashSet<String>,        // struct vars needing Object[]
     integer_value_of_ref: u16,                        // method ref Integer.valueOf(I)Ljava/lang/Integer;
@@ -84,6 +85,7 @@ impl JvmGenerator {
             coroutine_state_field: 0,
             coroutine_result_field: 0,
             coroutine_field_entries: Vec::new(),
+            string_slice_ref: 0,
             struct_field_types: HashMap::new(),
             struct_uses_object_array: HashSet::new(),
             integer_value_of_ref: 0,
@@ -331,6 +333,15 @@ impl JvmGenerator {
                             }
                         }
                     }
+                    IrOpcode::Slice => {
+                        if self.string_slice_ref == 0 {
+                            let stub_class = self.constant_pool.add_class("RuntimeStub").unwrap();
+                            self.string_slice_ref = self
+                                .constant_pool
+                                .add_method_ref(stub_class, "string_slice", "([BII)[B")
+                                .unwrap();
+                        }
+                    }
                     _ => {}
                 }
             }
@@ -392,6 +403,7 @@ impl JvmGenerator {
         self.coroutine_state_field = 0;
         self.coroutine_result_field = 0;
         self.coroutine_field_entries.clear();
+        self.string_slice_ref = 0;
         self.struct_field_types.clear();
         self.struct_uses_object_array.clear();
         self.integer_value_of_ref = 0;

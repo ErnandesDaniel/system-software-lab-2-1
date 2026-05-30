@@ -112,6 +112,10 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("global create_coroutine\ncreate_coroutine:\n");
         helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n");
         helper.push_str("    mov [rcx + 24], r8\n    mov [rcx + 32], r9\n    ret\n\n");
+
+        helper.push_str("global get_coroutine_state\nget_coroutine_state:\n");
+        helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+        helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
         helper.push_str("global coro_init\n");
         for f in ir.functions.iter().filter(|f| f.is_coroutine) {
             helper.push_str(&format!("extern {}\n", f.name));

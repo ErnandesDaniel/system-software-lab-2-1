@@ -2,19 +2,28 @@
 // File → pipe → parse → pipe → filter → pipe → output
 // Каждая строка — отдельный буфер в str_store, офсет передаётся через pipe
 
-import puts; import fopen; import fclose; import fgetc; import atoi
-import resume_coroutine; import coro_init
+import puts;
+import fopen;
+import fclose;
+import fgetc;
+import atoi
+import resume_coroutine;
+import coro_init
 
 global str_store of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ";
 global tmpbuf of string = "                                                                                ";
 global pool_next of int = 0
 
 def alloc_buf() of int
-    b = pool_next * 256; pool_next = (pool_next + 1) % 32; return b
+    b = pool_next * 256;
+    pool_next = (pool_next + 1) % 32;
+    return b
 end
 
 struct Pipe { buf of int[256]; head; tail; count; done; }
+
 def pipe_init(p of Pipe) p.head = 0; p.tail = 0; p.count = 0; p.done = 0 end
+
 def pipe_write(p of Pipe, v of int)
     while p.count >= 256 { yield }
     p.buf[p.tail] = v; p.tail = (p.tail + 1) % 256; p.count = p.count + 1
@@ -30,8 +39,9 @@ def csv_field(dst of string, src of string, pos of int) of int
     i = 0; while 1 == 1 { c = src[pos + i]; if c == 0 || c == 10 || c == 13 || c == ',' then { dst[i] = 0; if c == 13 && src[pos + i + 1] == 10 then return pos + i + 2; if c == ',' then return pos + i + 1; return pos + i }; dst[i] = c; i = i + 1 }
 end
 
-// Data arrays
-global p_id of int[31]; global p_surname of int[31]; global p_count of int = 0
+struct Person { id of int; surname of int; }
+global persons of Person[31];
+global p_count of int = 0
 
 // Pipes
 global p_raw of Pipe; global p_parsed of Pipe; global p_filtered of Pipe
@@ -56,8 +66,8 @@ coroutine parser() of int
     while 1 == 1 {
         buf = pipe_read(p_raw); if buf == -1 then { pipe_close(p_parsed); return 0 }
         r = p_count; pos = 0
-        pos = csv_field(tmpbuf, str_store, buf + pos); p_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, str_store, buf + pos); p_surname[r] = r * 256
+        pos = csv_field(tmpbuf, str_store, buf + pos); persons[r].id = atoi(tmpbuf)
+        pos = csv_field(tmpbuf, str_store, buf + pos); persons[r].surname = r * 256
         pos = csv_field(tmpbuf, str_store, buf + pos)  // skip name
         pos = csv_field(tmpbuf, str_store, buf + pos)  // skip patronymic
         pos = csv_field(tmpbuf, str_store, buf + pos)  // skip birthday
@@ -68,7 +78,7 @@ end
 coroutine filter() of int
     while 1 == 1 {
         r = pipe_read(p_parsed); if r == -1 then { pipe_close(p_filtered); return 0 }
-        if p_id[r] > 142390 && p_id[r] < 153285 then { pipe_write(p_filtered, r) }
+        if persons[r].id > 142390 && persons[r].id < 153285 then { pipe_write(p_filtered, r) }
     }
 end
 
@@ -77,7 +87,7 @@ global all_done of int = 0
 coroutine output() of int
     while 1 == 1 {
         r = pipe_read(p_filtered); if r == -1 then { all_done = 1; return 0 }
-        i = 0; while 1 == 1 { c = str_store[p_surname[r] + i]; tmpbuf[i] = c; if c == 0 then break; i = i + 1 }
+        i = 0; while 1 == 1 { c = str_store[persons[r].surname + i]; tmpbuf[i] = c; if c == 0 then break; i = i + 1 }
         puts(tmpbuf)
     }
 end
