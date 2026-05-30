@@ -36,7 +36,7 @@ impl IrValidator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref target) = inst.jump_target {
-                    if matches!(inst.opcode, crate::ir::IrOpcode::Call) {
+                    if matches!(inst.opcode, crate::ir::IrOpcode::Call | crate::ir::IrOpcode::MakeClosure) {
                         continue;
                     }
                     if !block_ids.contains(target) && !target.starts_with("bb_") {
@@ -56,10 +56,10 @@ impl IrValidator {
             for block in &func.blocks {
                 if reachable.contains(&block.id) {
                     for inst in &block.instructions {
-                        if matches!(inst.opcode, crate::ir::IrOpcode::Call) {
-                            continue;
-                        }
-                        if let Some(ref target) = inst.jump_target {
+                    if matches!(inst.opcode, crate::ir::IrOpcode::Call | crate::ir::IrOpcode::MakeClosure) {
+                        continue;
+                    }
+                    if let Some(ref target) = inst.jump_target {
                             reachable.insert(target.clone());
                         }
                         if let Some(ref true_target) = inst.true_target {

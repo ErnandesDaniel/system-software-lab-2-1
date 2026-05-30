@@ -58,7 +58,7 @@ cargo run -- input.mylang -o output
 
 ```powershell
 cargo run -- input.mylang -o output -t jvm
-java -cp output RuntimeStub
+java -cp output Main
 ```
 
 ## Этапы компиляции
@@ -83,6 +83,5 @@ java -cp output RuntimeStub
 | `src/ir/`, `src/ir_generator/` | Промежуточное представление |
 | `src/codegen/nasm/` | NASM кодогенератор |
 | `src/codegen/jvm/` | JVM кодогенератор |
-| `src/lib/jna-5.14.0.jar` | JNA для RuntimeStub (JVM target) |
 | `labs-examples/` | Лабораторные работы (см. README в каждой lab) |
 | `output/` | Результаты компиляции (генерируется) |
