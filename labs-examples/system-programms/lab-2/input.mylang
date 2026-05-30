@@ -72,9 +72,11 @@ coroutine filter() of int
     }
 end
 
+global all_done of int = 0
+
 coroutine output() of int
     while 1 == 1 {
-        r = pipe_read(p_filtered); if r == -1 then { return 0 }
+        r = pipe_read(p_filtered); if r == -1 then { all_done = 1; return 0 }
         i = 0; while 1 == 1 { c = str_store[p_surname[r] + i]; tmpbuf[i] = c; if c == 0 then break; i = i + 1 }
         puts(tmpbuf)
     }
@@ -84,7 +86,7 @@ def main() of int
     pipe_init(p_raw); pipe_init(p_parsed); pipe_init(p_filtered)
     coro_init()
     puts("=== Lab 2: Pipeline ===")
-    rd = 0; while rd < 50 { resume_coroutine(0); resume_coroutine(1); resume_coroutine(2); resume_coroutine(3); rd = rd + 1 }
+    while all_done == 0 { resume_coroutine(0); resume_coroutine(1); resume_coroutine(2); resume_coroutine(3) }
     puts("=== Done ===")
     return 0
 end
