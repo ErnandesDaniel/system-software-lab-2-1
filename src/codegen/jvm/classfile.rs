@@ -16,13 +16,17 @@ impl JvmGenerator {
         let super_class = self.constant_pool.add_class("java/lang/Object").unwrap();
 
         let code_attr_name_idx = self.constant_pool.add_utf8("Code").unwrap();
-        let max_locals = self.next_local_slot;
+        let max_locals = if self.is_coroutine { 1 } else { self.next_local_slot };
         let max_stack = self.estimate_max_stack(&code);
 
         let code_size: u32 = code.iter().map(|i| self.instr_size(i) as u32).sum();
         assert!(code_size <= 65535,
             "Function {func_name}: Generated code size ({code_size}) exceeds JVM limit of 65535 bytes. max_stack={max_stack}, max_locals={max_locals}"
         );
+
+        if self.is_coroutine {
+            return self.build_coroutine_class(class_name, func, code, this_class, super_class, code_attr_name_idx, max_stack);
+        }
 
         let mut methods = Vec::new();
 
@@ -294,6 +298,145 @@ impl JvmGenerator {
                     max_stack,
                     max_locals,
                     code.len()
+                );
+            }
+        }
+    }
+
+    fn build_coroutine_class(
+        &mut self,
+        _class_name: &str,
+        _func: &IrFunction,
+        code: Vec<Instruction>,
+        this_class: u16,
+        super_class: u16,
+        code_attr_name_idx: u16,
+        max_stack: u16,
+    ) -> Vec<u8> {
+        let code_len = code.len();
+        let mut methods = Vec::new();
+
+        // --- Default constructor: <init>()V ---
+        let init_name_idx = self.constant_pool.add_utf8("<init>").unwrap();
+        let init_desc_idx = self.constant_pool.add_utf8("()V").unwrap();
+        let obj_init_ref = self
+            .constant_pool
+            .add_method_ref(super_class, "<init>", "()V")
+            .unwrap();
+        let init_code = vec![
+            Instruction::Aload_0,
+            Instruction::Invokespecial(obj_init_ref),
+            Instruction::Return,
+        ];
+        methods.push(ristretto_classfile::Method {
+            access_flags: ristretto_classfile::MethodAccessFlags::PUBLIC,
+            name_index: init_name_idx,
+            descriptor_index: init_desc_idx,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr_name_idx,
+                max_stack: 1,
+                max_locals: 1,
+                code: init_code,
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // --- resume()I method ---
+        let resume_name_idx = self.constant_pool.add_utf8("resume").unwrap();
+        let resume_desc_idx = self.constant_pool.add_utf8("()I").unwrap();
+        let resume_code_attr = Attribute::Code {
+            name_index: code_attr_name_idx,
+            max_stack,
+            max_locals: 1,
+            code,
+            exception_table: vec![],
+            attributes: vec![],
+        };
+        methods.push(ristretto_classfile::Method {
+            access_flags: ristretto_classfile::MethodAccessFlags::PUBLIC,
+            name_index: resume_name_idx,
+            descriptor_index: resume_desc_idx,
+            attributes: vec![resume_code_attr],
+        });
+
+        // --- getState()I method ---
+        let get_state_name_idx = self.constant_pool.add_utf8("getState").unwrap();
+        let get_state_desc_idx = self.constant_pool.add_utf8("()I").unwrap();
+        let get_state_code = vec![
+            Instruction::Aload_0,
+            Instruction::Getfield(self.coroutine_state_field),
+            Instruction::Ireturn,
+        ];
+        methods.push(ristretto_classfile::Method {
+            access_flags: ristretto_classfile::MethodAccessFlags::PUBLIC,
+            name_index: get_state_name_idx,
+            descriptor_index: get_state_desc_idx,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr_name_idx,
+                max_stack: 1,
+                max_locals: 1,
+                code: get_state_code,
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // --- getResult()I method ---
+        let get_result_name_idx = self.constant_pool.add_utf8("getResult").unwrap();
+        let get_result_desc_idx = self.constant_pool.add_utf8("()I").unwrap();
+        let get_result_code = vec![
+            Instruction::Aload_0,
+            Instruction::Getfield(self.coroutine_result_field),
+            Instruction::Ireturn,
+        ];
+        methods.push(ristretto_classfile::Method {
+            access_flags: ristretto_classfile::MethodAccessFlags::PUBLIC,
+            name_index: get_result_name_idx,
+            descriptor_index: get_result_desc_idx,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr_name_idx,
+                max_stack: 1,
+                max_locals: 1,
+                code: get_result_code,
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // Build fields list
+        let fields: Vec<ristretto_classfile::Field> = self
+            .coroutine_field_entries
+            .iter()
+            .map(|&(name_idx, desc_idx)| ristretto_classfile::Field {
+                access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
+                name_index: name_idx,
+                descriptor_index: desc_idx,
+                field_type: ristretto_classfile::FieldType::parse("I").unwrap(),
+                attributes: vec![],
+            })
+            .collect();
+
+        let class_file = ristretto_classfile::ClassFile {
+            version: ristretto_classfile::JAVA_6,
+            constant_pool: self.constant_pool.clone(),
+            access_flags: ristretto_classfile::ClassAccessFlags::PUBLIC
+                | ristretto_classfile::ClassAccessFlags::SUPER,
+            this_class,
+            super_class,
+            interfaces: vec![],
+            fields,
+            methods,
+            attributes: vec![],
+            code_source_url: None,
+        };
+
+        let mut buffer = Vec::new();
+        match class_file.to_bytes(&mut buffer) {
+            Ok(()) => buffer,
+            Err(e) => {
+                panic!(
+                    "Failed to serialize coroutine class file: {e:?}. max_stack={max_stack}, max_locals=1, code_len={code_len}"
                 );
             }
         }

@@ -41,7 +41,7 @@ impl<'source> Parser<'source> {
 
             if !matches!(
                 token,
-                Token::Def | Token::Extern | Token::Global | Token::Struct | Token::Coroutine
+                Token::Def | Token::Import | Token::Global | Token::Struct | Token::Coroutine
             ) {
                 break;
             }
@@ -50,7 +50,7 @@ impl<'source> Parser<'source> {
                 Token::Def => {
                     items.push(SourceItem::FuncDefinition(self.parse_function()?));
                 }
-                Token::Extern => {
+                Token::Import => {
                     items.push(SourceItem::FuncDeclaration(self.parse_declaration()?));
                 }
                 Token::Global => {

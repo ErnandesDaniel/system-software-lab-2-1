@@ -7,7 +7,7 @@ use std::fs;
 use std::process::Command;
 use tempfile::TempDir;
 
-fn compile_only(source: &str) -> (TempDir, String) {
+pub fn compile_only(source: &str) -> (TempDir, String) {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
 
     let mut parser = Parser::new(source);
@@ -19,10 +19,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
 
-    let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
-    let uses_byte_helpers = ir.functions.iter().any(|f| {
-        f.used_functions.iter().any(|u| u == "str_get_byte_nasm" || u == "str_set_byte_nasm" || u == "str_offset_nasm")
-    });
+    let has_coroutines = ir.functions.iter().any(|f| f.is_coroutine);
     let mut all_asm = String::new();
     let mut obj_files: Vec<std::path::PathBuf> = Vec::new();
 
@@ -31,11 +28,11 @@ fn compile_only(source: &str) -> (TempDir, String) {
     for func in &ir.functions {
         let mut gen = AsmGenerator::new();
         gen.set_global_names(&global_names);
-        if func.yield_count > 0 {
+        if func.is_coroutine {
             gen.set_coroutine(func.yield_count);
         }
         let mut asm = gen.generate_single_function(func);
-        // Add extern declarations for globals
+        // Add extern declarations for globals (NASM directive)
         if !ir.globals.is_empty() {
             let mut externs = String::new();
             for g in &ir.globals {
@@ -48,7 +45,7 @@ fn compile_only(source: &str) -> (TempDir, String) {
         all_asm.push_str(&asm);
 
         let obj_path = temp_dir.path().join(format!("{}.obj", func.name));
-        let nasm_flags = if func.yield_count > 0 {
+        let nasm_flags = if func.is_coroutine {
             vec!["-f", "win64", "-O0", "-o"]
         } else {
             vec!["-f", "win64", "-o"]
@@ -92,36 +89,39 @@ fn compile_only(source: &str) -> (TempDir, String) {
     if has_coroutines {
         let mut helper = String::from("bits 64\ndefault rel\n\n");
         helper.push_str("section .data\n");
-        let coro_count = ir.functions.iter().filter(|f| f.yield_count > 0).count().max(8);
+        let coro_count = ir.functions.iter().filter(|f| f.is_coroutine).count().max(8);
         helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
-        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+        for f in ir.functions.iter().filter(|f| f.is_coroutine) {
             let num_locals = f.locals.len();
-            let ctx_bytes = 24 + num_locals * 8 + 4;
+            let ctx_bytes = 56 + num_locals * 8 + 4;
             let ctx_dwords = (ctx_bytes / 4).max(8);
             helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
         }
         helper.push_str("\nsection .text\n");
-        helper.push_str("global resume_coroutine_nasm\nresume_coroutine_nasm:\n");
+        helper.push_str("global resume_coroutine\nresume_coroutine:\n");
         helper.push_str("    ; rcx = index\n");
         helper.push_str("    lea rax, [rel co_states]\n");
         helper.push_str("    mov rax, [rax + rcx * 8]\n");
         helper.push_str("    test rax, rax\n    jz .empty\n");
-        helper.push_str("    mov rcx, rax\n");
-        helper.push_str("    mov eax, [rcx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
-        helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n");
+        helper.push_str("    mov rbx, rax\n");
+        helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
+        helper.push_str("    mov rcx, [rbx + 24]\n    mov rdx, [rbx + 32]\n    mov r8,  [rbx + 40]\n    mov r9,  [rbx + 48]\n");
+        helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rbx + 8]\n    mov eax, [rbx + 16]\n    leave\n    ret\n");
         helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
-        helper.push_str("global create_coroutine_nasm\ncreate_coroutine_nasm:\n");
-        helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
-        helper.push_str("global coro_init_nasm\n");
-        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+
+        helper.push_str("global create_coroutine\ncreate_coroutine:\n");
+        helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n");
+        helper.push_str("    mov [rcx + 24], r8\n    mov [rcx + 32], r9\n    ret\n\n");
+        helper.push_str("global coro_init\n");
+        for f in ir.functions.iter().filter(|f| f.is_coroutine) {
             helper.push_str(&format!("extern {}\n", f.name));
         }
-        helper.push_str("coro_init_nasm:\n    push rbp\n    mov rbp, rsp\n");
+        helper.push_str("coro_init:\n    push rbp\n    mov rbp, rsp\n");
         let mut idx = 0;
-        for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+        for f in ir.functions.iter().filter(|f| f.is_coroutine) {
             helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
             helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
-            helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
+            helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
             helper.push_str("    lea rax, [rel co_states]\n");
             helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
             helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));
@@ -139,30 +139,6 @@ fn compile_only(source: &str) -> (TempDir, String) {
             .output();
         if nasm_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
             obj_files.push(helper_obj);
-        }
-    }
-
-    if uses_byte_helpers {
-        let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
-        bh.push_str("global str_get_byte_nasm\nstr_get_byte_nasm:\n");
-        bh.push_str("    movzx eax, byte [rcx + rdx]\n");
-        bh.push_str("    ret\n\n");
-        bh.push_str("global str_set_byte_nasm\nstr_set_byte_nasm:\n");
-        bh.push_str("    mov [rcx + rdx], r8b\n");
-        bh.push_str("    ret\n\n");
-        bh.push_str("global str_offset_nasm\nstr_offset_nasm:\n");
-        bh.push_str("    lea rax, [rcx + rdx]\n");
-        bh.push_str("    ret\n");
-        let bhp = temp_dir.path().join("byte_helpers.asm");
-        fs::write(&bhp, &bh).unwrap();
-        let bho = temp_dir.path().join("byte_helpers.obj");
-        let out = Command::new("nasm")
-            .args(["-f", "win64", "-o"])
-            .arg(bho.to_str().unwrap())
-            .arg(bhp.to_str().unwrap())
-            .output();
-        if out.as_ref().map(|o| o.status.success()).unwrap_or(false) {
-            obj_files.push(bho);
         }
     }
 
@@ -189,7 +165,10 @@ fn compile_only(source: &str) -> (TempDir, String) {
 fn compile_and_run(source: &str) -> std::process::Output {
     let (temp_dir, _) = compile_only(source);
     let exe_path = temp_dir.path().join("program.exe");
-    Command::new(exe_path.to_str().unwrap()).output().unwrap()
+    Command::new(exe_path.to_str().unwrap())
+        .current_dir(temp_dir.path())
+        .output()
+        .unwrap()
 }
 
 fn compile_and_run_with_files(source: &str, files: &[(&str, &str)]) -> std::process::Output {
@@ -205,8 +184,8 @@ fn compile_and_run_with_files(source: &str, files: &[(&str, &str)]) -> std::proc
 }
 
 #[test]
-fn test_extern_short_form_semantics() {
-    let source = "extern puts def main() puts(\"hello\"); end";
+fn test_import_short_form_semantics() {
+    let source = "import puts def main() puts(\"hello\"); end";
     let program = parse(source);
     let mut analyzer = SemanticsAnalyzer::new();
     let result = analyzer.analyze(&program);
@@ -511,7 +490,7 @@ fn test_exe_local_struct() {
 #[test]
 fn test_asm_coroutine_state_machine() {
     let source = r#"
-        extern putchar
+        import putchar
         coroutine worker() of int
             putchar(49)
             yield
@@ -524,7 +503,7 @@ fn test_asm_coroutine_state_machine() {
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
     assert_eq!(ir.functions.len(), 1);
-    assert!(ir.functions[0].yield_count > 0, "Expected yield count > 0");
+    assert!(ir.functions[0].is_coroutine, "Expected is_coroutine");
     let mut asm_gen = AsmGenerator::new();
     asm_gen.set_coroutine(ir.functions[0].yield_count);
     let asm = asm_gen.generate(&ir);
@@ -549,7 +528,7 @@ fn test_asm_coroutine_locals() {
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
     let mut asm_gen = AsmGenerator::new();
-    if !ir.functions.is_empty() && ir.functions[0].yield_count > 0 {
+    if !ir.functions.is_empty() && ir.functions[0].is_coroutine {
         asm_gen.set_coroutine(ir.functions[0].yield_count);
     }
     let asm = asm_gen.generate(&ir);
@@ -569,7 +548,7 @@ fn test_nasm_coroutine_compiles() {
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
     let mut asm_gen = AsmGenerator::new();
-    if !ir.functions.is_empty() && ir.functions[0].yield_count > 0 {
+    if !ir.functions.is_empty() && ir.functions[0].is_coroutine {
         asm_gen.set_coroutine(ir.functions[0].yield_count);
     }
     let asm = asm_gen.generate(&ir);
@@ -1105,14 +1084,14 @@ fn test_exe_closure_mutate() {
 
 #[test]
 fn test_exe_puts() {
-    let output = compile_and_run("extern puts def main() puts(\"hello\") return 0 end");
+    let output = compile_and_run("import puts def main() puts(\"hello\") return 0 end");
     assert!(output.status.success(), "puts should succeed");
     assert!(String::from_utf8_lossy(&output.stdout).contains("hello"), "should print hello");
 }
 
 #[test]
 fn test_exe_putchar() {
-    let source = "extern putchar def main() putchar(65) putchar(66) return 0 end";
+    let source = "import putchar def main() putchar(65) putchar(66) return 0 end";
     let output = compile_and_run(source);
     assert!(output.status.success(), "putchar should succeed");
     let out = String::from_utf8_lossy(&output.stdout);
@@ -1121,7 +1100,7 @@ fn test_exe_putchar() {
 
 #[test]
 fn test_exe_strlen() {
-    let source = "extern strlen def main() return strlen(\"hello\") end";
+    let source = "import strlen def main() return strlen(\"hello\") end";
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(5), "strlen(\"hello\") = 5");
 }
@@ -1129,9 +1108,9 @@ fn test_exe_strlen() {
 #[test]
 fn test_exe_strcpy_strcat() {
     let source = r#"
-extern strcpy
-extern strcat
-extern puts
+import strcpy
+import strcat
+import puts
 global buf of string = "                                ";
 def main() of int
     strcpy(buf, "hello ")
@@ -1147,21 +1126,21 @@ end
 
 #[test]
 fn test_exe_strcmp_eq() {
-    let source = "extern strcmp def main() if strcmp(\"abc\", \"abc\") == 0 then return 1 else return 0 end end";
+    let source = "import strcmp def main() if strcmp(\"abc\", \"abc\") == 0 then return 1 else return 0 end end";
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(1), "strcmp equal should return 0→true");
 }
 
 #[test]
 fn test_exe_strcmp_gt() {
-    let source = "extern strcmp def main() if strcmp(\"b\", \"a\") > 0 then return 1 else return 0 end end";
+    let source = "import strcmp def main() if strcmp(\"b\", \"a\") > 0 then return 1 else return 0 end end";
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(1), "strcmp b>a should be >0");
 }
 
 #[test]
 fn test_exe_strcmp_lt() {
-    let source = "extern strcmp def main() if strcmp(\"a\", \"b\") < 0 then return 1 else return 0 end end";
+    let source = "import strcmp def main() if strcmp(\"a\", \"b\") < 0 then return 1 else return 0 end end";
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(1), "strcmp a<b should be <0");
 }
@@ -1169,8 +1148,8 @@ fn test_exe_strcmp_lt() {
 #[test]
 fn test_exe_strchr() {
     let source = r#"
-extern strchr
-extern strlen
+import strchr
+import strlen
 def main() of int
     s = "hello"
     p = strchr(s, 101)
@@ -1184,7 +1163,7 @@ end
 
 #[test]
 fn test_exe_atoi() {
-    let source = "extern atoi def main() return atoi(\"42\") end";
+    let source = "import atoi def main() return atoi(\"42\") end";
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(42), "atoi(\"42\") = 42");
 }
@@ -1192,8 +1171,8 @@ fn test_exe_atoi() {
 #[test]
 fn test_exe_malloc_free() {
     let source = r#"
-extern malloc
-extern free
+import malloc
+import free
 def main() of int
     p = malloc(128)
     if p == "" then return 1 end
@@ -1208,8 +1187,8 @@ end
 #[test]
 fn test_exe_memcpy() {
     let source = r#"
-extern memcpy
-extern puts
+import memcpy
+import puts
 global buf of string = "                                ";
 def main() of int
     memcpy(buf, "OK", 2)
@@ -1225,8 +1204,8 @@ end
 #[test]
 fn test_exe_sprintf() {
     let source = r#"
-extern sprintf
-extern puts
+import sprintf
+import puts
 global buf of string = "                                ";
 def main() of int
     sprintf(buf, "%d", 12345)
@@ -1242,11 +1221,11 @@ end
 #[test]
 fn test_exe_fopen_fclose() {
     let source = r#"
-extern fopen
-extern fclose
-extern puts
+import fopen
+import fclose
+global s of string;
 def main() of int
-    f = fopen("test.txt", "w")
+    f = fopen("_test_fopen.txt", "w")
     if f == "" then puts("FAIL") else puts("OK") end
     if f == "" then return 1 end
     fclose(f)
@@ -1261,12 +1240,11 @@ end
 #[test]
 fn test_exe_fopen_read_fgetc() {
     let source = r#"
-extern fopen
-extern fclose
-extern fgetc
-extern putchar
+import fopen
+import fgetc
+import fclose
 def main() of int
-    f = fopen("test.txt", "r")
+    f = fopen("_test_fopen.txt", "r")
     c = fgetc(f)
     putchar(c)
     c = fgetc(f)
@@ -1275,7 +1253,7 @@ def main() of int
     return 0
 end
 "#;
-    let output = compile_and_run_with_files(source, &[("test.txt", "AB")]);
+    let output = compile_and_run_with_files(source, &[("_test_fopen.txt", "AB")]);
     assert!(output.status.success(), "fopen+fgetc should succeed");
     assert!(String::from_utf8_lossy(&output.stdout).contains("AB"));
 }
@@ -1283,11 +1261,11 @@ end
 #[test]
 fn test_exe_feof() {
     let source = r#"
-extern fopen
-extern fclose
-extern fgetc
-extern feof
-extern puts
+import fopen
+import fclose
+import fgetc
+import feof
+import puts
 def main() of int
     f = fopen("test.txt", "r")
     c = fgetc(f)
@@ -1308,10 +1286,10 @@ end
 #[test]
 fn test_exe_fgets() {
     let source = r#"
-extern fopen
-extern fclose
-extern fgets
-extern puts
+import fopen
+import fclose
+import fgets
+import puts
 global buf of string = "                                ";
 def main() of int
     f = fopen("test.txt", "r")
@@ -1326,56 +1304,4 @@ end
     assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
 }
 
-// --- Byte helpers ---
 
-#[test]
-fn test_exe_str_get_byte_nasm() {
-    let source = r#"
-extern str_get_byte_nasm
-global s of string = "ABC";
-def main() of int
-    if str_get_byte_nasm(s, 0) == 65 then return 1 else return 0 end
-end
-"#;
-    let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_get_byte_nasm('ABC',0) should be 65('A')");
-}
-
-#[test]
-fn test_exe_str_set_byte_nasm() {
-    let source = r#"
-extern str_get_byte_nasm
-extern str_set_byte_nasm
-global s of string = "ABC";
-def main() of int
-    str_set_byte_nasm(s, 0, 88)
-    if str_get_byte_nasm(s, 0) == 88 then return 1 else return 0 end
-end
-"#;
-    let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_set_byte_nasm then get should return 88('X')");
-}
-
-#[test]
-fn test_exe_str_set_byte_preserves_rest() {
-    let source = r#"
-extern str_get_byte_nasm
-extern str_set_byte_nasm
-global s of string = "ABCDEF";
-def main() of int
-    str_set_byte_nasm(s, 2, 88)
-    if str_get_byte_nasm(s, 0) == 65 then
-        if str_get_byte_nasm(s, 1) == 66 then
-            if str_get_byte_nasm(s, 2) == 88 then
-                if str_get_byte_nasm(s, 3) == 68 then
-                    return 1
-                end
-            end
-        end
-    end
-    return 0
-end
-"#;
-    let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1), "str_set_byte_nasm should only modify one byte");
-}

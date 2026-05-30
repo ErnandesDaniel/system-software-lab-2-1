@@ -124,9 +124,18 @@ impl SemanticsAnalyzer {
             }
         }
 
+        let ret_type = def
+            .signature
+            .return_type
+            .as_ref()
+            .map_or(SemanticType::Void, |t| self.convert_type(t));
+        self.current_return_type = Some(ret_type);
+
         for stmt in &def.body {
             self.check_statement(&mut local_scope, stmt)?;
         }
+
+        self.current_return_type = None;
 
         Ok(())
     }

@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
     Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
-    Statement, StructDefinition, StructField, TypeRef,
+    Span, Statement, StructDefinition, StructField, TypeRef,
 };
 use crate::lexer::Token;
 
@@ -57,7 +57,7 @@ impl Parser<'_> {
 
     pub(crate) fn parse_declaration(&mut self) -> Result<FuncDeclaration, String> {
         let start = self.current_span();
-        self.expect(Token::Extern)?;
+        self.expect(Token::Import)?;
 
         // Check if it's a short form: extern identifier
         if self.current_token() == Some(&Token::Identifier) {
@@ -134,6 +134,43 @@ impl Parser<'_> {
         })
     }
 
+    fn parse_array_suffix(&mut self, base: TypeRef, start: Span) -> Result<TypeRef, String> {
+        if self.current_token() == Some(&Token::Array) {
+            self.advance();
+            self.expect(Token::LBracket)?;
+            let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
+                let (_tok, span) = self.expect(Token::DecLiteral)?;
+                self.get_text(&span).parse().unwrap_or(0)
+            } else {
+                0
+            };
+            self.expect(Token::RBracket)?;
+            let span = start.merge(self.current_span());
+            return Ok(TypeRef::Array {
+                element_type: Box::new(base),
+                size,
+                span,
+            });
+        }
+        if self.current_token() == Some(&Token::LBracket) {
+            self.advance();
+            let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
+                let (_tok, span) = self.expect(Token::DecLiteral)?;
+                self.get_text(&span).parse().unwrap_or(0)
+            } else {
+                0
+            };
+            self.expect(Token::RBracket)?;
+            let span = start.merge(self.current_span());
+            return Ok(TypeRef::Array {
+                element_type: Box::new(base),
+                size,
+                span,
+            });
+        }
+        Ok(base)
+    }
+
     pub(crate) fn parse_type(&mut self) -> Result<TypeRef, String> {
         let start = self.current_span();
         let base_type = match self.current_token() {
@@ -189,10 +226,11 @@ impl Parser<'_> {
             Some(Token::Identifier) => {
                 let (_tok, span) = self.expect(Token::Identifier)?;
                 let name = self.get_text(&span).to_string();
-                return Ok(TypeRef::Custom(Identifier { name, span }));
+                let custom = TypeRef::Custom(Identifier { name, span });
+                return self.parse_array_suffix(custom, start);
             }
             Some(Token::Def) => {
-                let start = self.current_span();
+                let fn_start = self.current_span();
                 self.expect(Token::Def)?;
                 self.expect(Token::LParen)?;
                 let mut params = Vec::new();
@@ -210,52 +248,17 @@ impl Parser<'_> {
                 } else {
                     TypeRef::BuiltinType(BuiltinType::Int)
                 };
-                let span = start.merge(self.current_span());
-                return Ok(TypeRef::Function {
+                let fn_ty = TypeRef::Function {
                     params,
                     return_type: Box::new(return_type),
-                    span,
-                });
+                    span: fn_start.merge(self.current_span()),
+                };
+                return self.parse_array_suffix(fn_ty, start);
             }
             _ => return Err("Expected type".to_string()),
         };
 
-        if self.current_token() == Some(&Token::Array) {
-            self.advance();
-            self.expect(Token::LBracket)?;
-            let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
-                let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().unwrap_or(0)
-            } else {
-                0
-            };
-            self.expect(Token::RBracket)?;
-            let span = start.merge(self.current_span());
-            return Ok(TypeRef::Array {
-                element_type: Box::new(TypeRef::BuiltinType(base_type)),
-                size,
-                span,
-            });
-        }
-
-        if self.current_token() == Some(&Token::LBracket) {
-            self.advance();
-            let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
-                let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().unwrap_or(0)
-            } else {
-                0
-            };
-            self.expect(Token::RBracket)?;
-            let span = start.merge(self.current_span());
-            return Ok(TypeRef::Array {
-                element_type: Box::new(TypeRef::BuiltinType(base_type)),
-                size,
-                span,
-            });
-        }
-
-        Ok(TypeRef::BuiltinType(base_type))
+        self.parse_array_suffix(TypeRef::BuiltinType(base_type), start)
     }
 
     pub(crate) fn parse_global(&mut self) -> Result<GlobalDecl, String> {

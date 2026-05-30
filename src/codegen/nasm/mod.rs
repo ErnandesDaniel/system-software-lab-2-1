@@ -99,7 +99,7 @@ impl AsmGenerator {
         }
 
         for func in &program.functions {
-            if func.yield_count > 0 {
+            if func.is_coroutine {
                 self.set_coroutine(func.yield_count);
             }
             self.generate_function_internal(func);

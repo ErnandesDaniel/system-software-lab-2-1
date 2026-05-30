@@ -41,8 +41,8 @@ fn test_while_loop() {
 }
 
 #[test]
-fn test_extern_declaration() {
-    let program = parse("extern def print(msg of string) end");
+fn test_import_declaration() {
+    let program = parse("import def print(msg of string) end");
     assert_eq!(program.items.len(), 1);
     if let crate::ast::SourceItem::FuncDeclaration(d) = &program.items[0] {
         assert_eq!(d.signature.name.name, "print");
@@ -50,8 +50,8 @@ fn test_extern_declaration() {
 }
 
 #[test]
-fn test_extern_short_form() {
-    let program = parse("extern puts");
+fn test_import_short_form() {
+    let program = parse("import puts");
     assert_eq!(program.items.len(), 1);
     if let crate::ast::SourceItem::FuncDeclaration(d) = &program.items[0] {
         assert_eq!(d.signature.name.name, "puts");
@@ -85,7 +85,7 @@ fn test_array_indexed_assignment() {
 
 #[test]
 fn test_function_call_with_args() {
-    let program = parse("extern puts def main() puts(\"hello\"); end");
+    let program = parse("import puts def main() puts(\"hello\"); end");
     assert_eq!(program.items.len(), 2);
     if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[1] {
         assert_eq!(f.signature.name.name, "main");
@@ -156,8 +156,8 @@ fn test_multiple_statements_in_sequence() {
 }
 
 #[test]
-fn test_extern_with_params_and_return() {
-    let source = "extern def map_put_jvm(name of string, value of string) of int end";
+fn test_import_with_params_and_return() {
+    let source = "import def map_put_jvm(name of string, value of string) of int end";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }
@@ -191,10 +191,10 @@ fn test_global_no_init() {
 }
 
 #[test]
-fn test_global_with_extern_and_def() {
+fn test_global_with_import_and_def() {
     let source = r#"
         global counter of int = 0;
-        extern puts
+        import puts
         def main() of int
             return counter
         end
@@ -440,3 +440,4 @@ fn test_global_struct_type() {
     let program = parse(source);
     assert_eq!(program.items.len(), 2);
 }
+

@@ -1,10 +1,10 @@
 // Lab 1 — Coroutine demo: two infinite loops
 // Печатает "1" и "2" поочерёдно через корутины
 
-extern puts
-extern putchar
-extern resume_coroutine_nasm
-extern coro_init_nasm
+import puts
+import putchar
+import resume_coroutine_nasm
+import coro_init_nasm
 
 coroutine print_once() of int
     while 1 == 1 {

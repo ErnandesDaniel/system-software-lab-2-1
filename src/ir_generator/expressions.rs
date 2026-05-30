@@ -54,11 +54,51 @@ impl IrGenerator {
             }
             Expr::Literal(lit) => self.visit_literal_expr(block, lit),
             Expr::ArrayLiteral(elements) => {
+                let arr_tmp = self.generate_temp();
+                // Visit all elements first to collect types, then emit instructions
+                let mut elem_results: Vec<(String, IrType)> = Vec::new();
                 for elem in elements {
-                    self.visit_expr(block, elem);
+                    let res = self.visit_expr(block, elem);
+                    elem_results.push(res);
                 }
-                let tmp = self.generate_temp();
-                (tmp, IrType::Int)
+                let elem_type = elem_results.first().map(|(_, t)| t.clone()).unwrap_or(IrType::Int);
+                let arr_type = IrType::Array(Box::new(elem_type.clone()), elements.len());
+                self.locals.insert(
+                    arr_tmp.clone(),
+                    IrLocal {
+                        name: arr_tmp.clone(),
+                        ty: arr_type.clone(),
+                        stack_offset: None,
+                    },
+                );
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::AllocArray,
+                    result: Some(arr_tmp.clone()),
+                    result_type: Some(arr_type.clone()),
+                    operands: vec![],
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: Span::new(0, 0),
+                });
+                for (i, (elem_temp, ty)) in elem_results.iter().enumerate() {
+                    block.instructions.push(IrInstruction {
+                        opcode: IrOpcode::Store,
+                        result: None,
+                        result_type: None,
+                        operands: vec![
+                            IrOperand::Variable(arr_tmp.clone(), arr_type.clone()),
+                            IrOperand::Constant(Constant::Int(0)),
+                            IrOperand::Variable(elem_temp.clone(), ty.clone()),
+                            IrOperand::Constant(Constant::Int(i as i64)),
+                        ],
+                        jump_target: None,
+                        true_target: None,
+                        false_target: None,
+                        span: Span::new(0, 0),
+                    });
+                }
+                (arr_tmp, arr_type)
             }
             Expr::FuncLiteral(f) => {
                 let mangled = format!("__lambda_{}", self.lambda_counter);
@@ -259,6 +299,9 @@ impl IrGenerator {
             BinaryOp::GreaterOrEqual => (IrOpcode::Ge, IrType::Bool),
             BinaryOp::And => (IrOpcode::And, IrType::Bool),
             BinaryOp::Or => (IrOpcode::Or, IrType::Bool),
+            BinaryOp::BitAnd => (IrOpcode::BitAnd, IrType::Int),
+            BinaryOp::BitOr => (IrOpcode::BitOr, IrType::Int),
+            BinaryOp::BitXor => (IrOpcode::BitXor, IrType::Int),
             BinaryOp::Assign => {
                 match expr.left.as_ref() {
                     Expr::FieldAccess(_, _) => {
@@ -303,27 +346,43 @@ impl IrGenerator {
                                 return (right_temp, right_type);
                             }
                         }
-                        // Plain array assignment: arr[i] = value
+                        // Plain array assignment: arr[i] = value  or  s[i] = value
                         // Emit Store with base, offset=0, value, index
                         if let Some(range) = slice.ranges.first() {
                             let (idx, _) = self.visit_expr(block, &range.start);
-                            let (base_name, _) = self.visit_expr(block, &slice.array);
-                            let array_type = self.global_types.get(&base_name).cloned().unwrap_or(IrType::Int);
-                            block.instructions.push(IrInstruction {
-                                opcode: IrOpcode::Store,
-                                result: None,
-                                result_type: None,
-                                operands: vec![
-                                    IrOperand::Variable(base_name, array_type),
-                                    IrOperand::Constant(Constant::Int(0)),
-                                    IrOperand::Variable(right_temp.clone(), right_type.clone()),
-                                    IrOperand::Variable(idx, IrType::Int),
-                                ],
-                                jump_target: None,
-                                true_target: None,
-                                false_target: None,
-                                span: expr.span,
-                            });
+                            let (base_name, base_type) = self.visit_expr(block, &slice.array);
+                            if base_type == IrType::String {
+                                block.instructions.push(IrInstruction {
+                                    opcode: IrOpcode::StrSetByte,
+                                    result: None,
+                                    result_type: None,
+                                    operands: vec![
+                                        IrOperand::Variable(base_name, IrType::String),
+                                        IrOperand::Variable(idx, IrType::Int),
+                                        IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                    ],
+                                    jump_target: None,
+                                    true_target: None,
+                                    false_target: None,
+                                    span: expr.span,
+                                });
+                            } else {
+                                block.instructions.push(IrInstruction {
+                                    opcode: IrOpcode::Store,
+                                    result: None,
+                                    result_type: None,
+                                    operands: vec![
+                                        IrOperand::Variable(base_name, base_type),
+                                        IrOperand::Constant(Constant::Int(0)),
+                                        IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                        IrOperand::Variable(idx, IrType::Int),
+                                    ],
+                                    jump_target: None,
+                                    true_target: None,
+                                    false_target: None,
+                                    span: expr.span,
+                                });
+                            }
                             return (right_temp, right_type);
                         }
                         let target_name = left_temp.clone();
@@ -583,6 +642,7 @@ impl IrGenerator {
 
         let element_type = match &array_type {
             IrType::Array(ref elem, _) => *elem.clone(),
+            IrType::String => IrType::Int,
             _ => IrType::Int,
         };
 
@@ -598,6 +658,20 @@ impl IrGenerator {
                     result_type: Some(IrType::Array(Box::new(element_type.clone()), 0)),
                     operands: vec![
                         IrOperand::Variable(array_temp, array_type.clone()),
+                        IrOperand::Variable(start_temp, IrType::Int),
+                    ],
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
+                });
+            } else if array_type == IrType::String {
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::StrGetByte,
+                    result: Some(result_temp.clone()),
+                    result_type: Some(IrType::Int),
+                    operands: vec![
+                        IrOperand::Variable(array_temp, IrType::String),
                         IrOperand::Variable(start_temp, IrType::Int),
                     ],
                     jump_target: None,

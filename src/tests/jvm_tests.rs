@@ -324,9 +324,9 @@ fn test_jvm_generation_begin_end_block() {
 }
 
 #[test]
-fn test_jvm_generation_extern_call_with_string() {
+fn test_jvm_generation_import_call_with_string() {
     let source = r#"
-        extern def puts(msg of string) end
+        import def puts(msg of string) end
         def main() of int
             puts("hello from jvm");
             return 0

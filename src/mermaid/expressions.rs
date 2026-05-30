@@ -27,6 +27,9 @@ impl MermaidGenerator {
                     BinaryOp::GreaterOrEqual => ">=",
                     BinaryOp::And => "&&",
                     BinaryOp::Or => "||",
+                    BinaryOp::BitAnd => "&",
+                    BinaryOp::BitOr => "|",
+                    BinaryOp::BitXor => "^",
                     BinaryOp::Assign => "=",
                 };
                 output.push_str(&format!("N{bin_id}[\"binary_expr\"]\n"));

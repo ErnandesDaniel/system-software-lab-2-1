@@ -98,7 +98,7 @@ impl AsmGenerator {
             IrOperand::Variable(name, _) => {
                 if self.is_coroutine {
                     if let Some(offset) = self.locals.get(name) {
-                        let co_off = 24 + (-offset);
+                        let co_off = 56 + (-offset);
                         self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));
@@ -236,7 +236,7 @@ impl AsmGenerator {
                 let _is_temp = Self::is_temp(name);
                 if let Some(offset) = self.locals.get(name) {
                     if self.is_coroutine {
-                        let co_off = 24 + (-offset);
+                        let co_off = 56 + (-offset);
                         self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov {dest}, [rcx + {co_off}]\n"));
                     } else {
@@ -323,7 +323,7 @@ impl AsmGenerator {
     pub fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
         if self.is_coroutine {
             if let Some(offset) = self.locals.get(name) {
-                let co_off = 24 + (-offset);
+                let co_off = 56 + (-offset);
                 self.restore_coro_ctx();
                 self.output.push_str(&format!("    mov [rcx + {co_off}], {src}\n"));
                 return;

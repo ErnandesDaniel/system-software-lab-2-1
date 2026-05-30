@@ -31,7 +31,10 @@ impl AsmGenerator {
             IrOpcode::BitNot => self.generate_bitnot(inst),
             IrOpcode::BitAnd => self.binary_op(inst, "and"),
             IrOpcode::BitOr => self.binary_op(inst, "or"),
+            IrOpcode::BitXor => self.binary_op(inst, "xor"),
             IrOpcode::Pos => self.generate_pos(inst),
+            IrOpcode::StrGetByte => self.generate_str_get_byte(inst),
+            IrOpcode::StrSetByte => self.generate_str_set_byte(inst),
             IrOpcode::Store => self.generate_store(inst),
             IrOpcode::Cast => {}
             IrOpcode::CoroYield => self.generate_yield(inst),
@@ -40,6 +43,7 @@ impl AsmGenerator {
             IrOpcode::CallClosure => self.generate_call_closure(inst),
             IrOpcode::LoadCaptured => self.generate_load_captured(inst),
             IrOpcode::StoreCaptured => self.generate_store_captured(inst),
+            IrOpcode::AllocArray => {}
         }
     }
 
@@ -144,6 +148,14 @@ impl AsmGenerator {
         4
     }
 
+    fn gen_lea_base(&mut self, name: &str, reg: &str) {
+        if let Some(local_off) = self.locals.get(name) {
+            self.output.push_str(&format!("    lea {reg}, [rbp + {local_off}]\n"));
+        } else {
+            self.output.push_str(&format!("    lea {reg}, [rel {name}]\n"));
+        }
+    }
+
     fn generate_store(&mut self, inst: &IrInstruction) {
         if inst.operands.len() >= 3 {
             let base = &inst.operands[0];
@@ -157,16 +169,26 @@ impl AsmGenerator {
                         let elem_stride = Self::array_elem_stride(inst);
                         let val_is_ptr = value.get_type().is_pointer();
                         self.load_operand(value, if val_is_ptr { "rax" } else { "eax" }, val_is_ptr);
-                        self.load_operand(index, "ebx", false);
-                        if *off == 0 {
-                            self.output.push_str(&format!("    lea rcx, [rel {name}]\n"));
+                        if let IrOperand::Constant(crate::ir::Constant::Int(idx_val)) = index {
+                            // Constant index: use base + offset + idx_val * stride directly
+                            let total_off = *off as i64 + idx_val * elem_stride;
+                            self.gen_lea_base(name, "rcx");
+                            if elem_stride == 8 {
+                                self.output.push_str(&format!("    mov [rcx + {total_off}], rax\n"));
+                            } else {
+                                self.output.push_str(&format!("    mov [rcx + {total_off}], eax\n"));
+                            }
                         } else {
-                            self.output.push_str(&format!("    lea rcx, [rel {name} + {off}]\n"));
-                        }
-                        if elem_stride == 8 {
-                            self.output.push_str("    mov [rcx + rbx * 8], rax\n");
-                        } else {
-                            self.output.push_str("    mov [rcx + rbx * 4], eax\n");
+                            self.load_operand(index, "ebx", false);
+                            self.gen_lea_base(name, "rcx");
+                            if *off != 0 {
+                                self.output.push_str(&format!("    add rcx, {off}\n"));
+                            }
+                            if elem_stride == 8 {
+                                self.output.push_str("    mov [rcx + rbx * 8], rax\n");
+                            } else {
+                                self.output.push_str("    mov [rcx + rbx * 4], eax\n");
+                            }
                         }
                     } else {
                         let val_is_ptr = value.get_type().is_pointer();
@@ -199,7 +221,11 @@ impl AsmGenerator {
             let result_reg = if result_is_ptr { "rax" } else { "eax" };
             if inst.operands.len() == 1 {
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
-                    self.output.push_str(&format!("    mov {result_reg}, [rel {name}]\n"));
+                    if let Some(local_off) = self.locals.get(name) {
+                        self.output.push_str(&format!("    mov {result_reg}, [rbp + {local_off}]\n"));
+                    } else {
+                        self.output.push_str(&format!("    mov {result_reg}, [rel {name}]\n"));
+                    }
                     self.store_variable(result, result_reg, result_is_ptr);
                 }
             } else if inst.operands.len() == 4 {
@@ -211,11 +237,9 @@ impl AsmGenerator {
                     ) = (&inst.operands[1], &inst.operands[3])
                     {
                         self.load_operand(&inst.operands[2], "ebx", false);
-                        if *field_off == 0 {
-                            self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
-                        } else {
-                            self.output
-                                .push_str(&format!("    lea rax, [rel {name} + {field_off}]\n"));
+                        self.gen_lea_base(name, "rax");
+                        if *field_off != 0 {
+                            self.output.push_str(&format!("    add rax, {field_off}\n"));
                         }
                         if *elem_sz != 1 {
                             self.output.push_str(&format!("    imul ebx, {elem_sz}\n"));
@@ -231,10 +255,9 @@ impl AsmGenerator {
                     if let IrOperand::Constant(crate::ir::Constant::Int(off)) = &inst.operands[1] {
                         let elem_stride = Self::array_elem_stride(inst);
                         self.load_operand(&inst.operands[2], "ebx", false);
-                        if *off == 0 {
-                            self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
-                        } else {
-                            self.output.push_str(&format!("    lea rax, [rel {name} + {off}]\n"));
+                        self.gen_lea_base(name, "rax");
+                        if *off != 0 {
+                            self.output.push_str(&format!("    add rax, {off}\n"));
                         }
                         if elem_stride == 8 {
                             self.output.push_str(&format!("    mov {result_reg}, [rax + rbx * 8]\n"));
@@ -272,7 +295,7 @@ impl AsmGenerator {
                     // Array access: base + index
                     let elem_stride = Self::array_elem_stride(inst);
                     if let IrOperand::Variable(name, _) = first {
-                        self.output.push_str(&format!("    lea rax, [rel {name}]\n"));
+                        self.gen_lea_base(name, "rax");
                     } else {
                         self.load_operand(first, "rax", true);
                     }
@@ -332,6 +355,24 @@ impl AsmGenerator {
                 self.load_operand(operand, "eax", false);
                 self.store_variable(result, "eax", false);
             }
+        }
+    }
+
+    fn generate_str_get_byte(&mut self, inst: &IrInstruction) {
+        if let (Some(ref result), Some(str_op), Some(idx_op)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+            self.load_operand(str_op, "rcx", true);
+            self.load_operand(idx_op, "edx", false);
+            self.output.push_str("    movzx eax, byte [rcx + rdx]\n");
+            self.store_variable(result, "eax", false);
+        }
+    }
+
+    fn generate_str_set_byte(&mut self, inst: &IrInstruction) {
+        if let (Some(str_op), Some(idx_op), Some(val_op)) = (inst.operands.first(), inst.operands.get(1), inst.operands.get(2)) {
+            self.load_operand(str_op, "rcx", true);
+            self.load_operand(idx_op, "edx", false);
+            self.load_operand(val_op, "r8d", false);
+            self.output.push_str("    mov [rcx + rdx], r8b\n");
         }
     }
 }

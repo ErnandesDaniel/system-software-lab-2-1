@@ -12,6 +12,8 @@ pub struct SemanticsAnalyzer {
     pub(crate) global_scope: SymbolTable,
     pub(crate) functions: Vec<FunctionSig>,
     pub(crate) errors: Vec<String>,
+    pub(crate) current_return_type: Option<SemanticType>,
+    pub(crate) loop_depth: usize,
 }
 
 impl SemanticsAnalyzer {
@@ -20,6 +22,8 @@ impl SemanticsAnalyzer {
             global_scope: SymbolTable::new(),
             functions: Vec::new(),
             errors: Vec::new(),
+            current_return_type: None,
+            loop_depth: 0,
         }
     }
 
@@ -39,12 +43,12 @@ impl SemanticsAnalyzer {
             TypeRef::BuiltinType(bt) => match bt {
                 BuiltinType::Bool => SemanticType::Bool,
                 BuiltinType::String => SemanticType::String,
-                BuiltinType::Byte
-                | BuiltinType::Int
-                | BuiltinType::Uint
-                | BuiltinType::Long
-                | BuiltinType::Ulong
-                | BuiltinType::Char => SemanticType::Int,
+                BuiltinType::Byte => SemanticType::Byte,
+                BuiltinType::Int => SemanticType::Int,
+                BuiltinType::Uint => SemanticType::Uint,
+                BuiltinType::Long => SemanticType::Long,
+                BuiltinType::Ulong => SemanticType::Ulong,
+                BuiltinType::Char => SemanticType::Char,
             },
             TypeRef::Custom(_) => SemanticType::Int,
             TypeRef::Array { element_type, size, .. } => {
@@ -62,7 +66,8 @@ impl SemanticsAnalyzer {
     pub fn literal_type(lit: &Literal) -> SemanticType {
         match lit {
             Literal::Bool(_) => SemanticType::Bool,
-            Literal::Dec(_) | Literal::Hex(_) | Literal::Bits(_) | Literal::Char(_) => SemanticType::Int,
+            Literal::Dec(_) | Literal::Hex(_) | Literal::Bits(_) => SemanticType::Int,
+            Literal::Char(_) => SemanticType::Char,
             Literal::Str(_) => SemanticType::String,
         }
     }

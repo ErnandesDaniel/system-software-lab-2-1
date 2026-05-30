@@ -10,8 +10,8 @@ pub enum Token {
     Def,
     #[token("end")]
     End,
-    #[token("extern")]
-    Extern,
+    #[token("import")]
+    Import,
     #[token("global")]
     Global,
     #[token("struct")]
@@ -32,6 +32,8 @@ pub enum Token {
     Until,
     #[token("loop_end")]
     LoopEnd,
+    #[token("repeat")]
+    Repeat,
     #[token("do")]
     Do,
     #[token("break")]
@@ -71,6 +73,12 @@ pub enum Token {
     And,
     #[token("||")]
     Or,
+    #[token("&")]
+    BitAnd,
+    #[token("|")]
+    BitOr,
+    #[token("^")]
+    BitXor,
 
     #[token("==")]
     Eq,

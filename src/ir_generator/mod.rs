@@ -253,6 +253,7 @@ impl IrGenerator {
             used_functions: used,
             yield_count: 0,
             coroutine_blocks: vec![],
+            is_coroutine: false,
         }
     }
 
@@ -308,6 +309,7 @@ impl IrGenerator {
             used_functions: used,
             yield_count: self.current_yield_state,
             coroutine_blocks: state_blocks,
+            is_coroutine: true,
         }
     }
 

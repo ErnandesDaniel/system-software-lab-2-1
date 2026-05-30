@@ -2,8 +2,8 @@
 // Демонстрация: локальные функции, функциональные литералы,
 // композиция, замыкания (read-only и mutate), счётчик
 
-extern puts
-extern printf
+import puts
+import printf
 
 def main() of int
 

@@ -94,15 +94,25 @@ impl Parser<'_> {
 
     pub(crate) fn parse_repeat(&mut self) -> Result<Statement, String> {
         let start = self.current_span();
-        self.expect(Token::Do)?;
+        // accept "repeat" or "do"
+        match self.current_token() {
+            Some(Token::Repeat) => { self.advance(); }
+            Some(Token::Do) => { self.advance(); }
+            _ => return Err("Expected 'repeat' or 'do'".to_string()),
+        }
         let body = Box::new(self.parse_statement()?);
-        self.expect(Token::While)?;
+        // accept "until" or "while"
+        let keyword = match self.current_token() {
+            Some(Token::Until) => { self.advance(); LoopKeyword::Until }
+            Some(Token::While) => { self.advance(); LoopKeyword::While }
+            _ => return Err("Expected 'until' or 'while'".to_string()),
+        };
         let condition = self.parse_expression(0)?;
         self.expect(Token::Semi)?;
         let span = start.merge(self.current_span());
         Ok(Statement::Repeat(RepeatStatement {
             body,
-            keyword: LoopKeyword::Until,
+            keyword,
             condition,
             span,
         }))

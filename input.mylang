@@ -1,26 +1,26 @@
 //Получить символ из консоли по его ASCII коду в виде числа
-extern getchar
+import getchar
 
 // инициализировать генератор случайных чисел
-extern srand
+import srand
 
 // получить текущее время как число
-extern time
+import time
 
 //получить случайное число
-extern rand
+import rand
 
 //Напечатать символ по его ASCII коду
-extern putchar
+import putchar
 
 //Напечатать строку
-extern puts
+import puts
 
 //Вывести число в консоль
-extern printf
+import printf
 
 //Подождать время (остановить поток программы) в миллисекундах
-extern Sleep
+import Sleep
 
 //Умножить два числа
 def square(x of int) of int

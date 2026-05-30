@@ -24,6 +24,7 @@ pub struct IrFunction {
     pub used_functions: Vec<String>,
     pub yield_count: usize,
     pub coroutine_blocks: Vec<String>,
+    pub is_coroutine: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,6 +139,9 @@ pub enum IrOpcode {
     BitNot,
     BitAnd,
     BitOr,
+    BitXor,
+    StrGetByte,
+    StrSetByte,
     Neg,
     Pos,
     Assign,
@@ -156,6 +160,7 @@ pub enum IrOpcode {
     CallClosure,
     LoadCaptured,
     StoreCaptured,
+    AllocArray,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

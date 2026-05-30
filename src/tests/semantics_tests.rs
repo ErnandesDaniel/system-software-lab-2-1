@@ -9,8 +9,8 @@ fn analyze(source: &str) -> Result<(), Vec<String>> {
 }
 
 #[test]
-fn test_semantics_extern_short_form_ok() {
-    let source = "extern puts def main() puts(\"hello\"); end";
+fn test_semantics_import_short_form_ok() {
+    let source = "import puts def main() puts(\"hello\"); end";
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
 }
@@ -90,10 +90,10 @@ fn test_semantics_if_condition_non_bool() {
 }
 
 #[test]
-fn test_semantics_extern_non_stdlib() {
-    let source = "extern def my_custom_func() of int end";
+fn test_semantics_import_non_stdlib() {
+    let source = "import def my_custom_func() of int end";
     let result = analyze(source);
-    assert!(result.is_err(), "Expected error for non-stdlib extern");
+    assert!(result.is_err(), "Expected error for non-stdlib import");
     let errors = result.unwrap_err();
     assert!(
         errors.iter().any(|e| e.contains("not a standard library function")),

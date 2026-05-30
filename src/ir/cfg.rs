@@ -248,14 +248,22 @@ impl CfgMermaidGenerator {
                 let a = Self::get_single_operand(inst);
                 format!("{} = cast({})", inst.result.as_deref().unwrap_or("?"), a)
             }
-            IrOpcode::BitAnd | IrOpcode::BitOr => {
+            IrOpcode::BitAnd | IrOpcode::BitOr | IrOpcode::BitXor => {
                 let (a, b) = Self::get_operands(inst);
-                let op = if matches!(inst.opcode, IrOpcode::BitAnd) {
-                    "&"
-                } else {
-                    "|"
+                let op = match inst.opcode {
+                    IrOpcode::BitAnd => "&",
+                    IrOpcode::BitOr => "|",
+                    _ => "^",
                 };
                 format!("{} = {} {} {}", inst.result.as_deref().unwrap_or("?"), a, op, b)
+            }
+            IrOpcode::StrGetByte => {
+                let (str_name, idx_name) = Self::get_operands(inst);
+                format!("{} = {}[{}] (str)", inst.result.as_deref().unwrap_or("?"), str_name, idx_name)
+            }
+            IrOpcode::StrSetByte => {
+                let (str_name, idx_name) = Self::get_operands(inst);
+                format!("{}[{}] = {} (str)", str_name, idx_name, inst.operands.get(2).map(Self::format_operand).unwrap_or_else(|| "?".to_string()))
             }
             IrOpcode::MakeClosure => {
                 let target = Self::get_single_operand(inst);
@@ -277,8 +285,10 @@ impl CfgMermaidGenerator {
                 )
             }
             IrOpcode::LoadCaptured => {
-                let target = Self::get_single_operand(inst);
-                format!("{} = load_captured({})", inst.result.as_deref().unwrap_or("?"), target)
+                format!("load_captured {}", inst.result.as_deref().unwrap_or("?"))
+            }
+            IrOpcode::AllocArray => {
+                format!("alloc_array {}", inst.result.as_deref().unwrap_or("?"))
             }
             IrOpcode::StoreCaptured => "store_captured".to_string(),
         }

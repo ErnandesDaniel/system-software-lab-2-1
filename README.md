@@ -71,6 +71,114 @@ java -cp output Main
 
 ---
 
+## Спецификация языка MyLang
+
+```ebnf
+identifier: "[a-zA-Z_][a-zA-Z_0-9]*"; // идентификатор
+
+str: "\"[^\"\\]*(?:\\.[^\"\\]*)*\""; // строка, окруженная двойными кавычками
+char: "'[^']'"; // одиночный символ в одинарных кавычках
+hex: "0[xX][0-9A-Fa-f]+"; // шестнадцатеричный литерал
+bits: "0[bB][01]+"; // битовый литерал
+dec: "[0-9]+"; // десятичный литерал
+bool: 'true'|'false'; // булевский литерал
+
+list<item>: (item (',' item)*)?; // список элементов, разделённых запятыми
+
+
+source: sourceItem*;
+
+typeRef: {
+    |builtin: 'bool'|'byte'|'int'|'uint'|'long'|'ulong'|'char'|'string';
+    |custom: identifier;
+    |array: typeRef 'array' '[' dec ']'; // число - размерность
+};
+
+funcSignature: identifier '(' list<arg> ')' ('of' typeRef)? {
+    arg: identifier ('of' typeRef)?;
+};
+
+sourceItem: {
+    |funcDef: 'def' funcSignature statement* 'end';
+};
+
+statement: { // присваивание через '='
+    |if: 'if' expr 'then' statement ('else' statement)?;
+    |loop: ('while'|'until') expr statement* 'end';
+    |repeat: statement ('while'|'until') expr ';';
+    |break: 'break' ';';
+    |expression: expr ';';
+    |block: ('begin'|'{') (statement|sourceItem)* ('end'|'}');
+};
+
+expr: {
+    |binary: expr binOp expr; // где binOp - символ бинарного оператора
+    |unary: unOp expr; // где unOp - символ унарного оператора
+    |braces: '(' expr ')';
+    |call: expr '(' list<expr> ')';
+    |slice: expr '[' list<range> ']' { // индексация или срез массива
+    ranges: expr ('..' expr)?; // from index, to
+    };
+    |place: identifier;
+    |literal: bool|str|char|hex|bits|dec;
+};
+```
+
+### Дополнения 2-го семестра
+
+```ebnf
+typeRef: {
+    |builtin: 'bool'|'byte'|'int'|'uint'|'long'|'ulong'|'char'|'string';
+    |custom: identifier;
+    |array: typeRef 'array' '[' dec ']'; // число - размерность
+    |funcType: 'def' '(' list<typeRef> ')' ('of' typeRef)?; // тип функции
+};
+
+statement: { // присваивание через '='
+    |if: 'if' expr 'then' statement ('else' statement)?;
+    |loop: ('while'|'until') expr statement* 'end';
+    |repeat: statement ('while'|'until') expr ';';
+    |break: 'break' ';';
+    |yield: 'yield' ';';
+    |expression: expr ';';
+    |block: ('begin'|'{') (statement|sourceItem)* ('end'|'}');
+    |funcDef: 'def' funcSignature statement* 'end'; // локальная функция
+};
+
+sourceItem: { // дополнено structDef и coroutineDef
+    |funcDef: 'def' funcSignature statement* 'end';
+    |structDef: 'struct' identifier '{' list<field> '}' {
+        field: identifier ('of' typeRef)? ';';
+    };
+    |coroutineDef: 'coroutine' funcSignature statement* 'end';
+};
+
+expr: {
+    |binary: expr binOp expr; // где binOp - символ бинарного оператора
+    |unary: unOp expr; // где unOp - символ унарного оператора
+    |braces: '(' expr ')';
+    |call: expr '(' list<expr> ')';
+    |slice: expr '[' list<range> ']' { // индексация или срез массива
+    ranges: expr ('..' expr)?; // from index, to
+    };
+    |place: identifier;
+    |literal: bool|str|char|hex|bits|dec;
+    |funcLiteral: 'def' funcSignature statement* 'end'; // функциональный литерал
+};
+```
+
+Вместе эти изменения делают функции **first-class**: 
+function type — это тип данных, func literal — выражение, возвращающее функцию, 
+поэтому её можно присвоить переменной или передать как аргумент. 
+Поскольку внутри функции могут быть `def` (локальные функции), 
+они захватывают переменные внешней области видимости, образуя **closures**.
+
+- **Closures** — локальная функция или func literal может захватывать переменные из 
+- внешней области видимости (по ссылке, мутабельно).
+- **MakeClosure / CallClosure** — новые IR-опкоды (`src/ir/types.rs`) для создания и вызова замыкания.
+- **Closure env** — захваченные переменные хранятся как `int[1]`-обёртки (`[[I` на JVM, 
+- стековые слоты на NASM).
+
 ## Структура проекта
 
 | Путь | Назначение |

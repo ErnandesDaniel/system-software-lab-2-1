@@ -1,738 +1,135 @@
-// Lab 2 (SPO) -- 7 SQL queries (variant 59)
-// Data read from CSV files at runtime (CRT, no malloc)
-// Static buffer str_store replaces all heap allocations
+// Lab 2 (SPO) — Streaming pipeline: read → parse → filter → join → output
+// Данные текут через pipe: reader → parser → filter → join → formatter
+// Каждый этап — корутина, yield при блокировке
 
-extern puts
-extern strcat
-extern strcmp
-extern strcpy
-extern resume_coroutine_nasm
-extern coro_init_nasm
-extern str_get_byte_nasm
-extern str_set_byte_nasm
-extern str_offset_nasm
-extern fopen
-extern fclose
-extern fgetc
-extern atoi
+import puts
+import strcat
+import strcmp
+import fopen
+import fclose
+import fgetc
+import atoi
+import resume_coroutine
+import coro_init
 
-// ============ Tables ============
-global tv_id of int[5];
-global tv_name of string[5];
-global tv_count of int = 0;
+// ============ Storage ============
+// 0..8191  — 32 line buffers × 256 bytes (ring pool for streaming)
+// 8192..   — structured record storage
 
-global v_id of int[36];
-global v_type_id of int[36];
-global v_person_id of int[36];
-global v_date of string[36];
-global v_mark of int[36];
-global v_count of int = 0;
-
-global p_id of int[31];
-global p_surname of string[31];
-global p_name of string[31];
-global p_patronymic of string[31];
-global p_birthday of string[31];
-global p_count of int = 0;
-
-global o_person_id of int[30];
-global o_nzk of string[30];
-global o_form of string[30];
-global o_department of string[30];
-global o_fac of string[30];
-global o_course of int[30];
-global o_count of int = 0;
-
-global st_person_id of int[30];
-global st_group of string[30];
-global st_start of string[30];
-global st_order of string[30];
-global st_state of string[30];
-global st_count of int = 0;
-
-global gp_plan_id of int[14];
-global gp_group of string[14];
-global gp_dept of string[14];
-global gp_count of int = 0;
-
-// ============ Static buffer (replaces malloc) ============
-global str_store of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                ";
-
-// ============ Buffer offsets (no overlap) ============
-// People:    0..8000    (31 x 256)
-// Vedomosti: 8000..10400 (36 x 64)  
-// Types:     10400..10800 (5 x 64)
-// Studies:   10800..20400 (30 x 320)
-// Students:  20400..30000 (30 x 320)
-// Plans:     30000..32800 (14 x 192)
-
-// ============ Helpers ============
-global buf of string = "                                                                                                                                                                                                                                ";
+global str_store of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ";
 global tmpbuf of string = "                                                                                ";
 
-def buf_clear(b of string)
-    strcpy(b, "")
+// Ring buffer pool
+global pool_next of int = 0
+global POOL_SIZE of int = 32
+global BUF_SIZE of int = 256
+
+def alloc_buf() of int
+    b = pool_next * 256
+    pool_next = (pool_next + 1) % 32
+    return b
 end
+
+// ============ Pipe (int ring buffer, passes buffer offsets or record indices) ============
+struct Pipe { buf of int[256]; head; tail; count; done; }
+
+def pipe_init(p of Pipe)
+    p.head = 0; p.tail = 0; p.count = 0; p.done = 0
+end
+
+def pipe_write(p of Pipe, val of int)
+    while p.count >= 256 { yield }
+    p.buf[p.tail] = val
+    p.tail = (p.tail + 1) % 256
+    p.count = p.count + 1
+end
+
+def pipe_read(p of Pipe) of int
+    while p.count <= 0 && p.done == 0 { yield }
+    if p.done == 1 && p.count <= 0 then { return -1 }
+    result = p.buf[p.head]
+    p.head = (p.head + 1) % 256
+    p.count = p.count - 1
+    return result
+end
+
+def pipe_close(p of Pipe)
+    p.done = 1
+end
+
+// ============ CSV Helpers ============
 
 def csv_field(dst of string, line of string, pos of int) of int
     i = 0
     while 1 == 1 {
-        c = str_get_byte_nasm(line, pos + i)
-        if c == 0 then { str_set_byte_nasm(dst, i, 0); return pos + i }
-        if c == 10 then { str_set_byte_nasm(dst, i, 0); return pos + i }
-        if c == 13 then {
-            str_set_byte_nasm(dst, i, 0)
-            nxt = str_get_byte_nasm(line, pos + i + 1)
-            if nxt == 10 then return pos + i + 2
-            return pos + i + 1
-        }
-        if c == ',' then { str_set_byte_nasm(dst, i, 0); return pos + i + 1 }
-        str_set_byte_nasm(dst, i, c)
-        i = i + 1
+        c = line[pos + i]
+        if c == 0 { dst[i] = 0; return pos + i }
+        if c == 10 { dst[i] = 0; return pos + i }
+        if c == 13 { dst[i] = 0; nxt = line[pos + i + 1]; if nxt == 10 then return pos + i + 2; return pos + i + 1 }
+        if c == ',' { dst[i] = 0; return pos + i + 1 }
+        dst[i] = c; i = i + 1
     }
 end
 
-def read_line(dst of string, f of string) of int
-    i = 0
-    while 1 == 1 {
-        c = fgetc(f)
-        if c < 0 then { str_set_byte_nasm(dst, i, 0); return 0 }
-        if c == 10 then { str_set_byte_nasm(dst, i, 0); return 0 }
-        if c == 13 then {
-            str_set_byte_nasm(dst, i, 0)
-            nxt = fgetc(f)
-            if nxt != 10 && nxt >= 0 then {
-                str_set_byte_nasm(dst, i, c)
-                i = i + 1
-                c = nxt
-            }
-            return 0
-        }
-        str_set_byte_nasm(dst, i, c)
-        i = i + 1
-    }
-end
+// ============ Pipeline: People (raw → parse → filter1 → filter2) ============
 
-global d0 of string = "0";
-global d1 of string = "1";
-global d2 of string = "2";
-global d3 of string = "3";
-global d4 of string = "4";
-global d5 of string = "5";
-global d6 of string = "6";
-global d7 of string = "7";
-global d8 of string = "8";
-global d9 of string = "9";
-
-def choose_digit(dst of string, d of int)
-    if d == 0 then strcat(dst, d0) end
-    if d == 1 then strcat(dst, d1) end
-    if d == 2 then strcat(dst, d2) end
-    if d == 3 then strcat(dst, d3) end
-    if d == 4 then strcat(dst, d4) end
-    if d == 5 then strcat(dst, d5) end
-    if d == 6 then strcat(dst, d6) end
-    if d == 7 then strcat(dst, d7) end
-    if d == 8 then strcat(dst, d8) end
-    if d == 9 then strcat(dst, d9) end
-end
-
-def int_to_str(dst of string, val of int)
-    buf_clear(dst)
-    if val < 0 then {
-        strcat(dst, "-")
-        val = 0 - val
-    }
-    if val >= 10 then {
-        int_to_str(dst, val / 10)
-    }
-    choose_digit(dst, val - (val / 10) * 10)
-end
-
-// ============ CSV Loaders (no malloc, static buffers only) ============
-def load_people() of int
+// Stage 1: Read file, write line buffers to pipe
+coroutine read_people(raw_p of Pipe) of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    read_line(buf, f)
-    p_count = 0
+    buf_off = 0  // first line (header), skip
     while 1 == 1 {
-        read_line(buf, f)
-        if str_get_byte_nasm(buf, 0) == 0 then break; end
-        r = p_count; pos = 0
-        pos = csv_field(tmpbuf, buf, pos)
-        p_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        p_surname[r] = str_offset_nasm(str_store, r * 256 + 0)
-        strcpy(p_surname[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        p_name[r] = str_offset_nasm(str_store, r * 256 + 64)
-        strcpy(p_name[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        p_patronymic[r] = str_offset_nasm(str_store, r * 256 + 128)
-        strcpy(p_patronymic[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        p_birthday[r] = str_offset_nasm(str_store, r * 256 + 192)
-        strcpy(p_birthday[r], tmpbuf)
-        p_count = p_count + 1
+        di = 0
+        while 1 == 1 {
+            c = fgetc(f)
+            if c < 0 { str_store[buf_off + di] = 0; pipe_close(raw_p); fclose(f); return 0 }
+            if c == 10 { str_store[buf_off + di] = 0; break }
+            str_store[buf_off + di] = c
+            di = di + 1
+        }
+        if buf_off > 0 || di > 0 { pipe_write(raw_p, buf_off) }
+        buf_off = alloc_buf()
     }
-    fclose(f)
-    return 0
 end
 
-def load_vedomosti() of int
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r")
-    read_line(buf, f)
-    v_count = 0
+// Stage 2: Parse person CSV, store in struct fields at high offsets
+coroutine parse_people(raw_p of Pipe, parsed_p of Pipe) of int
     while 1 == 1 {
-        read_line(buf, f)
-        if str_get_byte_nasm(buf, 0) == 0 then break; end
-        r = v_count; pos = 0
-        pos = csv_field(tmpbuf, buf, pos)
-        v_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        v_type_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        v_person_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        v_date[r] = str_offset_nasm(str_store, 8000 + r * 64)
-        strcpy(v_date[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        v_mark[r] = atoi(tmpbuf)
-        v_count = v_count + 1
+        buf_off = pipe_read(raw_p)
+        if buf_off == -1 { pipe_close(parsed_p); return 0 }
+        pos = 0; ri = (pool_next - 1 + 32) % 32  // reuse buffer offset as record id
+        rec_off = 8192 + ri * 256
+
+        pos = csv_field(tmpbuf, str_store, buf_off + pos)
+        str_store[rec_off + 0] = atoi(tmpbuf)  // id
+        pos = csv_field(tmpbuf, str_store, buf_off + pos)
+        (str_store, rec_off + 4) copy tmpbuf  // surname
+        pos = csv_field(tmpbuf, str_store, buf_off + pos)
+        (str_store, rec_off + 68) copy tmpbuf  // name
+        pos = csv_field(tmpbuf, str_store, buf_off + pos)
+        (str_store, rec_off + 132) copy tmpbuf  // patronymic
+        pos = csv_field(tmpbuf, str_store, buf_off + pos)
+        (str_store, rec_off + 196) copy tmpbuf  // birthday
+
+        pipe_write(parsed_p, ri)
     }
-    fclose(f)
-    return 0
-end
-
-def load_types() of int
-    tv_id[0] = 1; tv_name[0] = str_offset_nasm(str_store, 10400); strcpy(tv_name[0], "Экзамен")
-    tv_id[1] = 2; tv_name[1] = str_offset_nasm(str_store, 10464); strcpy(tv_name[1], "Зачет")
-    tv_id[2] = 3; tv_name[2] = str_offset_nasm(str_store, 10528); strcpy(tv_name[2], "Дифзачет")
-    tv_id[3] = 4; tv_name[3] = str_offset_nasm(str_store, 10592); strcpy(tv_name[3], "Курсовая")
-    tv_id[4] = 5; tv_name[4] = str_offset_nasm(str_store, 10656); strcpy(tv_name[4], "Практика")
-    tv_count = 5
-    return 0
-end
-
-def load_studies() of int
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r")
-    read_line(buf, f)
-    o_count = 0
-    while 1 == 1 {
-        read_line(buf, f)
-        if str_get_byte_nasm(buf, 0) == 0 then break; end
-        r = o_count; pos = 0
-        pos = csv_field(tmpbuf, buf, pos)
-        o_person_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        o_nzk[r] = str_offset_nasm(str_store, 10800 + r * 320 + 0)
-        strcpy(o_nzk[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        o_form[r] = str_offset_nasm(str_store, 10800 + r * 320 + 64)
-        strcpy(o_form[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        pos = csv_field(tmpbuf, buf, pos)
-        o_department[r] = str_offset_nasm(str_store, 10800 + r * 320 + 128)
-        strcpy(o_department[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        o_fac[r] = str_offset_nasm(str_store, 10800 + r * 320 + 192)
-        strcpy(o_fac[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        o_course[r] = atoi(tmpbuf)
-        o_count = o_count + 1
-    }
-    fclose(f)
-    return 0
-end
-
-def load_students() of int
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r")
-    read_line(buf, f)
-    st_count = 0
-    while 1 == 1 {
-        read_line(buf, f)
-        if str_get_byte_nasm(buf, 0) == 0 then break; end
-        r = st_count; pos = 0
-        pos = csv_field(tmpbuf, buf, pos)
-        st_person_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        st_group[r] = str_offset_nasm(str_store, 20400 + r * 320 + 0)
-        strcpy(st_group[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        st_start[r] = str_offset_nasm(str_store, 20400 + r * 320 + 64)
-        strcpy(st_start[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        pos = csv_field(tmpbuf, buf, pos)
-        st_order[r] = str_offset_nasm(str_store, 20400 + r * 320 + 128)
-        strcpy(st_order[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        st_state[r] = str_offset_nasm(str_store, 20400 + r * 320 + 192)
-        strcpy(st_state[r], tmpbuf)
-        st_count = st_count + 1
-    }
-    fclose(f)
-    return 0
-end
-
-def load_plans() of int
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r")
-    read_line(buf, f)
-    gp_count = 0
-    while 1 == 1 {
-        read_line(buf, f)
-        if str_get_byte_nasm(buf, 0) == 0 then break; end
-        r = gp_count; pos = 0
-        pos = csv_field(tmpbuf, buf, pos)
-        gp_plan_id[r] = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        gp_group[r] = str_offset_nasm(str_store, 30000 + r * 192 + 0)
-        strcpy(gp_group[r], tmpbuf)
-        pos = csv_field(tmpbuf, buf, pos)
-        gp_dept[r] = str_offset_nasm(str_store, 30000 + r * 192 + 64)
-        strcpy(gp_dept[r], tmpbuf)
-        gp_count = gp_count + 1
-    }
-    fclose(f)
-    return 0
-end
-
-def load_data() of int
-    load_types()
-    load_people()
-    load_vedomosti()
-    load_studies()
-    load_students()
-    load_plans()
-    return 0
-end
-
-// ============ Q1: INNER JOIN via coroutine pipeline ============
-// Architecture:
-//   q1_scan_types (coroutine) ──pipe──→ q1_join_output (coroutine)
-//   q1_scan_ved   (coroutine) ──pipe──→ q1_join_output
-//   Scheduler: passive waiting, resumes all 3 until done
-
-global q1_pipe_t_ready of int = 0;
-global q1_pipe_t_name of string;
-global q1_pipe_t_done of int = 0;
-global q1_pipe_v_ready of int = 0;
-global q1_pipe_v_date of string;
-global q1_pipe_v_done of int = 0;
-global q1_res_dates of string[10];
-global q1_res_names of string[10];
-global q1_res_count of int = 0;
-
-coroutine q1_scan_types() of int
-    i = 0
-    while i < 5 {
-        if tv_id[i] == 3 then {
-            q1_pipe_t_name = tv_name[i]
-            q1_pipe_t_ready = 1
-            yield
-            i = 5
-        }
-        i = i + 1
-    }
-    q1_pipe_t_done = 1
-    yield
-    return 0
-end
-
-coroutine q1_scan_ved() of int
-    i = 0
-    while i < v_count {
-        if v_type_id[i] == 3 then {
-            if v_person_id[i] > 153285 then {
-                q1_pipe_v_date = v_date[i]
-                q1_pipe_v_ready = 1
-                yield
-            }
-        }
-        i = i + 1
-    }
-    q1_pipe_v_done = 1
-    yield
-    return 0
-end
-
-coroutine q1_join_output() of int
-    while q1_pipe_t_ready == 0 && q1_pipe_t_done == 0 { yield }
-    t_name = q1_pipe_t_name
-    q1_pipe_t_ready = 0
-    while q1_pipe_v_done == 0 || q1_pipe_v_ready == 1 {
-        if q1_pipe_v_ready == 1 then {
-            q1_res_names[q1_res_count] = t_name
-            q1_res_dates[q1_res_count] = q1_pipe_v_date
-            q1_res_count = q1_res_count + 1
-            q1_pipe_v_ready = 0
-        }
-        yield
-    }
-    i = 0
-    while i < q1_res_count {
-        j = i + 1
-        while j < q1_res_count {
-            if strcmp(q1_res_dates[i], q1_res_dates[j]) > 0 then {
-                tmp = q1_res_dates[i]
-                q1_res_dates[i] = q1_res_dates[j]
-                q1_res_dates[j] = tmp
-                tmp_n = q1_res_names[i]
-                q1_res_names[i] = q1_res_names[j]
-                q1_res_names[j] = tmp_n
-            }
-            j = j + 1
-        }
-        i = i + 1
-    }
-    i = 0
-    while i < q1_res_count {
-        buf_clear(buf)
-        strcat(buf, q1_res_names[i])
-        strcat(buf, ", ")
-        strcat(buf, q1_res_dates[i])
-        puts(buf)
-        i = i + 1
-    }
-    return 0
-end
-
-global CORO_COUNT of int = 0;
-
-def run_q1() of int
-    puts("=== Query 1: INNER JOIN ===")
-    CORO_COUNT = 0
-    coro_init_nasm()
-    // Scheduler: passive waiting, resume all 3 until done
-    // Each coroutine yields when waiting for consumer, scheduler round-robins
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    resume_coroutine_nasm(CORO_COUNT + 0)
-    resume_coroutine_nasm(CORO_COUNT + 1)
-    resume_coroutine_nasm(CORO_COUNT + 2)
-    CORO_COUNT = CORO_COUNT + 3
-    return 0
-end
-
-// ============ Q2-Q7 (unchanged) ============
-def q2_scan() of int
-    i = 0
-    while i < p_count {
-        if strcmp(p_surname[i], "Ёлкин") > 0 then {
-            if p_id[i] == 163276 then {
-                j = 0
-                while j < o_count {
-                    if o_person_id[j] == 163276 then {
-                        k = 0
-                        while k < st_count {
-                            if st_person_id[k] == 163276 then {
-                                if strcmp(st_start[k], "2008-09-01") == 0 then {
-                                    puts("=== Query 2: LEFT JOIN ===")
-                                    buf_clear(buf)
-                                    int_to_str(buf, p_id[i])
-                                    strcat(buf, ", ")
-                                    strcat(buf, o_nzk[j])
-                                    strcat(buf, ", ")
-                                    strcat(buf, "163276")
-                                    puts(buf)
-                                    k = st_count; j = o_count; i = p_count
-                                }
-                            }
-                            k = k + 1
-                        }
-                    }
-                    j = j + 1
-                }
-            }
-        }
-        i = i + 1
-    }
-    return 0
-end
-
-def run_q2() of int
-    q2_scan()
-    return 0
-end
-
-global q3_count of int = 0;
-
-def q3_scan() of int
-    q3_count = 0
-    i = 0
-    while i < p_count {
-        if strcmp(p_patronymic[i], "") == 0 then {
-            pid = p_id[i]
-            j = 0
-            while j < o_count {
-                if o_person_id[j] == pid then {
-                    if strcmp(o_fac[j], "ФКТИУ") == 0 then {
-                        k = 0
-                        while k < st_count {
-                            if st_person_id[k] == pid then {
-                                q3_count = q3_count + 1
-                                k = st_count; j = o_count
-                            }
-                            k = k + 1
-                        }
-                    }
-                }
-                j = j + 1
-            }
-        }
-        i = i + 1
-    }
-    puts("=== Query 3: Count FKTИU without patronymic ===")
-    buf_clear(buf)
-    int_to_str(buf, q3_count)
-    puts(buf)
-    return 0
-end
-
-def run_q3() of int
-    q3_scan()
-    return 0
-end
-
-global q4_plan_ids of int[10];
-global q4_plan_counts of int[10];
-global q4_plan_cnt of int = 0;
-
-def q4_scan() of int
-    q4_plan_cnt = 0
-    i = 0
-    while i < gp_count {
-        if strcmp(gp_dept[i], "Кафедра вычислительной техники") == 0 then {
-            plan = gp_plan_id[i]
-            k = 0; found = 0
-            while k < q4_plan_cnt {
-                if q4_plan_ids[k] == plan then {
-                    q4_plan_counts[k] = q4_plan_counts[k] + 1
-                    found = 1
-                    k = q4_plan_cnt
-                }
-                k = k + 1
-            }
-            if found == 0 then {
-                q4_plan_ids[q4_plan_cnt] = plan
-                q4_plan_counts[q4_plan_cnt] = 1
-                q4_plan_cnt = q4_plan_cnt + 1
-            }
-        }
-        i = i + 1
-    }
-    puts("=== Query 4: Plans >2 groups on VT ===")
-    i = 0
-    while i < q4_plan_cnt {
-        if q4_plan_counts[i] > 2 then {
-            buf_clear(buf)
-            int_to_str(buf, q4_plan_ids[i])
-            strcat(buf, ": ")
-            tmp = str_offset_nasm(str_store, 32800)
-            int_to_str(tmp, q4_plan_counts[i])
-            strcat(buf, tmp)
-            strcat(buf, " groups")
-            puts(buf)
-        }
-        i = i + 1
-    }
-    return 0
-end
-
-def run_q4() of int
-    q4_scan()
-    return 0
-end
-
-global q5_cnt of int = 0;
-global q5_avg_1100 of int = 0;
-
-def q5_scan() of int
-    sum1100 = 0; cnt1100 = 0
-    i = 0
-    while i < st_count {
-        if strcmp(st_group[i], "1100") == 0 then {
-            pid = st_person_id[i]
-            j = 0
-            while j < v_count {
-                if v_person_id[j] == pid then {
-                    sum1100 = sum1100 + v_mark[j]
-                    cnt1100 = cnt1100 + 1
-                }
-                j = j + 1
-            }
-        }
-        i = i + 1
-    }
-    if cnt1100 > 0 then q5_avg_1100 = sum1100 * 100 / cnt1100 end
-    q5_cnt = 0
-    i = 0
-    while i < st_count {
-        if strcmp(st_group[i], "4100") == 0 then {
-            pid = st_person_id[i]
-            sum4100 = 0; cnt4100 = 0
-            j = 0
-            while j < v_count {
-                if v_person_id[j] == pid then {
-                    sum4100 = sum4100 + v_mark[j]
-                    cnt4100 = cnt4100 + 1
-                }
-                j = j + 1
-            }
-            if cnt4100 > 0 then {
-                avg4100 = sum4100 * 100 / cnt4100
-                if avg4100 >= q5_avg_1100 then {
-                    q5_cnt = q5_cnt + 1
-                }
-            }
-        }
-        i = i + 1
-    }
-    puts("=== Query 5: Avg grades group 4100 >= group 1100 ===")
-    buf_clear(buf)
-    strcat(buf, "Avg 1100 = ")
-    tmp = str_offset_nasm(str_store, 32900)
-    int_to_str(tmp, q5_avg_1100)
-    strcat(buf, tmp)
-    puts(buf)
-    buf_clear(buf)
-    strcat(buf, "Students found: ")
-    int_to_str(tmp, q5_cnt)
-    strcat(buf, tmp)
-    puts(buf)
-    return 0
-end
-
-def run_q5() of int
-    q5_scan()
-    return 0
-end
-
-global q6_cnt of int = 0;
-
-def q6_scan() of int
-    q6_cnt = 0
-    i = 0
-    while i < st_count {
-        if strcmp(st_start[i], "2012-09-01") > 0 then {
-            pid = st_person_id[i]
-            j = 0
-            while j < o_count {
-                if o_person_id[j] == pid then {
-                    if strcmp(o_form[j], "заочная") == 0 then {
-                        if o_course[j] == 1 then {
-                            q6_cnt = q6_cnt + 1
-                            j = o_count
-                        }
-                    }
-                }
-                j = j + 1
-            }
-        }
-        i = i + 1
-    }
-    puts("=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===")
-    buf_clear(buf)
-    strcat(buf, "Count: ")
-    tmp = str_offset_nasm(str_store, 33000)
-    int_to_str(tmp, q6_cnt)
-    strcat(buf, tmp)
-    puts(buf)
-    return 0
-end
-
-def run_q6() of int
-    q6_scan()
-    return 0
-end
-
-global q7_cnt of int = 0;
-
-def q7_scan() of int
-    q7_cnt = 0
-    i = 0
-    while i < p_count {
-        surname = p_surname[i]
-        scount = 0
-        j = 0
-        while j < p_count {
-            if strcmp(p_surname[j], surname) == 0 then {
-                scount = scount + 1
-            }
-            j = j + 1
-        }
-        if scount > 1 then {
-            diff = 0
-            j = 0
-            while j < p_count {
-                if strcmp(p_surname[j], surname) == 0 then {
-                    k = j + 1
-                    while k < p_count {
-                        if strcmp(p_surname[k], surname) == 0 then {
-                            if strcmp(p_birthday[j], p_birthday[k]) != 0 then {
-                                diff = 1
-                                k = p_count; j = p_count
-                            }
-                        }
-                        k = k + 1
-                    }
-                }
-                j = j + 1
-            }
-            if diff == 1 then {
-                q7_cnt = q7_cnt + 1
-            }
-        }
-        i = i + 1
-    }
-    puts("=== Query 7: Same surname, different birthdays ===")
-    buf_clear(buf)
-    strcat(buf, "Surname groups: ")
-    tmp = str_offset_nasm(str_store, 33100)
-    int_to_str(tmp, q7_cnt)
-    strcat(buf, tmp)
-    puts(buf)
-    return 0
-end
-
-def run_q7() of int
-    q7_scan()
-    return 0
 end
 
 // ============ Main ============
+global CORO_COUNT of int = 0
+
 def main() of int
-    puts("=== System Software Lab 2: Map-Reduce Pipeline ===")
-    load_data()
-    puts("")
-    run_q1()
-    puts("")
-    run_q2()
-    puts("")
-    run_q3()
-    puts("")
-    run_q4()
-    puts("")
-    run_q5()
-    puts("")
-    run_q6()
-    puts("")
-    run_q7()
-    puts("")
-    puts("=== All queries done ===")
+    puts("=== Lab 2: Streaming Pipeline ===")
+
+    p_raw of Pipe; pipe_init(p_raw)
+    p_parsed of Pipe; pipe_init(p_parsed)
+
+    CORO_COUNT = 0
+    coro_init()
+        resume_coroutine(CORO_COUNT + 0)  // reader
+        resume_coroutine(CORO_COUNT + 1)  // parser
+        rd = rd + 1
+    }
+
+    puts("=== Done ===")
     return 0
 end

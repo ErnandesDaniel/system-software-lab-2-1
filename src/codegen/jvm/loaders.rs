@@ -1,11 +1,18 @@
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{IrOperand, IrType};
-use ristretto_classfile::attributes::Instruction;
+use ristretto_classfile::attributes::{ArrayType, Instruction};
 
 impl JvmGenerator {
     pub fn emit_load_operand(&self, code: &mut Vec<Instruction>, operand: &IrOperand) {
         match operand {
             IrOperand::Variable(name, ty) => {
+                if self.is_coroutine {
+                    if let Some(&field_ref) = self.coroutine_field_refs.get(name) {
+                        code.push(Instruction::Aload_0);
+                        code.push(Instruction::Getfield(field_ref));
+                        return;
+                    }
+                }
                 let slot = self.get_local_slot(name);
                 if self.wrapped_vars.contains(name) {
                     // Wrapped var: load through int[1] wrapper
@@ -21,7 +28,7 @@ impl JvmGenerator {
                     return;
                 }
                 match ty {
-                    IrType::String | IrType::Function(_, _) => match slot {
+                    IrType::String | IrType::Function(_, _) | IrType::Array(..) => match slot {
                         0 => code.push(Instruction::Aload_0),
                         1 => code.push(Instruction::Aload_1),
                         2 => code.push(Instruction::Aload_2),
@@ -68,11 +75,14 @@ impl JvmGenerator {
             Constant::Bool(true) => code.push(Instruction::Iconst_1),
             Constant::Bool(false) => code.push(Instruction::Iconst_0),
             Constant::String(s) => {
-                let idx = self.string_consts.get(s).copied().unwrap_or(1);
-                if u8::try_from(idx).is_ok() {
-                    code.push(Instruction::Ldc(idx as u8));
-                } else {
-                    code.push(Instruction::Ldc_w(idx));
+                let len = s.len();
+                self.emit_load_constant(code, &Constant::Int(len as i64));
+                code.push(Instruction::Newarray(ArrayType::Byte));
+                for (i, byte) in s.bytes().enumerate() {
+                    code.push(Instruction::Dup);
+                    self.emit_load_constant(code, &Constant::Int(i as i64));
+                    code.push(Instruction::Bipush(byte as i8));
+                    code.push(Instruction::Bastore);
                 }
             }
             Constant::Char(c) => {

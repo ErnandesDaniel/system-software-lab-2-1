@@ -3,10 +3,8 @@
 //
 // Без JNA, без SHM, без Win32 API — только getchar/putchar
 
-extern getchar
-extern putchar
-extern str_get_byte_nasm
-extern str_set_byte_nasm
+import getchar
+import putchar
 
 // ─── Storage pool (2048 байт) ───────────────────────────────────────────────
 //
@@ -33,7 +31,7 @@ global r2 of int = -1  // value offset (-1 = none)
 def find_space(start of int) of int
     i = start
     while 1 == 1 {
-        c = str_get_byte_nasm(pool, i)
+        c = pool[i]
         if c == 32 then { return i }
         if c == 0 || c == 10 then { return -1 }
         i = i + 1
@@ -44,8 +42,8 @@ end
 def streq(a of int, b of int) of int
     i = 0
     while 1 == 1 {
-        ca = str_get_byte_nasm(pool, a + i)
-        cb = str_get_byte_nasm(pool, b + i)
+        ca = pool[a + i]
+        cb = pool[b + i]
         if ca != cb then { return 0 }
         if ca == 0 then { return 1 }
         i = i + 1
@@ -56,8 +54,8 @@ end
 def strcpy_at(dst of int, src of int) of int
     i = 0
     while 1 == 1 {
-        c = str_get_byte_nasm(pool, src + i)
-        str_set_byte_nasm(pool, dst + i, c)
+        c = pool[src + i]
+        pool[dst + i] = c
         if c == 0 then { return dst + i + 1 }
         i = i + 1
     }
@@ -66,7 +64,7 @@ end
 def putstr_at(off of int)
     i = 0
     while 1 == 1 {
-        c = str_get_byte_nasm(pool, off + i)
+        c = pool[off + i]
         if c == 0 then { return }
         putchar(c)
         i = i + 1
@@ -112,13 +110,13 @@ def map_build_list()
     i = 0
     while i < map_n {
         if i > 0 then {
-            str_set_byte_nasm(pool, di, 44)  // comma
+            pool[di] = 44  // comma
             di = di + 1
         }
         di = strcpy_at(di, map_keys[i])
         i = i + 1
     }
-    str_set_byte_nasm(pool, di, 0)
+    pool[di] = 0
 end
 
 // ─── Input ──────────────────────────────────────────────────────────────────
@@ -127,9 +125,9 @@ def read_line()
     i = 0
     while 1 == 1 {
         c = getchar()
-        if c == 10 then { str_set_byte_nasm(pool, i, 0); return }
-        if c == -1 then { str_set_byte_nasm(pool, i, 0); return }
-        str_set_byte_nasm(pool, i, c)
+        if c == 10 then { pool[i] = 0; return }
+        if c == -1 then { pool[i] = 0; return }
+        pool[i] = c
         i = i + 1
     }
 end
@@ -144,20 +142,20 @@ def parse_line()
     sp1 = find_space(0)
     if sp1 == -1 then { return }
 
-    str_set_byte_nasm(pool, sp1, 0)
+    pool[sp1] = 0
     r1 = sp1 + 1
 
     sp2 = find_space(r1)
     if sp2 == -1 then { return }
 
-    str_set_byte_nasm(pool, sp2, 0)
+    pool[sp2] = 0
     r2 = sp2 + 1
 
     nl = 0
     while 1 == 1 {
-        c = str_get_byte_nasm(pool, r2 + nl)
+        c = pool[r2 + nl]
         if c == 0 then { return }
-        if c == 10 then { str_set_byte_nasm(pool, r2 + nl, 0); return }
+        if c == 10 then { pool[r2 + nl] = 0; return }
         nl = nl + 1
     }
 end
@@ -185,73 +183,73 @@ end
 def main() of int
     // ── Pre-populate command/error strings (высокие офсеты, вне map storage) ──
     // 1792: "exit"
-    str_set_byte_nasm(pool, 1792, 101)  // e
-    str_set_byte_nasm(pool, 1793, 120)  // x
-    str_set_byte_nasm(pool, 1794, 105)  // i
-    str_set_byte_nasm(pool, 1795, 116)  // t
-    str_set_byte_nasm(pool, 1796, 0)    // \0
+    pool[1792] = 101  // e
+    pool[1793] = 120  // x
+    pool[1794] = 105  // i
+    pool[1795] = 116  // t
+    pool[1796] = 0    // \0
 
     // 1797: "list"
-    str_set_byte_nasm(pool, 1797, 108)  // l
-    str_set_byte_nasm(pool, 1798, 105)  // i
-    str_set_byte_nasm(pool, 1799, 115)  // s
-    str_set_byte_nasm(pool, 1800, 116)  // t
-    str_set_byte_nasm(pool, 1801, 0)    // \0
+    pool[1797] = 108  // l
+    pool[1798] = 105  // i
+    pool[1799] = 115  // s
+    pool[1800] = 116  // t
+    pool[1801] = 0    // \0
 
     // 1802: "get"
-    str_set_byte_nasm(pool, 1802, 103)  // g
-    str_set_byte_nasm(pool, 1803, 101)  // e
-    str_set_byte_nasm(pool, 1804, 116)  // t
-    str_set_byte_nasm(pool, 1805, 0)    // \0
+    pool[1802] = 103  // g
+    pool[1803] = 101  // e
+    pool[1804] = 116  // t
+    pool[1805] = 0    // \0
 
     // 1806: "create"
-    str_set_byte_nasm(pool, 1806, 99)   // c
-    str_set_byte_nasm(pool, 1807, 114)  // r
-    str_set_byte_nasm(pool, 1808, 101)  // e
-    str_set_byte_nasm(pool, 1809, 97)   // a
-    str_set_byte_nasm(pool, 1810, 116)  // t
-    str_set_byte_nasm(pool, 1811, 101)  // e
-    str_set_byte_nasm(pool, 1812, 0)    // \0
+    pool[1806] = 99   // c
+    pool[1807] = 114  // r
+    pool[1808] = 101  // e
+    pool[1809] = 97   // a
+    pool[1810] = 116  // t
+    pool[1811] = 101  // e
+    pool[1812] = 0    // \0
 
     // 1813: "set"
-    str_set_byte_nasm(pool, 1813, 115)  // s
-    str_set_byte_nasm(pool, 1814, 101)  // e
-    str_set_byte_nasm(pool, 1815, 116)  // t
-    str_set_byte_nasm(pool, 1816, 0)    // \0
+    pool[1813] = 115  // s
+    pool[1814] = 101  // e
+    pool[1815] = 116  // t
+    pool[1816] = 0    // \0
 
     // 1817: "delete"
-    str_set_byte_nasm(pool, 1817, 100)  // d
-    str_set_byte_nasm(pool, 1818, 101)  // e
-    str_set_byte_nasm(pool, 1819, 108)  // l
-    str_set_byte_nasm(pool, 1820, 101)  // e
-    str_set_byte_nasm(pool, 1821, 116)  // t
-    str_set_byte_nasm(pool, 1822, 101)  // e
-    str_set_byte_nasm(pool, 1823, 0)    // \0
+    pool[1817] = 100  // d
+    pool[1818] = 101  // e
+    pool[1819] = 108  // l
+    pool[1820] = 101  // e
+    pool[1821] = 116  // t
+    pool[1822] = 101  // e
+    pool[1823] = 0    // \0
 
     // 1824: "Key not found"
-    str_set_byte_nasm(pool, 1824, 75)   // K
-    str_set_byte_nasm(pool, 1825, 101)  // e
-    str_set_byte_nasm(pool, 1826, 121)  // y
-    str_set_byte_nasm(pool, 1827, 32)   // (space)
-    str_set_byte_nasm(pool, 1828, 110)  // n
-    str_set_byte_nasm(pool, 1829, 111)  // o
-    str_set_byte_nasm(pool, 1830, 116)  // t
-    str_set_byte_nasm(pool, 1831, 32)   // (space)
-    str_set_byte_nasm(pool, 1832, 102)  // f
-    str_set_byte_nasm(pool, 1833, 111)  // o
-    str_set_byte_nasm(pool, 1834, 117)  // u
-    str_set_byte_nasm(pool, 1835, 110)  // n
-    str_set_byte_nasm(pool, 1836, 100)  // d
-    str_set_byte_nasm(pool, 1837, 0)    // \0
+    pool[1824] = 75   // K
+    pool[1825] = 101  // e
+    pool[1826] = 121  // y
+    pool[1827] = 32   // (space)
+    pool[1828] = 110  // n
+    pool[1829] = 111  // o
+    pool[1830] = 116  // t
+    pool[1831] = 32   // (space)
+    pool[1832] = 102  // f
+    pool[1833] = 111  // o
+    pool[1834] = 117  // u
+    pool[1835] = 110  // n
+    pool[1836] = 100  // d
+    pool[1837] = 0    // \0
 
     // 1838: "Exists"
-    str_set_byte_nasm(pool, 1838, 69)   // E
-    str_set_byte_nasm(pool, 1839, 120)  // x
-    str_set_byte_nasm(pool, 1840, 105)  // i
-    str_set_byte_nasm(pool, 1841, 115)  // s
-    str_set_byte_nasm(pool, 1842, 116)  // t
-    str_set_byte_nasm(pool, 1843, 115)  // s
-    str_set_byte_nasm(pool, 1844, 0)    // \0
+    pool[1838] = 69   // E
+    pool[1839] = 120  // x
+    pool[1840] = 105  // i
+    pool[1841] = 115  // s
+    pool[1842] = 116  // t
+    pool[1843] = 115  // s
+    pool[1844] = 0    // \0
 
     // ── Main loop ──
     while 1 == 1 {

@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
-    BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, Range, SliceExpr, Span, Statement,
-    VarDeclStatement,
+    BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, LoopKeyword, Range, RepeatStatement,
+    SliceExpr, Span, Statement, VarDeclStatement,
 };
 use crate::lexer::Token;
 
@@ -165,9 +165,36 @@ impl Parser<'_> {
         Ok(Statement::Block(BlockStatement { body, span }))
     }
 
+    fn parse_repeat_tail(&mut self, body: Statement, body_span: Span) -> Result<Statement, String> {
+        let keyword = match self.current_token() {
+            Some(Token::While) => LoopKeyword::While,
+            Some(Token::Until) => LoopKeyword::Until,
+            _ => unreachable!(),
+        };
+        self.advance();
+        let condition = self.parse_expression(0)?;
+        self.expect(Token::Semi)?;
+        let span = body_span.merge(self.current_span());
+        Ok(Statement::Repeat(RepeatStatement {
+            body: Box::new(body),
+            keyword,
+            condition,
+            span,
+        }))
+    }
+
     pub(crate) fn parse_expression_statement(&mut self) -> Result<Statement, String> {
         let start = self.current_span();
         let expr = self.parse_expression(0)?;
+
+        if matches!(self.current_token(), Some(Token::While | Token::Until)) {
+            let body = Statement::Expression(ExpressionStatement {
+                expr,
+                span: start.merge(self.current_span()),
+            });
+            return self.parse_repeat_tail(body, start);
+        }
+
         if self.current_token() == Some(&Token::Semi) {
             self.expect(Token::Semi)?;
         }

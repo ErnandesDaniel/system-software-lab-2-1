@@ -13,7 +13,7 @@ impl Parser<'_> {
             Some(Token::While | Token::Until) => self.parse_while(),
             Some(Token::Break) => self.parse_break(),
             Some(Token::Begin | Token::LBrace) => self.parse_block_like(),
-            Some(Token::Do) => self.parse_repeat(),
+            Some(Token::Do | Token::Repeat) => self.parse_repeat(),
             Some(Token::Yield) => {
                 let start = self.current_span();
                 self.expect(Token::Yield)?;

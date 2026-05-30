@@ -3,11 +3,30 @@ pub use std::collections::HashMap;
 #[derive(Debug, Clone, PartialEq)]
 pub enum SemanticType {
     Int,
+    Uint,
+    Long,
+    Ulong,
+    Byte,
+    Char,
     Bool,
     String,
     Array(Box<SemanticType>, usize),
     Function(Vec<SemanticType>, Box<SemanticType>),
     Void,
+}
+
+impl SemanticType {
+    pub fn is_int_like(&self) -> bool {
+        matches!(
+            self,
+            SemanticType::Int
+                | SemanticType::Uint
+                | SemanticType::Long
+                | SemanticType::Ulong
+                | SemanticType::Byte
+                | SemanticType::Char
+        )
+    }
 }
 
 #[derive(Debug, Clone)]

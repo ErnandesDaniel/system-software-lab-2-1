@@ -46,7 +46,7 @@ impl Parser<'_> {
                     | Token::Until
                     | Token::Break
                     | Token::Def
-                    | Token::Extern
+                    | Token::Import
                     | Token::Global
                     | Token::Struct
                     | Token::Coroutine
@@ -196,7 +196,10 @@ impl Parser<'_> {
             | Token::Eq
             | Token::Ne
             | Token::And
-            | Token::Or => {
+            | Token::Or
+            | Token::BitAnd
+            | Token::BitOr
+            | Token::BitXor => {
                 let right = self.parse_expression(prec + 1)?;
                 let end = right.span();
                 let op = match token {
@@ -213,6 +216,9 @@ impl Parser<'_> {
                     Token::Ne => BinaryOp::NotEqual,
                     Token::And => BinaryOp::And,
                     Token::Or => BinaryOp::Or,
+                    Token::BitAnd => BinaryOp::BitAnd,
+                    Token::BitOr => BinaryOp::BitOr,
+                    Token::BitXor => BinaryOp::BitXor,
                     _ => return Err("Unknown operator".to_string()),
                 };
                 Ok(Expr::Binary(BinaryExpr {
@@ -225,13 +231,19 @@ impl Parser<'_> {
             Token::LBracket => {
                 let index = self.parse_expression(0)?;
                 let idx_span = index.span();
+                let end_expr = if self.current_token() == Some(&Token::Range) {
+                    self.advance();
+                    Some(self.parse_expression(0)?)
+                } else {
+                    None
+                };
                 self.expect(Token::RBracket)?;
                 let span = start.merge(self.current_span());
                 Ok(Expr::Slice(SliceExpr {
                     array: Box::new(left),
                     ranges: vec![Range {
                         start: index,
-                        end: None,
+                        end: end_expr,
                         span: idx_span,
                     }],
                     span,
@@ -281,6 +293,9 @@ impl Parser<'_> {
         match token {
             Token::Or => 10,
             Token::And => 20,
+            Token::BitOr => 22,
+            Token::BitXor => 24,
+            Token::BitAnd => 26,
             Token::Eq | Token::Ne => 30,
             Token::Lt | Token::Gt | Token::Le | Token::Ge => 40,
             Token::Plus | Token::Minus => 50,

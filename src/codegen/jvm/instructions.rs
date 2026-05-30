@@ -20,6 +20,7 @@ impl JvmGenerator {
             IrOpcode::Not => self.generate_logical_not(code, inst, global_offset),
             IrOpcode::BitAnd => self.generate_binary_op(code, inst, BinaryOp::BitAnd),
             IrOpcode::BitOr => self.generate_binary_op(code, inst, BinaryOp::BitOr),
+            IrOpcode::BitXor => self.generate_binary_op(code, inst, BinaryOp::BitXor),
             IrOpcode::BitNot => self.generate_bit_not(code, inst),
             IrOpcode::Eq => {
                 self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset);
@@ -46,14 +47,17 @@ impl JvmGenerator {
             IrOpcode::Load => self.generate_array_load(code, inst),
             IrOpcode::Slice => {}
             IrOpcode::Alloca => {}
-            IrOpcode::Store => {}
+            IrOpcode::Store => self.generate_store(code, inst),
             IrOpcode::Cast => {}
-            IrOpcode::CoroYield => {}
+            IrOpcode::CoroYield => self.generate_coro_yield(code, inst),
             IrOpcode::CallIndirect => self.generate_call_indirect(code, inst),
             IrOpcode::MakeClosure => self.generate_make_closure(code, inst),
             IrOpcode::CallClosure => self.generate_call_closure(code, inst),
             IrOpcode::LoadCaptured => self.generate_load_captured(code, inst),
             IrOpcode::StoreCaptured => self.generate_store_captured(code, inst),
+            IrOpcode::StrGetByte => self.generate_str_get_byte(code, inst),
+            IrOpcode::StrSetByte => self.generate_str_set_byte(code, inst),
+            IrOpcode::AllocArray => self.generate_alloc_array(code, inst),
         }
     }
 
@@ -74,11 +78,7 @@ impl JvmGenerator {
                 code.push(Instruction::Iastore);
             } else {
                 self.emit_load_operand(code, operand);
-                let slot = self.get_local_slot(result);
-                match operand.get_type() {
-                    IrType::String | IrType::Function(_, _) => code.push(Instruction::Astore(slot as u8)),
-                    _ => code.push(Instruction::Istore(slot as u8)),
-                }
+                self.emit_store_result(code, result, &operand.get_type());
             }
         }
     }
@@ -97,11 +97,11 @@ impl JvmGenerator {
                 BinaryOp::Mod => Instruction::Irem,
                 BinaryOp::BitAnd => Instruction::Iand,
                 BinaryOp::BitOr => Instruction::Ior,
+                BinaryOp::BitXor => Instruction::Ixor,
             };
             code.push(instr);
 
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 
@@ -109,16 +109,14 @@ impl JvmGenerator {
         if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
             self.emit_load_operand(code, operand);
             code.push(Instruction::Ineg);
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 
     fn generate_pos(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
             self.emit_load_operand(code, operand);
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 
@@ -127,8 +125,7 @@ impl JvmGenerator {
             self.emit_load_operand(code, operand);
             code.push(Instruction::Iconst_m1);
             code.push(Instruction::Ixor);
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 
@@ -142,17 +139,25 @@ impl JvmGenerator {
             code.push(Instruction::Invokestatic(method_idx));
 
             if let Some(ref result) = inst.result {
-                let slot = self.get_local_slot(result);
-                match inst.result_type.as_ref() {
-                    Some(IrType::String | IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
-                    _ => code.push(Instruction::Istore(slot as u8)),
-                }
+                let store_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                self.emit_store_result(code, result, store_ty);
             }
         }
     }
 
     fn generate_return(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let Some(operand) = inst.operands.first() {
+        if self.is_coroutine {
+            if let Some(operand) = inst.operands.first() {
+                code.push(Instruction::Aload_0);
+                self.emit_load_operand(code, operand);
+                code.push(Instruction::Putfield(self.coroutine_result_field));
+            }
+            code.push(Instruction::Aload_0);
+            code.push(Instruction::Iconst_m1);
+            code.push(Instruction::Putfield(self.coroutine_state_field));
+            code.push(Instruction::Iconst_1);
+            code.push(Instruction::Ireturn);
+        } else if let Some(operand) = inst.operands.first() {
             self.emit_load_operand(code, operand);
             match operand.get_type() {
                 IrType::String | IrType::Function(_, _) => code.push(Instruction::Areturn),
@@ -173,15 +178,100 @@ impl JvmGenerator {
         // to properly manage branch targets and avoid duplicate instructions
     }
 
+    fn generate_store(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if inst.operands.len() >= 3 {
+            // 3-operand store: [base, offset, value] → struct field write
+            if inst.operands.len() == 3 {
+                if let (Some(base), Some(offset), Some(value)) =
+                    (inst.operands.first(), inst.operands.get(1), inst.operands.get(2))
+                {
+                    if let IrOperand::Constant(Constant::Int(byte_off)) = offset {
+                        self.emit_load_operand(code, base);
+                        if self.is_struct_var(base) {
+                            self.emit_load_constant(code, &Constant::Int(byte_off / 4));
+                            self.emit_load_operand(code, value);
+                            self.emit_boxed_field_store(code, inst, *byte_off as usize);
+                            return;
+                        } else {
+                            self.emit_load_constant(code, &Constant::Int(byte_off / 4));
+                            self.emit_load_operand(code, value);
+                            code.push(Instruction::Iastore);
+                            return;
+                        }
+                    }
+                }
+            }
+            // 4-operand store: [base, field_offset, value, index] → inline array field write
+            if inst.operands.len() >= 4 {
+                if let (Some(base), Some(field_off), Some(value), Some(index)) =
+                    (inst.operands.first(), inst.operands.get(1), inst.operands.get(2), inst.operands.get(3))
+                {
+                    let base_idx = if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
+                        byte_off / 4
+                    } else {
+                        0
+                    };
+                    self.emit_load_operand(code, base);
+                    if base_idx > 0 {
+                        self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                        self.emit_load_operand(code, index);
+                        code.push(Instruction::Iadd);
+                    } else {
+                        self.emit_load_operand(code, index);
+                    }
+                    self.emit_load_operand(code, value);
+                    code.push(Instruction::Iastore);
+                }
+            }
+        }
+    }
+
     fn generate_array_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let (Some(ref result), Some(array), Some(index)) =
             (&inst.result, inst.operands.first(), inst.operands.get(1))
         {
+            if let IrOperand::Constant(Constant::Int(byte_off)) = index {
+                if *byte_off > 0 || self.is_struct_var(array) {
+                    self.emit_load_operand(code, array);
+                    let idx = byte_off / 4;
+                    if self.is_struct_var(array) {
+                        self.emit_load_constant(code, &Constant::Int(idx as i64));
+                        code.push(Instruction::Aaload);
+                        self.emit_boxed_field_load(code, inst, *byte_off as usize);
+                    } else {
+                        self.emit_load_constant(code, &Constant::Int(idx as i64));
+                        code.push(Instruction::Iaload);
+                    }
+                    self.emit_store_result(code, result, &IrType::Int);
+                    return;
+                }
+            }
+            // 4-operand Load: [base, field_offset, index_in_field, elem_stride]
+            // Inline array field access: sched.slots[i]
+            if inst.operands.len() >= 3 {
+                if let Some(field_off) = inst.operands.get(1) {
+                    if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
+                        let base_idx = byte_off / 4;
+                        if let Some(idx_op) = inst.operands.get(2) {
+                            self.emit_load_operand(code, array); // struct int[]
+                            if base_idx > 0 {
+                                self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                self.emit_load_operand(code, idx_op);
+                                code.push(Instruction::Iadd);
+                            } else {
+                                self.emit_load_operand(code, idx_op);
+                            }
+                            code.push(Instruction::Iaload);
+                            self.emit_store_result(code, result, &IrType::Int);
+                            return;
+                        }
+                    }
+                }
+            }
             self.emit_load_operand(code, array);
             self.emit_load_operand(code, index);
             code.push(Instruction::Iaload);
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 
@@ -235,7 +325,6 @@ impl JvmGenerator {
             }
 
             // After filling env array, stack = [env_array]
-            let result_slot = self.get_local_slot(result);
 
             // Check if we need to set __env on the lambda instance
             let lambda_name = if let IrOperand::FuncRef(name) = &inst.operands[0] {
@@ -256,8 +345,8 @@ impl JvmGenerator {
                 // stack: env_array
                 code.push(Instruction::Dup);
                 // stack: env_array, env_array
-                code.push(Instruction::Astore(result_slot as u8));
-                // stack: env_array, saved to env_tmp
+                self.emit_store_result(code, result, &IrType::Array(Box::new(IrType::Int), 0));
+                // stack: env_array (dup copy still on stack)
 
                 // Load lambda instance
                 match instance_slot {
@@ -275,7 +364,7 @@ impl JvmGenerator {
                 code.push(Instruction::Putfield(field_ref));
                 // stack: empty, instance.__env = env
             } else {
-                code.push(Instruction::Astore(result_slot as u8));
+                self.emit_store_result(code, result, &IrType::Array(Box::new(IrType::Int), 0));
             }
         }
     }
@@ -318,11 +407,8 @@ impl JvmGenerator {
 
             // Store result if any
             if let Some(ref result) = inst.result {
-                let slot = self.get_local_slot(result);
-                match inst.result_type.as_ref() {
-                    Some(IrType::String | IrType::Function(_, _)) => code.push(Instruction::Astore(slot as u8)),
-                    _ => code.push(Instruction::Istore(slot as u8)),
-                }
+                let store_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                self.emit_store_result(code, result, store_ty);
             }
         }
     }
@@ -345,12 +431,8 @@ impl JvmGenerator {
                     code.push(Instruction::Invokeinterface(method_idx, count));
                     // Store result if any
                     if let Some(ref result) = inst.result {
-                        let slot = self.get_local_slot(result);
-                        if matches!(&*ret, IrType::String) {
-                            code.push(Instruction::Astore(slot as u8));
-                        } else {
-                            code.push(Instruction::Istore(slot as u8));
-                        }
+                        let store_ty = if matches!(&*ret, IrType::String) { &*ret } else { &IrType::Int };
+                        self.emit_store_result(code, result, store_ty);
                     }
                 } else {
                     // Fallback: push dummy result
@@ -388,8 +470,18 @@ impl JvmGenerator {
             code.push(Instruction::Iconst_0);
             code.push(Instruction::Iaload); // [I → int (captured value)
 
-            let result_slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(result_slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
+        }
+    }
+
+    fn generate_alloc_array(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let Some(ref result) = inst.result {
+            if let Some(IrType::Array(_, size)) = inst.result_type.as_ref() {
+                // Create new int[size] array
+                self.emit_load_constant(code, &Constant::Int(*size as i64));
+                code.push(Instruction::Newarray(ArrayType::Int));
+                self.emit_store_result(code, result, &IrType::Array(Box::new(IrType::Int), *size));
+            }
         }
     }
 
@@ -415,6 +507,41 @@ impl JvmGenerator {
             code.push(Instruction::Iconst_0);
             self.emit_load_operand(code, val_op); // value
             code.push(Instruction::Iastore); // wrapper[0] = value
+        }
+    }
+
+    fn generate_str_get_byte(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let (Some(ref result), Some(str_op), Some(idx_op)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
+            self.emit_load_operand(code, str_op);
+            self.emit_load_operand(code, idx_op);
+            code.push(Instruction::Baload);
+            self.emit_store_result(code, result, &IrType::Int);
+        }
+    }
+
+    fn generate_str_set_byte(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let (Some(str_op), Some(idx_op), Some(val_op)) = (inst.operands.first(), inst.operands.get(1), inst.operands.get(2))
+        {
+            self.emit_load_operand(code, str_op);
+            self.emit_load_operand(code, idx_op);
+            self.emit_load_operand(code, val_op);
+            code.push(Instruction::Bastore);
+        }
+    }
+
+    fn generate_coro_yield(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let Some(operand) = inst.operands.first() {
+            if let IrOperand::Constant(Constant::Int(state)) = operand {
+                code.push(Instruction::Aload_0);
+                code.push(Instruction::Iconst_m1);
+                code.push(Instruction::Putfield(self.coroutine_state_field));
+                code.push(Instruction::Aload_0);
+                self.emit_load_constant(code, &Constant::Int(*state));
+                code.push(Instruction::Putfield(self.coroutine_state_field));
+                code.push(Instruction::Iconst_0);
+                code.push(Instruction::Ireturn);
+            }
         }
     }
 }

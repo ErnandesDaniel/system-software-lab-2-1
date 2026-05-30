@@ -12,7 +12,14 @@ impl SemanticsAnalyzer {
             Expr::Slice(slice) => self.check_slice_expr(scope, slice),
             Expr::Identifier(id) => Ok(self.check_identifier(scope, id)),
             Expr::Literal(lit) => Ok(Self::literal_type(lit)),
-            Expr::ArrayLiteral(_) => Ok(SemanticType::Array(Box::new(SemanticType::Int), 0)),
+            Expr::ArrayLiteral(elems) => {
+                let elem_type = if let Some(first) = elems.first() {
+                    self.check_expression(scope, first)?
+                } else {
+                    SemanticType::Int
+                };
+                Ok(SemanticType::Array(Box::new(elem_type), elems.len()))
+            }
             Expr::FieldAccess(_, _) => Ok(SemanticType::Int),
             Expr::FuncLiteral(f) => {
                 let params = f
@@ -51,18 +58,41 @@ impl SemanticsAnalyzer {
                 }
                 Ok(right_type)
             }
-            BinaryOp::Add | BinaryOp::Subtract | BinaryOp::Multiply | BinaryOp::Divide | BinaryOp::Modulo => {
-                if left_type != SemanticType::Int || right_type != SemanticType::Int {
-                    self.add_error("Arithmetic operations require int operands".to_string());
+            BinaryOp::Add
+            | BinaryOp::Subtract
+            | BinaryOp::Multiply
+            | BinaryOp::Divide
+            | BinaryOp::Modulo
+            | BinaryOp::BitAnd
+            | BinaryOp::BitOr
+            | BinaryOp::BitXor => {
+                if !left_type.is_int_like() || !right_type.is_int_like() {
+                    self.add_error(if matches!(bin.operator, BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor) {
+                        "Bitwise operations require numeric operands"
+                    } else {
+                        "Arithmetic operations require numeric operands"
+                    }.to_string());
                 }
                 Ok(SemanticType::Int)
             }
-            BinaryOp::Equal
-            | BinaryOp::NotEqual
-            | BinaryOp::Less
+            BinaryOp::Equal | BinaryOp::NotEqual => {
+                if !left_type.is_int_like() && left_type != SemanticType::Bool && left_type != SemanticType::String {
+                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string());
+                }
+                if !right_type.is_int_like() && right_type != SemanticType::Bool && right_type != SemanticType::String {
+                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string());
+                }
+                Ok(SemanticType::Bool)
+            }
+            BinaryOp::Less
             | BinaryOp::Greater
             | BinaryOp::LessOrEqual
-            | BinaryOp::GreaterOrEqual => Ok(SemanticType::Bool),
+            | BinaryOp::GreaterOrEqual => {
+                if !left_type.is_int_like() || !right_type.is_int_like() {
+                    self.add_error("Comparison requires numeric operands".to_string());
+                }
+                Ok(SemanticType::Bool)
+            }
             BinaryOp::And | BinaryOp::Or => {
                 if left_type != SemanticType::Bool || right_type != SemanticType::Bool {
                     self.add_error("Logical operations require bool operands".to_string());
@@ -82,8 +112,8 @@ impl SemanticsAnalyzer {
                 Ok(SemanticType::Bool)
             }
             UnaryOp::Negate | UnaryOp::BitNot => {
-                if operand_type != SemanticType::Int {
-                    self.add_error("Unary arithmetic operators require int operand".to_string());
+                if !operand_type.is_int_like() {
+                    self.add_error("Unary arithmetic operators require numeric operand".to_string());
                 }
                 Ok(SemanticType::Int)
             }

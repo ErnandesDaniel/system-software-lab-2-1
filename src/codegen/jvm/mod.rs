@@ -2,7 +2,7 @@ use crate::codegen::jvm::types::{
     capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor,
 };
 use crate::codegen::traits::OperandLoader;
-use crate::ir::types::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrOperand, IrParameter, IrProgram, IrType};
+use crate::ir::types::{Constant, IrBlock, IrFunction, IrInstruction, IrOpcode, IrOperand, IrParameter, IrProgram, IrType};
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
 use std::collections::{HashMap, HashSet};
@@ -18,6 +18,7 @@ enum JumpPlaceholder {
     Goto { block_id: String },
     Ifne { block_id: String },
     Ifeq { block_id: String },
+    IfIcmpeq { block_id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -44,6 +45,18 @@ pub struct JvmGenerator {
     func_ref_init_refs: HashMap<String, (u16, u16)>, // func_name → (class_idx, init_ref_idx)
     func_ref_instance_slots: HashMap<String, u16>,   // func_name → local slot of lambda instance
     func_ref_env_field_refs: HashMap<String, u16>,   // func_name → field ref for __env [[I
+    is_coroutine: bool,
+    coroutine_field_refs: HashMap<String, u16>,      // var_name → field ref index
+    coroutine_state_field: u16,                      // field ref for 'state'
+    coroutine_result_field: u16,                     // field ref for 'result'
+    coroutine_field_entries: Vec<(u16, u16)>,       // (name_utf8, desc_utf8) for class file fields
+    struct_field_types: HashMap<String, Vec<(usize, IrType)>>,  // struct_var → [(byte_offset, field_type)]
+    struct_uses_object_array: HashSet<String>,        // struct vars needing Object[]
+    integer_value_of_ref: u16,                        // method ref Integer.valueOf(I)Ljava/lang/Integer;
+    integer_int_value_ref: u16,                       // method ref Integer.intValue()I
+    integer_class_idx: u16,                           // class ref java/lang/Integer
+    byte_array_class_idx: u16,                        // class ref [B
+    object_class_idx: u16,                            // class ref java/lang/Object
 }
 
 impl JvmGenerator {
@@ -66,6 +79,18 @@ impl JvmGenerator {
             func_ref_init_refs: HashMap::new(),
             func_ref_instance_slots: HashMap::new(),
             func_ref_env_field_refs: HashMap::new(),
+            is_coroutine: false,
+            coroutine_field_refs: HashMap::new(),
+            coroutine_state_field: 0,
+            coroutine_result_field: 0,
+            coroutine_field_entries: Vec::new(),
+            struct_field_types: HashMap::new(),
+            struct_uses_object_array: HashSet::new(),
+            integer_value_of_ref: 0,
+            integer_int_value_ref: 0,
+            integer_class_idx: 0,
+            byte_array_class_idx: 0,
+            object_class_idx: 0,
         }
     }
 
@@ -124,10 +149,56 @@ impl JvmGenerator {
         self.current_params = func.parameters.clone();
         self.current_return_type = func.return_type.clone();
 
+        if func.is_coroutine {
+            self.is_coroutine = true;
+            self.setup_coroutine_fields(func, class_name);
+        }
+
+        self.scan_struct_field_types(func);
+
+        if !self.struct_uses_object_array.is_empty() {
+            self.integer_class_idx = self.constant_pool.add_class("java/lang/Integer").unwrap();
+            self.byte_array_class_idx = self.constant_pool.add_class("[B").unwrap();
+            self.object_class_idx = self.constant_pool.add_class("java/lang/Object").unwrap();
+            self.ensure_int_value_ref();
+            self.ensure_value_of_ref();
+        }
+
         self.setup_local_variables(func);
+
+        if self.is_coroutine {
+            self.next_local_slot = 1; // only slot 0 = this
+            self.locals.clear();
+        }
         self.collect_external_calls(func);
         let code = self.generate_bytecode(func);
         self.build_class_file(class_name, func, code)
+    }
+
+    fn scan_struct_field_types(&mut self, func: &IrFunction) {
+        self.struct_field_types.clear();
+        self.struct_uses_object_array.clear();
+        for block in &func.blocks {
+            for inst in &block.instructions {
+                let base = inst.operands.first().and_then(|o| {
+                    if let IrOperand::Variable(n, ty) = o {
+                        if matches!(ty, IrType::Array(_, _)) { Some(n.clone()) } else { None }
+                    } else { None }
+                });
+                let Some(ref base_name) = base else { continue };
+                let byte_off = inst.operands.get(1).and_then(|o| {
+                    if let IrOperand::Constant(Constant::Int(n)) = o { Some(*n as usize) } else { None }
+                }).unwrap_or(0);
+                let field_ty = inst.result_type.clone().unwrap_or(IrType::Int);
+                let fields = self.struct_field_types.entry(base_name.clone()).or_default();
+                if !fields.iter().any(|(o, _)| *o == byte_off) {
+                    fields.push((byte_off, field_ty.clone()));
+                    if !matches!(field_ty, IrType::Int) {
+                        self.struct_uses_object_array.insert(base_name.clone());
+                    }
+                }
+            }
+        }
     }
 
     fn collect_external_calls(&mut self, func: &IrFunction) {
@@ -310,7 +381,81 @@ impl JvmGenerator {
         self.func_ref_init_refs.clear();
         self.func_ref_instance_slots.clear();
         self.func_ref_env_field_refs.clear();
+        self.is_coroutine = false;
+        self.coroutine_field_refs.clear();
+        self.coroutine_state_field = 0;
+        self.coroutine_result_field = 0;
+        self.coroutine_field_entries.clear();
+        self.struct_field_types.clear();
+        self.struct_uses_object_array.clear();
+        self.integer_value_of_ref = 0;
+        self.integer_int_value_ref = 0;
+        self.integer_class_idx = 0;
+        self.byte_array_class_idx = 0;
+        self.object_class_idx = 0;
         // func_ref_targets is NOT cleared — it's populated in generate_program pre-pass
+    }
+
+    fn setup_coroutine_fields(&mut self, func: &IrFunction, class_name: &str) {
+        let this_class = self.constant_pool.add_class(class_name).unwrap();
+
+        // Register state field (int)
+        let state_name_idx = self.constant_pool.add_utf8("state").unwrap();
+        let state_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+        let state_name = "state".to_string();
+        let state_desc = "I".to_string();
+        self.coroutine_state_field = self
+            .constant_pool
+            .add_field_ref(this_class, &state_name, &state_desc)
+            .unwrap();
+        self.coroutine_field_entries.push((state_name_idx, state_desc_idx));
+
+        // Register result field (int)
+        let result_name_idx = self.constant_pool.add_utf8("result").unwrap();
+        let result_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+        let result_name = "result".to_string();
+        let result_desc = "I".to_string();
+        self.coroutine_result_field = self
+            .constant_pool
+            .add_field_ref(this_class, &result_name, &result_desc)
+            .unwrap();
+        self.coroutine_field_entries.push((result_name_idx, result_desc_idx));
+
+        // Build a set of unique local variable names to create as fields
+        let mut field_names: Vec<String> = Vec::new();
+        let mut seen_names: HashSet<String> = HashSet::new();
+
+        // Parameters
+        for param in &func.parameters {
+            if param.name == "__env" {
+                continue;
+            }
+            if seen_names.insert(param.name.clone()) {
+                field_names.push(param.name.clone());
+            }
+        }
+        // Locals
+        for local in &func.locals {
+            if seen_names.insert(local.name.clone()) {
+                field_names.push(local.name.clone());
+            }
+        }
+
+        for name in &field_names {
+            if self.coroutine_field_refs.contains_key(name) {
+                continue;
+            }
+            let field_name_idx = self.constant_pool.add_utf8(&format!("var_{name}")).unwrap();
+            let field_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+            let field_name = format!("var_{name}");
+            let field_desc = "I".to_string();
+            let field_ref = self
+                .constant_pool
+                .add_field_ref(this_class, &field_name, &field_desc)
+                .unwrap();
+            self.coroutine_field_refs.insert(name.clone(), field_ref);
+            self.coroutine_field_entries.push((field_name_idx, field_desc_idx));
+        }
     }
 
     fn setup_local_variables(&mut self, func: &IrFunction) {
@@ -465,42 +610,92 @@ impl JvmGenerator {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
 
+        // For coroutines: emit state machine dispatch
+        if self.is_coroutine {
+            instructions.push(JvmInst::Real(Instruction::Aload_0));
+            instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
+            for state_idx in 0..=func.yield_count {
+                if let Some(block_id) = func.coroutine_blocks.get(state_idx) {
+                    instructions.push(JvmInst::Real(Instruction::Dup));
+                    instructions.push(JvmInst::Real(Instruction::Bipush(state_idx as i8)));
+                    instructions.push(JvmInst::Placeholder(JumpPlaceholder::IfIcmpeq {
+                        block_id: block_id.clone(),
+                    }));
+                }
+            }
+            instructions.push(JvmInst::Real(Instruction::Pop));
+        }
+
         // Initialize all local (non-parameter) slots for verifier type consistency
-        let string_slots = collect_string_slots(self, func);
-        let env_slot_nums: HashSet<u16> = self
-            .env_vars
-            .iter()
-            .filter_map(|name| self.locals.get(name))
-            .copied()
-            .collect();
-        let wrapped_slot_nums: HashSet<u16> = self
-            .wrapped_vars
-            .iter()
-            .filter_map(|name| self.locals.get(name))
-            .copied()
-            .collect();
-        let fn_slot_nums: HashSet<u16> = func
-            .locals
-            .iter()
-            .filter(|l| matches!(l.ty, IrType::Function(_, _)))
-            .filter_map(|l| self.locals.get(&l.name))
-            .copied()
-            .collect();
-        let num_params = func.parameters.len() as u16;
-        for slot in num_params..self.next_local_slot {
-            if self.locals.values().any(|&s| s == slot) {
-                if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) {
-                    instructions.push(JvmInst::Real(Instruction::Aconst_null));
-                    instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
-                } else if wrapped_slot_nums.contains(&slot) {
-                    instructions.push(JvmInst::Real(Instruction::Iconst_1));
-                    instructions.push(JvmInst::Real(Instruction::Newarray(
-                        ristretto_classfile::attributes::ArrayType::Int,
-                    )));
-                    instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
-                } else {
-                    instructions.push(JvmInst::Real(Instruction::Iconst_0));
-                    instructions.push(JvmInst::Real(Instruction::Istore(slot as u8)));
+        if !self.is_coroutine {
+            let string_slots = collect_string_slots(self, func);
+            let env_slot_nums: HashSet<u16> = self
+                .env_vars
+                .iter()
+                .filter_map(|name| self.locals.get(name))
+                .copied()
+                .collect();
+            let wrapped_slot_nums: HashSet<u16> = self
+                .wrapped_vars
+                .iter()
+                .filter_map(|name| self.locals.get(name))
+                .copied()
+                .collect();
+            let fn_slot_nums: HashSet<u16> = func
+                .locals
+                .iter()
+                .filter(|l| matches!(l.ty, IrType::Function(_, _)))
+                .filter_map(|l| self.locals.get(&l.name))
+                .copied()
+                .collect();
+            let struct_slot_nums: HashSet<u16> = func
+                .locals
+                .iter()
+                .filter(|l| matches!(&l.ty, IrType::Array(et, _) if **et == IrType::Int))
+                .filter_map(|l| self.locals.get(&l.name))
+                .copied()
+                .collect();
+            let num_params = func.parameters.len() as u16;
+            for slot in num_params..self.next_local_slot {
+                if self.locals.values().any(|&s| s == slot) {
+                    if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) {
+                        instructions.push(JvmInst::Real(Instruction::Aconst_null));
+                        instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                    } else if wrapped_slot_nums.contains(&slot) {
+                        instructions.push(JvmInst::Real(Instruction::Iconst_1));
+                        instructions.push(JvmInst::Real(Instruction::Newarray(
+                            ristretto_classfile::attributes::ArrayType::Int,
+                        )));
+                        instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                    } else if struct_slot_nums.contains(&slot) {
+                        let name = func.locals.iter().find(|l| self.locals.get(&l.name) == Some(&slot)).map(|l| l.name.clone());
+                        if name.as_ref().is_some_and(|n| self.struct_uses_object_array.contains(n)) {
+                            let arr_size = func.locals.iter()
+                                .find(|l| self.locals.get(&l.name) == Some(&slot))
+                                .map_or(1, |l| match &l.ty {
+                                    IrType::Array(_, size) => *size as u8,
+                                    _ => 1,
+                                });
+                            instructions.push(JvmInst::Real(Instruction::Bipush(arr_size as i8)));
+                            instructions.push(JvmInst::Real(Instruction::Anewarray(self.object_class_idx)));
+                            instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                        } else {
+                            let arr_size = func.locals.iter()
+                                .find(|l| self.locals.get(&l.name) == Some(&slot))
+                                .map_or(1, |l| match &l.ty {
+                                    IrType::Array(_, size) => *size as u8,
+                                    _ => 1,
+                                });
+                            instructions.push(JvmInst::Real(Instruction::Bipush(arr_size as i8)));
+                            instructions.push(JvmInst::Real(Instruction::Newarray(
+                                ristretto_classfile::attributes::ArrayType::Int,
+                            )));
+                            instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
+                        }
+                    } else {
+                        instructions.push(JvmInst::Real(Instruction::Iconst_0));
+                        instructions.push(JvmInst::Real(Instruction::Istore(slot as u8)));
+                    }
                 }
             }
         }
@@ -585,7 +780,8 @@ impl JvmGenerator {
                     let target_block = match &p {
                         JumpPlaceholder::Goto { block_id }
                         | JumpPlaceholder::Ifne { block_id }
-                        | JumpPlaceholder::Ifeq { block_id } => block_id,
+                        | JumpPlaceholder::Ifeq { block_id }
+                        | JumpPlaceholder::IfIcmpeq { block_id } => block_id,
                     };
 
                     let target_idx = block_inst_indices.get(target_block).copied().unwrap_or(0);
@@ -593,6 +789,7 @@ impl JvmGenerator {
                         JumpPlaceholder::Goto { .. } => Instruction::Goto(target_idx),
                         JumpPlaceholder::Ifne { .. } => Instruction::Ifne(target_idx),
                         JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(target_idx),
+                        JumpPlaceholder::IfIcmpeq { .. } => Instruction::If_icmpeq(target_idx),
                     }
                 }
             })
@@ -665,6 +862,77 @@ impl JvmGenerator {
 
     pub fn get_local_slot(&self, name: &str) -> u16 {
         *self.locals.get(name).unwrap_or(&0)
+    }
+
+    pub fn emit_store_result(&self, code: &mut Vec<Instruction>, name: &str, ty: &IrType) {
+        if self.is_coroutine {
+            if let Some(&field_ref) = self.coroutine_field_refs.get(name) {
+                code.push(Instruction::Aload_0);
+                code.push(Instruction::Swap);
+                code.push(Instruction::Putfield(field_ref));
+            }
+        } else {
+            let slot = self.get_local_slot(name);
+            match ty {
+                IrType::String | IrType::Function(_, _) | IrType::Array(..) => {
+                    code.push(Instruction::Astore(slot as u8));
+                }
+                _ => code.push(Instruction::Istore(slot as u8)),
+            }
+        }
+    }
+
+    pub fn is_struct_var(&self, operand: &IrOperand) -> bool {
+        if let IrOperand::Variable(name, _) = operand {
+            self.struct_uses_object_array.contains(name)
+        } else {
+            false
+        }
+    }
+
+    pub fn ensure_int_value_ref(&mut self) -> u16 {
+        if self.integer_int_value_ref == 0 {
+            let int_class = self.constant_pool.add_class("java/lang/Integer").unwrap();
+            self.integer_int_value_ref = self
+                .constant_pool
+                .add_method_ref(int_class, "intValue", "()I")
+                .unwrap();
+        }
+        self.integer_int_value_ref
+    }
+
+    pub fn ensure_value_of_ref(&mut self) -> u16 {
+        if self.integer_value_of_ref == 0 {
+            let int_class = self.constant_pool.add_class("java/lang/Integer").unwrap();
+            self.integer_value_of_ref = self
+                .constant_pool
+                .add_method_ref(int_class, "valueOf", "(I)Ljava/lang/Integer;")
+                .unwrap();
+        }
+        self.integer_value_of_ref
+    }
+
+    pub fn emit_boxed_field_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, _byte_off: usize) {
+        let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+        match field_ty {
+            IrType::String => {
+                code.push(Instruction::Checkcast(self.byte_array_class_idx));
+            }
+            _ => {
+                code.push(Instruction::Checkcast(self.integer_class_idx));
+                code.push(Instruction::Invokevirtual(self.integer_int_value_ref));
+            }
+        }
+    }
+
+    pub fn emit_boxed_field_store(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, _byte_off: usize) {
+        let is_string = inst.operands.get(2).is_some_and(|o| matches!(o, IrOperand::Constant(crate::ir::Constant::String(_))));
+        if is_string {
+            code.push(Instruction::Aastore);
+        } else {
+            code.push(Instruction::Invokestatic(self.integer_value_of_ref));
+            code.push(Instruction::Aastore);
+        }
     }
 }
 

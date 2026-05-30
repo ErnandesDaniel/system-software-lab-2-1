@@ -106,10 +106,7 @@ impl CompilerDriver {
     fn generate_nasm(ir: &crate::ir::IrProgram, output_dir: &str) {
         use std::process::Command;
 
-        let has_coroutines = ir.functions.iter().any(|f| f.yield_count > 0);
-        let uses_byte_helpers = ir.functions.iter().any(|f| {
-            f.used_functions.iter().any(|u| u == "str_get_byte_nasm" || u == "str_set_byte_nasm" || u == "str_offset_nasm")
-        });
+        let has_coroutines = ir.functions.iter().any(|f| f.is_coroutine);
 
         let global_names: Vec<String> = ir.globals.iter().map(|g| g.name.clone()).collect();
         for func in &ir.functions {
@@ -146,36 +143,44 @@ impl CompilerDriver {
 
             // State structs + pointer table
             helper.push_str("section .data\n");
-            let coro_count = ir.functions.iter().filter(|f| f.yield_count > 0).count().max(8);
+            let coro_count = ir.functions.iter().filter(|f| f.is_coroutine).count().max(8);
             helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
-            for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            for f in ir.functions.iter().filter(|f| f.is_coroutine) {
                 let num_locals = f.locals.len();
-                let ctx_bytes = 24 + num_locals * 8 + 4;
+                let ctx_bytes = 56 + num_locals * 8 + 4;
                 let ctx_dwords = (ctx_bytes / 4).max(8);
                 helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
             }
 
             helper.push_str("\nsection .text\n");
-            helper.push_str("global resume_coroutine_nasm\nresume_coroutine_nasm:\n");
+            helper.push_str("global resume_coroutine\nresume_coroutine:\n");
             helper.push_str("    ; rcx = index\n");
             helper.push_str("    lea rax, [rel co_states]\n");
             helper.push_str("    mov rax, [rax + rcx * 8]\n");
             helper.push_str("    test rax, rax\n    jz .empty\n");
-            helper.push_str("    mov rcx, rax\n");
-            helper.push_str("    mov eax, [rcx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
-            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rcx + 8]\n    mov eax, [rcx + 16]\n    leave\n    ret\n");
+            helper.push_str("    mov rbx, rax\n");
+            helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
+            helper.push_str("    ; restore params from context\n");
+            helper.push_str("    mov rcx, [rbx + 24]\n");
+            helper.push_str("    mov rdx, [rbx + 32]\n");
+            helper.push_str("    mov r8,  [rbx + 40]\n");
+            helper.push_str("    mov r9,  [rbx + 48]\n");
+            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n");
+            helper.push_str("    call [rbx + 8]\n");
+            helper.push_str("    mov eax, [rbx + 16]\n    leave\n    ret\n");
             helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
 
-            helper.push_str("global create_coroutine_nasm\ncreate_coroutine_nasm:\n");
-            helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n    ret\n\n");
+            helper.push_str("global create_coroutine\ncreate_coroutine:\n");
+            helper.push_str("    mov dword [rcx], 0\n    mov [rcx + 8], rdx\n    mov dword [rcx + 16], 0\n");
+            helper.push_str("    mov [rcx + 24], r8\n    mov [rcx + 32], r9\n    ret\n\n");
 
             // Init: fill co_states table
-            helper.push_str("global coro_init_nasm\n");
-            for f in ir.functions.iter().filter(|f| f.yield_count > 0) {
+            helper.push_str("global coro_init\n");
+            for f in ir.functions.iter().filter(|f| f.is_coroutine) {
                 helper.push_str(&format!("extern {}\n", f.name));
             }
-            helper.push_str("coro_init_nasm:\n    push rbp\n    mov rbp, rsp\n");
-            for (idx, f) in ir.functions.iter().filter(|f| f.yield_count > 0).enumerate() {
+            helper.push_str("coro_init:\n    push rbp\n    mov rbp, rsp\n");
+            for (idx, f) in ir.functions.iter().filter(|f| f.is_coroutine).enumerate() {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
                 helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
@@ -197,32 +202,6 @@ impl CompilerDriver {
             if let Ok(out) = output {
                 if out.status.success() {
                     obj_files.push(obj);
-                }
-            }
-        }
-
-        if uses_byte_helpers {
-            let mut bh = String::from("bits 64\ndefault rel\n\nsection .text\n");
-            bh.push_str("global str_get_byte_nasm\nstr_get_byte_nasm:\n");
-            bh.push_str("    movzx eax, byte [rcx + rdx]\n");
-            bh.push_str("    ret\n\n");
-            bh.push_str("global str_set_byte_nasm\nstr_set_byte_nasm:\n");
-            bh.push_str("    mov [rcx + rdx], r8b\n");
-            bh.push_str("    ret\n\n");
-            bh.push_str("global str_offset_nasm\nstr_offset_nasm:\n");
-            bh.push_str("    lea rax, [rcx + rdx]\n");
-            bh.push_str("    ret\n");
-            let bpath = Path::new(output_dir).join("byte_helpers.asm");
-            fs::write(&bpath, &bh).ok();
-            let bobj = Path::new(output_dir).join("byte_helpers.obj");
-            let out = Command::new("nasm")
-                .args(["-f", "win64", "-o"])
-                .arg(bobj.to_str().unwrap())
-                .arg(bpath.to_str().unwrap())
-                .output();
-            if let Ok(o) = out {
-                if o.status.success() {
-                    obj_files.push(bobj);
                 }
             }
         }

@@ -25,8 +25,8 @@ fn test_asm_generation_simple() {
 }
 
 #[test]
-fn test_extern_short_form_codegen() {
-    let source = "extern puts def main() puts(\"hello\"); end";
+fn test_import_short_form_codegen() {
+    let source = "import puts def main() puts(\"hello\"); end";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);

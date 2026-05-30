@@ -221,6 +221,9 @@ pub enum BinaryOp {
     GreaterOrEqual,
     And,
     Or,
+    BitAnd,
+    BitOr,
+    BitXor,
     Assign,
 }
 
