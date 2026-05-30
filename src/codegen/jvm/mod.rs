@@ -140,6 +140,12 @@ impl JvmGenerator {
             classes.push((class_name, class_bytes));
         }
 
+        // Generate RuntimeStub if there are coroutines
+        if program.functions.iter().any(|f| f.is_coroutine) {
+            let stub_bytes = self.generate_runtime_stub(&program.functions);
+            classes.push(("RuntimeStub".to_string(), stub_bytes));
+        }
+
         classes
     }
 

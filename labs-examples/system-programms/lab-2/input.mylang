@@ -1,135 +1,90 @@
-// Lab 2 (SPO) — Streaming pipeline: read → parse → filter → join → output
-// Данные текут через pipe: reader → parser → filter → join → formatter
-// Каждый этап — корутина, yield при блокировке
+// Lab 2 (SPO) — Streaming pipeline
+// File → pipe → parse → pipe → filter → pipe → output
+// Каждая строка — отдельный буфер в str_store, офсет передаётся через pipe
 
-import puts
-import strcat
-import strcmp
-import fopen
-import fclose
-import fgetc
-import atoi
-import resume_coroutine
-import coro_init
-
-// ============ Storage ============
-// 0..8191  — 32 line buffers × 256 bytes (ring pool for streaming)
-// 8192..   — structured record storage
+import puts; import fopen; import fclose; import fgetc; import atoi
+import resume_coroutine; import coro_init
 
 global str_store of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ";
 global tmpbuf of string = "                                                                                ";
-
-// Ring buffer pool
 global pool_next of int = 0
-global POOL_SIZE of int = 32
-global BUF_SIZE of int = 256
 
 def alloc_buf() of int
-    b = pool_next * 256
-    pool_next = (pool_next + 1) % 32
-    return b
+    b = pool_next * 256; pool_next = (pool_next + 1) % 32; return b
 end
 
-// ============ Pipe (int ring buffer, passes buffer offsets or record indices) ============
 struct Pipe { buf of int[256]; head; tail; count; done; }
-
-def pipe_init(p of Pipe)
-    p.head = 0; p.tail = 0; p.count = 0; p.done = 0
-end
-
-def pipe_write(p of Pipe, val of int)
+def pipe_init(p of Pipe) p.head = 0; p.tail = 0; p.count = 0; p.done = 0 end
+def pipe_write(p of Pipe, v of int)
     while p.count >= 256 { yield }
-    p.buf[p.tail] = val
-    p.tail = (p.tail + 1) % 256
-    p.count = p.count + 1
+    p.buf[p.tail] = v; p.tail = (p.tail + 1) % 256; p.count = p.count + 1
 end
-
 def pipe_read(p of Pipe) of int
     while p.count <= 0 && p.done == 0 { yield }
     if p.done == 1 && p.count <= 0 then { return -1 }
-    result = p.buf[p.head]
-    p.head = (p.head + 1) % 256
-    p.count = p.count - 1
-    return result
+    r = p.buf[p.head]; p.head = (p.head + 1) % 256; p.count = p.count - 1; return r
+end
+def pipe_close(p of Pipe) p.done = 1 end
+
+def csv_field(dst of string, src of string, pos of int) of int
+    i = 0; while 1 == 1 { c = src[pos + i]; if c == 0 || c == 10 || c == 13 || c == ',' then { dst[i] = 0; if c == 13 && src[pos + i + 1] == 10 then return pos + i + 2; if c == ',' then return pos + i + 1; return pos + i }; dst[i] = c; i = i + 1 }
 end
 
-def pipe_close(p of Pipe)
-    p.done = 1
-end
+// Data arrays
+global p_id of int[31]; global p_surname of int[31]; global p_count of int = 0
 
-// ============ CSV Helpers ============
+// Pipes
+global p_raw of Pipe; global p_parsed of Pipe; global p_filtered of Pipe
 
-def csv_field(dst of string, line of string, pos of int) of int
-    i = 0
-    while 1 == 1 {
-        c = line[pos + i]
-        if c == 0 { dst[i] = 0; return pos + i }
-        if c == 10 { dst[i] = 0; return pos + i }
-        if c == 13 { dst[i] = 0; nxt = line[pos + i + 1]; if nxt == 10 then return pos + i + 2; return pos + i + 1 }
-        if c == ',' { dst[i] = 0; return pos + i + 1 }
-        dst[i] = c; i = i + 1
-    }
-end
-
-// ============ Pipeline: People (raw → parse → filter1 → filter2) ============
-
-// Stage 1: Read file, write line buffers to pipe
-coroutine read_people(raw_p of Pipe) of int
+coroutine reader() of int
     f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    buf_off = 0  // first line (header), skip
+    // skip header
+    di = 0; while 1 == 1 { c = fgetc(f); if c < 0 || c == 10 then break }
+    // read lines
     while 1 == 1 {
-        di = 0
+        buf = alloc_buf(); di = 0
         while 1 == 1 {
-            c = fgetc(f)
-            if c < 0 { str_store[buf_off + di] = 0; pipe_close(raw_p); fclose(f); return 0 }
-            if c == 10 { str_store[buf_off + di] = 0; break }
-            str_store[buf_off + di] = c
-            di = di + 1
+            c = fgetc(f); if c < 0 then { str_store[buf + di] = 0; pipe_close(p_raw); fclose(f); return 0 }
+            if c == 10 then { str_store[buf + di] = 0; break }
+            str_store[buf + di] = c; di = di + 1
         }
-        if buf_off > 0 || di > 0 { pipe_write(raw_p, buf_off) }
-        buf_off = alloc_buf()
+        pipe_write(p_raw, buf)
     }
 end
 
-// Stage 2: Parse person CSV, store in struct fields at high offsets
-coroutine parse_people(raw_p of Pipe, parsed_p of Pipe) of int
+coroutine parser() of int
     while 1 == 1 {
-        buf_off = pipe_read(raw_p)
-        if buf_off == -1 { pipe_close(parsed_p); return 0 }
-        pos = 0; ri = (pool_next - 1 + 32) % 32  // reuse buffer offset as record id
-        rec_off = 8192 + ri * 256
-
-        pos = csv_field(tmpbuf, str_store, buf_off + pos)
-        str_store[rec_off + 0] = atoi(tmpbuf)  // id
-        pos = csv_field(tmpbuf, str_store, buf_off + pos)
-        (str_store, rec_off + 4) copy tmpbuf  // surname
-        pos = csv_field(tmpbuf, str_store, buf_off + pos)
-        (str_store, rec_off + 68) copy tmpbuf  // name
-        pos = csv_field(tmpbuf, str_store, buf_off + pos)
-        (str_store, rec_off + 132) copy tmpbuf  // patronymic
-        pos = csv_field(tmpbuf, str_store, buf_off + pos)
-        (str_store, rec_off + 196) copy tmpbuf  // birthday
-
-        pipe_write(parsed_p, ri)
+        buf = pipe_read(p_raw); if buf == -1 then { pipe_close(p_parsed); return 0 }
+        r = p_count; pos = 0
+        pos = csv_field(tmpbuf, str_store, buf + pos); p_id[r] = atoi(tmpbuf)
+        pos = csv_field(tmpbuf, str_store, buf + pos); p_surname[r] = r * 256
+        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip name
+        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip patronymic
+        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip birthday
+        pipe_write(p_parsed, r); p_count = p_count + 1
     }
 end
 
-// ============ Main ============
-global CORO_COUNT of int = 0
+coroutine filter() of int
+    while 1 == 1 {
+        r = pipe_read(p_parsed); if r == -1 then { pipe_close(p_filtered); return 0 }
+        if p_id[r] > 142390 && p_id[r] < 153285 then { pipe_write(p_filtered, r) }
+    }
+end
+
+coroutine output() of int
+    while 1 == 1 {
+        r = pipe_read(p_filtered); if r == -1 then { return 0 }
+        i = 0; while 1 == 1 { c = str_store[p_surname[r] + i]; tmpbuf[i] = c; if c == 0 then break; i = i + 1 }
+        puts(tmpbuf)
+    }
+end
 
 def main() of int
-    puts("=== Lab 2: Streaming Pipeline ===")
-
-    p_raw of Pipe; pipe_init(p_raw)
-    p_parsed of Pipe; pipe_init(p_parsed)
-
-    CORO_COUNT = 0
+    pipe_init(p_raw); pipe_init(p_parsed); pipe_init(p_filtered)
     coro_init()
-        resume_coroutine(CORO_COUNT + 0)  // reader
-        resume_coroutine(CORO_COUNT + 1)  // parser
-        rd = rd + 1
-    }
-
+    puts("=== Lab 2: Pipeline ===")
+    rd = 0; while rd < 50 { resume_coroutine(0); resume_coroutine(1); resume_coroutine(2); resume_coroutine(3); rd = rd + 1 }
     puts("=== Done ===")
     return 0
 end
