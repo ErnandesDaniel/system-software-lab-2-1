@@ -830,7 +830,7 @@ impl JvmGenerator {
             push_iconst(&mut c, count);
             c.push(Instruction::Anewarray(obj_class));
             c.push(Instruction::Putstatic(coro_field_ref));
-            for (i, (cn, ci)) in coro_info.iter().enumerate() {
+            for (i, (_, ci)) in coro_info.iter().enumerate() {
                 let ir = self.constant_pool.add_method_ref(*ci, "<init>", "()V").unwrap();
                 c.push(Instruction::Getstatic(coro_field_ref));
                 push_iconst(&mut c, i);
@@ -844,7 +844,7 @@ impl JvmGenerator {
             let resume_name = self.constant_pool.add_utf8("resume_coroutine").unwrap();
             let resume_desc = self.constant_pool.add_utf8("(I)I").unwrap();
             let mut code = Vec::new();
-            for (i, (cn, ci)) in coro_info.iter().enumerate() {
+            for (i, (_, ci)) in coro_info.iter().enumerate() {
                 code.push(Instruction::Iload_0);
                 push_iconst(&mut code, i);
                 let skip_at = code.len(); code.push(Instruction::If_icmpne(0));
@@ -865,7 +865,7 @@ impl JvmGenerator {
             let state_name = self.constant_pool.add_utf8("get_coroutine_state").unwrap();
             let state_desc = self.constant_pool.add_utf8("(I)I").unwrap();
             let mut sc = Vec::new();
-            for (i, (cn, ci)) in coro_info.iter().enumerate() {
+            for (i, (_, ci)) in coro_info.iter().enumerate() {
                 sc.push(Instruction::Iload_0);
                 push_iconst(&mut sc, i);
                 let skip_at = sc.len(); sc.push(Instruction::If_icmpne(0));
@@ -881,6 +881,37 @@ impl JvmGenerator {
             }
             sc.push(Instruction::Iconst_m1); sc.push(Instruction::Ireturn);
             methods.push(Method { access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC, name_index: state_name, descriptor_index: state_desc, attributes: vec![Attribute::Code { name_index: code_attr, max_stack: 4, max_locals: 1, code: sc, exception_table: vec![], attributes: vec![] }] });
+
+            // set_coroutine_param(III)V
+            let set_name = self.constant_pool.add_utf8("set_coroutine_param").unwrap();
+            let set_desc = self.constant_pool.add_utf8("(III)V").unwrap();
+            let mut set_code = Vec::new();
+            for (i, (_, ci)) in coro_info.iter().enumerate() {
+                set_code.push(Instruction::Iload_0);
+                push_iconst(&mut set_code, i);
+                let skip_at = set_code.len(); set_code.push(Instruction::If_icmpne(0));
+                set_code.push(Instruction::Getstatic(coro_field_ref));
+                push_iconst(&mut set_code, i);
+                set_code.push(Instruction::Aaload);
+                set_code.push(Instruction::Checkcast(*ci));
+                let (p1_ref, p2_ref) = self.coroutine_param_field_refs[i];
+                if let Some(fr) = p1_ref {
+                    set_code.push(Instruction::Dup);
+                    set_code.push(Instruction::Iload_1);
+                    set_code.push(Instruction::Putfield(fr));
+                }
+                if let Some(fr) = p2_ref {
+                    set_code.push(Instruction::Dup);
+                    set_code.push(Instruction::Iload_2);
+                    set_code.push(Instruction::Putfield(fr));
+                }
+                set_code.push(Instruction::Pop);
+                set_code.push(Instruction::Return);
+                let off = (set_code.len() - skip_at - 1) as u16;
+                set_code[skip_at] = Instruction::If_icmpne(off);
+            }
+            set_code.push(Instruction::Return);
+            methods.push(Method { access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC, name_index: set_name, descriptor_index: set_desc, attributes: vec![Attribute::Code { name_index: code_attr, max_stack: 4, max_locals: 3, code: set_code, exception_table: vec![], attributes: vec![] }] });
         }
 
         fn push_iconst(c: &mut Vec<Instruction>, n: usize) {

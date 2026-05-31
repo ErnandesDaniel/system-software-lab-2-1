@@ -118,8 +118,9 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
 
         helper.push_str("global set_coroutine_param\nset_coroutine_param:\n");
+        helper.push_str("    ; rcx = index, rdx = p1, r8 = p2\n");
         helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
-        helper.push_str("    mov [rax + 24], edx\n.empty:\n    ret\n\n");
+        helper.push_str("    mov [rax + 24], edx\n    mov [rax + 32], r8d\n.empty:\n    ret\n\n");
         helper.push_str("global coro_init\n");
         for f in ir.functions.iter().filter(|f| f.is_coroutine) {
             helper.push_str(&format!("extern {}\n", f.name));

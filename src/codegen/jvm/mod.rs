@@ -50,6 +50,7 @@ pub struct JvmGenerator {
     coroutine_state_field: u16,                      // field ref for 'state'
     coroutine_result_field: u16,                     // field ref for 'result'
     coroutine_field_entries: Vec<(u16, u16)>,       // (name_utf8, desc_utf8) for class file fields
+    coroutine_param_field_refs: Vec<(Option<u16>, Option<u16>)>, // per-coroutine: (field_ref_for_p1, field_ref_for_p2)
     string_slice_ref: u16,                           // method ref RuntimeStub.string_slice([BII)[B
     struct_field_types: HashMap<String, Vec<(usize, IrType)>>,  // struct_var → [(byte_offset, field_type)]
     struct_uses_object_array: HashSet<String>,        // struct vars needing Object[]
@@ -85,6 +86,7 @@ impl JvmGenerator {
             coroutine_state_field: 0,
             coroutine_result_field: 0,
             coroutine_field_entries: Vec::new(),
+            coroutine_param_field_refs: Vec::new(),
             string_slice_ref: 0,
             struct_field_types: HashMap::new(),
             struct_uses_object_array: HashSet::new(),
@@ -98,6 +100,7 @@ impl JvmGenerator {
 
     pub fn generate_program(&mut self, program: &IrProgram) -> Vec<(String, Vec<u8>)> {
         let mut classes = Vec::new();
+        self.coroutine_param_field_refs.clear();
 
         // Pre-pass: collect all FuncRef targets across all functions
         self.func_ref_targets.clear();
@@ -366,13 +369,10 @@ impl JvmGenerator {
                 | "map_size_jvm"
                 | "map_key_jvm"
                 | "map_list_jvm"
-                | "shm_read_state_jvm"
-                | "shm_read_byte_jvm"
-                | "shm_read_str_jvm"
-                | "shm_write_state_jvm"
-                | "shm_write_resp_jvm"
-                | "shm_wait_event_jvm"
-                | "shm_find_null_jvm"
+                | "resume_coroutine"
+                | "get_coroutine_state"
+                | "set_coroutine_param"
+                | "coro_init"
         )
     }
 
@@ -474,6 +474,14 @@ impl JvmGenerator {
             self.coroutine_field_refs.insert(name.clone(), field_ref);
             self.coroutine_field_entries.push((field_name_idx, field_desc_idx));
         }
+
+        // Store param field refs for set_coroutine_param
+        let param_refs: Vec<Option<u16>> = func.parameters.iter().filter(|p| p.name != "__env").map(|p| {
+            self.coroutine_field_refs.get(&p.name).copied()
+        }).collect();
+        let p1 = param_refs.first().copied().flatten();
+        let p2 = param_refs.get(1).copied().flatten();
+        self.coroutine_param_field_refs.push((p1, p2));
     }
 
     fn setup_local_variables(&mut self, func: &IrFunction) {

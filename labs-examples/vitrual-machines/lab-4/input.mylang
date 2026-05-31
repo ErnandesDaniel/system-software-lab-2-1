@@ -26,6 +26,9 @@ global r0 of int = 0   // opcode offset
 global r1 of int = -1  // key offset (-1 = none)
 global r2 of int = -1  // value offset (-1 = none)
 
+// ─── Binary protocol flag ────────────────────────────────────────────────────
+global is_binary of int = 0
+
 // ─── String helpers ─────────────────────────────────────────────────────────
 
 def find_space(start of int) of int
@@ -69,6 +72,88 @@ def putstr_at(off of int)
         putchar(c)
         i = i + 1
     }
+end
+
+// ─── Binary I/O helpers ─────────────────────────────────────────────────────
+
+// Read 2 bytes LE from stdin as int
+def bin_read_u16() of int
+    lo = getchar()
+    hi = getchar()
+    return lo + hi * 256
+end
+
+// Write 2 bytes LE to stdout
+def bin_write_u16(val of int)
+    putchar(val % 256)
+    putchar(val / 256)
+end
+
+// Read binary command from stdin
+// Sets r0, r1, r2 (offsets into pool, same as parse_line for text)
+def bin_read_cmd()
+    r0 = 0
+    r1 = -1
+    r2 = -1
+    op = getchar()
+
+    // Store opcode string at pool[0] for dispatch (same offsets as text mode)
+    if op == 1 then { pool[0]=99; pool[1]=114; pool[2]=101; pool[3]=97; pool[4]=116; pool[5]=101; pool[6]=0 }  // "create"
+    if op == 2 then { pool[0]=103; pool[1]=101; pool[2]=116; pool[3]=0 }                                      // "get"
+    if op == 3 then { pool[0]=115; pool[1]=101; pool[2]=116; pool[3]=0 }                                      // "set"
+    if op == 4 then { pool[0]=100; pool[1]=101; pool[2]=108; pool[3]=101; pool[4]=116; pool[5]=101; pool[6]=0 } // "delete"
+    if op == 5 then { pool[0]=108; pool[1]=105; pool[2]=115; pool[3]=116; pool[4]=0; return }                  // "list" — no key/val
+    if op == 6 then { pool[0]=101; pool[1]=120; pool[2]=105; pool[3]=116; pool[4]=0; return }                  // "exit" — no key/val
+
+    // Read key
+    klen = bin_read_u16()
+    di = 256
+    i = 0
+    while i < klen {
+        pool[di + i] = getchar()
+        i = i + 1
+    }
+    pool[di + klen] = 0
+    r1 = di
+
+    // Read value (only for create/set)
+    if op != 1 && op != 3 then { return }
+
+    vlen = bin_read_u16()
+    di2 = di + klen + 1
+    i = 0
+    while i < vlen {
+        pool[di2 + i] = getchar()
+        i = i + 1
+    }
+    pool[di2 + vlen] = 0
+    r2 = di2
+end
+
+// Write binary OK response
+def bin_write_ok()
+    putchar(0)        // status OK
+    bin_write_u16(0)  // empty payload
+end
+
+// Write binary OK response with payload string at pool[off]
+def bin_write_ok_val(off of int)
+    len = 0
+    while pool[off + len] != 0 { len = len + 1 }
+    putchar(0)        // status OK
+    bin_write_u16(len)
+    i = 0
+    while i < len { putchar(pool[off + i]); i = i + 1 }
+end
+
+// Write binary ERR response with message at pool[off]
+def bin_write_err(off of int)
+    len = 0
+    while pool[off + len] != 0 { len = len + 1 }
+    putchar(1)        // status ERR
+    bin_write_u16(len)
+    i = 0
+    while i < len { putchar(pool[off + i]); i = i + 1 }
 end
 
 // ─── Map operations ─────────────────────────────────────────────────────────
@@ -120,17 +205,6 @@ def map_build_list()
 end
 
 // ─── Input ──────────────────────────────────────────────────────────────────
-
-def read_line()
-    i = 0
-    while 1 == 1 {
-        c = getchar()
-        if c == 10 then { pool[i] = 0; return }
-        if c == -1 then { pool[i] = 0; return }
-        pool[i] = c
-        i = i + 1
-    }
-end
 
 // Парсит строку в pool[0..]: заменяет пробелы на \0,
 // выставляет r0=opcode_off, r1=key_off, r2=value_off(-1 если нет)
@@ -251,14 +325,86 @@ def main() of int
     pool[1843] = 115  // s
     pool[1844] = 0    // \0
 
-    // ── Main loop ──
+    // ── Protocol detection ──
+    // Read first byte: 0xBF = binary protocol, anything else = text
+    first_byte = getchar()
+    if first_byte == 191 then { is_binary = 1 }
+
+    // ── Binary main loop ──
+    if is_binary == 1 then {
+        while 1 == 1 {
+            bin_read_cmd()
+
+            // exit
+            if r1 == -1 then {
+                if streq(r0, 1792) == 1 then { bin_write_ok(); return 0 }
+            }
+
+            // list
+            if r1 == -1 then {
+                if streq(r0, 1797) == 1 then {
+                    map_build_list()
+                    bin_write_ok_val(256)
+                }
+            }
+
+            // неизвестная команда
+            if r1 == -1 then { bin_write_err(1824) }
+
+            // get
+            if streq(r0, 1802) == 1 then {
+                idx = map_find(r1)
+                if idx >= 0 then { bin_write_ok_val(map_vals[idx]) }
+                else { bin_write_err(1824) }
+            }
+
+            // create
+            if streq(r0, 1806) == 1 then {
+                if r2 == -1 then { bin_write_err(1824) }
+                else {
+                    idx = map_find(r1)
+                    if idx >= 0 then { bin_write_err(1838) }
+                    else { map_add(r1, r2); bin_write_ok() }
+                }
+            }
+
+            // set
+            if streq(r0, 1813) == 1 then {
+                if r2 == -1 then { bin_write_err(1824) }
+                else {
+                    idx = map_find(r1)
+                    if idx >= 0 then { map_update(idx, r2); bin_write_ok() }
+                    else { bin_write_err(1824) }
+                }
+            }
+
+            // delete
+            if streq(r0, 1817) == 1 then {
+                idx = map_find(r1)
+                if idx >= 0 then { map_remove(idx); bin_write_ok() }
+                else { bin_write_err(1824) }
+            }
+        }
+    }
+
+    // ── Text main loop (existing) ──
+    // first_byte already read, store it as first char of input
+    pool[0] = first_byte
+    di = 1
     while 1 == 1 {
-        read_line()
+        c = getchar()
+        if c == 10 then { pool[di] = 0; break }
+        if c == -1 then { pool[di] = 0; break }
+        pool[di] = c
+        di = di + 1
+    }
+
+    while 1 == 1 {
         parse_line()
 
         // exit
         if r1 == -1 then {
-            if streq(r0, 1792) == 1 then {  // "exit"
+            if streq(r0, 1792) == 1 then {
                 respond_ok()
                 return 0
             }
@@ -266,7 +412,7 @@ def main() of int
 
         // list
         if r1 == -1 then {
-            if streq(r0, 1797) == 1 then {  // "list"
+            if streq(r0, 1797) == 1 then {
                 map_build_list()
                 respond_ok_val(256)
             }
@@ -326,6 +472,17 @@ def main() of int
             } else {
                 respond_err(1824)
             }
+        }
+
+        // Read next line
+        pool[0] = 0
+        di = 0
+        while 1 == 1 {
+            c = getchar()
+            if c == 10 then { pool[di] = 0; break }
+            if c == -1 then { pool[di] = 0; break }
+            pool[di] = c
+            di = di + 1
         }
     }
 end

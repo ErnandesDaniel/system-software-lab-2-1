@@ -100,7 +100,7 @@ impl StdLib {
             ("resume_coroutine", ("index: int", "int")),
             ("create_coroutine", ("", "")),
             ("get_coroutine_state", ("index: int", "int")),
-            ("set_coroutine_param", ("index: int, value: int", "")),
+            ("set_coroutine_param", ("index: int, p1: int, p2: int", "")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

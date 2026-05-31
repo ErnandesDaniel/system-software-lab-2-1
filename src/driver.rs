@@ -56,6 +56,8 @@ impl CompilerDriver {
     }
 
     fn create_output_dir(path: &str) {
+        // Удаляем всё содержимое папки, если она существует, затем создаём заново
+        let _ = fs::remove_dir_all(path);
         if let Err(e) = fs::create_dir_all(path) {
             eprintln!("Failed to create output directory: {e}");
             std::process::exit(1);
@@ -179,9 +181,9 @@ impl CompilerDriver {
             helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
 
             helper.push_str("global set_coroutine_param\nset_coroutine_param:\n");
-            helper.push_str("    ; rcx = index, rdx = value\n");
+            helper.push_str("    ; rcx = index, rdx = p1, r8 = p2\n");
             helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
-            helper.push_str("    mov [rax + 24], edx\n.empty:\n    ret\n\n");
+            helper.push_str("    mov [rax + 24], edx\n    mov [rax + 32], r8d\n.empty:\n    ret\n\n");
 
             // Init: fill co_states table
             helper.push_str("global coro_init\n");
@@ -303,21 +305,10 @@ impl CompilerDriver {
 
         Self::generate_jvm_stub(output_dir);
 
-        // Create lib/ in output dir and copy JNA jar for manual compilation too
-        let output_lib = Path::new(output_dir).join("lib");
-        let _ = fs::create_dir_all(&output_lib);
-        let jna_src = Path::new("src/lib").join("jna-5.14.0.jar");
-        let jna_dst = output_lib.join("jna-5.14.0.jar");
-        if jna_src.exists() {
-            let _ = fs::copy(&jna_src, &jna_dst);
-        }
-
-        let jna_cp = ".;lib/jna-5.14.0.jar".to_string();
-
         let stub_file = "RuntimeStub.java";
         let stub_output = Command::new("javac")
             .current_dir(output_dir)
-            .args(["-cp", &jna_cp, stub_file])
+            .arg(stub_file)
             .output()
             .expect("Failed to run javac");
 
@@ -343,64 +334,13 @@ impl CompilerDriver {
 
     fn generate_jvm_stub(output_dir: &str) {
         let stub = r#"import java.io.*;
-import java.nio.*;
-import java.nio.channels.*;
-import java.nio.charset.*;
 import java.util.*;
-import java.lang.reflect.*;
 
 public class RuntimeStub {
-    private static final int SHM_SIZE = 4096;
-
-    private static MappedByteBuffer buf;
     private static HashMap<String, String> store = new HashMap<>();
     private static Random random = new Random();
 
-    private static boolean shmInitialized = false;
-    private static Object hEvent;
-    private static Object kernel32WaitFn;
-    private static Object kernel32SetFn;
-    private static Object kernel32ResetFn;
-
-    private static synchronized void ensureShm() {
-        if (shmInitialized) return;
-        shmInitialized = true;
-        try {
-            Class<?> fnClass = Class.forName("com.sun.jna.Function");
-            java.lang.reflect.Method getFn = fnClass.getMethod("getFunction", String.class, String.class);
-
-            kernel32WaitFn = getFn.invoke(null, "kernel32", "WaitForSingleObject");
-            kernel32SetFn = getFn.invoke(null, "kernel32", "SetEvent");
-            kernel32ResetFn = getFn.invoke(null, "kernel32", "ResetEvent");
-
-            Object createEventFn = getFn.invoke(null, "kernel32", "CreateEventA");
-            java.lang.reflect.Method invokeMethod = fnClass.getMethod("invoke", Class.class, Object[].class);
-            hEvent = invokeMethod.invoke(createEventFn, Class.forName("com.sun.jna.Pointer"),
-                new Object[]{null, 1, 0, "MyLangSHMEvent"});
-
-            if (hEvent == null) {
-                throw new RuntimeException("CreateEventA failed");
-            }
-
-            RandomAccessFile file = new RandomAccessFile("mylang_shm.dat", "rw");
-            file.setLength(SHM_SIZE);
-            FileChannel ch = file.getChannel();
-            buf = ch.map(FileChannel.MapMode.READ_WRITE, 0, SHM_SIZE);
-            buf.order(ByteOrder.LITTLE_ENDIAN);
-            ch.close();
-
-            System.out.println("[RuntimeStub] SHM initialized. PID: " + ProcessHandle.current().pid());
-        } catch (ClassNotFoundException e) {
-            System.err.println("[RuntimeStub] JNA not found. Add jna.jar to classpath for SHM programs.");
-            System.exit(1);
-        } catch (Exception e) {
-            System.err.println("[RuntimeStub] SHM init error: " + e.getMessage());
-            System.exit(1);
-        }
-    }
-
     public static void main(String[] args) {
-        System.out.println("[RuntimeStub] Starting...");
         int result = Main.call();
         System.exit(result);
     }
@@ -447,68 +387,6 @@ public class RuntimeStub {
 
     public static void Sleep(int ms) {
         try { Thread.sleep(ms); } catch (InterruptedException e) {}
-    }
-
-    // --- SHM functions (JVM) ---
-
-    public static int shm_read_state_jvm() {
-        ensureShm();
-        return buf.getInt(0);
-    }
-
-    public static int shm_read_byte_jvm(int pos) {
-        ensureShm();
-        return buf.get(pos) & 0xFF;
-    }
-
-    public static String shm_read_str_jvm(int pos) {
-        ensureShm();
-        int len = 0;
-        while (pos + len < SHM_SIZE && buf.get(pos + len) != 0) len++;
-        byte[] bytes = new byte[len];
-        buf.position(pos);
-        buf.get(bytes);
-        return new String(bytes, StandardCharsets.UTF_8);
-    }
-
-    public static void shm_write_state_jvm(int state) {
-        ensureShm();
-        buf.putInt(0, state);
-    }
-
-    public static void shm_write_resp_jvm(int result, String payload) {
-        ensureShm();
-        try {
-            byte[] pbytes = payload != null ? payload.getBytes(StandardCharsets.UTF_8) : new byte[0];
-            int maxLen = SHM_SIZE - 6;
-            if (pbytes.length > maxLen) pbytes = java.util.Arrays.copyOf(pbytes, maxLen);
-            buf.position(4);
-            buf.put((byte) result);
-            buf.put(pbytes);
-            buf.put((byte) 0);
-        } catch (Exception e) {
-            System.err.println("[RuntimeStub] Write error: " + e.getMessage());
-        }
-    }
-
-    public static void shm_wait_event_jvm() {
-        ensureShm();
-        try {
-            java.lang.reflect.Method invokeMethod = kernel32WaitFn.getClass()
-                .getMethod("invoke", Class.class, Object[].class);
-            invokeMethod.invoke(kernel32WaitFn, int.class, new Object[]{hEvent, 2000});
-            invokeMethod.invoke(kernel32ResetFn, int.class, new Object[]{hEvent});
-        } catch (Exception e) {
-            System.err.println("[RuntimeStub] Event error: " + e.getMessage());
-        }
-    }
-
-    public static int shm_find_null_jvm(int start) {
-        ensureShm();
-        for (int i = start; i < SHM_SIZE; i++) {
-            if (buf.get(i) == 0) return i;
-        }
-        return SHM_SIZE;
     }
 
     // --- Map functions (JVM) ---
