@@ -1512,19 +1512,18 @@ fn test_exe_if_else_putchar() {
 }
 
 #[test]
-#[ignore]
 fn test_exe_logical_or_shortcircuit() {
     let source = r#"
         import getchar
         import putchar
         def main() of int
             c = getchar()
-            if c == 0 || c == 10 then
-                putchar(79)
+            if c == 0 || c == 10 then {
+                putchar(79);
                 putchar(75)
-            else
+            } else {
                 putchar(69)
-            end
+            }
             putchar(10)
             return 0
         end
@@ -1535,9 +1534,8 @@ fn test_exe_logical_or_shortcircuit() {
 }
 
 #[test]
-#[ignore]
 fn test_exe_eof_detection() {
-    let source = "import getchar\nimport putchar\ndef main() of int\n    c = getchar()\n    if c == -1 then\n        putchar(69)\n        putchar(79)\n        putchar(70)\n    else\n        putchar(79)\n        putchar(75)\n    end\n    putchar(10)\n    return 0\nend\n";
+    let source = "import getchar\nimport putchar\ndef main() of int\n    c = getchar()\n    if c == -1 then {\n        putchar(69);\n        putchar(79);\n        putchar(70)\n    } else {\n        putchar(79);\n        putchar(75)\n    }\n    putchar(10)\n    return 0\nend\n";
     let output = compile_and_run_with_stdin(source, "");
     assert!(output.status.success(), "exit code: {:?}", output.status.code());
     assert_eq!(normalize_output(&output.stdout), "EOF\n");

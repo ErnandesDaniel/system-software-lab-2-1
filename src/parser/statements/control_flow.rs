@@ -11,6 +11,7 @@ impl Parser<'_> {
         let expr = if self.current_token().is_some()
             && self.current_token() != Some(&Token::Semi)
             && self.current_token() != Some(&Token::End)
+            && self.current_token() != Some(&Token::RBrace)
         {
             Some(self.parse_expression(0)?)
         } else {
