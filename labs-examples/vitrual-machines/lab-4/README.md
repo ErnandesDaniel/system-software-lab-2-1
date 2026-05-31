@@ -44,3 +44,37 @@ php labs-examples/vitrual-machines/lab-4/input.php --target jvm --protocol binar
 | `delete <key>` | Удалить запись по ключу |
 | `list` | Список всех ключей |
 | `exit` | Остановить сервер |
+
+## Быстрая проверка
+
+```powershell
+# 1. Компиляция (NASM)
+cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t nasm
+
+# 2. Запуск демона и проверка команд
+php labs-examples/vitrual-machines/lab-4/input.php
+```
+
+Пример сессии в демоне:
+
+```
+> create name Alice
+  ok
+> create age 30
+  ok
+> get name
+  value: Alice
+> list
+  keys:
+    - name
+    - age
+> set age 31
+  ok
+> delete name
+  ok
+> list
+  keys:
+    - age
+> exit
+Bye!
+```

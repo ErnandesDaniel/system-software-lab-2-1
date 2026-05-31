@@ -294,3 +294,65 @@ fn test_asm_multi_blocks() {
     assert!(asm.contains("BB_1:"));
     assert!(asm.contains("BB_2:"));
 }
+
+#[test]
+fn test_break_in_while_loop_asm() {
+    let source = r#"
+        import putchar
+        def main() of int
+            i = 0
+            while i < 5 {
+                if i == 3 then { break; }
+                putchar(65 + i)
+                i = i + 1
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let program = parse(source);
+    
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    
+    eprintln!("=== IR Blocks ===");
+    for func in &ir.functions {
+        for block in &func.blocks {
+            eprintln!("Block {}: {:?}", block.id, block.instructions);
+        }
+    }
+    
+    let break_block = ir.functions[0].blocks.iter()
+        .find(|b| {
+            b.instructions.iter().any(|inst| inst.opcode == crate::ir::IrOpcode::Jump
+                && inst.jump_target.as_deref() == Some("BB3"))
+        });
+    assert!(break_block.is_some(), "Expected a block with Jump to BB3 (loop exit)");
+
+    // Find the break block (should Jump to loop exit, not to merge/body continuation)
+    let break_block = ir.functions[0].blocks.iter().find(|b| {
+        b.instructions.iter().any(|inst| {
+            inst.opcode == crate::ir::IrOpcode::Jump
+                && inst.jump_target.as_deref() == Some("BB3")
+        })
+    });
+    assert!(break_block.is_some(), 
+        "Expected a block with Jump to BB3 (loop exit). Blocks:\n{}",
+        ir.functions[0].blocks.iter().map(|b| {
+            format!("  {}: {:?}", b.id, b.instructions.iter().map(|i| format!("{:?}", i)).collect::<Vec<_>>())
+        }).collect::<Vec<_>>().join("\n")
+    );
+    
+    let mut asm_gen = AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    
+    // The break block should jump to BB_3 (loop exit)
+    assert!(asm.contains("BB_4:"), "Expected break block label BB_4");
+    let lines: Vec<&str> = asm.lines().collect();
+    let bb4_idx = lines.iter().position(|l| l.trim() == "BB_4:").unwrap();
+    if let Some(next) = lines.get(bb4_idx + 1) {
+        let trimmed = next.trim();
+        assert!(trimmed.starts_with("jmp"), "Expected jmp after BB_4, got: {}", next);
+        assert!(trimmed.contains("BB_3"), "Break should jmp to loop exit BB_3, got: {}", next);
+    }
+}

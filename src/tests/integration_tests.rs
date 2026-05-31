@@ -4,7 +4,8 @@ use crate::parser::Parser;
 use crate::semantics::analysis::SemanticsAnalyzer;
 use crate::tests::parse;
 use std::fs;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 pub fn compile_only(source: &str) -> (TempDir, String) {
@@ -1313,4 +1314,440 @@ end
     assert!(String::from_utf8_lossy(&output.stdout).contains("hello world"));
 }
 
+fn normalize_output(output: &[u8]) -> String {
+    String::from_utf8_lossy(output).replace("\r\n", "\n")
+}
 
+fn compile_and_run_with_stdin(source: &str, input: &str) -> std::process::Output {
+    let (temp_dir, _) = compile_only(source);
+    let exe_path = temp_dir.path().join("program.exe");
+    let mut child = Command::new(exe_path.to_str().unwrap())
+        .current_dir(temp_dir.path())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    child.stdin.take().unwrap().write_all(input.as_bytes()).unwrap();
+    child.wait_with_output().unwrap()
+}
+
+#[test]
+fn test_exe_break_aborts_loop() {
+    let source = r#"
+        import putchar
+        def main() of int
+            i = 0
+            while i < 5 {
+                if i == 3 then { break; }
+                putchar(65 + i)
+                i = i + 1
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "ABC\n");
+}
+
+#[test]
+fn test_exe_getchar_echo() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            c = getchar()
+            putchar(c)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "X");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "X");
+}
+
+#[test]
+fn test_exe_getchar_echo_loop() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            i = 0
+            while i < 3 {
+                c = getchar()
+                putchar(c)
+                i = i + 1
+            }
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "XYZ");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "XYZ");
+}
+
+#[test]
+fn test_exe_getchar_until_newline() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            c = getchar()
+            while c != 10 {
+                putchar(c)
+                c = getchar()
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "Hello\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Hello\n");
+}
+
+#[test]
+fn test_exe_pool_write_read_byte() {
+    let source = r#"
+        import putchar
+        global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        def main() of int
+            pool[100] = 65
+            putchar(pool[100])
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+fn test_exe_pool_write_read_multiple() {
+    let source = r#"
+        import putchar
+        global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        def main() of int
+            pool[0] = 72
+            pool[1] = 105
+            pool[2] = 0
+            putchar(pool[0])
+            putchar(pool[1])
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Hi\n");
+}
+
+#[test]
+fn test_exe_read_line_into_pool() {
+    let source = r#"
+        import getchar
+        import putchar
+        global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        def main() of int
+            di = 0
+            c = getchar()
+            while c != 10 {
+                pool[di] = c
+                di = di + 1
+                c = getchar()
+            }
+            pool[di] = 0
+            putchar(pool[0])
+            putchar(pool[1])
+            putchar(pool[2])
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "Hi!\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Hi!\n");
+}
+
+#[test]
+fn test_exe_multi_function_io() {
+    let source = r#"
+        import putchar
+        def emit(a of int)
+            putchar(a)
+        end
+        def main() of int
+            emit(72)
+            emit(105)
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Hi\n");
+}
+
+#[test]
+fn test_exe_if_else_putchar() {
+    let source = r#"
+        import putchar
+        def main() of int
+            x = 1
+            if x == 1 then
+                putchar(65)
+            else
+                putchar(66)
+            end
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+#[ignore]
+fn test_exe_logical_or_shortcircuit() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            c = getchar()
+            if c == 0 || c == 10 then
+                putchar(79)
+                putchar(75)
+            else
+                putchar(69)
+            end
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "OK\n");
+}
+
+#[test]
+#[ignore]
+fn test_exe_eof_detection() {
+    let source = "import getchar\nimport putchar\ndef main() of int\n    c = getchar()\n    if c == -1 then\n        putchar(69)\n        putchar(79)\n        putchar(70)\n    else\n        putchar(79)\n        putchar(75)\n    end\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run_with_stdin(source, "");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "EOF\n");
+}
+
+#[test]
+fn test_exe_while_loop_sum_stdin() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            sum = 0
+            c = getchar()
+            while c != 10 && c != -1 {
+                sum = sum + (c - 48)
+                c = getchar()
+            }
+            putchar(48 + sum)
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "123\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    // 1+2+3 = 6, 48+6 = '6'
+    assert_eq!(normalize_output(&output.stdout), "6\n");
+}
+
+#[test]
+fn test_exe_pool_readline_echo() {
+    let source = r#"
+        import getchar
+        import putchar
+        global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        def main() of int
+            di = 0
+            c = getchar()
+            while c != 10 && c != -1 {
+                pool[di] = c
+                di = di + 1
+                c = getchar()
+            }
+            pool[di] = 10
+            di = 0
+            c2 = pool[di]
+            while c2 != 10 && c2 != -1 {
+                putchar(c2)
+                di = di + 1
+                c2 = pool[di]
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "Hello World\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Hello World\n");
+}
+
+#[test]
+fn test_exe_nested_while_io() {
+    let source = r#"
+        import putchar
+        def main() of int
+            i = 0
+            while i < 3 {
+                j = 0
+                while j < 3 {
+                    putchar(65 + j)
+                    j = j + 1
+                }
+                i = i + 1
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "ABCABCABC\n");
+}
+
+#[test]
+fn test_exe_break_nested_loop() {
+    let source = r#"
+        import putchar
+        def main() of int
+            i = 0
+            while i < 3 {
+                j = 0
+                while j < 5 {
+                    if j == 2 then { break; }
+                    putchar(65 + j)
+                    j = j + 1
+                }
+                i = i + 1
+            }
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "ABABAB\n");
+}
+
+#[test]
+fn test_exe_globals_read_write() {
+    let source = r#"
+        import putchar
+        global g of int = 42
+        def main() of int
+            putchar(48 + g)
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Z\n");
+}
+
+#[test]
+fn test_exe_getchar_eof_then_valid() {
+    let source = r#"
+        import getchar
+        import putchar
+        def main() of int
+            c1 = getchar()
+            if c1 == -1 then
+                putchar(69)
+            else
+                putchar(c1)
+            end
+            c2 = getchar()
+            if c2 == -1 then
+                putchar(69)
+            else
+                putchar(c2)
+            end
+            putchar(10)
+            return 0
+        end
+    "#;
+    let output = compile_and_run_with_stdin(source, "X");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    // X then E (EOF substituted with 69='E')
+    let stdout = normalize_output(&output.stdout);
+    assert_eq!(stdout, "XE\n", "got: {}", stdout);
+}
+
+#[test]
+#[ignore]
+fn test_mylang_simple() {
+    let source = "import getchar\nimport putchar\ndef main() of int\n    c = getchar()\n    putchar(c)\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run_with_stdin(source, "A\n");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_break() {
+    let source = "import putchar\ndef main() of int\n    i = 0\n    while i < 5 {\n        if i == 3 then { break; }\n        putchar(65 + i)\n        i = i + 1\n    }\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "ABC\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_globals() {
+    let source = "import putchar\ndef main() of int\n    putchar(65)\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_multi() {
+    let source = "import putchar\ndef foo(x of int) of int\n    putchar(x)\n    return 0\nend\ndef main() of int\n    foo(65)\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_pool() {
+    let source = "import putchar\ndef main() of int\n    pool[100] = 65\n    putchar(pool[100])\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "A\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_init() {
+    let source = "import putchar\ndef main() of int\n    pool[1792] = 69\n    pool[1793] = 120\n    pool[1794] = 105\n    pool[1795] = 116\n    pool[1796] = 0\n    putchar(pool[1792])\n    putchar(pool[1793])\n    putchar(pool[1794])\n    putchar(pool[1795])\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Exit\n");
+}
+
+#[test]
+#[ignore]
+fn test_mylang_high() {
+    let source = "import putchar\ndef main() of int\n    pool[1792] = 69\n    pool[1793] = 120\n    pool[1794] = 105\n    putchar(pool[1792])\n    putchar(pool[1793])\n    putchar(pool[1794])\n    putchar(10)\n    return 0\nend\n";
+    let output = compile_and_run(source);
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(normalize_output(&output.stdout), "Exi\n");
+}

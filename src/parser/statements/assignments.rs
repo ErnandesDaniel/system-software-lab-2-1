@@ -151,11 +151,6 @@ impl Parser<'_> {
                     }
                 }
                 Err(e) => {
-                    if let Some(tok) = self.current_token() {
-                        if *tok == end_token {
-                            break;
-                        }
-                    }
                     return Err(e);
                 }
             }
