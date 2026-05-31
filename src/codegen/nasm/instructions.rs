@@ -168,26 +168,25 @@ impl AsmGenerator {
                         let index = &inst.operands[3];
                         let elem_stride = Self::array_elem_stride(inst);
                         let val_is_ptr = value.get_type().is_pointer();
-                        self.load_operand(value, if val_is_ptr { "rax" } else { "eax" }, val_is_ptr);
+                        let val_reg = if val_is_ptr { "rax" } else { "eax" };
+                        self.load_operand(value, val_reg, val_is_ptr);
                         if let IrOperand::Constant(crate::ir::Constant::Int(idx_val)) = index {
                             // Constant index: use base + offset + idx_val * stride directly
                             let total_off = *off as i64 + idx_val * elem_stride;
                             self.gen_lea_base(name, "rcx");
-                            if elem_stride == 8 {
-                                self.output.push_str(&format!("    mov [rcx + {total_off}], rax\n"));
-                            } else {
-                                self.output.push_str(&format!("    mov [rcx + {total_off}], eax\n"));
-                            }
+                            self.output.push_str(&format!("    mov [rcx + {total_off}], {val_reg}\n"));
                         } else {
                             self.load_operand(index, "ebx", false);
                             self.gen_lea_base(name, "rcx");
                             if *off != 0 {
                                 self.output.push_str(&format!("    add rcx, {off}\n"));
                             }
-                            if elem_stride == 8 {
-                                self.output.push_str("    mov [rcx + rbx * 8], rax\n");
+                            if matches!(elem_stride, 1 | 2 | 4 | 8) {
+                                self.output.push_str(&format!("    mov [rcx + rbx * {elem_stride}], {val_reg}\n"));
                             } else {
-                                self.output.push_str("    mov [rcx + rbx * 4], eax\n");
+                                self.output.push_str(&format!("    imul ebx, {elem_stride}\n"));
+                                self.output.push_str("    add rcx, rbx\n");
+                                self.output.push_str(&format!("    mov [rcx], {val_reg}\n"));
                             }
                         }
                     } else {

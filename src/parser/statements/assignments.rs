@@ -24,14 +24,14 @@ impl Parser<'_> {
             }));
         }
 
-        // Check if this is a slice assignment: identifier[expr] = expr
+        // Check if this is an indexed expression: identifier[expr]
         if self.current_token() == Some(&Token::LBracket) {
             self.expect(Token::LBracket)?;
             let index = self.parse_expression(0)?;
             self.expect(Token::RBracket)?;
 
             // Create slice expression: arr[0]
-            let slice = Expr::Slice(SliceExpr {
+            let mut left = Expr::Slice(SliceExpr {
                 array: Box::new(Expr::Identifier(Identifier {
                     name: var_name.clone(),
                     span,
@@ -44,6 +44,36 @@ impl Parser<'_> {
                 span: span.merge(self.current_span()),
             });
 
+            // Handle trailing .field and [sub] accesses (e.g., arr[i].field, arr[i][j])
+            loop {
+                match self.current_token() {
+                    Some(Token::Dot) => {
+                        self.advance();
+                        let (_tok, f_span) = self.expect(Token::Identifier)?;
+                        let field = Identifier {
+                            name: self.get_text(&f_span).to_string(),
+                            span: f_span,
+                        };
+                        left = Expr::FieldAccess(Box::new(left), field);
+                    }
+                    Some(Token::LBracket) => {
+                        self.advance();
+                        let sub_idx = self.parse_expression(0)?;
+                        self.expect(Token::RBracket)?;
+                        left = Expr::Slice(SliceExpr {
+                            array: Box::new(left),
+                            ranges: vec![Range {
+                                start: sub_idx,
+                                end: None,
+                                span: Span::new(0, 0),
+                            }],
+                            span: span.merge(self.current_span()),
+                        });
+                    }
+                    _ => break,
+                }
+            }
+
             // Now check for assignment
             if self.current_token() == Some(&Token::Assign) {
                 self.expect(Token::Assign)?;
@@ -54,7 +84,7 @@ impl Parser<'_> {
                 let end_span = self.current_span();
                 return Ok(Statement::Expression(ExpressionStatement {
                     expr: Expr::Binary(BinaryExpr {
-                        left: Box::new(slice),
+                        left: Box::new(left),
                         operator: BinaryOp::Assign,
                         right: Box::new(right),
                         span: span.merge(end_span),
@@ -62,6 +92,40 @@ impl Parser<'_> {
                     span: span.merge(end_span),
                 }));
             }
+
+            // No assignment: use Pratt loop for remaining infix operators
+            while let Some(token) = self.current_token() {
+                if matches!(
+                    token,
+                    Token::End
+                        | Token::Semi
+                        | Token::Then
+                        | Token::Else
+                        | Token::Do
+                        | Token::While
+                        | Token::Until
+                        | Token::Comma
+                        | Token::RParen
+                        | Token::RBracket
+                ) {
+                    break;
+                }
+                let token_copy = *token;
+                let prec = Self::get_precedence(&token_copy);
+                if prec == 0 {
+                    break;
+                }
+                self.advance();
+                left = self.parse_infix(left, token_copy, prec)?;
+            }
+            if self.current_token() == Some(&Token::Semi) {
+                self.expect(Token::Semi)?;
+            }
+            let end_span = self.current_span();
+            return Ok(Statement::Expression(ExpressionStatement {
+                expr: left,
+                span: span.merge(end_span),
+            }));
         }
 
         // Regular identifier handling

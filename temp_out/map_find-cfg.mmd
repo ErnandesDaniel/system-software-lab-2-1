@@ -1,0 +1,16 @@
+graph TD
+    BB_3["BB3\nt89 = 1\nt90 = -t89\nreturn t90"]
+    BB_1["BB1\nt80 = map_n\[?\]\nt81 = (i < t80)\nif t81 goto BB_2 else BB_3"]
+    BB_4["BB4\nreturn i"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_2["BB2\nt82 = entries\[0\]\nt83 = streq(t82, key_off)\nt84 = 1\nt85 = (t83 == t84)\nif t85 goto BB_4 else BB_5"]
+    BB_6["BB6\nt86 = 1\nt87 = i + t86\ni = t87\ngoto BB_1"]
+    BB_0["BB0\nt78 = 0\ni = t78\ngoto BB_1"]
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_2 --> BB_4
+BB_2 --> BB_5
+BB_6 --> BB_1
+BB_0 --> BB_1

@@ -1,0 +1,16 @@
+graph TD
+    BB_3["BB3\n"]
+    BB_1["BB1\nt42 = 1\nt43 = 1\nt44 = (t42 == t43)\nif t44 goto BB_2 else BB_3"]
+    BB_4["BB4\nt57 = dst + i\nt58 = 1\nt59 = t57 + t58\nreturn t59"]
+    BB_5["BB5\ngoto BB_6"]
+    BB_2["BB2\nt45 = pool\[?\]\nt46 = src + i\nt47 = t45\[t46\] (str)\nc = t47\nt49 = pool\[?\]\nt50 = dst + i\nt51 = t49\[t50\] (str)\nt53 = dst + i\nt54 = pool\[?\]\nt54\[t53\] = c (str)\nt55 = 0\nt56 = (c == t55)\nif t56 goto BB_4 else BB_5"]
+    BB_6["BB6\nt60 = 1\nt61 = i + t60\ni = t61\ngoto BB_1"]
+    BB_0["BB0\nt40 = 0\ni = t40\ngoto BB_1"]
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_4 --> BB_6
+BB_5 --> BB_6
+BB_2 --> BB_4
+BB_2 --> BB_5
+BB_6 --> BB_1
+BB_0 --> BB_1

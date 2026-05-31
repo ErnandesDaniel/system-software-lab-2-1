@@ -1,0 +1,180 @@
+graph TD;
+N0["function: map_add"]
+N1["statement"]
+N0 --> N1
+N2["if_statement"]
+N1 --> N2
+N3["if"]
+N2 --> N3
+N4["expr"]
+N2 --> N4
+N5["binary_expr"]
+N4 --> N5
+N6["expr"]
+N5 --> N6
+N7["identifier: map_n"]
+N6 --> N7
+N8[">="]
+N5 --> N8
+N9["expr"]
+N5 --> N9
+N10["literal"]
+N9 --> N10
+N11["dec: 8"]
+N10 --> N11
+N12["statement"]
+N2 --> N12
+N13["block_statement"]
+N12 --> N13
+N14["begin"]
+N13 --> N14
+N15["statement"]
+N13 --> N15
+N16["return_statement"]
+N15 --> N16
+N17["end"]
+N13 --> N17
+N18["statement"]
+N0 --> N18
+N19["expression_statement"]
+N18 --> N19
+N20["expr"]
+N19 --> N20
+N21["binary_expr"]
+N20 --> N21
+N22["expr"]
+N21 --> N22
+N23["field_access .key"]
+N22 --> N23
+N24["expr"]
+N23 --> N24
+N25["identifier: entries"]
+N24 --> N25
+N26["="]
+N21 --> N26
+N27["expr"]
+N21 --> N27
+N28["identifier: pool_next"]
+N27 --> N28
+N29[";"]
+N19 --> N29
+N30["statement"]
+N0 --> N30
+N31["expression_statement"]
+N30 --> N31
+N32["expr"]
+N31 --> N32
+N33["binary_expr"]
+N32 --> N33
+N34["expr"]
+N33 --> N34
+N35["identifier: pool_next"]
+N34 --> N35
+N36["="]
+N33 --> N36
+N37["expr"]
+N33 --> N37
+N38["call_expr"]
+N37 --> N38
+N39["expr"]
+N38 --> N39
+N40["identifier: strcpy_at"]
+N39 --> N40
+N41["expr"]
+N38 --> N41
+N42["identifier: pool_next"]
+N41 --> N42
+N43["expr"]
+N38 --> N43
+N44["identifier: key_off"]
+N43 --> N44
+N45[";"]
+N31 --> N45
+N46["statement"]
+N0 --> N46
+N47["expression_statement"]
+N46 --> N47
+N48["expr"]
+N47 --> N48
+N49["binary_expr"]
+N48 --> N49
+N50["expr"]
+N49 --> N50
+N51["field_access .val"]
+N50 --> N51
+N52["expr"]
+N51 --> N52
+N53["identifier: entries"]
+N52 --> N53
+N54["="]
+N49 --> N54
+N55["expr"]
+N49 --> N55
+N56["identifier: pool_next"]
+N55 --> N56
+N57[";"]
+N47 --> N57
+N58["statement"]
+N0 --> N58
+N59["expression_statement"]
+N58 --> N59
+N60["expr"]
+N59 --> N60
+N61["binary_expr"]
+N60 --> N61
+N62["expr"]
+N61 --> N62
+N63["identifier: pool_next"]
+N62 --> N63
+N64["="]
+N61 --> N64
+N65["expr"]
+N61 --> N65
+N66["call_expr"]
+N65 --> N66
+N67["expr"]
+N66 --> N67
+N68["identifier: strcpy_at"]
+N67 --> N68
+N69["expr"]
+N66 --> N69
+N70["identifier: pool_next"]
+N69 --> N70
+N71["expr"]
+N66 --> N71
+N72["identifier: val_off"]
+N71 --> N72
+N73[";"]
+N59 --> N73
+N74["statement"]
+N0 --> N74
+N75["expression_statement"]
+N74 --> N75
+N76["expr"]
+N75 --> N76
+N77["binary_expr"]
+N76 --> N77
+N78["expr"]
+N77 --> N78
+N79["identifier: map_n"]
+N78 --> N79
+N80["="]
+N77 --> N80
+N81["expr"]
+N77 --> N81
+N82["binary_expr"]
+N81 --> N82
+N83["expr"]
+N82 --> N83
+N84["identifier: map_n"]
+N83 --> N84
+N85["+"]
+N82 --> N85
+N86["expr"]
+N82 --> N86
+N87["literal"]
+N86 --> N87
+N88["dec: 1"]
+N87 --> N88
+N89[";"]
+N75 --> N89

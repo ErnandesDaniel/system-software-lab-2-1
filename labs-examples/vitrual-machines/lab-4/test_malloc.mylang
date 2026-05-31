@@ -1,0 +1,22 @@
+import getchar
+import putchar
+import malloc
+import free
+
+struct MapEntry {
+    key of string
+    val of string
+}
+
+global entry of MapEntry
+
+def main() of int
+    s = malloc(10)
+    s[0] = 72
+    s[1] = 105
+    s[2] = 0
+    entry.key = s
+    putchar(entry.key[0])
+    putchar(entry.key[1])
+    return 0
+end

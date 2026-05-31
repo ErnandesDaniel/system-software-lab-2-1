@@ -121,6 +121,14 @@ impl IrGenerator {
                                 .insert(global.name.name.clone(), id.name.clone());
                         }
                     }
+                    if let crate::ast::TypeRef::Array { element_type, .. } = &global.ty {
+                        if let crate::ast::TypeRef::Custom(ref id) = element_type.as_ref() {
+                            if self.struct_fields.contains_key(&id.name) {
+                                self.global_struct_type_names
+                                    .insert(global.name.name.clone(), id.name.clone());
+                            }
+                        }
+                    }
                 }
                 SourceItem::CoroutineDef(_) => {
                     // Coroutines are parsed like functions from FuncDefinition items
@@ -333,7 +341,7 @@ impl IrGenerator {
                 if let Some(fields) = self.struct_fields.get(&id.name) {
                     if let Some(last) = fields.last() {
                         let size = last.2 + last.1.size() as usize;
-                        IrType::Array(Box::new(IrType::Int), size)
+                        IrType::Array(Box::new(IrType::Int), size / 4)
                     } else {
                         IrType::Int
                     }
@@ -506,8 +514,36 @@ impl IrGenerator {
         0
     }
 
-    pub fn struct_size_for_var(_base: &str) -> usize {
+    pub fn struct_size_for_var(&self, base: &str) -> usize {
+        let struct_name = self
+            .global_struct_type_names
+            .get(base)
+            .or_else(|| self.local_struct_types.get(base));
+        if let Some(struct_name) = struct_name {
+            if let Some(fields) = self.struct_fields.get(struct_name) {
+                if let Some((_, last_type, last_offset)) = fields.last() {
+                    return last_offset + last_type.size() as usize;
+                }
+            }
+        }
         4
+    }
+
+    pub fn find_field_type_for_var(&self, base: &str, field: &str) -> IrType {
+        let struct_name = self
+            .global_struct_type_names
+            .get(base)
+            .or_else(|| self.local_struct_types.get(base));
+        if let Some(struct_name) = struct_name {
+            if let Some(fields) = self.struct_fields.get(struct_name) {
+                for (fname, ftype, _) in fields {
+                    if fname == field {
+                        return ftype.clone();
+                    }
+                }
+            }
+        }
+        IrType::Int
     }
 
     pub fn resolve_field_chain(&self, expr: &crate::ast::Expr) -> (String, usize) {

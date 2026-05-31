@@ -1,0 +1,200 @@
+graph TD;
+N0["function: map_remove"]
+N1["statement"]
+N0 --> N1
+N2["loop_statement"]
+N1 --> N2
+N3["while"]
+N2 --> N3
+N4["expr"]
+N2 --> N4
+N5["binary_expr"]
+N4 --> N5
+N6["expr"]
+N5 --> N6
+N7["identifier: idx"]
+N6 --> N7
+N8["<"]
+N5 --> N8
+N9["expr"]
+N5 --> N9
+N10["binary_expr"]
+N9 --> N10
+N11["expr"]
+N10 --> N11
+N12["identifier: map_n"]
+N11 --> N12
+N13["-"]
+N10 --> N13
+N14["expr"]
+N10 --> N14
+N15["literal"]
+N14 --> N15
+N16["dec: 1"]
+N15 --> N16
+N17["statement"]
+N2 --> N17
+N18["expression_statement"]
+N17 --> N18
+N19["expr"]
+N18 --> N19
+N20["binary_expr"]
+N19 --> N20
+N21["expr"]
+N20 --> N21
+N22["field_access .key"]
+N21 --> N22
+N23["expr"]
+N22 --> N23
+N24["identifier: entries"]
+N23 --> N24
+N25["="]
+N20 --> N25
+N26["expr"]
+N20 --> N26
+N27["field_access .key"]
+N26 --> N27
+N28["expr"]
+N27 --> N28
+N29["slice_expr"]
+N28 --> N29
+N30["expr"]
+N29 --> N30
+N31["identifier: entries"]
+N30 --> N31
+N32["range"]
+N29 --> N32
+N33["expr"]
+N32 --> N33
+N34["binary_expr"]
+N33 --> N34
+N35["expr"]
+N34 --> N35
+N36["identifier: idx"]
+N35 --> N36
+N37["+"]
+N34 --> N37
+N38["expr"]
+N34 --> N38
+N39["literal"]
+N38 --> N39
+N40["dec: 1"]
+N39 --> N40
+N41[";"]
+N18 --> N41
+N42["statement"]
+N2 --> N42
+N43["expression_statement"]
+N42 --> N43
+N44["expr"]
+N43 --> N44
+N45["binary_expr"]
+N44 --> N45
+N46["expr"]
+N45 --> N46
+N47["field_access .val"]
+N46 --> N47
+N48["expr"]
+N47 --> N48
+N49["identifier: entries"]
+N48 --> N49
+N50["="]
+N45 --> N50
+N51["expr"]
+N45 --> N51
+N52["field_access .val"]
+N51 --> N52
+N53["expr"]
+N52 --> N53
+N54["slice_expr"]
+N53 --> N54
+N55["expr"]
+N54 --> N55
+N56["identifier: entries"]
+N55 --> N56
+N57["range"]
+N54 --> N57
+N58["expr"]
+N57 --> N58
+N59["binary_expr"]
+N58 --> N59
+N60["expr"]
+N59 --> N60
+N61["identifier: idx"]
+N60 --> N61
+N62["+"]
+N59 --> N62
+N63["expr"]
+N59 --> N63
+N64["literal"]
+N63 --> N64
+N65["dec: 1"]
+N64 --> N65
+N66[";"]
+N43 --> N66
+N67["statement"]
+N2 --> N67
+N68["expression_statement"]
+N67 --> N68
+N69["expr"]
+N68 --> N69
+N70["binary_expr"]
+N69 --> N70
+N71["expr"]
+N70 --> N71
+N72["identifier: idx"]
+N71 --> N72
+N73["="]
+N70 --> N73
+N74["expr"]
+N70 --> N74
+N75["binary_expr"]
+N74 --> N75
+N76["expr"]
+N75 --> N76
+N77["identifier: idx"]
+N76 --> N77
+N78["+"]
+N75 --> N78
+N79["expr"]
+N75 --> N79
+N80["literal"]
+N79 --> N80
+N81["dec: 1"]
+N80 --> N81
+N82[";"]
+N68 --> N82
+N83["end"]
+N2 --> N83
+N84["statement"]
+N0 --> N84
+N85["expression_statement"]
+N84 --> N85
+N86["expr"]
+N85 --> N86
+N87["binary_expr"]
+N86 --> N87
+N88["expr"]
+N87 --> N88
+N89["identifier: map_n"]
+N88 --> N89
+N90["="]
+N87 --> N90
+N91["expr"]
+N87 --> N91
+N92["binary_expr"]
+N91 --> N92
+N93["expr"]
+N92 --> N93
+N94["identifier: map_n"]
+N93 --> N94
+N95["-"]
+N92 --> N95
+N96["expr"]
+N92 --> N96
+N97["literal"]
+N96 --> N97
+N98["dec: 1"]
+N97 --> N98
+N99[";"]
+N85 --> N99

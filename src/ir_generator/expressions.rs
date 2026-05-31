@@ -238,12 +238,13 @@ impl IrGenerator {
                     if let Some(range) = slice.ranges.first() {
                         let (idx_temp, _) = self.visit_expr(block, &range.start);
                         let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                        let elem_size = Self::struct_size_for_var(&arr_name);
+                        let field_type = self.find_field_type_for_var(&arr_name, &field.name);
+                        let elem_size = self.struct_size_for_var(&arr_name);
                         let tmp = self.generate_temp();
                         block.instructions.push(IrInstruction {
                             opcode: IrOpcode::Load,
                             result: Some(tmp.clone()),
-                            result_type: Some(IrType::Int),
+                            result_type: Some(field_type.clone()),
                             operands: vec![
                                 IrOperand::Variable(arr_name, IrType::Int),
                                 IrOperand::Constant(Constant::Int(field_offset as i64)),
@@ -255,16 +256,17 @@ impl IrGenerator {
                             false_target: None,
                             span: crate::ast::Span::new(0, 0),
                         });
-                        return (tmp, IrType::Int);
+                        return (tmp, field_type);
                     }
                 }
                 let (base_name, total_offset) = self.resolve_field_chain(expr);
+                let field_type = self.find_field_type_for_var(&base_name, &field.name);
                 let tmp = self.generate_temp();
                 // Use resolved chain — base name + cumulative offset
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Load,
                     result: Some(tmp.clone()),
-                    result_type: Some(IrType::Int),
+                    result_type: Some(field_type.clone()),
                     operands: vec![
                         IrOperand::Variable(base_name, IrType::Int),
                         IrOperand::Constant(Constant::Int(total_offset as i64)),
@@ -274,7 +276,7 @@ impl IrGenerator {
                     false_target: None,
                     span: crate::ast::Span::new(0, 0),
                 });
-                (tmp, IrType::Int)
+                (tmp, field_type)
             }
         }
     }
@@ -304,7 +306,32 @@ impl IrGenerator {
             BinaryOp::BitXor => (IrOpcode::BitXor, IrType::Int),
             BinaryOp::Assign => {
                 match expr.left.as_ref() {
-                    Expr::FieldAccess(_, _) => {
+                    Expr::FieldAccess(inner_base, field) => {
+                        // entries[i].key = value — array-of-structs field store (4-operand)
+                        if let Expr::Slice(slice) = inner_base.as_ref() {
+                            if let Some(range) = slice.ranges.first() {
+                                let (arr_name, _) = self.visit_expr(block, &slice.array);
+                                let (idx_temp, _) = self.visit_expr(block, &range.start);
+                                let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
+                                let arr_type = self.global_types.get(&arr_name).cloned().unwrap_or(IrType::Int);
+                                block.instructions.push(IrInstruction {
+                                    opcode: IrOpcode::Store,
+                                    result: None,
+                                    result_type: None,
+                                    operands: vec![
+                                        IrOperand::Variable(arr_name, arr_type),
+                                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                                        IrOperand::Variable(right_temp.clone(), right_type.clone()),
+                                        IrOperand::Variable(idx_temp, IrType::Int),
+                                    ],
+                                    jump_target: None,
+                                    true_target: None,
+                                    false_target: None,
+                                    span: expr.span,
+                                });
+                                return (right_temp, right_type);
+                            }
+                        }
                         let (base_name, total_offset) = self.resolve_field_chain(expr.left.as_ref());
                         block.instructions.push(IrInstruction {
                             opcode: IrOpcode::Store,
@@ -615,15 +642,20 @@ impl IrGenerator {
 
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {
         // Handle struct field array access: scheduler.coroutines[i]
-        if let crate::ast::Expr::FieldAccess(_, _) = expr.array.as_ref() {
+        if let crate::ast::Expr::FieldAccess(_, ref field_ident) = expr.array.as_ref() {
             let (base_name, total_offset) = self.resolve_field_chain(expr.array.as_ref());
             if let Some(range) = expr.ranges.first() {
                 let (index_temp, _) = self.visit_expr(block, &range.start);
+                let field_type = self.find_field_type_for_var(&base_name, &field_ident.name);
+                let element_type = match &field_type {
+                    IrType::Array(elem, _) => *elem.clone(),
+                    _ => IrType::Int,
+                };
                 let result_temp = self.generate_temp();
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Load,
                     result: Some(result_temp.clone()),
-                    result_type: Some(IrType::Int),
+                    result_type: Some(element_type.clone()),
                     operands: vec![
                         IrOperand::Variable(base_name, IrType::Int),
                         IrOperand::Constant(Constant::Int(total_offset as i64)),
@@ -634,7 +666,7 @@ impl IrGenerator {
                     false_target: None,
                     span: expr.span,
                 });
-                return (result_temp, IrType::Int);
+                return (result_temp, element_type);
             }
         }
 

@@ -1,415 +1,179 @@
-// Lab 4 — MyLang daemon: stdin/stdout pipe protocol
+// Lab 4 — MyLang daemon with malloc/free and string struct fields
 // Протокол: "opcode key value\n" -> "OK [payload]\n" / "ERR msg\n"
-//
-// Без JNA, без SHM, без Win32 API — только getchar/putchar
 
 import getchar
 import putchar
+import malloc
+import free
 
-// ─── Storage pool (2048 байт) ───────────────────────────────────────────────
-//
-//  0..255  — input buffer
-//  256..383 — temp buffer (для list response)
-//  384..1791 — map storage (pool_next)
-//  1792.. — error/command strings (pre-populated в main)
+struct MapEntry {
+    key of string
+    val of string
+}
 
-global pool of string = "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+// ─── Globals ─────────────────────────────────────────────────
 
-// ─── Map state ──────────────────────────────────────────────────────────────
-global pool_next of int = 384
+global entries of MapEntry[8]
 global map_n of int = 0
-global map_keys of int[8]
-global map_vals of int[8]
+global input_buf of string
 
-// ─── Parse results ──────────────────────────────────────────────────────────
-global r0 of int = 0   // opcode offset
-global r1 of int = -1  // key offset (-1 = none)
-global r2 of int = -1  // value offset (-1 = none)
+// Parse results: offsets within input_buf
+global r0 of int = 0
+global r1 of int = -1
+global r2 of int = -1
 
-// ─── Binary protocol flag ────────────────────────────────────────────────────
-global is_binary of int = 0
+// ─── String helpers ─────────────────────────────────────────
 
-// ─── String helpers ─────────────────────────────────────────────────────────
-
-def find_space(start of int) of int
-    i = start
-    while 1 == 1 {
-        c = pool[i]
-        if c == 32 then { return i }
-        if c == 0 || c == 10 then { return -1 }
-        i = i + 1
-    }
-end
-
-// Compare null-terminated strings at two pool offsets
-def streq(a of int, b of int) of int
+def streq(a of string, b of string) of int
     i = 0
     while 1 == 1 {
-        ca = pool[a + i]
-        cb = pool[b + i]
+        ca = a[i]
+        cb = b[i]
         if ca != cb then { return 0 }
         if ca == 0 then { return 1 }
         i = i + 1
     }
 end
 
-// Copy string from src offset to dst offset, returns end offset (past null)
-def strcpy_at(dst of int, src of int) of int
+def streq_at(buf of string, start of int, s of string) of int
     i = 0
     while 1 == 1 {
-        c = pool[src + i]
-        pool[dst + i] = c
-        if c == 0 then { return dst + i + 1 }
+        ca = buf[start + i]
+        cb = s[i]
+        if ca != cb then { return 0 }
+        if ca == 0 then { return 1 }
         i = i + 1
     }
 end
 
-def putstr_at(off of int)
+def strdup_from(buf of string, start of int) of string
+    len = 0
+    while buf[start + len] != 0 { len = len + 1 }
+    dst = malloc(len + 1)
+    i = 0
+    while i <= len {
+        dst[i] = buf[start + i]
+        i = i + 1
+    }
+    return dst
+end
+
+def putstr(s of string)
     i = 0
     while 1 == 1 {
-        c = pool[off + i]
+        c = s[i]
         if c == 0 then { return }
         putchar(c)
         i = i + 1
     }
 end
 
-// ─── Binary I/O helpers ─────────────────────────────────────────────────────
+// ─── Map operations ─────────────────────────────────────────
 
-// Read 2 bytes LE from stdin as int
-def bin_read_u16() of int
-    lo = getchar()
-    hi = getchar()
-    return lo + hi * 256
-end
-
-// Write 2 bytes LE to stdout
-def bin_write_u16(val of int)
-    putchar(val % 256)
-    putchar(val / 256)
-end
-
-// Read binary command from stdin
-// Sets r0, r1, r2 (offsets into pool, same as parse_line for text)
-def bin_read_cmd()
-    r0 = 0
-    r1 = -1
-    r2 = -1
-    op = getchar()
-
-    // Store opcode string at pool[0] for dispatch (same offsets as text mode)
-    if op == 1 then { pool[0]=99; pool[1]=114; pool[2]=101; pool[3]=97; pool[4]=116; pool[5]=101; pool[6]=0 }  // "create"
-    if op == 2 then { pool[0]=103; pool[1]=101; pool[2]=116; pool[3]=0 }                                      // "get"
-    if op == 3 then { pool[0]=115; pool[1]=101; pool[2]=116; pool[3]=0 }                                      // "set"
-    if op == 4 then { pool[0]=100; pool[1]=101; pool[2]=108; pool[3]=101; pool[4]=116; pool[5]=101; pool[6]=0 } // "delete"
-    if op == 5 then { pool[0]=108; pool[1]=105; pool[2]=115; pool[3]=116; pool[4]=0; return }                  // "list" — no key/val
-    if op == 6 then { pool[0]=101; pool[1]=120; pool[2]=105; pool[3]=116; pool[4]=0; return }                  // "exit" — no key/val
-
-    // Read key
-    klen = bin_read_u16()
-    di = 256
-    i = 0
-    while i < klen {
-        pool[di + i] = getchar()
-        i = i + 1
-    }
-    pool[di + klen] = 0
-    r1 = di
-
-    // Read value (only for create/set)
-    if op != 1 && op != 3 then { return }
-
-    vlen = bin_read_u16()
-    di2 = di + klen + 1
-    i = 0
-    while i < vlen {
-        pool[di2 + i] = getchar()
-        i = i + 1
-    }
-    pool[di2 + vlen] = 0
-    r2 = di2
-end
-
-// Write binary OK response
-def bin_write_ok()
-    putchar(0)        // status OK
-    bin_write_u16(0)  // empty payload
-end
-
-// Write binary OK response with payload string at pool[off]
-def bin_write_ok_val(off of int)
-    len = 0
-    while pool[off + len] != 0 { len = len + 1 }
-    putchar(0)        // status OK
-    bin_write_u16(len)
-    i = 0
-    while i < len { putchar(pool[off + i]); i = i + 1 }
-end
-
-// Write binary ERR response with message at pool[off]
-def bin_write_err(off of int)
-    len = 0
-    while pool[off + len] != 0 { len = len + 1 }
-    putchar(1)        // status ERR
-    bin_write_u16(len)
-    i = 0
-    while i < len { putchar(pool[off + i]); i = i + 1 }
-end
-
-// ─── Map operations ─────────────────────────────────────────────────────────
-
-def map_find(key_off of int) of int
+def map_find_at(buf of string, start of int) of int
     i = 0
     while i < map_n {
-        if streq(map_keys[i], key_off) == 1 then { return i }
+        if streq_at(buf, start, entries[i].key) == 1 then { return i }
         i = i + 1
     }
     return -1
 end
 
-def map_add(key_off of int, val_off of int)
+def map_add(buf of string, key_off of int, val_off of int)
     if map_n >= 8 then { return }
-    map_keys[map_n] = pool_next
-    pool_next = strcpy_at(pool_next, key_off)
-    map_vals[map_n] = pool_next
-    pool_next = strcpy_at(pool_next, val_off)
+    entries[map_n].key = strdup_from(buf, key_off)
+    entries[map_n].val = strdup_from(buf, val_off)
     map_n = map_n + 1
 end
 
-def map_update(idx of int, val_off of int)
-    map_vals[idx] = pool_next
-    pool_next = strcpy_at(pool_next, val_off)
+def map_update(idx of int, buf of string, val_off of int)
+    free(entries[idx].val)
+    entries[idx].val = strdup_from(buf, val_off)
 end
 
 def map_remove(idx of int)
+    free(entries[idx].key)
+    free(entries[idx].val)
     while idx < map_n - 1 {
-        map_keys[idx] = map_keys[idx + 1]
-        map_vals[idx] = map_vals[idx + 1]
+        entries[idx].key = entries[idx + 1].key
+        entries[idx].val = entries[idx + 1].val
         idx = idx + 1
     }
     map_n = map_n - 1
 end
 
-def map_build_list()
-    di = 256
-    i = 0
-    while i < map_n {
-        if i > 0 then {
-            pool[di] = 44  // comma
-            di = di + 1
-        }
-        di = strcpy_at(di, map_keys[i])
-        i = i + 1
-    }
-    pool[di] = 0
-end
+// ─── Input parsing ──────────────────────────────────────────
 
-// ─── Input ──────────────────────────────────────────────────────────────────
-
-// Парсит строку в pool[0..]: заменяет пробелы на \0,
-// выставляет r0=opcode_off, r1=key_off, r2=value_off(-1 если нет)
 def parse_line()
-    r0 = 0
-    r1 = -1
-    r2 = -1
+    r0 = 0; r1 = -1; r2 = -1
 
-    sp1 = find_space(0)
-    if sp1 == -1 then { return }
-
-    pool[sp1] = 0
+    sp1 = 0
+    while 1 == 1 {
+        c = input_buf[sp1]
+        if c == 32 then { break; }
+        if c == 0 then { return }
+        sp1 = sp1 + 1
+    }
+    input_buf[sp1] = 0
     r1 = sp1 + 1
 
-    sp2 = find_space(r1)
-    if sp2 == -1 then { return }
-
-    pool[sp2] = 0
-    r2 = sp2 + 1
-
-    nl = 0
+    sp2 = r1
     while 1 == 1 {
-        c = pool[r2 + nl]
-        if c == 0 then { return }
-        if c == 10 then { pool[r2 + nl] = 0; return }
-        nl = nl + 1
+        c = input_buf[sp2]
+        if c == 32 then { break; }
+        if c == 0 then { r1 = -1; return }
+        sp2 = sp2 + 1
     }
+    input_buf[sp2] = 0
+    r2 = sp2 + 1
 end
 
-// ─── Response ───────────────────────────────────────────────────────────────
+// ─── Response ───────────────────────────────────────────────
 
 def respond_ok()
     putchar(79); putchar(75); putchar(10)  // "OK\n"
 end
 
-def respond_ok_val(off of int)
+def respond_ok_str(s of string)
     putchar(79); putchar(75); putchar(32)  // "OK "
-    putstr_at(off)
+    putstr(s)
     putchar(10)
 end
 
-def respond_err(off of int)
+def respond_err(s of string)
     putchar(69); putchar(82); putchar(82); putchar(32)  // "ERR "
-    putstr_at(off)
+    putstr(s)
     putchar(10)
 end
 
-// ─── Main ───────────────────────────────────────────────────────────────────
+// ─── Main ───────────────────────────────────────────────────
 
 def main() of int
-    // ── Pre-populate command/error strings (высокие офсеты, вне map storage) ──
-    // 1792: "exit"
-    pool[1792] = 101  // e
-    pool[1793] = 120  // x
-    pool[1794] = 105  // i
-    pool[1795] = 116  // t
-    pool[1796] = 0    // \0
+    input_buf = malloc(256)
+    eof = 0
 
-    // 1797: "list"
-    pool[1797] = 108  // l
-    pool[1798] = 105  // i
-    pool[1799] = 115  // s
-    pool[1800] = 116  // t
-    pool[1801] = 0    // \0
-
-    // 1802: "get"
-    pool[1802] = 103  // g
-    pool[1803] = 101  // e
-    pool[1804] = 116  // t
-    pool[1805] = 0    // \0
-
-    // 1806: "create"
-    pool[1806] = 99   // c
-    pool[1807] = 114  // r
-    pool[1808] = 101  // e
-    pool[1809] = 97   // a
-    pool[1810] = 116  // t
-    pool[1811] = 101  // e
-    pool[1812] = 0    // \0
-
-    // 1813: "set"
-    pool[1813] = 115  // s
-    pool[1814] = 101  // e
-    pool[1815] = 116  // t
-    pool[1816] = 0    // \0
-
-    // 1817: "delete"
-    pool[1817] = 100  // d
-    pool[1818] = 101  // e
-    pool[1819] = 108  // l
-    pool[1820] = 101  // e
-    pool[1821] = 116  // t
-    pool[1822] = 101  // e
-    pool[1823] = 0    // \0
-
-    // 1824: "Key not found"
-    pool[1824] = 75   // K
-    pool[1825] = 101  // e
-    pool[1826] = 121  // y
-    pool[1827] = 32   // (space)
-    pool[1828] = 110  // n
-    pool[1829] = 111  // o
-    pool[1830] = 116  // t
-    pool[1831] = 32   // (space)
-    pool[1832] = 102  // f
-    pool[1833] = 111  // o
-    pool[1834] = 117  // u
-    pool[1835] = 110  // n
-    pool[1836] = 100  // d
-    pool[1837] = 0    // \0
-
-    // 1838: "Exists"
-    pool[1838] = 69   // E
-    pool[1839] = 120  // x
-    pool[1840] = 105  // i
-    pool[1841] = 115  // s
-    pool[1842] = 116  // t
-    pool[1843] = 115  // s
-    pool[1844] = 0    // \0
-
-    // ── Protocol detection ──
-    // Read first byte: 0xBF = binary protocol, anything else = text
-    first_byte = getchar()
-    if first_byte == 191 then { is_binary = 1 }
-
-    // ── Binary main loop ──
-    if is_binary == 1 then {
-        while 1 == 1 {
-            bin_read_cmd()
-
-            // exit
-            if r1 == -1 then {
-                if streq(r0, 1792) == 1 then { bin_write_ok(); return 0 }
-            }
-
-            // list
-            if r1 == -1 then {
-                if streq(r0, 1797) == 1 then {
-                    map_build_list()
-                    bin_write_ok_val(256)
-                }
-            }
-
-            // неизвестная команда
-            if r1 == -1 then { bin_write_err(1824) }
-
-            // get
-            if streq(r0, 1802) == 1 then {
-                idx = map_find(r1)
-                if idx >= 0 then { bin_write_ok_val(map_vals[idx]) }
-                else { bin_write_err(1824) }
-            }
-
-            // create
-            if streq(r0, 1806) == 1 then {
-                if r2 == -1 then { bin_write_err(1824) }
-                else {
-                    idx = map_find(r1)
-                    if idx >= 0 then { bin_write_err(1838) }
-                    else { map_add(r1, r2); bin_write_ok() }
-                }
-            }
-
-            // set
-            if streq(r0, 1813) == 1 then {
-                if r2 == -1 then { bin_write_err(1824) }
-                else {
-                    idx = map_find(r1)
-                    if idx >= 0 then { map_update(idx, r2); bin_write_ok() }
-                    else { bin_write_err(1824) }
-                }
-            }
-
-            // delete
-            if streq(r0, 1817) == 1 then {
-                idx = map_find(r1)
-                if idx >= 0 then { map_remove(idx); bin_write_ok() }
-                else { bin_write_err(1824) }
-            }
-        }
-    }
-
-    // ── Text main loop (existing) ──
-    // first_byte already read, store it as first char of input
-    pool[0] = first_byte
-    di = 1
-    done = 0
-    while done == 0 {
-        c = getchar()
-        if c == 10 then { pool[di] = 0; done = 1 }
-        if done == 0 then {
-            if c == -1 then { pool[di] = 0; done = 1 }
-        }
-        if done == 0 then {
-            pool[di] = c
-            di = di + 1
-        }
-    }
-
+    // Read first line
+    di = 0
     while 1 == 1 {
+        c = getchar()
+        if c == 10 then { input_buf[di] = 0; break; }
+        if c == -1 then { input_buf[di] = 0; eof = 1; break; }
+        input_buf[di] = c
+        di = di + 1
+    }
+
+    while eof == 0 {
         parse_line()
 
         // exit
         if r1 == -1 then {
-            if streq(r0, 1792) == 1 then {
+            if streq_at(input_buf, 0, "exit") == 1 then {
+                i = 0
+                while i < map_n {
+                    free(entries[i].key)
+                    free(entries[i].val)
+                    i = i + 1
+                }
                 respond_ok()
                 return 0
             }
@@ -417,82 +181,86 @@ def main() of int
 
         // list
         if r1 == -1 then {
-            if streq(r0, 1797) == 1 then {
-                map_build_list()
-                respond_ok_val(256)
+            if streq_at(input_buf, 0, "list") == 1 then {
+                putchar(79); putchar(75); putchar(32)  // "OK "
+                i = 0
+                while i < map_n {
+                    if i > 0 then { putchar(44) }
+                    putstr(entries[i].key)
+                    i = i + 1
+                }
+                putchar(10)
+                // handled set
             }
         }
 
-        // если нет key — неизвестная команда
-        if r1 == -1 then {
-            respond_err(1824)  // "Key not found" как generic error
-        }
-
         // get
-        if streq(r0, 1802) == 1 then {  // "get"
-            idx = map_find(r1)
-            if idx >= 0 then {
-                respond_ok_val(map_vals[idx])
-            } else {
-                respond_err(1824)
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "get") == 1 then {
+                idx = map_find_at(input_buf, r1)
+                if idx >= 0 then {
+                    respond_ok_str(entries[idx].val)
+                } else {
+                    respond_err("Key not found")
+                }
             }
         }
 
         // create
-        if streq(r0, 1806) == 1 then {  // "create"
-            if r2 == -1 then {
-                respond_err(1824)
-            } else {
-                idx = map_find(r1)
-                if idx >= 0 then {
-                    respond_err(1838)  // "Exists"
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "create") == 1 then {
+                if r2 == -1 then {
+                    respond_err("Key not found")
                 } else {
-                    map_add(r1, r2)
-                    respond_ok()
+                    idx = map_find_at(input_buf, r1)
+                    if idx >= 0 then {
+                        respond_err("Exists")
+                    } else {
+                        map_add(input_buf, r1, r2)
+                        respond_ok()
+                    }
                 }
             }
         }
 
         // set
-        if streq(r0, 1813) == 1 then {  // "set"
-            if r2 == -1 then {
-                respond_err(1824)
-            } else {
-                idx = map_find(r1)
-                if idx >= 0 then {
-                    map_update(idx, r2)
-                    respond_ok()
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "set") == 1 then {
+                if r2 == -1 then {
+                    respond_err("Key not found")
                 } else {
-                    respond_err(1824)
+                    idx = map_find_at(input_buf, r1)
+                    if idx >= 0 then {
+                        map_update(idx, input_buf, r2)
+                        respond_ok()
+                    } else {
+                        respond_err("Key not found")
+                    }
                 }
             }
         }
 
         // delete
-        if streq(r0, 1817) == 1 then {  // "delete"
-            idx = map_find(r1)
-            if idx >= 0 then {
-                map_remove(idx)
-                respond_ok()
-            } else {
-                respond_err(1824)
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "delete") == 1 then {
+                idx = map_find_at(input_buf, r1)
+                if idx >= 0 then {
+                    map_remove(idx)
+                    respond_ok()
+                } else {
+                    respond_err("Key not found")
+                }
             }
         }
 
         // Read next line
-        pool[0] = 0
         di = 0
-        done = 0
-        while done == 0 {
+        while 1 == 1 {
             c = getchar()
-            if c == 10 then { pool[di] = 0; done = 1 }
-            if done == 0 then {
-                if c == -1 then { pool[di] = 0; done = 1 }
-            }
-            if done == 0 then {
-                pool[di] = c
-                di = di + 1
-            }
+            if c == 10 then { input_buf[di] = 0; break; }
+            if c == -1 then { input_buf[di] = 0; eof = 1; break; }
+            input_buf[di] = c
+            di = di + 1
         }
     }
 end

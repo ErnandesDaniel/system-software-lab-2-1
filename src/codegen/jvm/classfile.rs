@@ -266,7 +266,7 @@ impl JvmGenerator {
         }
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_6,
+            version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
@@ -418,7 +418,7 @@ impl JvmGenerator {
             .collect();
 
         let class_file = ristretto_classfile::ClassFile {
-            version: ristretto_classfile::JAVA_6,
+            version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
             access_flags: ristretto_classfile::ClassAccessFlags::PUBLIC
                 | ristretto_classfile::ClassAccessFlags::SUPER,
@@ -456,7 +456,7 @@ impl JvmGenerator {
         let method_desc_idx = self.constant_pool.add_utf8(&method_desc).unwrap();
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_6,
+            version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
             this_class,
@@ -919,7 +919,7 @@ impl JvmGenerator {
         }
 
         let class_file = ClassFile {
-            version: ristretto_classfile::JAVA_6, constant_pool: self.constant_pool.clone(), access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
+            version: ristretto_classfile::JAVA_5, constant_pool: self.constant_pool.clone(), access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class, super_class, interfaces: vec![],
             fields: if count > 0 { vec![Field { access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC, name_index: coro_field_name, descriptor_index: coro_field_desc, field_type: FieldType::parse("[Ljava/lang/Object;").unwrap(), attributes: vec![] }] } else { vec![] },
             methods, attributes: vec![], code_source_url: None,

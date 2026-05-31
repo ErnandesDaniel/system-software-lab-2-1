@@ -423,7 +423,10 @@ impl AsmGenerator {
                             }
                             output.push('\n');
                         }
-                        _ => {}
+                        _ => {
+                            let elem_size = elem_type.size() as usize;
+                            output.push_str(&format!("{label} times {} db 0\n", elem_size * size));
+                        }
                     }
                 }
                 _ => {

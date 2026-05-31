@@ -10,35 +10,21 @@
  *   cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
  *
  * Запуск:
- *   php labs-examples/vitrual-machines/lab-4/input.php [--protocol text|binary] [--target nasm|jvm]
+ *   php labs-examples/vitrual-machines/lab-4/input.php [--target nasm|jvm]
  *
- * Протоколы:
- *   text   — "opcode key value\n" -> "OK [payload]\n" (по умолчанию)
- *   binary — бинарный протокол [magic:1B][opcode:1B][klen:2B LE][key][vlen:2B LE][val]
- *            -> [status:1B][plen:2B LE][payload]
+ * Протокол: "opcode key value\n" -> "OK [payload]\n" / "ERR msg\n"
  *
  * Цели:
  *   nasm   — запустить скомпилированный .exe (по умолчанию)
  *   jvm    — запустить через java -cp <output> RuntimeStub
  */
 
-const BINARY_MAGIC = "\xBF";
-
-function getArgs(): array {
+function getArgs(): string {
     $argv = $_SERVER['argv'] ?? [];
-    $protocol = 'text';
     $target = 'nasm';
     $i = 1;
     while ($i < count($argv)) {
         switch ($argv[$i]) {
-            case '--protocol':
-                if ($i + 1 < count($argv)) {
-                    $protocol = $argv[$i + 1];
-                    $i += 2;
-                } else {
-                    $i++;
-                }
-                break;
             case '--target':
                 if ($i + 1 < count($argv)) {
                     $target = $argv[$i + 1];
@@ -54,18 +40,14 @@ function getArgs(): array {
                 $i++;
         }
     }
-    if (!in_array($protocol, ['text', 'binary'], true)) {
-        echo "Unknown protocol: $protocol (use text or binary)\n";
-        exit(1);
-    }
     if (!in_array($target, ['nasm', 'jvm'], true)) {
         echo "Unknown target: $target (use nasm or jvm)\n";
         exit(1);
     }
-    return [$protocol, $target];
+    return $target;
 }
 
-function startDaemon(string $protocol, string $target): array {
+function startDaemon(string $target): array {
     if ($target === 'jvm') {
         $cmd = "java -cp \"output\" RuntimeStub";
     } else {
@@ -75,9 +57,9 @@ function startDaemon(string $protocol, string $target): array {
     }
 
     $descriptors = [
-        0 => ['pipe', 'r'],  // stdin
-        1 => ['pipe', 'w'],  // stdout
-        2 => ['pipe', 'w'],  // stderr
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
     ];
 
     $process = proc_open($cmd, $descriptors, $pipes, getcwd());
@@ -85,18 +67,10 @@ function startDaemon(string $protocol, string $target): array {
         throw new RuntimeException("Failed to start: $cmd");
     }
 
-    // For binary protocol, send magic byte to tell server to use binary mode
-    if ($protocol === 'binary') {
-        fwrite($pipes[0], BINARY_MAGIC);
-        fflush($pipes[0]);
-    }
-
     return [$process, $pipes];
 }
 
-// ─── Text protocol ────────────────────────────────────────────────────────────
-
-function sendText($stdin, $stdout, string $opcode, string $key = '', string $value = ''): ?string {
+function sendCmd($stdin, $stdout, string $opcode, string $key = '', string $value = ''): ?string {
     $line = $opcode;
     if ($key !== '') { $line .= " $key"; }
     if ($value !== '') { $line .= " $value"; }
@@ -119,71 +93,35 @@ function sendText($stdin, $stdout, string $opcode, string $key = '', string $val
     throw new RuntimeException("Bad response: $response");
 }
 
-// ─── Binary protocol ──────────────────────────────────────────────────────────
-
-function sendBinary($stdin, $stdout, string $opcode, string $key = '', string $value = ''): ?string {
-    $opcodeMap = ['create' => 1, 'get' => 2, 'set' => 3, 'delete' => 4, 'list' => 5, 'exit' => 6];
-    $op = $opcodeMap[$opcode] ?? 0;
-
-    // Pack: opcode(1B) + key_len(2B LE) + key + val_len(2B LE) + val
-    $packet = pack('C', $op)
-            . pack('v', strlen($key))
-            . $key
-            . pack('v', strlen($value))
-            . $value;
-    fwrite($stdin, $packet);
-    fflush($stdin);
-
-    // Read response: status(1B) + payload_len(2B LE) + payload
-    $header = fread($stdout, 3);
-    if ($header === false || strlen($header) < 3) {
-        throw new RuntimeException("No response");
-    }
-    $status = unpack('C', $header[0])[1];
-    $payloadLen = unpack('v', $header[1] . $header[2])[1];
-    $payload = '';
-    if ($payloadLen > 0) {
-        $payload = fread($stdout, $payloadLen);
-    }
-
-    if ($status === 1) {
-        throw new RuntimeException($payload);
-    }
-    return $payload !== '' ? $payload : null;
-}
-
-// ─── Help & Main ──────────────────────────────────────────────────────────────
-
 function printHelp(): void {
     echo "
 PHP pipe -> MyLang Daemon
 =========================
 
 Usage:
-  php input.php [--protocol text|binary] [--target nasm|jvm]
+  php input.php [--target nasm|jvm]
 
 Flags:
-  --protocol text|binary   Protocol mode (default: text)
-  --target nasm|jvm        Compilation target (default: nasm)
+  --target nasm|jvm   Compilation target (default: nasm)
 
 Commands:
-  create <key> <value>      Create entry
-  get <key>                 Get value
-  set <key> <value>         Update entry
-  delete <key>              Delete key
-  list                      List all keys
-  exit                      Exit
-  help                      This help
+  create <key> <value>   Create entry
+  get <key>              Get value
+  set <key> <value>      Update entry
+  delete <key>           Delete key
+  list                   List all keys
+  exit                   Exit
+  help                   This help
 ";
 }
 
 function main(): void {
-    [$protocol, $target] = getArgs();
+    $target = getArgs();
 
-    echo "=== PHP pipe -> MyLang Daemon ($protocol, target=$target) ===\n\n";
+    echo "=== PHP pipe -> MyLang Daemon (text, target=$target) ===\n\n";
 
     try {
-        [$process, $pipes] = startDaemon($protocol, $target);
+        [$process, $pipes] = startDaemon($target);
     } catch (Exception $e) {
         echo "[ERR] " . $e->getMessage() . "\n";
         exit(1);
@@ -191,8 +129,6 @@ function main(): void {
 
     [$stdin, $stdout, $stderr] = $pipes;
     echo "[OK] Daemon started\n\n";
-
-    $send = $protocol === 'binary' ? 'sendBinary' : 'sendText';
 
     while (true) {
         echo "> ";
@@ -208,7 +144,7 @@ function main(): void {
             switch ($cmd) {
                 case 'exit':
                 case 'quit':
-                    fwrite($stdin, $protocol === 'binary' ? pack('C', 6) : "exit\n");
+                    fwrite($stdin, "exit\n");
                     fflush($stdin);
                     echo "Bye!\n";
                     exit(0);
@@ -218,27 +154,27 @@ function main(): void {
                     break;
 
                 case 'create':
-                    $send($stdin, $stdout, 'create', array_shift($parts) ?? '', implode(' ', $parts));
+                    sendCmd($stdin, $stdout, 'create', array_shift($parts) ?? '', implode(' ', $parts));
                     echo "  ok\n";
                     break;
 
                 case 'get':
-                    $r = $send($stdin, $stdout, 'get', array_shift($parts) ?? '');
+                    $r = sendCmd($stdin, $stdout, 'get', array_shift($parts) ?? '');
                     echo "  value: " . ($r ?? '(empty)') . "\n";
                     break;
 
                 case 'set':
-                    $send($stdin, $stdout, 'set', array_shift($parts) ?? '', implode(' ', $parts));
+                    sendCmd($stdin, $stdout, 'set', array_shift($parts) ?? '', implode(' ', $parts));
                     echo "  ok\n";
                     break;
 
                 case 'delete':
-                    $send($stdin, $stdout, 'delete', array_shift($parts) ?? '');
+                    sendCmd($stdin, $stdout, 'delete', array_shift($parts) ?? '');
                     echo "  ok\n";
                     break;
 
                 case 'list':
-                    $r = $send($stdin, $stdout, 'list');
+                    $r = sendCmd($stdin, $stdout, 'list');
                     if ($r === null || $r === '') {
                         echo "  (no keys)\n";
                     } else {

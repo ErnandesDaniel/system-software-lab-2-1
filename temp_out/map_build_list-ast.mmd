@@ -1,0 +1,272 @@
+graph TD;
+N0["function: map_build_list"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["binary_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: di"]
+N5 --> N6
+N7["="]
+N4 --> N7
+N8["expr"]
+N4 --> N8
+N9["literal"]
+N8 --> N9
+N10["dec: 256"]
+N9 --> N10
+N11[";"]
+N2 --> N11
+N12["statement"]
+N0 --> N12
+N13["expression_statement"]
+N12 --> N13
+N14["expr"]
+N13 --> N14
+N15["binary_expr"]
+N14 --> N15
+N16["expr"]
+N15 --> N16
+N17["identifier: i"]
+N16 --> N17
+N18["="]
+N15 --> N18
+N19["expr"]
+N15 --> N19
+N20["literal"]
+N19 --> N20
+N21["dec: 0"]
+N20 --> N21
+N22[";"]
+N13 --> N22
+N23["statement"]
+N0 --> N23
+N24["loop_statement"]
+N23 --> N24
+N25["while"]
+N24 --> N25
+N26["expr"]
+N24 --> N26
+N27["binary_expr"]
+N26 --> N27
+N28["expr"]
+N27 --> N28
+N29["identifier: i"]
+N28 --> N29
+N30["<"]
+N27 --> N30
+N31["expr"]
+N27 --> N31
+N32["identifier: map_n"]
+N31 --> N32
+N33["statement"]
+N24 --> N33
+N34["if_statement"]
+N33 --> N34
+N35["if"]
+N34 --> N35
+N36["expr"]
+N34 --> N36
+N37["binary_expr"]
+N36 --> N37
+N38["expr"]
+N37 --> N38
+N39["identifier: i"]
+N38 --> N39
+N40[">"]
+N37 --> N40
+N41["expr"]
+N37 --> N41
+N42["literal"]
+N41 --> N42
+N43["dec: 0"]
+N42 --> N43
+N44["statement"]
+N34 --> N44
+N45["block_statement"]
+N44 --> N45
+N46["begin"]
+N45 --> N46
+N47["statement"]
+N45 --> N47
+N48["expression_statement"]
+N47 --> N48
+N49["expr"]
+N48 --> N49
+N50["binary_expr"]
+N49 --> N50
+N51["expr"]
+N50 --> N51
+N52["slice_expr"]
+N51 --> N52
+N53["expr"]
+N52 --> N53
+N54["identifier: pool"]
+N53 --> N54
+N55["range"]
+N52 --> N55
+N56["expr"]
+N55 --> N56
+N57["identifier: di"]
+N56 --> N57
+N58["="]
+N50 --> N58
+N59["expr"]
+N50 --> N59
+N60["literal"]
+N59 --> N60
+N61["dec: 44"]
+N60 --> N61
+N62[";"]
+N48 --> N62
+N63["statement"]
+N45 --> N63
+N64["expression_statement"]
+N63 --> N64
+N65["expr"]
+N64 --> N65
+N66["binary_expr"]
+N65 --> N66
+N67["expr"]
+N66 --> N67
+N68["identifier: di"]
+N67 --> N68
+N69["="]
+N66 --> N69
+N70["expr"]
+N66 --> N70
+N71["binary_expr"]
+N70 --> N71
+N72["expr"]
+N71 --> N72
+N73["identifier: di"]
+N72 --> N73
+N74["+"]
+N71 --> N74
+N75["expr"]
+N71 --> N75
+N76["literal"]
+N75 --> N76
+N77["dec: 1"]
+N76 --> N77
+N78[";"]
+N64 --> N78
+N79["end"]
+N45 --> N79
+N80["statement"]
+N24 --> N80
+N81["expression_statement"]
+N80 --> N81
+N82["expr"]
+N81 --> N82
+N83["binary_expr"]
+N82 --> N83
+N84["expr"]
+N83 --> N84
+N85["identifier: di"]
+N84 --> N85
+N86["="]
+N83 --> N86
+N87["expr"]
+N83 --> N87
+N88["call_expr"]
+N87 --> N88
+N89["expr"]
+N88 --> N89
+N90["identifier: strcpy_at"]
+N89 --> N90
+N91["expr"]
+N88 --> N91
+N92["identifier: di"]
+N91 --> N92
+N93["expr"]
+N88 --> N93
+N94["field_access .key"]
+N93 --> N94
+N95["expr"]
+N94 --> N95
+N96["slice_expr"]
+N95 --> N96
+N97["expr"]
+N96 --> N97
+N98["identifier: entries"]
+N97 --> N98
+N99["range"]
+N96 --> N99
+N100["expr"]
+N99 --> N100
+N101["identifier: i"]
+N100 --> N101
+N102[";"]
+N81 --> N102
+N103["statement"]
+N24 --> N103
+N104["expression_statement"]
+N103 --> N104
+N105["expr"]
+N104 --> N105
+N106["binary_expr"]
+N105 --> N106
+N107["expr"]
+N106 --> N107
+N108["identifier: i"]
+N107 --> N108
+N109["="]
+N106 --> N109
+N110["expr"]
+N106 --> N110
+N111["binary_expr"]
+N110 --> N111
+N112["expr"]
+N111 --> N112
+N113["identifier: i"]
+N112 --> N113
+N114["+"]
+N111 --> N114
+N115["expr"]
+N111 --> N115
+N116["literal"]
+N115 --> N116
+N117["dec: 1"]
+N116 --> N117
+N118[";"]
+N104 --> N118
+N119["end"]
+N24 --> N119
+N120["statement"]
+N0 --> N120
+N121["expression_statement"]
+N120 --> N121
+N122["expr"]
+N121 --> N122
+N123["binary_expr"]
+N122 --> N123
+N124["expr"]
+N123 --> N124
+N125["slice_expr"]
+N124 --> N125
+N126["expr"]
+N125 --> N126
+N127["identifier: pool"]
+N126 --> N127
+N128["range"]
+N125 --> N128
+N129["expr"]
+N128 --> N129
+N130["identifier: di"]
+N129 --> N130
+N131["="]
+N123 --> N131
+N132["expr"]
+N123 --> N132
+N133["literal"]
+N132 --> N133
+N134["dec: 0"]
+N133 --> N134
+N135[";"]
+N121 --> N135

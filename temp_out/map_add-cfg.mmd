@@ -1,0 +1,9 @@
+graph TD
+    BB_3["BB3\nt94 = entries\[0\]\nt95 = pool_next\[?\]\nentries\[0\] = ?\nt97 = pool_next\[?\]\nt98 = pool_next\[?\]\nt99 = strcpy_at(t98, key_off)\npool_next = t99\nt101 = entries\[0\]\nt102 = pool_next\[?\]\nentries\[0\] = ?\nt104 = pool_next\[?\]\nt105 = pool_next\[?\]\nt106 = strcpy_at(t105, val_off)\npool_next = t106\nt108 = map_n\[?\]\nt109 = map_n\[?\]\nt110 = 1\nt111 = t109 + t110\nmap_n = t111\nreturn"]
+    BB_1["BB1\nreturn"]
+    BB_2["BB2\ngoto BB_3"]
+    BB_0["BB0\nt91 = map_n\[?\]\nt92 = 8\nt93 = (t91 >= t92)\nif t93 goto BB_1 else BB_2"]
+BB_1 --> BB_3
+BB_2 --> BB_3
+BB_0 --> BB_1
+BB_0 --> BB_2
