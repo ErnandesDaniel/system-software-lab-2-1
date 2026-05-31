@@ -210,10 +210,6 @@ function main(): void {
                 case 'quit':
                     fwrite($stdin, $protocol === 'binary' ? pack('C', 6) : "exit\n");
                     fflush($stdin);
-                    fclose($stdin);
-                    fclose($stdout);
-                    fclose($stderr);
-                    proc_close($process);
                     echo "Bye!\n";
                     exit(0);
 
