@@ -115,7 +115,12 @@ public class RuntimeStub {{
         return new byte[size];
     }}
 
-    public static void free(byte[] ptr) {{}}
+    public static void free(byte[] ptr) {{
+        if (ptr == null) return;
+        if (gc_data != null) for (int i = 0; i < gc_data.length; i++) {{
+            if (gc_data[i] == ptr) {{ gc_data[i] = null; return; }}
+        }}
+    }}
 
     public static int printf(byte[] format, int value) {{
         System.out.print(new String(format)
