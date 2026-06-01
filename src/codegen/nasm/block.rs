@@ -17,7 +17,7 @@ impl AsmGenerator {
         for local in &func.locals {
             let local_size = local.ty.size().max(8) as i32;
             let num_slots = (local_size + 7) / 8;
-            let offset = -8 * slot_counter;
+            let offset = -8 * slot_counter - 8 * (num_slots - 1).max(0);
             slot_counter += num_slots;
 
             if local.name.starts_with('t') {
@@ -32,9 +32,11 @@ impl AsmGenerator {
                 if let Some(ref result) = inst.result {
                     if result.starts_with('t') {
                         if !self.temps.contains_key(result) {
-                            let offset = -8 * slot_counter;
+                            let ty_size = inst.result_type.as_ref().map_or(8, |t| t.size().max(8));
+                            let num_slots = ((ty_size as i32) + 7) / 8;
+                            let offset = -8 * slot_counter - 8 * (num_slots - 1).max(0);
                             self.temps.insert(result.clone(), offset);
-                            slot_counter += 1;
+                            slot_counter += num_slots;
                         }
                     }
                 }

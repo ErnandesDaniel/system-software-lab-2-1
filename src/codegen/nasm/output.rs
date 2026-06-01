@@ -126,7 +126,7 @@ impl AsmGenerator {
             }
             let local_size = local.ty.size().max(8) as i32;
             let num_slots = (local_size + 7) / 8;
-            let offset = -8 * local_counter;
+            let offset = -8 * local_counter - 8 * (num_slots - 1).max(0);
             local_counter += num_slots;
             self.locals.insert(local.name.clone(), offset);
         }
