@@ -30,6 +30,7 @@ impl Parser<'_> {
         self.expect(Token::If)?;
         let condition = self.parse_expression(0)?;
         self.expect(Token::Then)?;
+        let is_block_consequence = matches!(self.current_token(), Some(Token::LBrace | Token::Begin));
         let consequence = Box::new(self.parse_statement()?);
         let alternative = if self.current_token() == Some(&Token::Else) {
             self.expect(Token::Else)?;
@@ -37,7 +38,7 @@ impl Parser<'_> {
         } else {
             None
         };
-        if self.current_token() == Some(&Token::End) {
+        if !is_block_consequence && self.current_token() == Some(&Token::End) {
             self.expect(Token::End)?;
         }
         let span = start.merge(self.current_span());
