@@ -1,13 +1,17 @@
-// lab-3: Mark-and-Sweep Garbage Collector (NASM)
-// Демо: GC_ON vs GC_OFF — сравнение потребления памяти
+// lab-3: Mark-and-Sweep GC — Fibonacci Logger Demo
+//
+// Считает числа Фибоначчи, каждое значение сохраняет в кольцевой буфер логов.
+//
+// GC_ON:  буфер на 10 записей, старые логи GC чистит — live-память стабильна
+// GC_OFF: GC отключён, память только растёт
+//
+// Сравнение: NASM (без встроенного GC) vs JVM (со встроенным GC)
 
 import puts
 import putchar
 import printf
 import malloc
 import free
-import exit
-import time
 
 // ===================== GC Runtime =====================
 
@@ -23,13 +27,12 @@ global gc_runs of int = 0
 global gc_freed_objects of int = 0
 global gc_enabled of int = 1
 
-
-
-// === Mark ===
-
+// === mark(idx) — рекурсивно маркирует объект и его ref ===
+// Пропускает освобождённые слоты (gc_size[idx] == 0)
 def mark(idx of int)
     if idx < 0 then { return }
     if idx >= gc_count then { return }
+    if gc_size[idx] == 0 then { return }
     if gc_marked[idx] == 1 then { return }
 
     gc_marked[idx] = 1
@@ -40,64 +43,49 @@ def mark(idx of int)
     }
 end
 
-// === Sweep ===
-
+// === sweep() — освобождает немаркированные объекты ===
+// НЕ сдвигает массив (иначе handle'ы сломаются).
+// Просто free + помечает слот как свободный (gc_size[i] = 0)
 def sweep()
-    total_freed = 0
+    local_freed = 0
     gc_freed_objects = 0
     i = 0
 
     while i < gc_count {
         if gc_marked[i] == 0 then {
-    free(gc_data[i])
-            total_freed = total_freed + gc_size[i]
-            gc_freed_objects = gc_freed_objects + 1
-
-            j = i
-            while j < gc_count - 1 {
-                gc_marked[j] = gc_marked[j + 1]
-                gc_refs[j] = gc_refs[j + 1]
-                gc_size[j] = gc_size[j + 1]
-                gc_data[j] = gc_data[j + 1]
-                j = j + 1
+            if gc_size[i] != 0 then {
+                free(gc_data[i])
+                local_freed = local_freed + gc_size[i]
+                gc_freed_objects = gc_freed_objects + 1
+                gc_size[i] = 0
             }
-            gc_count = gc_count - 1
         } else {
             gc_marked[i] = 0
-            i = i + 1
         }
-    }
-end
-
-// === gc_run() ===
-
-def gc_run()
-    if gc_enabled == 0 then { return }
-
-    before = total_alloc
-    gc_runs = gc_runs + 1
-
-    i = 0
-    while i < gc_count {
-        mark(i)
         i = i + 1
     }
 
-    sweep()
-    after = total_alloc - total_freed
-
-    printf("  [GC #%d] before=", gc_runs)
-    printf("%d", before)
-    printf(" after=", 0)
-    printf("%d", after)
-    printf(" freed_objects=", 0)
-    printf("%d", gc_freed_objects)
-    putchar(10)
+    total_freed = total_freed + local_freed
 end
 
-// === gc_alloc(size, ref) ===
-
+// === gc_alloc(size, ref) — аллоцирует блок и регистрирует в GC ===
+// Ищет свободный слот (gc_size[i] == 0) или добавляет новый
 def gc_alloc(size of int, ref of int) of int
+    idx = 0
+    found = 0
+    while idx < gc_count {
+        if gc_size[idx] == 0 then {
+            found = 1;
+            break;
+        }
+        idx = idx + 1
+    }
+
+    if found == 0 then {
+        idx = gc_count
+        gc_count = gc_count + 1
+    }
+
     data = malloc(size)
     if data == 0 then { return -1 }
 
@@ -107,95 +95,344 @@ def gc_alloc(size of int, ref of int) of int
         i = i + 1
     }
 
-    idx = gc_count
     gc_marked[idx] = 0
     gc_refs[idx] = ref
     gc_size[idx] = size
     gc_data[idx] = data
-    gc_count = gc_count + 1
     total_alloc = total_alloc + size
 
     return idx + 1
 end
 
-// ===================== Demo =====================
+// ===================== Fibonacci Logger =====================
+
+// Кольцевой буфер логов — это корневые объекты для GC
+global log_ring of int[10]
+global log_pos of int = 0
+global fib_a of int = 0
+global fib_b of int = 1
+
+def fib_reset()
+    fib_a = 0
+    fib_b = 1
+end
+
+def fib_next() of int
+    result = fib_a
+    nxt = fib_a + fib_b
+    fib_a = fib_b
+    fib_b = nxt
+    return result
+end
+
+// Добавить запись в кольцевой буфер: аллоцирует блок, сохраняет handle
+def push_log(size of int) of int
+    handle = gc_alloc(size, 0)
+    if handle == -1 then { return -1 }
+
+    log_ring[log_pos] = handle
+    log_pos = log_pos + 1
+    if log_pos >= 10 then { log_pos = 0 }
+
+    return handle
+end
+
+// === gc_run() — маркирует от log_ring (корни), затем sweep ===
+def gc_run()
+    if gc_enabled == 0 then { return }
+
+    before = total_alloc
+    gc_runs = gc_runs + 1
+
+    // Mark phase: маркируем только живые логи из кольцевого буфера
+    i = 0
+    while i < 10 {
+        h = log_ring[i]
+        if h > 0 then { mark(h - 1) }
+        i = i + 1
+    }
+
+    // Sweep phase: всё немаркированное — мусор
+    sweep()
+
+    printf("  [GC #%d] before=", gc_runs)
+    printf("%d", before)
+    printf(" after=", 0)
+    printf("%d", total_alloc - total_freed)
+    printf(" freed=", 0)
+    printf("%d", total_freed)
+    printf(" objects=", 0)
+    printf("%d", gc_freed_objects)
+    putchar(10)
+end
+
+// ===================== Demo: GC_ON =====================
 
 def demo_gc_on()
-    puts("=== MODE: GC_ON ===")
+    puts("========================================")
+    puts("  MODE: GC_ON")
+    puts("  GC запускается каждые 5 итераций")
+    puts("  Кольцевой буфер хранит 10 логов")
+    puts("========================================")
     putchar(10)
 
-    prev = 0
+    fib_reset()
+    max_iter = 50
+    gc_timer = 5
     i = 0
-    while i < 30 {
-        p = gc_alloc(1048576, prev)
-        if p == -1 then {
-            puts("OOM!")
-            return
+
+    while i < max_iter {
+        val = fib_next()
+
+        if i < 5 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
         }
 
-        prev = p
-
-        if i > 0 && i % 5 == 0 then {
-            printf("  iter %d: ", i)
-            printf("%d", gc_count)
-            printf(" objects, ", 0)
-            printf("%d", total_alloc)
-            printf(" bytes allocated\n", 0)
+        if i == 9 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
         }
 
-        if i > 0 && i % 10 == 0 then { gc_run() }
+        if i == 19 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 29 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 39 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 49 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        // Аллоцируем лог-запись под каждое число Фибоначчи
+        push_log(64)
+
+        // GC каждые 5 итераций — чистит записи, выпавшие из буфера
+        gc_timer = gc_timer - 1
+        if gc_timer == 0 then {
+            gc_run()
+            gc_timer = 5
+        }
 
         i = i + 1
     }
 
+    // Финальный прогон GC
     gc_run()
-    printf("--- GC_ON done: %d bytes ---\n", total_alloc)
+
+    printf("--- GC_ON: total_alloc=", 0)
+    printf("%d", total_alloc)
+    printf(" total_freed=", 0)
+    printf("%d", total_freed)
+    printf(" live=", 0)
+    printf("%d", total_alloc - total_freed)
+    printf(" gc_runs=", 0)
+    printf("%d", gc_runs)
+    putchar(10)
     putchar(10)
 end
 
+// ===================== Demo: GC_OFF =====================
+
 def demo_gc_off()
-    puts("=== MODE: GC_OFF ===")
+    puts("========================================")
+    puts("  MODE: GC_OFF")
+    puts("  GC отключён — память только растёт")
+    puts("========================================")
     putchar(10)
 
     gc_enabled = 0
-
-    prev = 0
+    fib_reset()
+    max_iter = 50
     i = 0
-    while i < 5000 {
-        p = gc_alloc(1048576, prev)
-        if p == -1 then {
-            printf("OOM on iter %d! allocated ", i)
-            printf("%d", total_alloc / 1024)
-            printf(" KB\n", 0)
+
+    while i < max_iter {
+        val = fib_next()
+
+        if i < 5 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
             putchar(10)
-            return
         }
 
-        prev = p
+        if i == 9 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
 
-        if i % 1000 == 0 then {
-            printf("  iter %d: ", i)
-            printf("%d", total_alloc / 1024)
-            printf(" KB allocated\n", 0)
+        if i == 19 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 29 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 39 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        if i == 49 then {
+            printf("  fib(", 0)
+            printf("%d", i)
+            printf(") = ", 0)
+            printf("%d", val)
+            putchar(10)
+        }
+
+        // Та же аллокация, но GC не запускается
+        push_log(64)
+
+        i = i + 1
+    }
+
+    printf("--- GC_OFF: total_alloc=", 0)
+    printf("%d", total_alloc)
+    printf(" total_freed=", 0)
+    printf("%d", total_freed)
+    printf(" live=", 0)
+    printf("%d", total_alloc - total_freed)
+    putchar(10)
+    putchar(10)
+end
+
+// ===================== Stress Test: OOM =====================
+// Прямые malloc(1MB) без GC — показывает разницу между NASM и JVM
+// NASM: процесс упадёт с access violation на ~2000 итерациях (2 GB)
+// JVM:  все итерации завершатся (встроенный GC управляет памятью)
+
+def demo_stress_oom()
+    puts("========================================")
+    puts("  STRESS TEST: malloc(50MB) без free()")
+    puts("  NASM: OOM crash при недостатке RAM")
+    puts("  JVM:  все итерации без ошибок")
+    puts("========================================")
+    putchar(10)
+    printf("  Аллоцирую по 50MB, касаюсь каждой страницы...\n", 0)
+    printf("  На NASM процесс упадёт при исчерпании\n", 0)
+    printf("  физической RAM + page file.\n", 0)
+    printf("  На JVM встроенный GC не допустит утечки.\n", 0)
+    putchar(10)
+
+    max_iter = 850
+    block_size = 52428800
+    i = 0
+
+    while i < max_iter {
+        p = malloc(block_size)
+
+        // Если malloc вернул NULL — на NASM закончилась память
+        // На JVM malloc никогда не возвращает NULL
+        if p == 0 then {
+            printf("  OOM на итерации ", 0)
+            printf("%d", i)
+            printf(" (", 0)
+            printf("%d", i * 50)
+            printf(" MB)\n", 0)
+            printf("  На JVM все итерации прошли бы без ошибок.\n", 0)
+            break;
+        }
+
+        // Пишем в выделенную память — закоммитим страницы,
+        // чтобы израсходовать физическую RAM + page file
+        j = 0
+        while j < block_size {
+            p[j] = 1
+            j = j + 4096
+        }
+
+        if i % 100 == 0 then {
+            printf("  ", 0)
+            printf("%d", i)
+            printf(" блоков по 50MB\n", 0)
         }
 
         i = i + 1
     }
 
-    printf("--- Allocated %d KB without OOM ---\n", total_alloc / 1024)
+    if i == max_iter then {
+        printf("  Все ", 0)
+        printf("%d", max_iter)
+        printf(" блоков выделено — OOM не произошёл.\n", 0)
+    }
+    putchar(10)
 end
 
+// ===================== Main =====================
+
 def main() of int
-    puts("=== Mark-and-Sweep GC Demo ===")
-    puts("GC_ON vs GC_OFF comparison")
+    puts("================================================================")
+    puts("  Mark-and-Sweep GC — Fibonacci Logger")
+    puts("  Сравнение GC_ON vs GC_OFF на NASM и JVM")
+    puts("================================================================")
     putchar(10)
 
+    puts("  ── NASM ──────────────────────────────────────────────────")
+    puts("  В NASM нет встроенного сборщика мусора.")
+    puts("  Без нашего GC память будет только расти (GC_OFF).")
+    puts("  С нашим GC память остаётся стабильной (GC_ON).")
+    puts("  ────────────────────────────────────────────────────────────")
+    putchar(10)
+
+    puts("  ── JVM ───────────────────────────────────────────────────")
+    puts("  В JVM уже есть встроенный сборщик мусора.")
+    puts("  Наш GC не нужен — JVM GC чистит неиспользуемые объекты")
+    puts("  даже если наш GC отключён (GC_OFF).")
+    puts("  ────────────────────────────────────────────────────────────")
+    putchar(10)
+
+    // === GC_ON ===
     demo_gc_on()
 
-    // Reset
+    // === Reset GC state ===
     i = 0
     while i < gc_count {
-    free(gc_data[i])
+        if gc_size[i] != 0 then { free(gc_data[i]) }
         i = i + 1
     }
     gc_count = 0
@@ -203,11 +440,25 @@ def main() of int
     total_freed = 0
     gc_runs = 0
     gc_enabled = 1
+    log_pos = 0
+    fib_reset()
 
+    i = 0
+    while i < 10 {
+        log_ring[i] = 0
+        i = i + 1
+    }
+
+    // === GC_OFF ===
     demo_gc_off()
 
-    putchar(10)
-    puts("=== Done ===")
-
+    puts("================================================================")
+    puts("  Вывод:")
+    puts("  NASM GC_OFF → freed=0  live=3200 — GC нет, память растёт")
+    puts("  NASM GC_ON  → freed=2560 live=640 — наш GC чистит, стабильно")
+    puts("  JVM GC_OFF  → freed=0  (наш GC не запускался), но JVM GC")
+    puts("                 сам чистит неиспользуемые объекты")
+    puts("  JVM GC_ON   → наш GC тоже работает, но не обязателен")
+    puts("================================================================")
     return 0
 end
