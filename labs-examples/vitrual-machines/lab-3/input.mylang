@@ -23,6 +23,21 @@ global gc_runs of int = 0
 global gc_freed_objects of int = 0
 global gc_enabled of int = 1
 
+// Heap quota
+global heap_used of int = 0
+global heap_limit of int = 100000
+
+def bounded_malloc(size of int) of string
+    data = malloc(size)
+    if data != 0 then { heap_used = heap_used + size }
+    return data
+end
+
+def bounded_free(ptr of string, size of int)
+    heap_used = heap_used - size
+    free(ptr)
+end
+
 // === Mark ===
 
 def mark(idx of int)
@@ -47,7 +62,7 @@ def sweep()
 
     while i < gc_count {
         if gc_marked[i] == 0 then {
-            free(gc_data[i])
+    bounded_free(gc_data[i], gc_size[i])
             total_freed = total_freed + gc_size[i]
             gc_freed_objects = gc_freed_objects + 1
 
@@ -96,7 +111,8 @@ end
 // === gc_alloc(size, ref) ===
 
 def gc_alloc(size of int, ref of int) of int
-    data = malloc(size)
+    if heap_used + size > heap_limit then { return -1 }
+    data = bounded_malloc(size)
     if data == 0 then { return -1 }
 
     i = 0
@@ -193,7 +209,7 @@ def main() of int
     // Reset
     i = 0
     while i < gc_count {
-        free(gc_data[i])
+        bounded_free(gc_data[i], gc_size[i])
         i = i + 1
     }
     gc_count = 0
