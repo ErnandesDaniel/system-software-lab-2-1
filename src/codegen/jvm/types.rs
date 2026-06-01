@@ -52,7 +52,7 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
         IrType::Bool => "Z".to_string(),
         IrType::Int => "I".to_string(),
         IrType::String => "[B".to_string(),
-        IrType::Array(elem, _) => format!("[{}]", ir_type_to_jvm_descriptor(elem)),
+        IrType::Array(elem, _) => format!("[{}", ir_type_to_jvm_descriptor(elem)),
         IrType::Function(params, ret) => {
             let iface_name = get_fn_interface_name(params, ret);
             format!("L{iface_name};")

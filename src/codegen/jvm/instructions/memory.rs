@@ -26,17 +26,24 @@ impl JvmGenerator {
                         code.push(Instruction::Aastore);
                     }
                 } else {
-                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
-                    let base_idx = byte_off / 4;
-                    self.emit_load_operand(code, base);
-                    self.emit_load_operand(code, index);
-                    code.push(Instruction::Aaload);
-                    if base_idx > 0 {
-                        self.emit_load_constant(code, &Constant::Int(base_idx as i64));
-                        code.push(Instruction::Iadd);
+                    let vt = value.get_type();
+                    if matches!(vt, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
+                        self.emit_load_operand(code, base);
+                        self.emit_load_operand(code, index);
+                        self.emit_load_operand(code, value);
+                        code.push(Instruction::Aastore);
+                    } else if matches!(vt, IrType::Int | IrType::Bool) {
+                        self.emit_load_operand(code, base);
+                        self.emit_load_operand(code, index);
+                        self.emit_load_operand(code, value);
+                        code.push(Instruction::Iastore);
+                    } else {
+                        self.emit_load_operand(code, base);
+                        self.emit_load_operand(code, index);
+                        code.push(Instruction::Aaload);
+                        self.emit_load_operand(code, value);
+                        code.push(Instruction::Iastore);
                     }
-                    self.emit_load_operand(code, value);
-                    code.push(Instruction::Iastore);
                 }
                 return;
             }
@@ -52,9 +59,14 @@ impl JvmGenerator {
                         self.emit_load_operand(code, value);
                         self.emit_boxed_field_store(code, inst, *byte_off as usize);
                     } else {
+                        let vt = value.get_type();
                         self.emit_load_constant(code, &Constant::Int(byte_off / 4));
                         self.emit_load_operand(code, value);
-                        code.push(Instruction::Iastore);
+                        if matches!(vt, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
+                            code.push(Instruction::Aastore);
+                        } else {
+                            code.push(Instruction::Iastore);
+                        }
                     }
                 }
             }
@@ -108,18 +120,29 @@ impl JvmGenerator {
                             code.push(Instruction::Aaload);
                             self.emit_boxed_field_load(code, inst, *byte_off as usize);
                         } else {
+                            let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                             self.emit_load_constant(code, &Constant::Int(idx as i64));
-                            code.push(Instruction::Iaload);
+                            if matches!(elem_type, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
+                                code.push(Instruction::Aaload);
+                            } else {
+                                code.push(Instruction::Iaload);
+                            }
                         }
-                        self.emit_store_result(code, result, &IrType::Int);
+                        let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                        self.emit_store_result(code, result, &elem_type);
                         return;
                     }
                 }
             }
+            let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
             self.emit_load_operand(code, array);
             self.emit_load_operand(code, index);
-            code.push(Instruction::Iaload);
-            self.emit_store_result(code, result, &IrType::Int);
+            if matches!(elem_type, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
+                code.push(Instruction::Aaload);
+            } else {
+                code.push(Instruction::Iaload);
+            }
+            self.emit_store_result(code, result, &elem_type);
         }
     }
 
@@ -159,12 +182,27 @@ impl JvmGenerator {
         }
     }
 
-    pub(super) fn generate_alloc_array(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+    pub(super) fn generate_alloc_array(&mut self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let Some(ref result) = inst.result {
-            if let Some(IrType::Array(_, size)) = inst.result_type.as_ref() {
+            if let Some(IrType::Array(elem_type, size)) = inst.result_type.as_ref() {
                 self.emit_load_constant(code, &Constant::Int(*size as i64));
-                code.push(Instruction::Newarray(ArrayType::Int));
-                self.emit_store_result(code, result, &IrType::Array(Box::new(IrType::Int), *size));
+                match elem_type.as_ref() {
+                    IrType::Int | IrType::Bool => {
+                        let at = if matches!(elem_type.as_ref(), IrType::Bool) { ArrayType::Boolean } else { ArrayType::Int };
+                        code.push(Instruction::Newarray(at));
+                    }
+                    IrType::Function(_, _) | IrType::String | IrType::Array(..) => {
+                        let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem_type);
+                        let class_name = desc.trim_start_matches('L').trim_end_matches(';');
+                        let class_idx = self.constant_pool.add_class(class_name)
+                            .expect("Failed to add class for anewarray");
+                        code.push(Instruction::Anewarray(class_idx));
+                    }
+                    _ => {
+                        code.push(Instruction::Newarray(ArrayType::Int));
+                    }
+                }
+                self.emit_store_result(code, result, &IrType::Array(elem_type.clone(), *size));
             }
         }
     }

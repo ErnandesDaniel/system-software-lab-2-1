@@ -34,7 +34,7 @@ impl JvmGenerator {
         } else if let Some(operand) = inst.operands.first() {
             self.emit_load_operand(code, operand);
             match operand.get_type() {
-                IrType::String | IrType::Function(_, _) => code.push(Instruction::Areturn),
+                IrType::String | IrType::Function(_, _) | IrType::Array(_, _) => code.push(Instruction::Areturn),
                 _ => code.push(Instruction::Ireturn),
             }
         } else {

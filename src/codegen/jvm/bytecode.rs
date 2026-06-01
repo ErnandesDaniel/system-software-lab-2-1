@@ -1,10 +1,11 @@
 use crate::codegen::jvm::{JvmGenerator, JvmInst, JumpPlaceholder};
+use crate::codegen::traits::OperandLoader;
 use crate::ir::types::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrOperand, IrType};
 use ristretto_classfile::attributes::Instruction;
 use std::collections::{HashMap, HashSet};
 
 impl JvmGenerator {
-    pub fn generate_bytecode(&self, func: &IrFunction) -> Vec<Instruction> {
+    pub fn generate_bytecode(&mut self, func: &IrFunction) -> Vec<Instruction> {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
 
@@ -44,6 +45,13 @@ impl JvmGenerator {
                 .filter_map(|l| self.locals.get(&l.name))
                 .copied()
                 .collect();
+            let array_ref_slot_nums: HashSet<u16> = func
+                .locals
+                .iter()
+                .filter(|l| matches!(&l.ty, IrType::Array(et, _) if !matches!(**et, IrType::Int)))
+                .filter_map(|l| self.locals.get(&l.name))
+                .copied()
+                .collect();
             let struct_slot_nums: HashSet<u16> = func
                 .locals
                 .iter()
@@ -51,10 +59,33 @@ impl JvmGenerator {
                 .filter_map(|l| self.locals.get(&l.name))
                 .copied()
                 .collect();
+            let mut temp_ref_slots: HashSet<u16> = HashSet::new();
+            for block in &func.blocks {
+                for inst in &block.instructions {
+                    if let Some(ref result) = inst.result {
+                        if let Some(ref ty) = inst.result_type {
+                            if is_ref_type(ty) {
+                                if let Some(&slot) = self.locals.get(result) {
+                                    temp_ref_slots.insert(slot);
+                                }
+                            }
+                        }
+                    }
+                    for op in &inst.operands {
+                        if let IrOperand::Variable(name, ty) = op {
+                            if is_ref_type(ty) && Self::is_temp(name) {
+                                if let Some(&slot) = self.locals.get(name) {
+                                    temp_ref_slots.insert(slot);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             let num_params = func.parameters.len() as u16;
             for slot in num_params..self.next_local_slot {
                 if self.locals.values().any(|&s| s == slot) {
-                    if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) {
+                    if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) || array_ref_slot_nums.contains(&slot) || temp_ref_slots.contains(&slot) {
                         instructions.push(JvmInst::Real(Instruction::Aconst_null));
                         instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
                     } else if wrapped_slot_nums.contains(&slot) {
@@ -148,7 +179,7 @@ impl JvmGenerator {
         }
     }
 
-    fn generate_instruction_with_placeholders(&self, inst: &IrInstruction, global_offset: u16) -> Vec<JvmInst> {
+    fn generate_instruction_with_placeholders(&mut self, inst: &IrInstruction, global_offset: u16) -> Vec<JvmInst> {
         let mut code: Vec<Instruction> = Vec::new();
 
         self.generate_instruction(&mut code, inst, global_offset);
@@ -235,6 +266,14 @@ impl JvmGenerator {
         }
 
         result
+    }
+}
+
+fn is_ref_type(ty: &IrType) -> bool {
+    match ty {
+        IrType::String | IrType::Function(_, _) => true,
+        IrType::Array(et, _) => !matches!(et.as_ref(), IrType::Int),
+        _ => false,
     }
 }
 

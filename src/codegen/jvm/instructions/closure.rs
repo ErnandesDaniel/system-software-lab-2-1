@@ -126,8 +126,7 @@ impl JvmGenerator {
                     let count = inst.operands.len() as u8;
                     code.push(Instruction::Invokeinterface(method_idx, count));
                     if let Some(ref result) = inst.result {
-                        let store_ty = if matches!(&*ret, IrType::String) { &*ret } else { &IrType::Int };
-                        self.emit_store_result(code, result, store_ty);
+                        self.emit_store_result(code, result, &ret);
                     }
                 } else {
                     if inst.result.is_some() {

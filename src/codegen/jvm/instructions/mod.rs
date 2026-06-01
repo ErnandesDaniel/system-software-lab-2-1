@@ -8,7 +8,7 @@ use crate::ir::types::{IrInstruction, IrOpcode, IrType};
 use ristretto_classfile::attributes::Instruction;
 
 impl JvmGenerator {
-    pub fn generate_instruction(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
+    pub fn generate_instruction(&mut self, code: &mut Vec<Instruction>, inst: &IrInstruction, global_offset: u16) {
         match inst.opcode {
             IrOpcode::Assign => self.generate_assign(code, inst),
             IrOpcode::Add => self.generate_binary_op(code, inst, BinaryOp::Add),

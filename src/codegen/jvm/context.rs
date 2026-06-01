@@ -194,6 +194,14 @@ impl JvmGenerator {
                 }
             }
         }
+        let to_remove: Vec<String> = self.struct_field_types.iter()
+            .filter(|(_, fields)| fields.iter().all(|(off, _)| *off == 0))
+            .map(|(name, _)| name.clone())
+            .collect();
+        for name in to_remove {
+            self.struct_field_types.remove(&name);
+            self.struct_uses_object_array.remove(&name);
+        }
     }
 
     pub(super) fn global_jvm_descriptor(&self, name: &str, ir_type: &IrType) -> String {
