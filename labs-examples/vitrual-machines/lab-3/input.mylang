@@ -84,8 +84,13 @@ def gc_run()
     sweep()
     after = total_alloc - total_freed
 
-    printf("  [GC #%d] before=%d after=%d freed_objects=%d\n",
-        gc_runs, before, after, gc_freed_objects)
+    printf("  [GC #%d] before=", gc_runs)
+    printf("%d", before)
+    printf(" after=", 0)
+    printf("%d", after)
+    printf(" freed_objects=", 0)
+    printf("%d", gc_freed_objects)
+    putchar(10)
 end
 
 // === gc_alloc(size, ref) ===
@@ -129,7 +134,11 @@ def demo_gc_on()
         prev = p
 
         if i > 0 && i % 5 == 0 then {
-            printf("  iter %d: %d objects, %d bytes allocated\n", i, gc_count, total_alloc)
+            printf("  iter %d: ", i)
+            printf("%d", gc_count)
+            printf(" objects, ", 0)
+            printf("%d", total_alloc)
+            printf(" bytes allocated\n", 0)
         }
 
         if i > 0 && i % 10 == 0 then { gc_run() }
@@ -153,7 +162,9 @@ def demo_gc_off()
     while i < 200 {
         p = gc_alloc(1024, prev)
         if p == -1 then {
-            printf("OOM on iter %d! allocated %d KB\n", i, total_alloc / 1024)
+            printf("OOM on iter %d! allocated ", i)
+            printf("%d", total_alloc / 1024)
+            printf(" KB\n", 0)
             putchar(10)
             return
         }
@@ -161,7 +172,9 @@ def demo_gc_off()
         prev = p
 
         if i % 20 == 0 then {
-            printf("  iter %d: %d KB allocated\n", i, total_alloc / 1024)
+            printf("  iter %d: ", i)
+            printf("%d", total_alloc / 1024)
+            printf(" KB allocated\n", 0)
         }
 
         i = i + 1
