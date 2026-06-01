@@ -70,9 +70,9 @@ fn test_asm_multi_blocks() {
     let ir = ir_gen.generate(&program);
     let mut asm_gen = AsmGenerator::new();
     let asm = asm_gen.generate(&ir);
-    assert!(asm.contains("BB_0:"));
-    assert!(asm.contains("BB_1:"));
-    assert!(asm.contains("BB_2:"));
+    assert!(asm.contains("main_BB0:"));
+    assert!(asm.contains("main_BB1:"));
+    assert!(asm.contains("main_BB2:"));
 }
 
 #[test]
@@ -118,12 +118,12 @@ fn test_break_in_while_loop_asm() {
     let mut asm_gen = AsmGenerator::new();
     let asm = asm_gen.generate(&ir);
 
-    assert!(asm.contains("BB_4:"), "Expected break block label BB_4");
+    assert!(asm.contains("main_BB4:"), "Expected break block label main_BB4");
     let lines: Vec<&str> = asm.lines().collect();
-    let bb4_idx = lines.iter().position(|l| l.trim() == "BB_4:").expect("BB_4 label not found");
+    let bb4_idx = lines.iter().position(|l| l.trim() == "main_BB4:").expect("main_BB4 label not found");
     if let Some(next) = lines.get(bb4_idx + 1) {
         let trimmed = next.trim();
-        assert!(trimmed.starts_with("jmp"), "Expected jmp after BB_4, got: {}", next);
-        assert!(trimmed.contains("BB_3"), "Break should jmp to loop exit BB_3, got: {}", next);
+        assert!(trimmed.starts_with("jmp"), "Expected jmp after main_BB4, got: {}", next);
+        assert!(trimmed.contains("main_BB3"), "Break should jmp to loop exit main_BB3, got: {}", next);
     }
 }

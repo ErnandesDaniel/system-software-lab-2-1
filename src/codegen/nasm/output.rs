@@ -124,8 +124,10 @@ impl AsmGenerator {
             if self.global_names.contains(&local.name) {
                 continue;
             }
+            let local_size = local.ty.size().max(8) as i32;
+            let num_slots = (local_size + 7) / 8;
             let offset = -8 * local_counter;
-            local_counter += 1;
+            local_counter += num_slots;
             self.locals.insert(local.name.clone(), offset);
         }
 
@@ -230,7 +232,11 @@ impl AsmGenerator {
 
     pub(crate) fn format_block_label(&self, id: &str) -> String {
         if id.starts_with("BB") {
-            format!("BB_{}", id.trim_start_matches("BB"))
+            if let Some(ref func_name) = self.current_function {
+                format!("{}_{}", func_name, id)
+            } else {
+                format!("BB_{}", id.trim_start_matches("BB"))
+            }
         } else {
             id.to_string()
         }

@@ -1,4 +1,5 @@
 use crate::ir::types::{IrInstruction, IrOpcode};
+use crate::ir::types::IrOperand;
 
 use crate::codegen::nasm::AsmGenerator;
 
@@ -50,15 +51,37 @@ impl AsmGenerator {
     pub fn generate_assign(&mut self, inst: &IrInstruction) {
         if let Some(ref result) = inst.result {
             if let Some(operand) = inst.operands.first() {
-                let is_pointer = operand.get_type().is_pointer();
-                if is_pointer {
-                    self.load_operand(operand, "rax", true);
-                    self.store_variable(result, "rax", true);
+                let operand_ty = operand.get_type();
+                let ty = inst.result_type.as_ref().unwrap_or(&operand_ty);
+                let size = ty.size();
+                if size > 8 {
+                    self.copy_aggregate(operand, result, size);
                 } else {
-                    self.load_operand(operand, "eax", false);
-                    self.store_variable(result, "eax", false);
+                    let is_pointer = operand.get_type().is_pointer();
+                    let reg = if is_pointer || size == 8 { "rax" } else { "eax" };
+                    self.load_operand(operand, reg, is_pointer || size == 8);
+                    self.store_variable(result, reg, is_pointer || size == 8);
                 }
             }
+        }
+    }
+
+    fn copy_aggregate(&mut self, operand: &IrOperand, result: &str, size: u32) {
+        let src_offset = match operand {
+            IrOperand::Variable(name, _) => {
+                self.locals.get(name).copied()
+                    .or_else(|| self.temps.get(name).copied())
+            }
+            _ => None,
+        };
+        let dst_offset = self.locals.get(result).copied()
+            .or_else(|| self.temps.get(result).copied());
+        if let (Some(src_off), Some(dst_off)) = (src_offset, dst_offset) {
+            let qwords = size / 8;
+            self.output.push_str(&format!("    lea rsi, [rbp + {src_off}]\n"));
+            self.output.push_str(&format!("    lea rdi, [rbp + {dst_off}]\n"));
+            self.output.push_str(&format!("    mov rcx, {qwords}\n"));
+            self.output.push_str("    rep movsq\n");
         }
     }
 

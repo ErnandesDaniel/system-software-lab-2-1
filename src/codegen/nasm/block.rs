@@ -13,11 +13,12 @@ impl AsmGenerator {
         self.temps.clear();
         self.temp_counter = 0;
 
+        let mut slot_counter: i32 = 1;
         for local in &func.locals {
-            let offset = local.stack_offset.unwrap_or_else(|| {
-                let off = -8 * (self.locals.len() as i32 + self.temps.len() as i32 + 1);
-                off
-            });
+            let local_size = local.ty.size().max(8) as i32;
+            let num_slots = (local_size + 7) / 8;
+            let offset = -8 * slot_counter;
+            slot_counter += num_slots;
 
             if local.name.starts_with('t') {
                 self.temps.insert(local.name.clone(), offset);
@@ -31,9 +32,9 @@ impl AsmGenerator {
                 if let Some(ref result) = inst.result {
                     if result.starts_with('t') {
                         if !self.temps.contains_key(result) {
-                            let offset = -8 * (self.temp_counter as i32 + 1);
+                            let offset = -8 * slot_counter;
                             self.temps.insert(result.clone(), offset);
-                            self.temp_counter += 1;
+                            slot_counter += 1;
                         }
                     }
                 }
@@ -43,13 +44,6 @@ impl AsmGenerator {
         self.param_registers.clear();
         for (i, param) in func.parameters.iter().enumerate() {
             if i < 4 {
-                let _ = match i {
-                    0 => "rcx",
-                    1 => "rdx",
-                    2 => "r8",
-                    3 => "r9",
-                    _ => "",
-                };
                 self.param_registers.push(param.name.clone());
             }
         }
@@ -65,12 +59,10 @@ impl AsmGenerator {
             }
         }
 
-        // Allocate stack slots for parameters and save them from registers
-        // This ensures function pointer params survive across calls (rcx is caller-saved)
-        let param_save_count = self.param_registers.len();
         let mut param_save_offsets: Vec<i32> = Vec::new();
-        for (i, param_name) in self.param_registers.iter().enumerate() {
-            let offset = -8 * (self.locals.len() as i32 + self.temps.len() as i32 + 1 + i as i32);
+        for param_name in self.param_registers.iter() {
+            let offset = -8 * slot_counter;
+            slot_counter += 1;
             param_save_offsets.push(offset);
             self.locals.insert(param_name.clone(), offset);
         }
@@ -78,21 +70,10 @@ impl AsmGenerator {
         self.output.push_str("    push rbp\n");
         self.output.push_str("    mov rbp, rsp\n");
 
-        let mut frame_size: i32 = func
-            .locals
-            .iter()
-            .filter_map(|l| l.stack_offset)
-            .map(|o| -o)
-            .max()
-            .unwrap_or(0)
-            .max(param_save_count as i32 * 8);
-        frame_size = ((frame_size + 15) / 16) * 16;
-        if frame_size > 0 {
-            self.output.push_str(&format!("    sub rsp, {}\n", frame_size));
-        }
+        let total_bytes = 8 * (slot_counter - 1);
+        let frame_size = ((total_bytes + 15) / 16).max(1) * 16;
+        self.output.push_str(&format!("    sub rsp, {}\n", frame_size));
 
-        // Save parameter register values to the allocated stack slots
-        // Always use full 64-bit registers — __env is a pointer typed as IrType::Int
         for (i, _param_name) in self.param_registers.iter().enumerate() {
             let reg = match i {
                 0 => "rcx",
@@ -113,11 +94,7 @@ impl AsmGenerator {
     }
 
     pub fn generate_block(&mut self, block: &IrBlock) {
-        let label = if block.id.starts_with("BB") {
-            format!("BB_{}", block.id.trim_start_matches("BB"))
-        } else {
-            block.id.clone()
-        };
+        let label = self.format_block_label(&block.id);
         self.output.push_str(&format!("{label}:\n"));
 
         for inst in &block.instructions {

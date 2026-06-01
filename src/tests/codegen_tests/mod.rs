@@ -50,7 +50,7 @@ fn test_assembler_output_format() {
     assert!(asm_output.contains("section .text"));
     assert!(asm_output.contains("global square"));
     assert!(asm_output.contains("square:"));
-    assert!(asm_output.contains("BB_"));
+    assert!(asm_output.contains("square_BB"));
     assert!(asm_output.contains("push rbp"));
     assert!(asm_output.contains("mov rbp, rsp"));
     assert!(asm_output.contains("imul"));

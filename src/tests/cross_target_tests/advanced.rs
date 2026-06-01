@@ -233,3 +233,89 @@ fn test_nasm_coroutine_yield_with_param() {
 fn test_jvm_coroutine_yield_with_param_valid() {
     assert!(jvm_valid(COROUTINE_YIELD_WITH_PARAM), "jvm coroutine yield with param should be valid");
 }
+
+const NASM_ARRAY_OF_FUNCTIONS: &str = r#"
+def main() of int
+    c1 = [
+        def add2(x of int) of int
+            return x + 2
+        end,
+        def mul2(x of int) of int
+            return x * 2
+        end
+    ];
+    c2 = [
+        def add2_2(x of int) of int
+            return x + 2
+        end,
+        def mul2_2(x of int) of int
+            return x * 2
+        end
+    ];
+
+    x1 = c1[0](2);
+    y1 = c2[0](2);
+    x2 = c1[0](2);
+    y2 = c2[1](7);
+    x3 = c1[1](7);
+    y3 = c2[0](3);
+
+    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3)
+end
+"#;
+
+const JVM_ARRAY_OF_FUNCTIONS: &str = r#"
+def f5() of def(int) of int array[2]
+    arr = [
+        def add2(x of int) of int
+            return x + 2
+        end,
+        def mul2(x of int) of int
+            return x * 2
+        end
+    ];
+    return arr
+end
+
+def main() of int
+    c1 = f5();
+    c2 = f5();
+
+    x1 = c1[0](2);
+    y1 = c2[0](2);
+
+    x2 = c1[0](2);
+    y2 = c2[1](7);
+
+    x3 = c1[1](7);
+    y3 = c2[0](3);
+
+    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3)
+end
+"#;
+
+#[test]
+fn test_nasm_array_of_functions() {
+    // Verify the ASM is syntactically valid (contains expected labels/instructions).
+    // Runtime verification is done via the CLI integration path (labs-examples/…/input.mylang).
+    let ir = crate::ir_generator::IrGenerator::new().generate(&crate::tests::parse(NASM_ARRAY_OF_FUNCTIONS));
+    let mut asm_gen = crate::codegen::nasm::AsmGenerator::new();
+    let asm = asm_gen.generate(&ir);
+    assert!(asm.contains("main_BB0:"), "entry block label should exist");
+    assert!(asm.contains("__lambda_0_BB1:"), "lambda block label should exist");
+    assert!(asm.contains("rep movsq"), "array copy should use rep movsq");
+    assert!(asm.contains("call rax"), "indirect call should exist");
+    assert!(asm.contains("leave"), "function epilogue should exist");
+    assert!(asm.contains("ret"), "return should exist");
+}
+
+#[test]
+fn test_jvm_array_of_functions_valid() {
+    assert!(jvm_valid(JVM_ARRAY_OF_FUNCTIONS), "jvm array of functions should produce valid class files");
+}
+
+#[test]
+fn test_jvm_runtime_array_of_functions() {
+    let output = compile_and_run_jvm(JVM_ARRAY_OF_FUNCTIONS);
+    assert_eq!(output.status.code(), Some(2223), "jvm array of functions c1[0](2) etc");
+}

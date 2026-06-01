@@ -27,16 +27,28 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     fs::write(&asm_path, &asm).unwrap();
 
     let obj_path = temp_dir.path().join("program.obj");
-    let _nasm = Command::new("nasm")
+    let nasm_result = Command::new("nasm")
         .args(["-f", "win64", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
         .output()
         .expect("NASM not found");
+    if !nasm_result.status.success() {
+        eprintln!("NASM FAILED: {}", String::from_utf8_lossy(&nasm_result.stderr));
+    }
 
     let exe_path = temp_dir.path().join("program.exe");
-    let _gcc = Command::new("gcc")
-        .args([obj_path.to_str().unwrap(), "-o", exe_path.to_str().unwrap()])
+    let gcc_result = Command::new("gcc")
+        .args(["-o", exe_path.to_str().unwrap(), obj_path.to_str().unwrap()])
         .output()
         .expect("GCC not found");
+    if !gcc_result.status.success() {
+        eprintln!("gcc stdout: {}", String::from_utf8_lossy(&gcc_result.stdout));
+        eprintln!("gcc stderr: {}", String::from_utf8_lossy(&gcc_result.stderr));
+        eprintln!("asm:\n{}", &asm[..asm.len().min(2000)]);
+    }
+
+    if !exe_path.exists() {
+        panic!("program.exe was not created by gcc");
+    }
 
     Command::new(exe_path.to_str().unwrap())
         .output()

@@ -212,6 +212,8 @@ impl AsmGenerator {
     pub(crate) fn gen_lea_base(&mut self, name: &str, reg: &str) {
         if let Some(local_off) = self.locals.get(name) {
             self.output.push_str(&format!("    lea {reg}, [rbp + {local_off}]\n"));
+        } else if let Some(temp_off) = self.temps.get(name) {
+            self.output.push_str(&format!("    lea {reg}, [rbp + {temp_off}]\n"));
         } else {
             self.output.push_str(&format!("    lea {reg}, [rel {name}]\n"));
         }
