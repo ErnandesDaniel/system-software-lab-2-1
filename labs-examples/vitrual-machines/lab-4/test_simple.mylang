@@ -1,8 +1,0 @@
-import getchar
-import putchar
-
-def main() of int
-    c = getchar()
-    putchar(c)
-    return 0
-end

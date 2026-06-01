@@ -1,0 +1,198 @@
+// lab-3: Mark-and-Sweep Garbage Collector (NASM)
+// Демо: GC_ON vs GC_OFF — сравнение потребления памяти
+
+import puts
+import putchar
+import printf
+import malloc
+import free
+import exit
+import time
+
+// ===================== GC Runtime =====================
+
+global gc_marked of int[2048]
+global gc_refs of int[2048]
+global gc_size of int[2048]
+global gc_data of string[2048]
+global gc_count of int = 0
+
+global total_alloc of int = 0
+global total_freed of int = 0
+global gc_runs of int = 0
+global gc_freed_objects of int = 0
+global gc_enabled of int = 1
+
+// === Mark ===
+
+def mark(idx of int)
+    if idx < 0 then { return }
+    if idx >= gc_count then { return }
+    if gc_marked[idx] == 1 then { return }
+
+    gc_marked[idx] = 1
+
+    ref = gc_refs[idx]
+    if ref != 0 then {
+        mark(ref - 1)
+    }
+end
+
+// === Sweep ===
+
+def sweep()
+    total_freed = 0
+    gc_freed_objects = 0
+    i = 0
+
+    while i < gc_count {
+        if gc_marked[i] == 0 then {
+            free(gc_data[i])
+            total_freed = total_freed + gc_size[i]
+            gc_freed_objects = gc_freed_objects + 1
+
+            j = i
+            while j < gc_count - 1 {
+                gc_marked[j] = gc_marked[j + 1]
+                gc_refs[j] = gc_refs[j + 1]
+                gc_size[j] = gc_size[j + 1]
+                gc_data[j] = gc_data[j + 1]
+                j = j + 1
+            }
+            gc_count = gc_count - 1
+        } else {
+            gc_marked[i] = 0
+            i = i + 1
+        }
+    }
+end
+
+// === gc_run() ===
+
+def gc_run()
+    if gc_enabled == 0 then { return }
+
+    before = total_alloc
+    gc_runs = gc_runs + 1
+
+    i = 0
+    while i < gc_count {
+        mark(i)
+        i = i + 1
+    }
+
+    sweep()
+    after = total_alloc - total_freed
+
+    printf("  [GC #%d] before=%d after=%d freed_objects=%d\n",
+        gc_runs, before, after, gc_freed_objects)
+end
+
+// === gc_alloc(size, ref) ===
+
+def gc_alloc(size of int, ref of int) of int
+    data = malloc(size)
+    if data == 0 then { return -1 }
+
+    i = 0
+    while i < size {
+        data[i] = 0
+        i = i + 1
+    }
+
+    idx = gc_count
+    gc_marked[idx] = 0
+    gc_refs[idx] = ref
+    gc_size[idx] = size
+    gc_data[idx] = data
+    gc_count = gc_count + 1
+    total_alloc = total_alloc + size
+
+    return idx + 1
+end
+
+// ===================== Demo =====================
+
+def demo_gc_on()
+    puts("=== MODE: GC_ON ===")
+    putchar(10)
+
+    prev = 0
+    i = 0
+    while i < 30 {
+        p = gc_alloc(1024, prev)
+        if p == -1 then {
+            puts("OOM!")
+            return
+        }
+
+        prev = p
+
+        if i > 0 && i % 5 == 0 then {
+            printf("  iter %d: %d objects, %d bytes allocated\n", i, gc_count, total_alloc)
+        }
+
+        if i > 0 && i % 10 == 0 then { gc_run() }
+
+        i = i + 1
+    }
+
+    gc_run()
+    printf("--- GC_ON done: %d bytes ---\n", total_alloc)
+    putchar(10)
+end
+
+def demo_gc_off()
+    puts("=== MODE: GC_OFF ===")
+    putchar(10)
+
+    gc_enabled = 0
+
+    prev = 0
+    i = 0
+    while i < 200 {
+        p = gc_alloc(1024, prev)
+        if p == -1 then {
+            printf("OOM on iter %d! allocated %d KB\n", i, total_alloc / 1024)
+            putchar(10)
+            return
+        }
+
+        prev = p
+
+        if i % 20 == 0 then {
+            printf("  iter %d: %d KB allocated\n", i, total_alloc / 1024)
+        }
+
+        i = i + 1
+    }
+
+    printf("--- Allocated %d KB without OOM ---\n", total_alloc / 1024)
+end
+
+def main() of int
+    puts("=== Mark-and-Sweep GC Demo ===")
+    puts("GC_ON vs GC_OFF comparison")
+    putchar(10)
+
+    demo_gc_on()
+
+    // Reset
+    i = 0
+    while i < gc_count {
+        free(gc_data[i])
+        i = i + 1
+    }
+    gc_count = 0
+    total_alloc = 0
+    total_freed = 0
+    gc_runs = 0
+    gc_enabled = 1
+
+    demo_gc_off()
+
+    putchar(10)
+    puts("=== Done ===")
+
+    return 0
+end

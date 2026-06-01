@@ -159,7 +159,7 @@ impl AsmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
-                    if result.starts_with('t') && !self.temps.contains_key(result) {
+                    if result.starts_with('t') && !self.global_names.contains(result.as_str()) && !self.temps.contains_key(result) {
                         self.temps.insert(result.clone(), temp_offset);
                         temp_offset -= 8;
                     }

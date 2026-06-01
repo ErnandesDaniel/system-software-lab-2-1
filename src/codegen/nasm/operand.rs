@@ -74,6 +74,10 @@ impl AsmGenerator {
     }
 
     pub fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
+        if self.global_names.contains(name) {
+            self.output.push_str(&format!("    mov [rel {name}], {src}\n"));
+            return;
+        }
         if self.is_coroutine {
             if let Some(offset) = self.locals.get(name) {
                 let co_off = 56 + (-offset);
