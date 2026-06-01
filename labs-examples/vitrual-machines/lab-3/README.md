@@ -2,6 +2,14 @@
 
 Реализация Mark-and-Sweep GC на MyLang с демонстрацией через Fibonacci Logger.
 
+## Компиляция и запуск
+
+### NASM
+```powershell
+cargo run -- labs-examples/vitrual-machines/lab-3/input.mylang -o output -t nasm
+.\output\program.exe
+```
+
 ## GC алгоритм
 
 ### Mark
@@ -17,20 +25,6 @@
 
 1. **GC_ON** — 50 чисел Фибоначчи, кольцевой буфер на 10 логов, GC каждые 5 итераций → `live=640` (чистит старые логи)
 2. **GC_OFF** — те же 50 чисел, GC отключён → `live=3200` (все 50 записей остаются)
-
-## Компиляция и запуск
-
-### NASM
-```powershell
-cargo run -- labs-examples/vitrual-machines/lab-3/input.mylang -o output -t nasm
-.\output\program.exe
-```
-
-### JVM
-```powershell
-cargo run -- labs-examples/vitrual-machines/lab-3/input.mylang -o output -t jvm
-java -cp output Main
-```
 
 ## Ожидаемый вывод
 
@@ -61,12 +55,3 @@ java -cp output Main
   GC_OFF → freed=0 live=alloc — GC не чистит
 ================================================
 ```
-
-## Отличия от предыдущей версии
-
-| | Было | Стало |
-|---|---|---|
-| **Mark** | Все объекты — корни | Только хэндлы из `log_ring[10]` |
-| **Sweep** | Сдвиг массива (ломает хэндлы) | `free` + переиспользование слота |
-| **Нагрузка** | alloc 1MB в цепочку | Фибоначчи + логгирование |
-| **Стресс-тест** | 60000 × malloc(1MB) с крашем | Убран (лаборатория про GC, не про OOM) |
