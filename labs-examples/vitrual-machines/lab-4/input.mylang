@@ -1,66 +1,47 @@
-// Lab 4 — MyLang daemon with malloc/free and string struct fields
-// Протокол: "opcode key value\n" -> "OK [payload]\n" / "ERR msg\n"
-
 import getchar
 import putchar
 import malloc
 import free
 
-struct MapEntry {
+global NL of int = 10
+
+struct Entry {
     key of string
     val of string
 }
 
-// ─── Globals ─────────────────────────────────────────────────
+global table of Entry[8]
+global count of int = 0
+global buf of string
+global key_off of int = -1
+global val_off of int = -1
 
-global entries of MapEntry[8]
-global map_n of int = 0
-global input_buf of string
-
-// Parse results: offsets within input_buf
-global r0 of int = 0
-global r1 of int = -1
-global r2 of int = -1
-
-// ─── String helpers ─────────────────────────────────────────
-
-def streq(a of string, b of string) of int
+def streq_at(s of string, pos of int, t of string) of int
     i = 0
-    while 1 == 1 {
-        ca = a[i]
-        cb = b[i]
-        if ca != cb then { return 0 }
-        if ca == 0 then { return 1 }
+    while true {
+        a = s[pos + i]
+        b = t[i]
+        if a != b then { return 0 }
+        if a == 0 then { return 1 }
         i = i + 1
     }
 end
 
-def streq_at(buf of string, start of int, s of string) of int
+def strdup(s of string, pos of int) of string
+    n = 0
+    while s[pos + n] != 0 { n = n + 1 }
+    p = malloc(n + 1)
     i = 0
-    while 1 == 1 {
-        ca = buf[start + i]
-        cb = s[i]
-        if ca != cb then { return 0 }
-        if ca == 0 then { return 1 }
+    while i <= n {
+        p[i] = s[pos + i]
         i = i + 1
     }
+    return p
 end
 
-def strdup_from(buf of string, start of int) of string
-    len = 0
-    while buf[start + len] != 0 { len = len + 1 }
-    dst = malloc(len + 1)
+def puts(s of string)
     i = 0
-    while i <= len {
-        dst[i] = buf[start + i]
-        i = i + 1
-    }
-    return dst
-end
-
-def putstr(s of string)
-    i = 0
-    while 1 == 1 {
+    while true {
         c = s[i]
         if c == 0 then { return }
         putchar(c)
@@ -68,199 +49,127 @@ def putstr(s of string)
     }
 end
 
-// ─── Map operations ─────────────────────────────────────────
+def parse()
+    key_off = -1; val_off = -1
 
-def map_find_at(buf of string, start of int) of int
+    p = 0
+    while true {
+        c = buf[p]
+        if c == ' ' then { break; }
+        if c == 0 then { return }
+        p = p + 1
+    }
+    buf[p] = 0
+    key_off = p + 1
+
+    p = key_off
+    while true {
+        c = buf[p]
+        if c == ' ' then { break; }
+        if c == 0 then { return }
+        p = p + 1
+    }
+    buf[p] = 0
+    val_off = p + 1
+end
+
+def find(pos of int) of int
     i = 0
-    while i < map_n {
-        if streq_at(buf, start, entries[i].key) == 1 then { return i }
+    while i < count {
+        if streq_at(buf, pos, table[i].key) == 1 then { return i }
         i = i + 1
     }
     return -1
 end
 
-def map_add(buf of string, key_off of int, val_off of int)
-    if map_n >= 8 then { return }
-    entries[map_n].key = strdup_from(buf, key_off)
-    entries[map_n].val = strdup_from(buf, val_off)
-    map_n = map_n + 1
+def add(kp of int, vp of int)
+    if count >= 8 then { return }
+    table[count].key = strdup(buf, kp)
+    table[count].val = strdup(buf, vp)
+    count = count + 1
 end
 
-def map_update(idx of int, buf of string, val_off of int)
-    free(entries[idx].val)
-    entries[idx].val = strdup_from(buf, val_off)
+def update(i of int, vp of int)
+    free(table[i].val)
+    table[i].val = strdup(buf, vp)
 end
 
-def map_remove(idx of int)
-    free(entries[idx].key)
-    free(entries[idx].val)
-    while idx < map_n - 1 {
-        entries[idx].key = entries[idx + 1].key
-        entries[idx].val = entries[idx + 1].val
-        idx = idx + 1
+def remove(i of int)
+    free(table[i].key)
+    free(table[i].val)
+    while i < count - 1 {
+        table[i].key = table[i + 1].key
+        table[i].val = table[i + 1].val
+        i = i + 1
     }
-    map_n = map_n - 1
+    count = count - 1
 end
 
-// ─── Input parsing ──────────────────────────────────────────
+def ok()
+    putchar('O'); putchar('K'); putchar(NL)
+end
 
-def parse_line()
-    r0 = 0; r1 = -1; r2 = -1
+def ok_str(s of string)
+    putchar('O'); putchar('K'); putchar(' ')
+    puts(s)
+    putchar(NL)
+end
 
-    sp1 = 0
-    while 1 == 1 {
-        c = input_buf[sp1]
-        if c == 32 then { break; }
-        if c == 0 then { return }
-        sp1 = sp1 + 1
+def err(s of string)
+    putchar('E'); putchar('R'); putchar('R'); putchar(' ')
+    puts(s)
+    putchar(NL)
+end
+
+def read() of int
+    p = 0
+    while true {
+        c = getchar()
+        if c == NL then { buf[p] = 0; return 1 }
+        if c == -1 then { buf[p] = 0; return 0 }
+        buf[p] = c
+        p = p + 1
     }
-    input_buf[sp1] = 0
-    r1 = sp1 + 1
-
-    sp2 = r1
-    while 1 == 1 {
-        c = input_buf[sp2]
-        if c == 32 then { break; }
-        if c == 0 then { r2 = -1; return }
-        sp2 = sp2 + 1
-    }
-    input_buf[sp2] = 0
-    r2 = sp2 + 1
 end
-
-// ─── Response ───────────────────────────────────────────────
-
-def respond_ok()
-    putchar(79); putchar(75); putchar(10)  // "OK\n"
-end
-
-def respond_ok_str(s of string)
-    putchar(79); putchar(75); putchar(32)  // "OK "
-    putstr(s)
-    putchar(10)
-end
-
-def respond_err(s of string)
-    putchar(69); putchar(82); putchar(82); putchar(32)  // "ERR "
-    putstr(s)
-    putchar(10)
-end
-
-// ─── Main ───────────────────────────────────────────────────
 
 def main() of int
-    input_buf = malloc(256)
-    eof = 0
+    buf = malloc(256)
 
-    // Read first line
-    di = 0
-    while 1 == 1 {
-        c = getchar()
-        if c == 10 then { input_buf[di] = 0; break; }
-        if c == -1 then { input_buf[di] = 0; eof = 1; break; }
-        input_buf[di] = c
-        di = di + 1
+    while read() == 1 {
+        parse()
+
+        if streq_at(buf, 0, "exit") == 1 then {
+            i = 0
+            while i < count {
+                free(table[i].key); free(table[i].val)
+                i = i + 1
+            }
+            ok()
+            return 0
+        } else if streq_at(buf, 0, "list") == 1 then {
+            putchar('O'); putchar('K'); putchar(' ')
+            i = 0
+            while i < count {
+                if i > 0 then { putchar(',') }
+                puts(table[i].key)
+                i = i + 1
+            }
+            putchar(NL)
+        } else if key_off >= 0 && streq_at(buf, 0, "get") == 1 then {
+            i = find(key_off)
+            if i >= 0 then { ok_str(table[i].val) } else { err("Key not found") }
+        } else if key_off >= 0 && streq_at(buf, 0, "create") == 1 then {
+            i = find(key_off)
+            if i >= 0 then { err("Exists") } else { add(key_off, val_off); ok() }
+        } else if key_off >= 0 && streq_at(buf, 0, "set") == 1 then {
+            i = find(key_off)
+            if i >= 0 then { update(i, val_off); ok() } else { err("Key not found") }
+        } else if key_off >= 0 && streq_at(buf, 0, "delete") == 1 then {
+            i = find(key_off)
+            if i >= 0 then { remove(i); ok() } else { err("Key not found") }
+        }
     }
 
-    while eof == 0 {
-        parse_line()
-
-        // exit
-        if r1 == -1 then {
-            if streq_at(input_buf, 0, "exit") == 1 then {
-                i = 0
-                while i < map_n {
-                    free(entries[i].key)
-                    free(entries[i].val)
-                    i = i + 1
-                }
-                respond_ok()
-                return 0
-            }
-        }
-
-        // list
-        if r1 == -1 then {
-            if streq_at(input_buf, 0, "list") == 1 then {
-                putchar(79); putchar(75); putchar(32)  // "OK "
-                i = 0
-                while i < map_n {
-                    if i > 0 then { putchar(44) }
-                    putstr(entries[i].key)
-                    i = i + 1
-                }
-                putchar(10)
-                // handled set
-            }
-        }
-
-        // get
-        if r1 >= 0 then {
-            if streq_at(input_buf, 0, "get") == 1 then {
-                idx = map_find_at(input_buf, r1)
-                if idx >= 0 then {
-                    respond_ok_str(entries[idx].val)
-                } else {
-                    respond_err("Key not found")
-                }
-            }
-        }
-
-        // create
-        if r1 >= 0 then {
-            if streq_at(input_buf, 0, "create") == 1 then {
-                if r2 == -1 then {
-                    respond_err("Key not found")
-                } else {
-                    idx = map_find_at(input_buf, r1)
-                    if idx >= 0 then {
-                        respond_err("Exists")
-                    } else {
-                        map_add(input_buf, r1, r2)
-                        respond_ok()
-                    }
-                }
-            }
-        }
-
-        // set
-        if r1 >= 0 then {
-            if streq_at(input_buf, 0, "set") == 1 then {
-                if r2 == -1 then {
-                    respond_err("Key not found")
-                } else {
-                    idx = map_find_at(input_buf, r1)
-                    if idx >= 0 then {
-                        map_update(idx, input_buf, r2)
-                        respond_ok()
-                    } else {
-                        respond_err("Key not found")
-                    }
-                }
-            }
-        }
-
-        // delete
-        if r1 >= 0 then {
-            if streq_at(input_buf, 0, "delete") == 1 then {
-                idx = map_find_at(input_buf, r1)
-                if idx >= 0 then {
-                    map_remove(idx)
-                    respond_ok()
-                } else {
-                    respond_err("Key not found")
-                }
-            }
-        }
-
-        // Read next line
-        di = 0
-        while 1 == 1 {
-            c = getchar()
-            if c == 10 then { input_buf[di] = 0; break; }
-            if c == -1 then { input_buf[di] = 0; eof = 1; break; }
-            input_buf[di] = c
-            di = di + 1
-        }
-    }
+    err("EOF")
+    return 0
 end
