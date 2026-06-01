@@ -1,16 +1,3 @@
 target
 .idea
-*.class
-*.log
-*.dat
-*.exe
-old-code
 output
-output/*.java
-output/*.mmd
-output_jvm/
-output_test/
-daemon_*.txt
-mylang_shm.dat
-jna-*/
-output/lib/
