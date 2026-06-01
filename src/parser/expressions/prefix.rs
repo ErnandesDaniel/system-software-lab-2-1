@@ -1,9 +1,10 @@
-use crate::parser::Parser;
 use crate::ast::{Expr, Identifier, Literal, UnaryExpr, UnaryOp};
+use crate::error::CompilerError;
 use crate::lexer::Token;
+use crate::parser::Parser;
 
 impl Parser<'_> {
-    pub(crate) fn parse_prefix(&mut self) -> Result<Expr, String> {
+    pub(crate) fn parse_prefix(&mut self) -> crate::Result<Expr> {
         match self.current_token() {
             Some(Token::DecLiteral) => {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
@@ -111,7 +112,7 @@ impl Parser<'_> {
                 let func_def = self.parse_function()?;
                 Ok(Expr::FuncLiteral(func_def))
             }
-            _ => Err("Expected expression".to_string()),
+            _ => Err(CompilerError::Parse("Expected expression".to_string())),
         }
     }
 }

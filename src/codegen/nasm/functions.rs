@@ -134,7 +134,7 @@ impl AsmGenerator {
                         let reg = if is_pointer { "rax" } else { "eax" };
                         self.output.push_str(&format!("    mov {reg}, [rbp + {offset}]\n"));
                     } else if self.param_registers.contains(name) {
-                        let idx = self.param_registers.iter().position(|r| r == name).unwrap();
+                        let idx = self.param_registers.iter().position(|r| r == name).expect("Param not found in register list");
                         let src_reg = match idx {
                             0 => { if is_pointer { "rcx" } else { "ecx" } }
                             1 => { if is_pointer { "rdx" } else { "edx" } }

@@ -3,10 +3,11 @@ use crate::ast::{
     BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, LoopKeyword, Range, RepeatStatement,
     SliceExpr, Span, Statement, VarDeclStatement,
 };
+use crate::error::CompilerError;
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_identifier_based_statement(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_identifier_based_statement(&mut self) -> crate::Result<Statement> {
         let (_name, span) = self.expect(Token::Identifier)?;
         let var_name = self.get_text(&span).to_string();
 
@@ -188,7 +189,7 @@ impl Parser<'_> {
         }
     }
 
-    pub(crate) fn parse_block_like(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_block_like(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         let end_token = match self.current_token() {
             Some(Token::Begin) => {
@@ -199,7 +200,7 @@ impl Parser<'_> {
                 self.expect(Token::LBrace)?;
                 Token::RBrace
             }
-            _ => return Err("Expected 'begin' or '{'".to_string()),
+            _ => return Err(CompilerError::Parse("Expected 'begin' or '{'".to_string())),
         };
         let mut body = Vec::new();
         while let Some(tok) = self.current_token() {
@@ -224,7 +225,7 @@ impl Parser<'_> {
         Ok(Statement::Block(BlockStatement { body, span }))
     }
 
-    fn parse_repeat_tail(&mut self, body: Statement, body_span: Span) -> Result<Statement, String> {
+    fn parse_repeat_tail(&mut self, body: Statement, body_span: Span) -> crate::Result<Statement> {
         let keyword = match self.current_token() {
             Some(Token::While) => LoopKeyword::While,
             Some(Token::Until) => LoopKeyword::Until,
@@ -242,7 +243,7 @@ impl Parser<'_> {
         }))
     }
 
-    pub(crate) fn parse_expression_statement(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_expression_statement(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         let expr = self.parse_expression(0)?;
 

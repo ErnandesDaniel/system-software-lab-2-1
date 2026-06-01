@@ -4,7 +4,7 @@ use crate::semantics::types::{SemanticType, SymbolTable};
 use crate::stdlib::StdLib;
 
 impl SemanticsAnalyzer {
-    pub fn collect_functions(&mut self, program: &Program) -> Result<(), Vec<String>> {
+    pub fn collect_functions(&mut self, program: &Program) -> crate::Result<()> {
         for item in &program.items {
             match item {
                 SourceItem::FuncDefinition(def) => {
@@ -105,7 +105,7 @@ impl SemanticsAnalyzer {
             .ok();
     }
 
-    pub fn check_functions(&mut self, program: &Program) -> Result<(), Vec<String>> {
+    pub fn check_functions(&mut self, program: &Program) -> crate::Result<()> {
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
                 self.check_function(def)?;
@@ -114,7 +114,7 @@ impl SemanticsAnalyzer {
         Ok(())
     }
 
-    pub fn check_function(&mut self, def: &FuncDefinition) -> Result<(), Vec<String>> {
+    pub fn check_function(&mut self, def: &FuncDefinition) -> crate::Result<()> {
         let mut local_scope = SymbolTable::new();
 
         if let Some(ref params) = def.signature.parameters {

@@ -60,9 +60,9 @@ impl SymbolTable {
         }
     }
 
-    pub fn add(&mut self, name: String, ty: SemanticType) -> Result<(), String> {
+    pub fn add(&mut self, name: String, ty: SemanticType) -> crate::Result<()> {
         if self.symbols.contains_key(&name) {
-            return Err(format!("Symbol '{name}' already exists"));
+            return Err(crate::error::CompilerError::Semantic(format!("Symbol '{name}' already exists")));
         }
         self.symbols.insert(name.clone(), Symbol::new(name, ty));
         Ok(())

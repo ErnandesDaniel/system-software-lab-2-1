@@ -61,7 +61,11 @@ impl IrGenerator {
         id
     }
 
-    pub fn generate(&mut self, program: &Program) -> IrProgram {
+    pub fn generate(&mut self, program: &Program) -> crate::ir::IrProgram {
+        self.try_generate(program).expect("IR generation failed")
+    }
+
+    pub fn try_generate(&mut self, program: &Program) -> crate::Result<crate::ir::IrProgram> {
         let mut functions = Vec::new();
 
         // First pass: collect all function signatures (extern + user-defined)
@@ -148,7 +152,7 @@ impl IrGenerator {
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
                 self.block_counter = 0;
-                self.symbols = symbols::SymbolTable::new();
+                self.symbols.reset_locals();
                 self.used_functions.clear();
                 self.current_yield_state = 0;
                 let ir_func = self.generate_function(def);
@@ -160,7 +164,7 @@ impl IrGenerator {
             }
             if let SourceItem::CoroutineDef(coroutine) = item {
                 self.block_counter = 0;
-                self.symbols = symbols::SymbolTable::new();
+                self.symbols.reset_locals();
                 self.used_functions.clear();
                 self.current_yield_state = 0;
                 let ir_func = self.generate_coroutine_function(coroutine);
@@ -168,7 +172,7 @@ impl IrGenerator {
             }
         }
 
-        IrProgram { functions, globals }
+        Ok(IrProgram { functions, globals })
     }
 
 

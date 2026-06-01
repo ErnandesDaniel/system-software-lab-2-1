@@ -46,9 +46,9 @@ impl JvmGenerator {
             code.push(Instruction::Iconst_1);
             code.push(Instruction::Goto(0)); // placeholder
 
-            let iconst_0_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let iconst_0_idx = u16::try_from(code.len()).expect("Logical: code length exceeds u16") + global_offset;
             code.push(Instruction::Iconst_0);
-            let istore_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             let slot = self.get_local_slot(result);
             code.push(Instruction::Istore(slot as u8));
 
@@ -72,9 +72,9 @@ impl JvmGenerator {
             code.push(Instruction::Iconst_0);
             code.push(Instruction::Goto(0)); // placeholder
 
-            let iconst_1_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let iconst_1_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             code.push(Instruction::Iconst_1);
-            let istore_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             let slot = self.get_local_slot(result);
             code.push(Instruction::Istore(slot as u8));
 
@@ -92,9 +92,9 @@ impl JvmGenerator {
             code.push(Instruction::Iconst_0);
             code.push(Instruction::Goto(0)); // placeholder
 
-            let iconst_1_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let iconst_1_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             code.push(Instruction::Iconst_1);
-            let istore_idx = u16::try_from(code.len()).unwrap() + global_offset;
+            let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             let slot = self.get_local_slot(result);
             code.push(Instruction::Istore(slot as u8));
 
@@ -116,8 +116,8 @@ impl JvmGenerator {
             self.emit_load_operand(code, right);
 
             let start_idx = code.len();
-            let iconst_1_idx = u16::try_from(start_idx + 3).unwrap() + global_offset;
-            let istore_idx = u16::try_from(start_idx + 4).unwrap() + global_offset;
+            let iconst_1_idx = u16::try_from(start_idx + 3).expect("Code offset exceeds u16") + global_offset;
+            let istore_idx = u16::try_from(start_idx + 4).expect("Code offset exceeds u16") + global_offset;
 
             match op {
                 ComparisonOp::Eq => self.emit_if_icmpeq(code, iconst_1_idx),

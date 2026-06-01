@@ -5,6 +5,7 @@ pub mod types;
 mod statements;
 
 use crate::ast::{Program, SourceItem, Span};
+use crate::error::CompilerError;
 use crate::lexer::iter::Lexer;
 use crate::lexer::Token;
 use std::ops::Range;
@@ -24,11 +25,11 @@ impl<'source> Parser<'source> {
         Self { lexer, current, source }
     }
 
-    pub fn parse(&mut self) -> Result<Program, String> {
+    pub fn parse(&mut self) -> crate::Result<Program> {
         let mut items = Vec::new();
 
         while self.current_token().is_some() {
-            let token = self.current_token().unwrap();
+            let token = self.current_token().expect("Token must exist after is_some check");
 
             if token == &Token::End {
                 self.advance();
@@ -64,7 +65,7 @@ impl<'source> Parser<'source> {
                     items.push(SourceItem::CoroutineDef(self.parse_coroutine()?));
                 }
                 _ => {
-                    return Err(format!("Expected function definition or declaration, got {token:?}"));
+                    return Err(CompilerError::Parse(format!("Expected function definition or declaration, got {token:?}")));
                 }
             }
 
@@ -104,15 +105,17 @@ impl<'source> Parser<'source> {
             })
     }
 
-    pub(crate) fn expect(&mut self, token: Token) -> Result<(Token, Span), String> {
-        let tok = self.current_token().ok_or("Unexpected end of input")?;
+    pub(crate) fn expect(&mut self, token: Token) -> crate::Result<(Token, Span)> {
+        let tok = self
+            .current_token()
+            .ok_or_else(|| CompilerError::Parse("Unexpected end of input".to_string()))?;
         let tok_clone = *tok;
         if tok_clone == token {
             let span = self.current_span();
             self.advance();
             Ok((tok_clone, span))
         } else {
-            Err(format!("Expected {token:?} but got {tok_clone:?}"))
+            Err(CompilerError::Parse(format!("Expected {token:?} but got {tok_clone:?}")))
         }
     }
 }

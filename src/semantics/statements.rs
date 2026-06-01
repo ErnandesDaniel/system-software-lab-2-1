@@ -3,7 +3,7 @@ use crate::semantics::analysis::SemanticsAnalyzer;
 use crate::semantics::types::{SemanticType, SymbolTable};
 
 impl SemanticsAnalyzer {
-    pub fn check_statement(&mut self, scope: &mut SymbolTable, stmt: &Statement) -> Result<(), Vec<String>> {
+    pub fn check_statement(&mut self, scope: &mut SymbolTable, stmt: &Statement) -> crate::Result<()> {
         match stmt {
             Statement::Return(ret) => {
                 let expr_type = if let Some(ref expr) = ret.expr {

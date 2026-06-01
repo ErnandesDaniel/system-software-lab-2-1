@@ -1,4 +1,5 @@
 use crate::ast::{BuiltinType, Literal, Program, TypeRef};
+use crate::error::CompilerError;
 use crate::semantics::types::{SemanticType, SymbolTable};
 
 #[derive(Debug, Clone)]
@@ -27,14 +28,14 @@ impl SemanticsAnalyzer {
         }
     }
 
-    pub fn analyze(&mut self, program: &Program) -> Result<(), Vec<String>> {
+    pub fn analyze(&mut self, program: &Program) -> crate::Result<()> {
         self.collect_functions(program)?;
         self.check_functions(program)?;
 
         if self.errors.is_empty() {
             Ok(())
         } else {
-            Err(std::mem::take(&mut self.errors))
+            Err(CompilerError::Semantic(std::mem::take(&mut self.errors).join("; ")))
         }
     }
 

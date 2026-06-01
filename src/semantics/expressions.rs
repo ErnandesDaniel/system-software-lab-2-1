@@ -3,7 +3,7 @@ use crate::semantics::analysis::SemanticsAnalyzer;
 use crate::semantics::types::{SemanticType, SymbolTable};
 
 impl SemanticsAnalyzer {
-    pub fn check_expression(&mut self, scope: &mut SymbolTable, expr: &Expr) -> Result<SemanticType, Vec<String>> {
+    pub fn check_expression(&mut self, scope: &mut SymbolTable, expr: &Expr) -> crate::Result<SemanticType> {
         match expr {
             Expr::Binary(bin) => self.check_binary_expr(scope, bin),
             Expr::Unary(un) => self.check_unary_expr(scope, un),
@@ -42,7 +42,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn check_binary_expr(&mut self, scope: &mut SymbolTable, bin: &BinaryExpr) -> Result<SemanticType, Vec<String>> {
+    fn check_binary_expr(&mut self, scope: &mut SymbolTable, bin: &BinaryExpr) -> crate::Result<SemanticType> {
         if matches!(bin.operator, BinaryOp::Assign) {
             if let Expr::Identifier(id) = &*bin.left {
                 scope.add(id.name.clone(), SemanticType::Int).ok();
@@ -102,7 +102,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn check_unary_expr(&mut self, scope: &mut SymbolTable, un: &UnaryExpr) -> Result<SemanticType, Vec<String>> {
+    fn check_unary_expr(&mut self, scope: &mut SymbolTable, un: &UnaryExpr) -> crate::Result<SemanticType> {
         let operand_type = self.check_expression(scope, &un.operand)?;
         match un.operator {
             UnaryOp::Not => {
@@ -120,7 +120,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn check_call_expr(&mut self, scope: &mut SymbolTable, call: &CallExpr) -> Result<SemanticType, Vec<String>> {
+    fn check_call_expr(&mut self, scope: &mut SymbolTable, call: &CallExpr) -> crate::Result<SemanticType> {
         if let Expr::Identifier(id) = call.function.as_ref() {
             let builtin_funcs = [
                 "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
@@ -174,7 +174,7 @@ impl SemanticsAnalyzer {
         Ok(SemanticType::Int)
     }
 
-    fn check_slice_expr(&mut self, scope: &mut SymbolTable, slice: &SliceExpr) -> Result<SemanticType, Vec<String>> {
+    fn check_slice_expr(&mut self, scope: &mut SymbolTable, slice: &SliceExpr) -> crate::Result<SemanticType> {
         let array_type = self.check_expression(scope, &slice.array)?;
         if let SemanticType::Array(elem, _) = array_type {
             if let Some(range) = slice.ranges.first() {

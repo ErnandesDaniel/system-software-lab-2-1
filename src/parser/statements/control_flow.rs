@@ -2,10 +2,11 @@ use super::Parser;
 use crate::ast::{
     BreakStatement, IfStatement, LoopKeyword, LoopStatement, RepeatStatement, ReturnStatement, Statement,
 };
+use crate::error::CompilerError;
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_return(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_return(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         self.expect(Token::Return)?;
         let expr = if self.current_token().is_some()
@@ -24,7 +25,7 @@ impl Parser<'_> {
         Ok(Statement::Return(ReturnStatement { expr, span }))
     }
 
-    pub(crate) fn parse_if(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_if(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         self.expect(Token::If)?;
         let condition = self.parse_expression(0)?;
@@ -48,7 +49,7 @@ impl Parser<'_> {
         }))
     }
 
-    pub(crate) fn parse_while(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_while(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         let keyword = match self.current_token() {
             Some(Token::While) => {
@@ -59,7 +60,7 @@ impl Parser<'_> {
                 self.advance();
                 LoopKeyword::Until
             }
-            _ => return Err("Expected 'while' or 'until'".to_string()),
+            _ => return Err(CompilerError::Parse("Expected 'while' or 'until'".to_string())),
         };
 
         let condition = self.parse_expression(0)?;
@@ -93,20 +94,20 @@ impl Parser<'_> {
         }))
     }
 
-    pub(crate) fn parse_repeat(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_repeat(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         // accept "repeat" or "do"
         match self.current_token() {
             Some(Token::Repeat) => { self.advance(); }
             Some(Token::Do) => { self.advance(); }
-            _ => return Err("Expected 'repeat' or 'do'".to_string()),
+            _ => return Err(CompilerError::Parse("Expected 'repeat' or 'do'".to_string())),
         }
         let body = Box::new(self.parse_statement()?);
         // accept "until" or "while"
         let keyword = match self.current_token() {
             Some(Token::Until) => { self.advance(); LoopKeyword::Until }
             Some(Token::While) => { self.advance(); LoopKeyword::While }
-            _ => return Err("Expected 'until' or 'while'".to_string()),
+            _ => return Err(CompilerError::Parse("Expected 'until' or 'while'".to_string())),
         };
         let condition = self.parse_expression(0)?;
         self.expect(Token::Semi)?;
@@ -119,7 +120,7 @@ impl Parser<'_> {
         }))
     }
 
-    pub(crate) fn parse_break(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_break(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         self.expect(Token::Break)?;
         self.expect(Token::Semi)?;

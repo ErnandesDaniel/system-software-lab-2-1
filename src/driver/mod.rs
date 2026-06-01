@@ -6,6 +6,7 @@ use std::path::Path;
 
 use crate::ast;
 use crate::codegen;
+use crate::error::CompilerError;
 use crate::ir::diagram::CfgMermaidGenerator;
 use crate::ir::validator::IrValidator;
 use crate::ir_generator::IrGenerator;
@@ -17,53 +18,37 @@ use crate::CodeGenTarget;
 pub struct CompilerDriver;
 
 impl CompilerDriver {
-    pub fn compile(args: &crate::cli::Args) {
-        let source = Self::read_source(&args.source_path);
-        let ast = Self::parse(&source);
-        Self::create_output_dir(&args.output_dir);
+    pub fn compile(args: &crate::cli::Args) -> crate::Result<()> {
+        let source = Self::read_source(&args.source_path)?;
+        let ast = Self::parse(&source)?;
+        Self::create_output_dir(&args.output_dir)?;
         Self::generate_ast_diagrams(&ast, &args.output_dir);
-        Self::run_semantic_analysis(&ast);
-        let ir_program = Self::generate_ir(&ast);
-        if let Err(errors) = IrValidator::validate(&ir_program) {
-            for err in errors {
-                eprintln!("IR validation error: {err}");
-            }
+        Self::run_semantic_analysis(&ast)?;
+        let ir_program = Self::generate_ir(&ast)?;
+        if let Err(e) = IrValidator::validate(&ir_program) {
+            eprintln!("IR validation error: {e}");
         }
         Self::generate_cfg_diagrams(&ir_program, &args.output_dir);
 
         match args.target {
             CodeGenTarget::NASM => Self::generate_nasm(&ir_program, &args.output_dir),
-            CodeGenTarget::JVM => Self::generate_jvm(&ir_program, &args.output_dir),
+            CodeGenTarget::JVM => Self::generate_jvm(&ir_program, &args.output_dir)?,
         }
+        Ok(())
     }
 
-    fn read_source(path: &str) -> String {
-        match fs::read_to_string(path) {
-            Ok(s) => s,
-            Err(e) => {
-                eprintln!("Failed to read file: {e}");
-                std::process::exit(1);
-            }
-        }
+    fn read_source(path: &str) -> crate::Result<String> {
+        fs::read_to_string(path).map_err(|e| CompilerError::Io(format!("Failed to read file '{path}': {e}")))
     }
 
-    fn parse(source: &str) -> ast::Program {
+    fn parse(source: &str) -> crate::Result<ast::Program> {
         let mut parser = Parser::new(source);
-        match parser.parse() {
-            Ok(a) => a,
-            Err(e) => {
-                eprintln!("Parse error: {e}");
-                std::process::exit(1);
-            }
-        }
+        parser.parse().map_err(|e| CompilerError::Parse(format!("Parse error: {e}")))
     }
 
-    fn create_output_dir(path: &str) {
+    fn create_output_dir(path: &str) -> crate::Result<()> {
         let _ = fs::remove_dir_all(path);
-        if let Err(e) = fs::create_dir_all(path) {
-            eprintln!("Failed to create output directory: {e}");
-            std::process::exit(1);
-        }
+        fs::create_dir_all(path).map_err(|e| CompilerError::Io(format!("Failed to create output directory '{path}': {e}")))
     }
 
     fn generate_ast_diagrams(ast: &ast::Program, output_dir: &str) {
@@ -72,27 +57,24 @@ impl CompilerDriver {
                 let path = Path::new(output_dir).join(format!("{}-ast.mmd", func.signature.name.name));
                 let mut gen = MermaidGenerator::new();
                 let diagram = gen.generate_function(func);
-
                 if let Err(e) = fs::write(&path, &diagram) {
-                    eprintln!("Failed to write AST: {e}");
+                    eprintln!("Failed to write AST diagram: {e}");
                 }
             }
         }
     }
 
-    fn run_semantic_analysis(ast: &ast::Program) {
+    fn run_semantic_analysis(ast: &ast::Program) -> crate::Result<()> {
         let mut analyzer = SemanticsAnalyzer::new();
-        if let Err(errors) = analyzer.analyze(ast) {
-            for err in errors {
-                eprintln!("Semantic error: {err}");
-            }
-            std::process::exit(1);
-        }
+        analyzer.analyze(ast).map_err(|e| {
+            eprintln!("Semantic error: {e}");
+            e
+        })
     }
 
-    fn generate_ir(ast: &ast::Program) -> crate::ir::IrProgram {
+    fn generate_ir(ast: &ast::Program) -> crate::Result<crate::ir::IrProgram> {
         let mut ir_gen = IrGenerator::new();
-        ir_gen.generate(ast)
+        Ok(ir_gen.generate(ast))
     }
 
     fn generate_cfg_diagrams(ir: &crate::ir::IrProgram, output_dir: &str) {
@@ -100,15 +82,15 @@ impl CompilerDriver {
             let path = Path::new(output_dir).join(format!("{}-cfg.mmd", func.name));
             let mut gen = CfgMermaidGenerator::new();
             let diagram = gen.generate_function_only(func);
-
             if let Err(e) = fs::write(&path, &diagram) {
-                eprintln!("Failed to write CFG: {e}");
+                eprintln!("Failed to write CFG diagram: {e}");
             }
         }
     }
 
-    fn generate_jvm(ir: &crate::ir::IrProgram, output_dir: &str) {
+    fn generate_jvm(ir: &crate::ir::IrProgram, output_dir: &str) -> crate::Result<()> {
         use std::process::Command;
+        use crate::ir::types::IrType;
 
         let mut gen = codegen::JvmGenerator::new();
         let classes = gen.generate_program(ir);
@@ -116,11 +98,10 @@ impl CompilerDriver {
         for (class_name, class_bytes) in classes {
             let path = Path::new(output_dir).join(format!("{class_name}.class"));
             if let Err(e) = fs::write(&path, &class_bytes) {
-                eprintln!("Failed to write class file: {e}");
+                return Err(CompilerError::Io(format!("Failed to write class file '{class_name}': {e}")));
             }
         }
 
-        use crate::ir::types::IrType;
         let mut global_info: Vec<(String, String, usize, usize)> = Vec::new();
         for g in &ir.globals {
             let desc = match &g.ty {
@@ -144,30 +125,31 @@ impl CompilerDriver {
         }
         Self::generate_jvm_stub(output_dir, &global_info);
 
-        let stub_file = "RuntimeStub.java";
         let stub_output = Command::new("javac")
             .current_dir(output_dir)
-            .arg(stub_file)
+            .arg("RuntimeStub.java")
             .output()
-            .expect("Failed to run javac");
+            .map_err(|e| CompilerError::Codegen(format!("Failed to run javac for RuntimeStub.java: {e}")))?;
 
         if !stub_output.status.success() {
-            eprintln!("javac (RuntimeStub.java) failed:");
-            eprintln!("{}", String::from_utf8_lossy(&stub_output.stderr));
-            std::process::exit(1);
+            return Err(CompilerError::Codegen(format!(
+                "javac (RuntimeStub.java) failed:\n{}",
+                String::from_utf8_lossy(&stub_output.stderr)
+            )));
         }
 
-        let runner_file = "MainRunner.java";
         let runner_output = Command::new("javac")
             .current_dir(output_dir)
-            .arg(runner_file)
+            .arg("MainRunner.java")
             .output()
-            .expect("Failed to run javac");
+            .map_err(|e| CompilerError::Codegen(format!("Failed to run javac for MainRunner.java: {e}")))?;
 
         if !runner_output.status.success() {
-            eprintln!("javac (MainRunner.java) failed:");
-            eprintln!("{}", String::from_utf8_lossy(&runner_output.stderr));
-            std::process::exit(1);
+            return Err(CompilerError::Codegen(format!(
+                "javac (MainRunner.java) failed:\n{}",
+                String::from_utf8_lossy(&runner_output.stderr)
+            )));
         }
+        Ok(())
     }
 }

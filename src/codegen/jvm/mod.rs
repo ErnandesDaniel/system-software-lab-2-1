@@ -226,10 +226,10 @@ impl JvmGenerator {
         self.scan_struct_field_types(func);
 
         if !self.struct_uses_object_array.is_empty() || !self.global_uses_object_array.is_empty() {
-            self.integer_class_idx = self.constant_pool.add_class("java/lang/Integer").unwrap();
-            self.byte_array_class_idx = self.constant_pool.add_class("[B").unwrap();
-            self.object_class_idx = self.constant_pool.add_class("java/lang/Object").unwrap();
-            self.object_array_class_idx = self.constant_pool.add_class("[Ljava/lang/Object;").unwrap();
+            self.integer_class_idx = self.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
+            self.byte_array_class_idx = self.constant_pool.add_class("[B").expect("Failed to add to constant pool");
+            self.object_class_idx = self.constant_pool.add_class("java/lang/Object").expect("Failed to add to constant pool");
+            self.object_array_class_idx = self.constant_pool.add_class("[Ljava/lang/Object;").expect("Failed to add to constant pool");
             self.ensure_int_value_ref();
             self.ensure_value_of_ref();
         }

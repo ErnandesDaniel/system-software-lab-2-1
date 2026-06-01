@@ -6,7 +6,7 @@ use crate::ast::{
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_function(&mut self) -> Result<FuncDefinition, String> {
+    pub(crate) fn parse_function(&mut self) -> crate::Result<FuncDefinition> {
         let start = self.current_span();
         self.expect(Token::Def)?;
         let sig = self.parse_signature()?;
@@ -55,7 +55,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(crate) fn parse_declaration(&mut self) -> Result<FuncDeclaration, String> {
+    pub(crate) fn parse_declaration(&mut self) -> crate::Result<FuncDeclaration> {
         let start = self.current_span();
         self.expect(Token::Import)?;
 
@@ -83,7 +83,7 @@ impl Parser<'_> {
         Ok(FuncDeclaration { signature: sig, span })
     }
 
-    pub(crate) fn parse_signature(&mut self) -> Result<FuncSignature, String> {
+    pub(crate) fn parse_signature(&mut self) -> crate::Result<FuncSignature> {
         let start = self.current_span();
         let (_name, name_span) = self.expect(Token::Identifier)?;
         let func_name = self.get_text(&name_span).to_string();
@@ -132,7 +132,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(crate) fn parse_global(&mut self) -> Result<GlobalDecl, String> {
+    pub(crate) fn parse_global(&mut self) -> crate::Result<GlobalDecl> {
         let start = self.current_span();
         self.expect(Token::Global)?;
 
@@ -161,7 +161,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(crate) fn parse_struct(&mut self) -> Result<StructDefinition, String> {
+    pub(crate) fn parse_struct(&mut self) -> crate::Result<StructDefinition> {
         let start = self.current_span();
         self.expect(Token::Struct)?;
 
@@ -205,7 +205,7 @@ impl Parser<'_> {
         })
     }
 
-    pub(crate) fn parse_coroutine(&mut self) -> Result<CoroutineDefinition, String> {
+    pub(crate) fn parse_coroutine(&mut self) -> crate::Result<CoroutineDefinition> {
         let start = self.current_span();
         self.expect(Token::Coroutine)?;
         let sig = self.parse_signature()?;

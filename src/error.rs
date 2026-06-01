@@ -1,28 +1,48 @@
-//! Shared error types for the compiler pipeline.
+use thiserror::Error;
 
-use std::fmt;
-
-#[derive(Debug)]
+#[derive(Error, Debug)]
 pub enum CompilerError {
-    IoError(String),
-    ParseError(String),
-    SemanticError(String),
-    CodegenError(String),
-    LinkError(String),
+    #[error("Parse Error: {0}")]
+    Parse(String),
+
+    #[error("Semantic Error: {0}")]
+    Semantic(String),
+
+    #[error("Codegen Error: {0}")]
+    Codegen(String),
+
+    #[error("IO Error: {0}")]
+    Io(String),
+
+    #[error("Link Error: {0}")]
+    Link(String),
+
+    #[error("{0}")]
+    Internal(String),
 }
 
-impl fmt::Display for CompilerError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            CompilerError::IoError(msg) => write!(f, "IO Error: {msg}"),
-            CompilerError::ParseError(msg) => write!(f, "Parse Error: {msg}"),
-            CompilerError::SemanticError(msg) => write!(f, "Semantic Error: {msg}"),
-            CompilerError::CodegenError(msg) => write!(f, "Codegen Error: {msg}"),
-            CompilerError::LinkError(msg) => write!(f, "Link Error: {msg}"),
-        }
+impl From<String> for CompilerError {
+    fn from(s: String) -> Self {
+        CompilerError::Internal(s)
     }
 }
 
-impl std::error::Error for CompilerError {}
+impl From<&str> for CompilerError {
+    fn from(s: &str) -> Self {
+        CompilerError::Internal(s.to_string())
+    }
+}
+
+impl From<Vec<String>> for CompilerError {
+    fn from(errors: Vec<String>) -> Self {
+        CompilerError::Semantic(errors.join("; "))
+    }
+}
+
+impl From<std::io::Error> for CompilerError {
+    fn from(e: std::io::Error) -> Self {
+        CompilerError::Io(e.to_string())
+    }
+}
 
 pub type Result<T> = std::result::Result<T, CompilerError>;

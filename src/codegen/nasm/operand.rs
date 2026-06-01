@@ -18,7 +18,7 @@ impl AsmGenerator {
                 } else if let Some(offset) = self.temps.get(name) {
                     self.output.push_str(&format!("    mov {dest}, [rbp + {offset}]\n"));
                 } else if self.param_registers.contains(name) {
-                    let idx = self.param_registers.iter().position(|r| r == name).unwrap();
+                    let idx = self.param_registers.iter().position(|r| r == name).expect("Param not found in register list");
                     let src_reg = match idx {
                         0 => {
                             if is_ptr { "rcx" } else { "ecx" }

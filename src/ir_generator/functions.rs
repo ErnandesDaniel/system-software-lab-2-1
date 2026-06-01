@@ -26,8 +26,9 @@ impl IrGenerator {
         }
         self.used_functions.clear();
         let mut block_stack = Vec::new();
+        let entry_id = format!("BB{}", self.block_counter);
         let mut current_block = IrBlock {
-            id: format!("BB{}", self.block_counter),
+            id: entry_id.clone(),
             instructions: Vec::new(),
             successors: Vec::new(),
         };
@@ -54,6 +55,12 @@ impl IrGenerator {
         blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
+        }
+        if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
+            if pos != 0 {
+                let entry = blocks.remove(pos);
+                blocks.insert(0, entry);
+            }
         }
 
         let mut used = Vec::new();
@@ -101,7 +108,7 @@ impl IrGenerator {
         };
         self.block_counter += 1;
 
-        self.coroutine_state_blocks = vec![entry_id];
+        self.coroutine_state_blocks = vec![entry_id.clone()];
 
         for stmt in &def.body {
             self.visit_statement(&mut current_block, &mut block_stack, stmt);
@@ -111,6 +118,12 @@ impl IrGenerator {
         blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
+        }
+        if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
+            if pos != 0 {
+                let entry = blocks.remove(pos);
+                blocks.insert(0, entry);
+            }
         }
 
         let mut used = Vec::new();

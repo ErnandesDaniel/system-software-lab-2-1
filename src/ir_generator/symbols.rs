@@ -40,34 +40,7 @@ impl SymbolTable {
         }
     }
 
-    // ── Scope management ──
-
-    pub fn enter_scope(&mut self) {
-        self.scopes.push(Scope::new());
-    }
-
-    pub fn leave_scope(&mut self) {
-        if self.scopes.len() > 1 {
-            self.scopes.pop();
-        }
-    }
-
     // ── Variable registration & lookup ──
-
-    pub fn declare_local(&mut self, name: &str, ty: IrType) {
-        let scope = self.scopes.last_mut().expect("no scope");
-        if !scope.declared.contains(name) {
-            scope.declared.insert(name.to_string());
-            scope.locals.insert(
-                name.to_string(),
-                IrLocal {
-                    name: name.to_string(),
-                    ty,
-                    stack_offset: None,
-                },
-            );
-        }
-    }
 
     pub fn define_local(&mut self, name: &str, ty: IrType) {
         let scope = self.scopes.last_mut().expect("no scope");
@@ -100,67 +73,12 @@ impl SymbolTable {
         self.lookup(name).map_or(IrType::Int, |l| l.ty)
     }
 
-    pub fn is_global(&self, name: &str) -> bool {
-        self.global_types.contains_key(name)
-    }
-
-    pub fn get_global_type(&self, name: &str) -> IrType {
-        self.global_types.get(name).cloned().unwrap_or(IrType::Int)
-    }
-
-    // ── Struct support ──
-
-    pub fn register_struct(&mut self, name: &str, fields: Vec<(String, IrType, usize)>) {
-        self.struct_fields.insert(name.to_string(), fields);
-    }
-
-    pub fn get_struct_fields(&self, name: &str) -> &[(String, IrType, usize)] {
-        self.struct_fields
-            .get(name)
-            .map(|v| v.as_slice())
-            .unwrap_or(&[])
-    }
-
-    pub fn find_field_offset(&self, struct_name: &str, field: &str) -> usize {
-        self.struct_fields
-            .get(struct_name)
-            .and_then(|fields| fields.iter().find(|(n, _, _)| n == field))
-            .map_or(0, |(_, _, o)| *o)
-    }
-
-    pub fn find_field_type(&self, struct_name: &str, field: &str) -> IrType {
-        self.struct_fields
-            .get(struct_name)
-            .and_then(|fields| fields.iter().find(|(n, _, _)| n == field))
-            .map_or(IrType::Int, |(_, t, _)| t.clone())
-    }
-
-    pub fn struct_size(&self, struct_name: &str) -> usize {
-        self.struct_fields
-            .get(struct_name)
-            .and_then(|fields| fields.last())
-            .map_or(4, |(_, last_type, last_offset)| {
-                last_offset + last_type.size() as usize
-            })
-    }
-
-    /// Resolve a field access like `a.b.c` to the base variable name and total byte offset.
-    pub fn resolve_field_chain(&self, base_var: &str, field_name: &str) -> (String, usize) {
-        let struct_name = self
-            .local_struct_types
-            .get(base_var)
-            .map(String::as_str)
-            .or_else(|| self.global_struct_type_names.get(base_var).map(String::as_str));
-
-        if let Some(sname) = struct_name {
-            let offset = self.find_field_offset(sname, field_name);
-            (base_var.to_string(), offset)
-        } else {
-            (base_var.to_string(), 0)
-        }
-    }
-
     /// Collect all declared locals from all scopes (for function frame setup).
+    pub fn reset_locals(&mut self) {
+        self.scopes = vec![Scope::new()];
+        self.local_struct_types.clear();
+    }
+
     pub fn all_locals(&self) -> Vec<IrLocal> {
         let mut result = Vec::new();
         let mut seen = HashSet::new();

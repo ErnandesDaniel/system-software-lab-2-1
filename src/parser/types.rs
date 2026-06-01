@@ -1,9 +1,10 @@
 use super::Parser;
 use crate::ast::{BuiltinType, Identifier, Span, TypeRef};
+use crate::error::CompilerError;
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_type(&mut self) -> Result<TypeRef, String> {
+    pub(crate) fn parse_type(&mut self) -> crate::Result<TypeRef> {
         let start = self.current_span();
         let base_type = match self.current_token() {
             Some(Token::Int) => {
@@ -87,13 +88,13 @@ impl Parser<'_> {
                 };
                 return self.parse_array_suffix(fn_ty, start);
             }
-            _ => return Err("Expected type".to_string()),
+            _ => return Err(CompilerError::Parse("Expected type".to_string())),
         };
 
         self.parse_array_suffix(TypeRef::BuiltinType(base_type), start)
     }
 
-    pub(crate) fn parse_array_suffix(&mut self, base: TypeRef, start: Span) -> Result<TypeRef, String> {
+    pub(crate) fn parse_array_suffix(&mut self, base: TypeRef, start: Span) -> crate::Result<TypeRef> {
         if self.current_token() == Some(&Token::Array) {
             self.advance();
             self.expect(Token::LBracket)?;

@@ -1,10 +1,11 @@
+use crate::error::CompilerError;
 use crate::ir::types::IrOpcode;
 use crate::ir::{IrFunction, IrProgram};
 
 pub struct IrValidator;
 
 impl IrValidator {
-    pub fn validate(program: &IrProgram) -> Result<(), Vec<String>> {
+    pub fn validate(program: &IrProgram) -> crate::Result<()> {
         let mut errors = Vec::new();
 
         Self::validate_globals(program, &mut errors);
@@ -15,7 +16,7 @@ impl IrValidator {
         if errors.is_empty() {
             Ok(())
         } else {
-            Err(errors)
+            Err(CompilerError::Internal(errors.join("; ")))
         }
     }
 

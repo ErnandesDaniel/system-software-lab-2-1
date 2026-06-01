@@ -38,22 +38,22 @@ impl JvmGenerator {
     }
 
     pub fn setup_coroutine_fields(&mut self, func: &IrFunction, class_name: &str) {
-        let this_class = self.constant_pool.add_class(class_name).unwrap();
+        let this_class = self.constant_pool.add_class(class_name).expect("Failed to add to constant pool");
 
-        let state_name_idx = self.constant_pool.add_utf8("state").unwrap();
-        let state_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+        let state_name_idx = self.constant_pool.add_utf8("state").expect("Failed to add to constant pool");
+        let state_desc_idx = self.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
         self.coroutine_state_field = self
             .constant_pool
             .add_field_ref(this_class, "state", "I")
-            .unwrap();
+            .expect("Failed to add to constant pool");
         self.coroutine_field_entries.push((state_name_idx, state_desc_idx));
 
-        let result_name_idx = self.constant_pool.add_utf8("result").unwrap();
-        let result_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+        let result_name_idx = self.constant_pool.add_utf8("result").expect("Failed to add to constant pool");
+        let result_desc_idx = self.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
         self.coroutine_result_field = self
             .constant_pool
             .add_field_ref(this_class, "result", "I")
-            .unwrap();
+            .expect("Failed to add to constant pool");
         self.coroutine_field_entries.push((result_name_idx, result_desc_idx));
 
         let mut field_names: Vec<String> = Vec::new();
@@ -77,14 +77,14 @@ impl JvmGenerator {
             if self.coroutine_field_refs.contains_key(name) {
                 continue;
             }
-            let field_name_idx = self.constant_pool.add_utf8(&format!("var_{name}")).unwrap();
-            let field_desc_idx = self.constant_pool.add_utf8("I").unwrap();
+            let field_name_idx = self.constant_pool.add_utf8(&format!("var_{name}")).expect("Failed to add to constant pool");
+            let field_desc_idx = self.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
             let fname = format!("var_{name}");
             let fdesc = "I".to_string();
             let field_ref = self
                 .constant_pool
                 .add_field_ref(this_class, &fname, &fdesc)
-                .unwrap();
+                .expect("Failed to add to constant pool");
             self.coroutine_field_refs.insert(name.clone(), field_ref);
             self.coroutine_field_entries.push((field_name_idx, field_desc_idx));
         }

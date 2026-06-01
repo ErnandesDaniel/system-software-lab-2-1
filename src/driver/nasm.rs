@@ -103,8 +103,8 @@ impl CompilerDriver {
             let obj = Path::new(output_dir).join("coro_helpers.obj");
             let output = Command::new("nasm")
                 .args(["-f", "win64", "-o"])
-                .arg(obj.to_str().unwrap())
-                .arg(coro_path.to_str().unwrap())
+                .arg(obj.to_str().expect("Path must be valid UTF-8"))
+                .arg(coro_path.to_str().expect("Path must be valid UTF-8"))
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {
@@ -119,11 +119,11 @@ impl CompilerDriver {
 
             let output = if func.yield_count > 0 {
                 Command::new("nasm")
-                    .args(["-f", "win64", "-O0", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .args(["-f", "win64", "-O0", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
                     .output()
             } else {
                 Command::new("nasm")
-                    .args(["-f", "win64", "-o", obj_path.to_str().unwrap(), asm_path.to_str().unwrap()])
+                    .args(["-f", "win64", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
                     .output()
             };
 
@@ -144,8 +144,8 @@ impl CompilerDriver {
             let globals_obj = Path::new(output_dir).join("globals.obj");
             let output = Command::new("nasm")
                 .args(["-f", "win64", "-o"])
-                .arg(globals_obj.to_str().unwrap())
-                .arg(globals_asm.to_str().unwrap())
+                .arg(globals_obj.to_str().expect("Path must be valid UTF-8"))
+                .arg(globals_asm.to_str().expect("Path must be valid UTF-8"))
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {

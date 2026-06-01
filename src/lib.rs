@@ -20,9 +20,9 @@ pub use error::{CompilerError, Result};
 use cli::parse_args;
 use driver::CompilerDriver;
 
-pub fn run() {
+pub fn run() -> crate::Result<()> {
     let args = parse_args();
-    CompilerDriver::compile(&args);
+    CompilerDriver::compile(&args)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Default)]

@@ -61,10 +61,10 @@ public class RuntimeStub {{
         return c;
     }}
 
-    public static int puts(String s) {{
-        System.out.println(s);
+    public static int puts(byte[] s) {{
+        System.out.println(new String(s));
         System.out.flush();
-        return s.length();
+        return s.length;
     }}
 
     public static byte[] malloc(int size) {{
@@ -73,8 +73,9 @@ public class RuntimeStub {{
 
     public static void free(byte[] ptr) {{}}
 
-    public static int printf(String format, int value) {{
-        System.out.print(format.replace("%d", String.valueOf(value))
+    public static int printf(byte[] format, int value) {{
+        System.out.print(new String(format)
+                                .replace("%d", String.valueOf(value))
                                 .replace("%c", String.valueOf((char) value))
                                 .replace("%s", String.valueOf(value))
                                 .replace("\\n", "\n")
@@ -101,39 +102,39 @@ public class RuntimeStub {{
 
     // --- Map functions (JVM) ---
 
-    public static int map_put_jvm(String name, String value) {{
-        synchronized (store) {{ store.put(name, value); return 1; }}
+    public static int map_put_jvm(byte[] name, byte[] value) {{
+        synchronized (store) {{ store.put(new String(name), new String(value)); return 1; }}
     }}
 
-    public static String map_get_jvm(String name) {{
-        synchronized (store) {{ return store.get(name); }}
+    public static byte[] map_get_jvm(byte[] name) {{
+        synchronized (store) {{ String v = store.get(new String(name)); return v != null ? v.getBytes() : new byte[0]; }}
     }}
 
-    public static int map_has_jvm(String name) {{
-        synchronized (store) {{ return store.containsKey(name) ? 1 : 0; }}
+    public static int map_has_jvm(byte[] name) {{
+        synchronized (store) {{ return store.containsKey(new String(name)) ? 1 : 0; }}
     }}
 
-    public static int map_remove_jvm(String name) {{
-        synchronized (store) {{ return store.remove(name) != null ? 1 : 0; }}
+    public static int map_remove_jvm(byte[] name) {{
+        synchronized (store) {{ return store.remove(new String(name)) != null ? 1 : 0; }}
     }}
 
     public static int map_size_jvm() {{
         synchronized (store) {{ return store.size(); }}
     }}
 
-    public static String map_key_jvm(int i) {{
+    public static byte[] map_key_jvm(int i) {{
         synchronized (store) {{
             int idx = 0;
             for (String k : store.keySet()) {{
-                if (idx == i) return k;
+                if (idx == i) return k.getBytes();
                 idx++;
             }}
-            return "";
+            return new byte[0];
         }}
     }}
 
-    public static String map_list_jvm() {{
-        synchronized (store) {{ return String.join(",", store.keySet()); }}
+    public static byte[] map_list_jvm() {{
+        synchronized (store) {{ return String.join(",", store.keySet()).getBytes(); }}
     }}
 }}
 "#,

@@ -6,7 +6,7 @@ use crate::ast::{Statement, YieldStatement};
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_statement(&mut self) -> Result<Statement, String> {
+    pub(crate) fn parse_statement(&mut self) -> crate::Result<Statement> {
         match self.current_token() {
             Some(Token::Return) => self.parse_return(),
             Some(Token::If) => self.parse_if(),

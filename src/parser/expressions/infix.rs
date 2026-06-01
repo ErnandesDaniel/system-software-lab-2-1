@@ -1,9 +1,10 @@
-use crate::parser::Parser;
 use crate::ast::{BinaryExpr, BinaryOp, CallExpr, Expr, Identifier, Range, SliceExpr};
+use crate::error::CompilerError;
 use crate::lexer::Token;
+use crate::parser::Parser;
 
 impl Parser<'_> {
-    pub(crate) fn parse_infix(&mut self, left: Expr, token: Token, prec: u8) -> Result<Expr, String> {
+    pub(crate) fn parse_infix(&mut self, left: Expr, token: Token, prec: u8) -> crate::Result<Expr> {
         let start = left.span();
 
         match token {
@@ -42,7 +43,7 @@ impl Parser<'_> {
                     Token::BitAnd => BinaryOp::BitAnd,
                     Token::BitOr => BinaryOp::BitOr,
                     Token::BitXor => BinaryOp::BitXor,
-                    _ => return Err("Unknown operator".to_string()),
+                    _ => return Err(CompilerError::Parse("Unknown operator".to_string())),
                 };
                 Ok(Expr::Binary(BinaryExpr {
                     left: Box::new(left),

@@ -6,7 +6,7 @@ use crate::ast::{Expr, Span};
 use crate::lexer::Token;
 
 impl Parser<'_> {
-    pub(crate) fn parse_expression(&mut self, min_prec: u8) -> Result<Expr, String> {
+    pub(crate) fn parse_expression(&mut self, min_prec: u8) -> crate::Result<Expr> {
         let mut left = self.parse_prefix()?;
 
         while let Some(token) = self.current_token() {

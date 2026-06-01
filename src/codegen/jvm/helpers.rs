@@ -1,7 +1,6 @@
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{IrInstruction, IrOperand, IrType};
 use ristretto_classfile::attributes::Instruction;
-use std::collections::HashMap;
 
 impl JvmGenerator {
     pub fn get_local_slot(&self, name: &str) -> u16 {
@@ -40,10 +39,6 @@ impl JvmGenerator {
         }
     }
 
-    pub fn global_vars(&self) -> &HashMap<String, IrType> {
-        &self.global_vars
-    }
-
     pub fn is_global_uses_object_array(&self, name: &str) -> bool {
         self.global_uses_object_array.contains(name)
     }
@@ -74,22 +69,22 @@ impl JvmGenerator {
 
     pub fn ensure_int_value_ref(&mut self) -> u16 {
         if self.integer_int_value_ref == 0 {
-            let int_class = self.constant_pool.add_class("java/lang/Integer").unwrap();
+            let int_class = self.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
             self.integer_int_value_ref = self
                 .constant_pool
                 .add_method_ref(int_class, "intValue", "()I")
-                .unwrap();
+                .expect("Failed to add to constant pool");
         }
         self.integer_int_value_ref
     }
 
     pub fn ensure_value_of_ref(&mut self) -> u16 {
         if self.integer_value_of_ref == 0 {
-            let int_class = self.constant_pool.add_class("java/lang/Integer").unwrap();
+            let int_class = self.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
             self.integer_value_of_ref = self
                 .constant_pool
                 .add_method_ref(int_class, "valueOf", "(I)Ljava/lang/Integer;")
-                .unwrap();
+                .expect("Failed to add to constant pool");
         }
         self.integer_value_of_ref
     }
