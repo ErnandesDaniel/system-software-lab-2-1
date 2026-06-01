@@ -1,5 +1,5 @@
 use crate::ir::types::{
-    Constant, IrFunction, IrOpcode, IrOperand, IrParameter, IrProgram, IrType,
+    Constant, IrFunction, IrOperand, IrParameter, IrProgram, IrType,
 };
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
@@ -138,18 +138,13 @@ impl JvmGenerator {
                         } else { None }
                     });
                     if let Some(ref base_name) = base {
-                        if inst.opcode == IrOpcode::Load {
-                            if !matches!(inst.result_type.as_ref().unwrap_or(&IrType::Int), IrType::Int) {
-                                self.global_uses_object_array.insert(base_name.clone());
-                            }
-                        }
-                        if inst.opcode == IrOpcode::Store {
-                            if let Some(val_op) = inst.operands.get(2) {
-                                let vt = val_op.get_type();
-                                if !matches!(vt, IrType::Int) {
-                                    self.global_uses_object_array.insert(base_name.clone());
-                                }
-                            }
+                        let is_struct_offset = inst.operands.get(1).and_then(|o| {
+                            if let IrOperand::Constant(Constant::Int(byte_off)) = o {
+                                Some(*byte_off > 0)
+                            } else { None }
+                        }).unwrap_or(false);
+                        if is_struct_offset {
+                            self.global_uses_object_array.insert(base_name.clone());
                         }
                         if let Some(IrOperand::Constant(Constant::Int(byte_off))) = inst.operands.get(1) {
                             let offsets = self.global_struct_offset_sets.entry(base_name.clone()).or_default();

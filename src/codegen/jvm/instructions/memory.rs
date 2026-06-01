@@ -74,6 +74,19 @@ impl JvmGenerator {
     }
 
     pub(super) fn generate_array_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if let (Some(ref result), Some(op)) = (&inst.result, inst.operands.first()) {
+            if inst.operands.len() == 1 {
+                if let IrOperand::Variable(name, _) = op {
+                    if let Some(&field_ref) = self.global_field_refs.get(name) {
+                        let ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                        code.push(Instruction::Getstatic(field_ref));
+                        self.emit_store_result(code, result, ty);
+                        return;
+                    }
+                }
+            }
+        }
+
         if let (Some(ref result), Some(array), Some(index)) =
             (&inst.result, inst.operands.first(), inst.operands.get(1))
         {

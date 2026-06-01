@@ -1,6 +1,6 @@
 use crate::codegen::jvm::types::ComparisonOp;
 use crate::codegen::jvm::JvmGenerator;
-use crate::ir::types::IrInstruction;
+use crate::ir::types::{IrInstruction, IrType};
 use ristretto_classfile::attributes::Instruction;
 
 impl JvmGenerator {
@@ -112,26 +112,70 @@ impl JvmGenerator {
     ) {
         if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
         {
-            self.emit_load_operand(code, left);
-            self.emit_load_operand(code, right);
+            let left_is_ref = matches!(left.get_type(), IrType::String | IrType::Function(_, _) | IrType::Array(..));
+            let right_is_ref = matches!(right.get_type(), IrType::String | IrType::Function(_, _) | IrType::Array(..));
+            let both_int = !left_is_ref && !right_is_ref;
 
-            let start_idx = code.len();
-            let iconst_1_idx = u16::try_from(start_idx + 3).expect("Code offset exceeds u16") + global_offset;
-            let istore_idx = u16::try_from(start_idx + 4).expect("Code offset exceeds u16") + global_offset;
+            if both_int {
+                self.emit_load_operand(code, left);
+                self.emit_load_operand(code, right);
 
-            match op {
-                ComparisonOp::Eq => self.emit_if_icmpeq(code, iconst_1_idx),
-                ComparisonOp::Ne => self.emit_if_icmpne(code, iconst_1_idx),
-                ComparisonOp::Lt => self.emit_if_icmplt(code, iconst_1_idx),
-                ComparisonOp::Le => self.emit_if_icmple(code, iconst_1_idx),
-                ComparisonOp::Gt => self.emit_if_icmpgt(code, iconst_1_idx),
-                ComparisonOp::Ge => self.emit_if_icmpge(code, iconst_1_idx),
+                let start_idx = code.len();
+                let iconst_1_idx = u16::try_from(start_idx + 3).expect("Code offset exceeds u16") + global_offset;
+                let istore_idx = u16::try_from(start_idx + 4).expect("Code offset exceeds u16") + global_offset;
+
+                match op {
+                    ComparisonOp::Eq => self.emit_if_icmpeq(code, iconst_1_idx),
+                    ComparisonOp::Ne => self.emit_if_icmpne(code, iconst_1_idx),
+                    ComparisonOp::Lt => self.emit_if_icmplt(code, iconst_1_idx),
+                    ComparisonOp::Le => self.emit_if_icmple(code, iconst_1_idx),
+                    ComparisonOp::Gt => self.emit_if_icmpgt(code, iconst_1_idx),
+                    ComparisonOp::Ge => self.emit_if_icmpge(code, iconst_1_idx),
+                }
+
+                code.push(Instruction::Iconst_0);
+                self.emit_goto(code, istore_idx);
+
+                code.push(Instruction::Iconst_1);
+            } else if left_is_ref && right_is_ref {
+                self.emit_load_operand(code, left);
+                self.emit_load_operand(code, right);
+
+                let start_idx = code.len();
+                let iconst_1_idx = u16::try_from(start_idx + 3).expect("Code offset exceeds u16") + global_offset;
+                let istore_idx = u16::try_from(start_idx + 4).expect("Code offset exceeds u16") + global_offset;
+
+                match op {
+                    ComparisonOp::Eq => code.push(Instruction::If_acmpeq(iconst_1_idx)),
+                    ComparisonOp::Ne => code.push(Instruction::If_acmpne(iconst_1_idx)),
+                    _ => {}
+                }
+
+                code.push(Instruction::Iconst_0);
+                self.emit_goto(code, istore_idx);
+
+                code.push(Instruction::Iconst_1);
+            } else {
+                // reference vs int (null check: ref == 0)
+                let ref_operand = if left_is_ref { left } else { right };
+                self.emit_load_operand(code, ref_operand);
+
+                let start_idx = code.len();
+                let iconst_1_idx = u16::try_from(start_idx + 3).expect("Code offset exceeds u16") + global_offset;
+                let istore_idx = u16::try_from(start_idx + 4).expect("Code offset exceeds u16") + global_offset;
+
+                match op {
+                    ComparisonOp::Eq => code.push(Instruction::Ifnull(iconst_1_idx)),
+                    ComparisonOp::Ne => code.push(Instruction::Ifnonnull(iconst_1_idx)),
+                    _ => {}
+                }
+
+                code.push(Instruction::Iconst_0);
+                self.emit_goto(code, istore_idx);
+
+                code.push(Instruction::Iconst_1);
             }
 
-            code.push(Instruction::Iconst_0);
-            self.emit_goto(code, istore_idx);
-
-            code.push(Instruction::Iconst_1);
             let slot = self.get_local_slot(result);
             code.push(Instruction::Istore(slot as u8));
         }

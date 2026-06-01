@@ -3,32 +3,76 @@ use std::path::Path;
 
 use crate::driver::CompilerDriver;
 
-fn desc_to_java_type(desc: &str) -> &str {
-    match desc {
+fn jvm_desc_to_java_type(desc: &str) -> String {
+    let dims = desc.chars().filter(|&c| c == '[').count();
+    let base = &desc[dims..];
+    let base_type = match base {
         "I" => "int",
         "Z" => "int",
-        "[B" => "byte[]",
+        "B" => "byte",
+        "C" => "char",
+        "S" => "short",
+        "J" => "long",
+        "F" => "float",
+        "D" => "double",
+        "Ljava/lang/Object;" => "Object",
         _ => "int",
+    };
+    if dims > 0 {
+        format!("{}{}", base_type, "[]".repeat(dims))
+    } else {
+        base_type.to_string()
+    }
+}
+
+/// Build Java field declaration + initializer for a global with JVM descriptor.
+fn jvm_field_decl_init(name: &str, desc: &str, outer_size: usize, inner_size: usize) -> (String, String) {
+    if outer_size > 0 && inner_size > 0 {
+        // 2D object array (struct-backed)
+        let decl = format!("    static Object[] {} = new Object[{}];", name, outer_size);
+        let init = format!(
+            "        for (int __i = 0; __i < {}; __i++) {}[__i] = new Object[{}];\n",
+            outer_size, name, inner_size
+        );
+        return (decl, init);
+    }
+
+    let full_type = jvm_desc_to_java_type(desc);
+    let dims = desc.chars().filter(|&c| c == '[').count();
+
+    if outer_size > 0 {
+        // N-D array — declare & allocate outer dimension
+        let decl = format!("    static {} {};", full_type, name);
+        // Strip one dimension from the base type for the allocation
+        let alloc;
+        if dims <= 1 {
+            alloc = format!("new {}[{}]", full_type.trim_end_matches("[]"), outer_size);
+        } else {
+            // For multi-dimensional, keep inner dimensions as trailing brackets
+            // e.g., byte[][] -> new byte[outer][]
+            let inner_suffix = "[]".repeat(dims - 1);
+            let base = full_type.trim_end_matches("[]");
+            alloc = format!("new {}[{}]{}", base, outer_size, inner_suffix);
+        }
+        let init = format!("        {} = {};\n", name, alloc);
+        (decl, init)
+    } else {
+        // Scalar — just declare, no init (handled by scalar_inits)
+        let decl = format!("    static {} {};", full_type, name);
+        (decl, String::new())
     }
 }
 
 impl CompilerDriver {
-    pub fn generate_jvm_stub(output_dir: &str, global_info: &[(String, String, usize, usize)]) {
+    pub fn generate_jvm_stub(output_dir: &str, global_info: &[(String, String, usize, usize)], scalar_inits: &str) {
         let mut static_fields = String::new();
         let mut static_init = String::new();
         for (name, desc, outer_size, inner_size) in global_info {
-            if *outer_size > 0 && *inner_size > 0 {
-                static_fields.push_str(&format!("    static Object[] {} = new Object[{}];\n", name, outer_size));
-                static_init.push_str(&format!(
-                    "        for (int __i = 0; __i < {}; __i++) {}[__i] = new Object[{}];\n",
-                    outer_size, name, inner_size
-                ));
-            } else if *outer_size > 0 {
-                let jtype = desc_to_java_type(desc);
-                static_fields.push_str(&format!("    static {}[] {};\n", jtype, name));
-            } else {
-                let jtype = desc_to_java_type(desc);
-                static_fields.push_str(&format!("    static {} {};\n", jtype, name));
+            let (decl, init) = jvm_field_decl_init(name, desc, *outer_size, *inner_size);
+            static_fields.push_str(&decl);
+            static_fields.push('\n');
+            if !init.is_empty() {
+                static_init.push_str(&init);
             }
         }
 
@@ -42,7 +86,7 @@ public class RuntimeStub {{
     // --- Global static fields ---
 {static_fields}
     static {{
-{static_init}    }}
+{scalar_inits}{static_init}    }}
 
     public static void main(String[] args) {{
         int result = Main.call();
@@ -140,6 +184,7 @@ public class RuntimeStub {{
 "#,
             static_fields = static_fields,
             static_init = static_init,
+            scalar_inits = scalar_inits,
         );
         let stub_path = Path::new(output_dir).join("RuntimeStub.java");
         if let Err(e) = fs::write(&stub_path, stub) {

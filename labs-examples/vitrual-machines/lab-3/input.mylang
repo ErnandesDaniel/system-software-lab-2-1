@@ -23,20 +23,7 @@ global gc_runs of int = 0
 global gc_freed_objects of int = 0
 global gc_enabled of int = 1
 
-// Heap quota
-global heap_used of int = 0
-global heap_limit of int = 100000
 
-def bounded_malloc(size of int) of string
-    data = malloc(size)
-    if data != 0 then { heap_used = heap_used + size }
-    return data
-end
-
-def bounded_free(ptr of string, size of int)
-    heap_used = heap_used - size
-    free(ptr)
-end
 
 // === Mark ===
 
@@ -62,7 +49,7 @@ def sweep()
 
     while i < gc_count {
         if gc_marked[i] == 0 then {
-    bounded_free(gc_data[i], gc_size[i])
+    free(gc_data[i])
             total_freed = total_freed + gc_size[i]
             gc_freed_objects = gc_freed_objects + 1
 
@@ -111,8 +98,7 @@ end
 // === gc_alloc(size, ref) ===
 
 def gc_alloc(size of int, ref of int) of int
-    if heap_used + size > heap_limit then { return -1 }
-    data = bounded_malloc(size)
+    data = malloc(size)
     if data == 0 then { return -1 }
 
     i = 0
@@ -141,7 +127,7 @@ def demo_gc_on()
     prev = 0
     i = 0
     while i < 30 {
-        p = gc_alloc(1024, prev)
+        p = gc_alloc(1048576, prev)
         if p == -1 then {
             puts("OOM!")
             return
@@ -175,8 +161,8 @@ def demo_gc_off()
 
     prev = 0
     i = 0
-    while i < 200 {
-        p = gc_alloc(1024, prev)
+    while i < 5000 {
+        p = gc_alloc(1048576, prev)
         if p == -1 then {
             printf("OOM on iter %d! allocated ", i)
             printf("%d", total_alloc / 1024)
@@ -187,7 +173,7 @@ def demo_gc_off()
 
         prev = p
 
-        if i % 20 == 0 then {
+        if i % 1000 == 0 then {
             printf("  iter %d: ", i)
             printf("%d", total_alloc / 1024)
             printf(" KB allocated\n", 0)
@@ -209,7 +195,7 @@ def main() of int
     // Reset
     i = 0
     while i < gc_count {
-        bounded_free(gc_data[i], gc_size[i])
+    free(gc_data[i])
         i = i + 1
     }
     gc_count = 0

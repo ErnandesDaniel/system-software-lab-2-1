@@ -4,7 +4,7 @@ use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
     pub fn visit_binary_expr(&mut self, block: &mut IrBlock, expr: &BinaryExpr) -> (String, IrType) {
-        let left_temp = self.visit_expr(block, &expr.left).0;
+        let (left_temp, left_type) = self.visit_expr(block, &expr.left);
         let (right_temp, right_type) = self.visit_expr(block, &expr.right);
 
         let result_temp = self.generate_temp();
@@ -196,8 +196,8 @@ impl IrGenerator {
             result: Some(result_temp.clone()),
             result_type: Some(result_type.clone()),
             operands: vec![
-                IrOperand::Variable(left_temp, IrType::Int),
-                IrOperand::Variable(right_temp, IrType::Int),
+                IrOperand::Variable(left_temp, left_type),
+                IrOperand::Variable(right_temp, right_type),
             ],
             jump_target: None,
             true_target: None,

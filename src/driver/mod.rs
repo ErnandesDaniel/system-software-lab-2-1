@@ -103,6 +103,7 @@ impl CompilerDriver {
         }
 
         let mut global_info: Vec<(String, String, usize, usize)> = Vec::new();
+        let mut scalar_inits = String::new();
         for g in &ir.globals {
             let desc = match &g.ty {
                 IrType::String => "[B".to_string(),
@@ -122,8 +123,19 @@ impl CompilerDriver {
                 0
             };
             global_info.push((g.name.clone(), desc, outer, inner));
+            if outer == 0 {
+                if let Some(ref init_val) = g.initializer {
+                    let val_str = match init_val {
+                        crate::ir::types::Constant::Int(n) => n.to_string(),
+                        crate::ir::types::Constant::Bool(true) => "1".to_string(),
+                        crate::ir::types::Constant::Bool(false) => "0".to_string(),
+                        _ => continue,
+                    };
+                    scalar_inits.push_str(&format!("        {} = {};\n", g.name, val_str));
+                }
+            }
         }
-        Self::generate_jvm_stub(output_dir, &global_info);
+        Self::generate_jvm_stub(output_dir, &global_info, &scalar_inits);
 
         let stub_output = Command::new("javac")
             .current_dir(output_dir)
