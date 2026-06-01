@@ -95,7 +95,7 @@ impl StdLib {
             ("feof", ("file: string", "int")),
             ("atoi", ("str: string", "int")),
             ("sprintf", ("buf: string, format: string, value: int", "int")),
-            ("Sleep", ("ms: int", "int")), // Windows Sleep (milliseconds) - blocking
+            ("Sleep", ("ms: int", "")), // Windows Sleep (milliseconds) - blocking
             // Coroutine runtime
             ("resume_coroutine", ("index: int", "int")),
             ("create_coroutine", ("", "")),
