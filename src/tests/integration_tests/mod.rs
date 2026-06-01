@@ -108,8 +108,11 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("    test rax, rax\n    jz .empty\n");
         helper.push_str("    mov rbx, rax\n");
         helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
-        helper.push_str("    mov rcx, [rbx + 24]\n    mov rdx, [rbx + 32]\n    mov r8,  [rbx + 40]\n    mov r9,  [rbx + 48]\n");
-        helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n    call [rbx + 8]\n    mov eax, [rbx + 16]\n    leave\n    ret\n");
+        helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 40\n");
+        helper.push_str("    mov [rbp + 32], rbx\n");
+        helper.push_str("    mov rcx, rbx\n    mov rdx, [rbx + 32]\n    mov r8,  [rbx + 40]\n    mov r9,  [rbx + 48]\n");
+        helper.push_str("    call [rbx + 8]\n");
+        helper.push_str("    mov rbx, [rbp + 32]\n    mov eax, [rbx + 16]\n    leave\n    ret\n");
         helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
 
         helper.push_str("global create_coroutine\ncreate_coroutine:\n");

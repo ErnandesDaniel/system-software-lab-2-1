@@ -61,12 +61,14 @@ impl CompilerDriver {
             helper.push_str("    test rax, rax\n    jz .empty\n");
             helper.push_str("    mov rbx, rax\n");
             helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
-            helper.push_str("    mov rcx, [rbx + 24]\n");
-            helper.push_str("    mov rdx, [rbx + 32]\n");
-            helper.push_str("    mov r8,  [rbx + 40]\n");
-            helper.push_str("    mov r9,  [rbx + 48]\n");
-            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 32\n");
+            helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 40\n");
+    helper.push_str("    mov [rbp + 32], rbx\n");
+    helper.push_str("    mov rcx, rbx\n");
+    helper.push_str("    mov rdx, [rbx + 32]\n");
+    helper.push_str("    mov r8,  [rbx + 40]\n");
+    helper.push_str("    mov r9,  [rbx + 48]\n");
             helper.push_str("    call [rbx + 8]\n");
+            helper.push_str("    mov rbx, [rbp + 32]\n");
             helper.push_str("    mov eax, [rbx + 16]\n    leave\n    ret\n");
             helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
 
@@ -90,7 +92,7 @@ impl CompilerDriver {
             for (idx, f) in ir.functions.iter().filter(|f| f.is_coroutine).enumerate() {
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    lea rdx, [rel {}]\n", f.name));
-                helper.push_str("    sub rsp, 32\n    call create_coroutine_nasm\n    add rsp, 32\n");
+                helper.push_str("    sub rsp, 32\n    call create_coroutine\n    add rsp, 32\n");
                 helper.push_str("    lea rax, [rel co_states]\n");
                 helper.push_str(&format!("    lea rcx, [rel state_{}]\n", f.name));
                 helper.push_str(&format!("    mov [rax + {}], rcx\n", idx * 8));

@@ -91,6 +91,9 @@ impl IrValidator {
         }
 
         let mut reachable = std::collections::HashSet::new();
+        for coro_block in &func.coroutine_blocks {
+            reachable.insert(coro_block.clone());
+        }
         if let Some(first) = func.blocks.first() {
             reachable.insert(first.id.clone());
         }

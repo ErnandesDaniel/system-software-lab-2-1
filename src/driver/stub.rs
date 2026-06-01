@@ -82,6 +82,7 @@ import java.util.*;
 public class RuntimeStub {{
     private static HashMap<String, String> store = new HashMap<>();
     private static Random random = new Random();
+    private static ArrayList<byte[]> gc_data = new ArrayList<>();
 
     // --- Global static fields ---
 {static_fields}
@@ -112,14 +113,14 @@ public class RuntimeStub {{
     }}
 
     public static byte[] malloc(int size) {{
-        return new byte[size];
+        byte[] mem = new byte[size];
+        gc_data.add(mem);
+        return mem;
     }}
 
     public static void free(byte[] ptr) {{
         if (ptr == null) return;
-        if (gc_data != null) for (int i = 0; i < gc_data.length; i++) {{
-            if (gc_data[i] == ptr) {{ gc_data[i] = null; return; }}
-        }}
+        gc_data.remove(ptr);
     }}
 
     public static int printf(byte[] format, int value) {{
