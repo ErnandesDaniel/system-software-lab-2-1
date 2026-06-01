@@ -80,7 +80,7 @@ impl<'source> Parser<'source> {
         Ok(Program { items })
     }
 
-    fn get_text(&self, span: &Span) -> &'source str {
+    pub(crate) fn get_text(&self, span: &Span) -> &'source str {
         &self.source[span.start..span.end]
     }
 

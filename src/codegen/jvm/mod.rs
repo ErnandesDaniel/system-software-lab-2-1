@@ -7,6 +7,7 @@ use std::collections::{HashMap, HashSet};
 
 mod build;
 mod bytecode;
+mod collect;
 mod context;
 mod coro_build;
 mod helpers;
