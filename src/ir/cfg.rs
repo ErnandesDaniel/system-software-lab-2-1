@@ -1,344 +1,189 @@
-use crate::ir::*;
+use crate::ir::types::{IrFunction, IrProgram};
+use std::collections::{HashMap, HashSet};
 
-pub struct CfgMermaidGenerator {
-    output: String,
+pub struct ControlFlowGraph {
+    pub entry_block: String,
+    pub predecessors: HashMap<String, Vec<String>>,
+    pub successors: HashMap<String, Vec<String>>,
+    pub dominators: HashMap<String, HashSet<String>>,
+    pub loops: Vec<LoopInfo>,
 }
 
-#[allow(dead_code)]
-impl CfgMermaidGenerator {
-    pub fn new() -> Self {
-        Self { output: String::new() }
-    }
+pub struct LoopInfo {
+    pub header: String,
+    pub body: HashSet<String>,
+    pub exiting_edges: Vec<(String, String)>,
+}
 
-    pub fn generate(&mut self, program: &IrProgram) -> String {
-        self.output.clear();
-        self.output.push_str("graph TD\n");
-        for func in &program.functions {
-            self.generate_function(func);
-        }
-        std::mem::take(&mut self.output)
-    }
+impl ControlFlowGraph {
+    pub fn build(func: &IrFunction) -> Self {
+        let successors = Self::compute_successors(func);
+        let predecessors = Self::compute_predecessors(&successors);
+        let entry_block = func.blocks.first().map(|b| b.id.clone()).unwrap_or_default();
+        let dominators = Self::compute_dominators(&entry_block, &successors, &predecessors);
+        let loops = Self::find_loops(&entry_block, &successors, &predecessors, &dominators);
 
-    pub fn generate_function_only(&mut self, func: &IrFunction) -> String {
-        self.output.clear();
-        self.output.push_str("graph TD\n");
-        self.generate_function(func);
-        std::mem::take(&mut self.output)
-    }
-
-    fn generate_function(&mut self, func: &IrFunction) {
-        for block in &func.blocks {
-            self.generate_block(block);
-        }
-
-        for block in &func.blocks {
-            for succ in &block.successors {
-                self.output.push_str(&format!(
-                    "{} --> {}\n",
-                    Self::format_block_id(&block.id),
-                    Self::format_block_id(succ)
-                ));
-            }
+        Self {
+            entry_block,
+            predecessors,
+            successors,
+            dominators,
+            loops,
         }
     }
 
-    fn format_block_id(id: &str) -> String {
-        id.replace("BB", "BB_")
-    }
-
-    fn generate_block(&mut self, block: &IrBlock) {
-        let formatted_id = Self::format_block_id(&block.id);
-        let instructions = self.format_block_instructions(block);
-
-        self.output
-            .push_str(&format!("    {}[\"{}\\n{}\"]\n", formatted_id, block.id, instructions));
-    }
-
-    fn format_block_instructions(&self, block: &IrBlock) -> String {
-        let raw = block
-            .instructions
+    pub fn build_program(program: &IrProgram) -> HashMap<String, Self> {
+        program
+            .functions
             .iter()
-            .map(|inst| self.format_instruction(inst))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        // Escape special characters for Mermaid diagram
-        // Note: don't escape parentheses () as they work fine in mermaid node text
-        raw.replace('\\', "\\\\")
-            .replace('"', "\\\"")
-            .replace('\n', "\\n")
-            .replace('\r', "\\r")
-            .replace('\t', "\\t")
-            .replace('[', "\\[")
-            .replace(']', "\\]")
-            .replace('{', "\\{")
-            .replace('}', "\\}")
+            .map(|f| (f.name.clone(), Self::build(f)))
+            .collect()
     }
 
-    fn format_instruction(&self, inst: &IrInstruction) -> String {
-        match &inst.opcode {
-            IrOpcode::Add => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} + {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Sub => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} - {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Mul => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} * {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Div => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} / {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Mod => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} % {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Eq => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, "==")
-                )
-            }
-            IrOpcode::Ne => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, "!=")
-                )
-            }
-            IrOpcode::Lt => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, "<")
-                )
-            }
-            IrOpcode::Gt => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, ">")
-                )
-            }
-            IrOpcode::Le => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, "<=")
-                )
-            }
-            IrOpcode::Ge => {
-                let (a, b) = Self::get_operands(inst);
-                format!(
-                    "{} = ({})",
-                    inst.result.as_deref().unwrap_or("?"),
-                    Self::format_cmp(&a, &b, ">=")
-                )
-            }
-            IrOpcode::And => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} && {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Or => {
-                let (a, b) = Self::get_operands(inst);
-                format!("{} = {} || {}", inst.result.as_deref().unwrap_or("?"), a, b)
-            }
-            IrOpcode::Not => {
-                let a = Self::get_single_operand(inst);
-                format!("{} = !{}", inst.result.as_deref().unwrap_or("?"), a)
-            }
-            IrOpcode::Neg => {
-                let a = Self::get_single_operand(inst);
-                format!("{} = -{}", inst.result.as_deref().unwrap_or("?"), a)
-            }
-            IrOpcode::Pos => {
-                let a = Self::get_single_operand(inst);
-                format!("{} = +{}", inst.result.as_deref().unwrap_or("?"), a)
-            }
-            IrOpcode::BitNot => {
-                let a = Self::get_single_operand(inst);
-                format!("{} = ~{}", inst.result.as_deref().unwrap_or("?"), a)
-            }
-            IrOpcode::Assign => {
-                if let Some(ref result) = inst.result {
-                    if let Some(op) = inst.operands.first() {
-                        let a = Self::format_operand(op);
-                        if a == *result {
-                            return format!("{}", a);
+    fn compute_successors(func: &IrFunction) -> HashMap<String, Vec<String>> {
+        let mut succs = HashMap::new();
+        for block in &func.blocks {
+            let deps: Vec<String> = block
+                .instructions
+                .iter()
+                .filter_map(|inst| {
+                    if let Some(ref target) = inst.jump_target {
+                        if !matches!(
+                            inst.opcode,
+                            crate::ir::IrOpcode::Call | crate::ir::IrOpcode::MakeClosure
+                        ) {
+                            return Some(target.clone());
                         }
-                        return format!("{} = {}", result, a);
+                    }
+                    if let Some(ref t) = inst.true_target {
+                        return Some(t.clone());
+                    }
+                    if let Some(ref f) = inst.false_target {
+                        return Some(f.clone());
+                    }
+                    None
+                })
+                .collect();
+            succs.insert(block.id.clone(), deps);
+        }
+        succs
+    }
+
+    fn compute_predecessors(
+        successors: &HashMap<String, Vec<String>>,
+    ) -> HashMap<String, Vec<String>> {
+        let mut preds: HashMap<String, Vec<String>> = HashMap::new();
+        for (from, targets) in successors {
+            for to in targets {
+                preds.entry(to.clone()).or_default().push(from.clone());
+            }
+        }
+        preds
+    }
+
+    fn compute_dominators(
+        entry: &str,
+        successors: &HashMap<String, Vec<String>>,
+        predecessors: &HashMap<String, Vec<String>>,
+    ) -> HashMap<String, HashSet<String>> {
+        let all_blocks: HashSet<String> = successors.keys().cloned().collect();
+        let mut doms: HashMap<String, HashSet<String>> = HashMap::new();
+
+        for block in &all_blocks {
+            if block == entry {
+                let mut s = HashSet::new();
+                s.insert(entry.to_string());
+                doms.insert(entry.to_string(), s);
+            } else {
+                doms.insert(block.clone(), all_blocks.clone());
+            }
+        }
+
+        loop {
+            let mut changed = false;
+            for block in all_blocks.iter() {
+                if block == entry {
+                    continue;
+                }
+                let pred_blocks = predecessors.get(block).cloned().unwrap_or_default();
+                if pred_blocks.is_empty() {
+                    continue;
+                }
+                let mut new_doms: HashSet<String> = pred_blocks
+                    .iter()
+                    .map(|p| doms.get(p).cloned().unwrap_or_default())
+                    .reduce(|a, b| a.intersection(&b).cloned().collect())
+                    .unwrap_or_default();
+                new_doms.insert(block.clone());
+
+                if new_doms != doms[block] {
+                    doms.insert(block.clone(), new_doms);
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+
+        doms
+    }
+
+    fn find_loops(
+        _entry: &str,
+        successors: &HashMap<String, Vec<String>>,
+        predecessors: &HashMap<String, Vec<String>>,
+        dominators: &HashMap<String, HashSet<String>>,
+    ) -> Vec<LoopInfo> {
+        let mut loops = Vec::new();
+
+        for (header, preds) in predecessors {
+            for back_edge_src in preds {
+                if back_edge_src == header {
+                    continue;
+                }
+                let header_doms = dominators.get(header).cloned().unwrap_or_default();
+                if !header_doms.contains(back_edge_src) {
+                    continue;
+                }
+
+                let mut body = HashSet::new();
+                let mut stack = vec![back_edge_src.clone()];
+                let mut exiting_edges = Vec::new();
+
+                while let Some(node) = stack.pop() {
+                    if body.insert(node.clone()) {
+                        if let Some(preds_of_node) = predecessors.get(&node) {
+                            for p in preds_of_node {
+                                if p == header {
+                                    continue;
+                                }
+                                if !body.contains(p) {
+                                    stack.push(p.clone());
+                                }
+                            }
+                        }
                     }
                 }
-                "=".to_string()
-            }
-            IrOpcode::Call => {
-                let target = inst.jump_target.as_deref().unwrap_or("?");
-                let args = inst
-                    .operands
-                    .iter()
-                    .map(|op| Self::format_operand(op))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!("{} = {}({})", inst.result.as_deref().unwrap_or("?"), target, args)
-            }
-            IrOpcode::Jump => {
-                let target = inst.jump_target.as_deref().unwrap_or("?");
-                format!("goto {}", Self::format_block_id(target))
-            }
-            IrOpcode::CondBr => {
-                let cond = Self::get_single_operand(inst);
-                format!(
-                    "if {} goto {} else {}",
-                    cond,
-                    Self::format_block_id(inst.true_target.as_deref().unwrap_or("?")),
-                    Self::format_block_id(inst.false_target.as_deref().unwrap_or("?"))
-                )
-            }
-            IrOpcode::CoroYield => "yield".to_string(),
-            IrOpcode::CallIndirect => {
-                let target = Self::get_single_operand(inst);
-                let args = inst
-                    .operands
-                    .iter()
-                    .skip(1)
-                    .map(|op| Self::format_operand(op))
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                format!(
-                    "{} = {}({}) (indirect)",
-                    inst.result.as_deref().unwrap_or("?"),
-                    target,
-                    args
-                )
-            }
-            IrOpcode::Ret => {
-                if inst.operands.is_empty() {
-                    "return".to_string()
-                } else {
-                    let a = Self::get_single_operand(inst);
-                    format!("return {}", a)
+
+                for node in &body {
+                    if let Some(succs) = successors.get(node) {
+                        for s in succs {
+                            if !body.contains(s) {
+                                exiting_edges.push((node.clone(), s.clone()));
+                            }
+                        }
+                    }
                 }
+
+                loops.push(LoopInfo {
+                    header: header.clone(),
+                    body,
+                    exiting_edges,
+                });
             }
-            IrOpcode::Load => {
-                let (arr, idx) = Self::get_operands(inst);
-                format!("{} = {}[{}]", inst.result.as_deref().unwrap_or("?"), arr, idx)
-            }
-            IrOpcode::Store => {
-                let (arr, idx) = Self::get_operands(inst);
-                format!("{}[{}] = {}", arr, idx, inst.result.as_deref().unwrap_or("?"))
-            }
-            IrOpcode::Slice => {
-                let (arr, start) = Self::get_operands(inst);
-                format!("{} = {}[{}:]", inst.result.as_deref().unwrap_or("?"), arr, start)
-            }
-            IrOpcode::Alloca => {
-                format!("alloca {}", inst.result.as_deref().unwrap_or("?"))
-            }
-            IrOpcode::Cast => {
-                let a = Self::get_single_operand(inst);
-                format!("{} = cast({})", inst.result.as_deref().unwrap_or("?"), a)
-            }
-            IrOpcode::BitAnd | IrOpcode::BitOr | IrOpcode::BitXor => {
-                let (a, b) = Self::get_operands(inst);
-                let op = match inst.opcode {
-                    IrOpcode::BitAnd => "&",
-                    IrOpcode::BitOr => "|",
-                    _ => "^",
-                };
-                format!("{} = {} {} {}", inst.result.as_deref().unwrap_or("?"), a, op, b)
-            }
-            IrOpcode::StrGetByte => {
-                let (str_name, idx_name) = Self::get_operands(inst);
-                format!("{} = {}[{}] (str)", inst.result.as_deref().unwrap_or("?"), str_name, idx_name)
-            }
-            IrOpcode::StrSetByte => {
-                let (str_name, idx_name) = Self::get_operands(inst);
-                format!("{}[{}] = {} (str)", str_name, idx_name, inst.operands.get(2).map(Self::format_operand).unwrap_or_else(|| "?".to_string()))
-            }
-            IrOpcode::MakeClosure => {
-                let target = Self::get_single_operand(inst);
-                format!("{} = make_closure({})", inst.result.as_deref().unwrap_or("?"), target)
-            }
-            IrOpcode::CallClosure => {
-                let target = Self::get_single_operand(inst);
-                let args: Vec<String> = inst
-                    .operands
-                    .iter()
-                    .skip(2)
-                    .map(|op| Self::format_operand(op))
-                    .collect();
-                format!(
-                    "{} = {}({}) (closure)",
-                    inst.result.as_deref().unwrap_or("?"),
-                    target,
-                    args.join(", ")
-                )
-            }
-            IrOpcode::LoadCaptured => {
-                format!("load_captured {}", inst.result.as_deref().unwrap_or("?"))
-            }
-            IrOpcode::AllocArray => {
-                format!("alloc_array {}", inst.result.as_deref().unwrap_or("?"))
-            }
-            IrOpcode::StoreCaptured => "store_captured".to_string(),
         }
-    }
 
-    fn format_cmp(a: &str, b: &str, op: &str) -> String {
-        format!("{} {} {}", a, op, b)
-    }
-
-    fn get_operands(inst: &IrInstruction) -> (String, String) {
-        let a = inst
-            .operands
-            .first()
-            .map(|op| Self::format_operand(op))
-            .unwrap_or_else(|| "?".to_string());
-        let b = inst
-            .operands
-            .get(1)
-            .map(|op| Self::format_operand(op))
-            .unwrap_or_else(|| "?".to_string());
-        (a, b)
-    }
-
-    fn get_single_operand(inst: &IrInstruction) -> String {
-        inst.operands
-            .first()
-            .map(|op| Self::format_operand(op))
-            .unwrap_or_else(|| "?".to_string())
-    }
-
-    fn format_operand(op: &IrOperand) -> String {
-        match op {
-            IrOperand::Variable(name, _) | IrOperand::FuncRef(name) => name.clone(),
-            IrOperand::Constant(c) => match c {
-                Constant::Int(n) => n.to_string(),
-                Constant::Bool(b) => b.to_string(),
-                Constant::String(s) => s
-                    .replace('\\', "\\\\")
-                    .replace('\n', "\\n")
-                    .replace('\r', "\\r")
-                    .replace('\t', "\\t"),
-                Constant::Char(c) => format!("'{}'", *c as char),
-                Constant::Array(a) => format!("[{}]", a.len()),
-            },
-        }
-    }
-}
-
-impl Default for CfgMermaidGenerator {
-    fn default() -> Self {
-        Self::new()
+        loops
     }
 }

@@ -1,6 +1,10 @@
 mod block;
+mod closure;
+mod control;
 mod functions;
 mod instructions;
+mod memory;
+mod operand;
 
 use crate::ir::types::{IrFunction, IrOpcode, IrOperand, IrType};
 use std::collections::{HashMap, HashSet};
@@ -277,7 +281,7 @@ impl AsmGenerator {
         std::mem::take(&mut self.output)
     }
 
-    fn emit_string_data(&mut self, label: &str, s: &str) {
+    pub(crate) fn emit_string_data(&mut self, label: &str, s: &str) {
         let bytes = self.escape_string(s);
         self.data_section.push_str(&format!("{label} db "));
 
@@ -313,7 +317,7 @@ impl AsmGenerator {
         result
     }
 
-    fn format_block_label(&self, id: &str) -> String {
+    pub(crate) fn format_block_label(&self, id: &str) -> String {
         if id.starts_with("BB") {
             format!("BB_{}", id.trim_start_matches("BB"))
         } else {

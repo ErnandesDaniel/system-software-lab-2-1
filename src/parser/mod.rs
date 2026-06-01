@@ -1,5 +1,6 @@
 pub mod expressions;
 pub mod functions;
+pub mod types;
 
 mod statements;
 

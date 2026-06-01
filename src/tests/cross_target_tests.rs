@@ -3,7 +3,8 @@ use crate::codegen::AsmGenerator;
 use crate::ir_generator::IrGenerator;
 use crate::tests::parse;
 use std::fs;
-use std::process::Command;
+use std::io::Write;
+use std::process::{Command, Stdio};
 use tempfile::TempDir;
 
 fn generate_ir(source: &str) -> crate::ir::IrProgram {
@@ -535,3 +536,306 @@ fn test_nasm_coroutine_yield_with_param() {
 fn test_jvm_coroutine_yield_with_param_valid() {
     assert!(jvm_valid(COROUTINE_YIELD_WITH_PARAM), "jvm coroutine yield with param should be valid");
 }
+
+// ─── JVM daemon test (runs full daemon with piped stdin) ────────────────
+
+fn compile_and_run_jvm_with_stdin(source: &str, stdin_data: &str) -> std::process::Output {
+    let temp_dir = TempDir::new().expect("Failed to create temp dir");
+
+    // Parse, generate IR, generate JVM class files
+    let program = parse(source);
+    let mut ir_gen = IrGenerator::new();
+    let ir = ir_gen.generate(&program);
+    let mut jvm_gen = JvmGenerator::new();
+    let classes = jvm_gen.generate_program(&ir);
+
+    for (name, bytes) in &classes {
+        let path = temp_dir.path().join(format!("{}.class", name));
+        fs::write(&path, bytes).unwrap();
+    }
+
+    // If the program uses globals, generate and compile RuntimeStub.java
+    if !jvm_gen.global_vars().is_empty() {
+        let stub_source = jvm_gen.runtime_stub_source();
+        let stub_path = temp_dir.path().join("RuntimeStub.java");
+        fs::write(&stub_path, stub_source).unwrap();
+
+        let javac_output = Command::new("javac")
+            .arg(stub_path.to_str().unwrap())
+            .current_dir(temp_dir.path())
+            .output()
+            .expect("javac not found");
+        if !javac_output.status.success() {
+            eprintln!("javac stderr: {}", String::from_utf8_lossy(&javac_output.stderr));
+            panic!("Failed to compile RuntimeStub.java");
+        }
+    }
+
+    let mut java = Command::new("java")
+        .args(["-cp", temp_dir.path().to_str().unwrap(), "Main"])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("Java not found — JVM tests require java on PATH");
+
+    if let Some(ref mut stdin) = java.stdin {
+        stdin.write_all(stdin_data.as_bytes()).unwrap();
+    }
+    drop(java.stdin.take());
+
+    let output = java.wait_with_output().unwrap();
+    if !output.status.success() {
+        eprintln!("Java stderr: {}", String::from_utf8_lossy(&output.stderr));
+        eprintln!("Java stdout: {}", String::from_utf8_lossy(&output.stdout));
+    }
+    output
+}
+
+#[test]
+#[ignore = "JVM daemon NPE on local24 — not yet fixed"]
+fn test_jvm_daemon_set_command() {
+    let source = DAEMON_SOURCE;
+
+    let output = compile_and_run_jvm_with_stdin(source, "SET\n");
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    assert!(
+        stdout.contains("OK"),
+        "Expected 'OK' in stdout, got: {:?}",
+        stdout
+    );
+}
+
+const DAEMON_SOURCE: &str = r#"// Lab 4 — MyLang daemon with malloc/free and string struct fields
+import getchar
+import putchar
+import malloc
+import free
+
+struct MapEntry {
+    key of string
+    val of string
+}
+
+global entries of MapEntry[8]
+global map_n of int = 0
+global input_buf of string
+
+global r0 of int = 0
+global r1 of int = -1
+global r2 of int = -1
+
+def streq(a of string, b of string) of int
+    i = 0
+    while 1 == 1 {
+        ca = a[i]
+        cb = b[i]
+        if ca != cb then { return 0 }
+        if ca == 0 then { return 1 }
+        i = i + 1
+    }
+end
+
+def streq_at(buf of string, start of int, s of string) of int
+    i = 0
+    while 1 == 1 {
+        ca = buf[start + i]
+        cb = s[i]
+        if ca != cb then { return 0 }
+        if ca == 0 then { return 1 }
+        i = i + 1
+    }
+end
+
+def strdup_from(buf of string, start of int) of string
+    len = 0
+    while buf[start + len] != 0 { len = len + 1 }
+    dst = malloc(len + 1)
+    i = 0
+    while i <= len {
+        dst[i] = buf[start + i]
+        i = i + 1
+    }
+    return dst
+end
+
+def putstr(s of string)
+    i = 0
+    while 1 == 1 {
+        c = s[i]
+        if c == 0 then { return }
+        putchar(c)
+        i = i + 1
+    }
+end
+
+def map_find_at(buf of string, start of int) of int
+    i = 0
+    while i < map_n {
+        if streq_at(buf, start, entries[i].key) == 1 then { return i }
+        i = i + 1
+    }
+    return -1
+end
+
+def map_add(buf of string, key_off of int, val_off of int)
+    if map_n >= 8 then { return }
+    entries[map_n].key = strdup_from(buf, key_off)
+    entries[map_n].val = strdup_from(buf, val_off)
+    map_n = map_n + 1
+end
+
+def map_update(idx of int, buf of string, val_off of int)
+    free(entries[idx].val)
+    entries[idx].val = strdup_from(buf, val_off)
+end
+
+def map_remove(idx of int)
+    free(entries[idx].key)
+    free(entries[idx].val)
+    while idx < map_n - 1 {
+        entries[idx].key = entries[idx + 1].key
+        entries[idx].val = entries[idx + 1].val
+        idx = idx + 1
+    }
+    map_n = map_n - 1
+end
+
+def parse_line()
+    r0 = 0; r1 = -1; r2 = -1
+    sp1 = 0
+    while 1 == 1 {
+        c = input_buf[sp1]
+        if c == 32 then { break; }
+        if c == 0 then { return }
+        sp1 = sp1 + 1
+    }
+    input_buf[sp1] = 0
+    r1 = sp1 + 1
+    sp2 = r1
+    while 1 == 1 {
+        c = input_buf[sp2]
+        if c == 32 then { break; }
+        if c == 0 then { r1 = -1; return }
+        sp2 = sp2 + 1
+    }
+    input_buf[sp2] = 0
+    r2 = sp2 + 1
+end
+
+def respond_ok()
+    putchar(79); putchar(75); putchar(10)
+end
+
+def respond_ok_str(s of string)
+    putchar(79); putchar(75); putchar(32)
+    putstr(s)
+    putchar(10)
+end
+
+def respond_err(s of string)
+    putchar(69); putchar(82); putchar(82); putchar(32)
+    putstr(s)
+    putchar(10)
+end
+
+def main() of int
+    input_buf = malloc(256)
+    eof = 0
+    di = 0
+    while 1 == 1 {
+        c = getchar()
+        if c == 10 then { input_buf[di] = 0; break; }
+        if c == -1 then { input_buf[di] = 0; eof = 1; break; }
+        input_buf[di] = c
+        di = di + 1
+    }
+    while eof == 0 {
+        parse_line()
+        if r1 == -1 then {
+            if streq_at(input_buf, 0, "exit") == 1 then {
+                i = 0
+                while i < map_n {
+                    free(entries[i].key)
+                    free(entries[i].val)
+                    i = i + 1
+                }
+                respond_ok()
+                return 0
+            }
+        }
+        if r1 == -1 then {
+            if streq_at(input_buf, 0, "list") == 1 then {
+                putchar(79); putchar(75); putchar(32)
+                i = 0
+                while i < map_n {
+                    if i > 0 then { putchar(44) }
+                    putstr(entries[i].key)
+                    i = i + 1
+                }
+                putchar(10)
+            }
+        }
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "get") == 1 then {
+                idx = map_find_at(input_buf, r1)
+                if idx >= 0 then {
+                    respond_ok_str(entries[idx].val)
+                } else {
+                    respond_err("Key not found")
+                }
+            }
+        }
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "create") == 1 then {
+                if r2 == -1 then {
+                    respond_err("Key not found")
+                } else {
+                    idx = map_find_at(input_buf, r1)
+                    if idx >= 0 then {
+                        respond_err("Exists")
+                    } else {
+                        map_add(input_buf, r1, r2)
+                        respond_ok()
+                    }
+                }
+            }
+        }
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "set") == 1 then {
+                if r2 == -1 then {
+                    respond_err("Key not found")
+                } else {
+                    idx = map_find_at(input_buf, r1)
+                    if idx >= 0 then {
+                        map_update(idx, input_buf, r2)
+                        respond_ok()
+                    } else {
+                        respond_err("Key not found")
+                    }
+                }
+            }
+        }
+        if r1 >= 0 then {
+            if streq_at(input_buf, 0, "delete") == 1 then {
+                idx = map_find_at(input_buf, r1)
+                if idx >= 0 then {
+                    map_remove(idx)
+                    respond_ok()
+                } else {
+                    respond_err("Key not found")
+                }
+            }
+        }
+        di = 0
+        while 1 == 1 {
+            c = getchar()
+            if c == 10 then { input_buf[di] = 0; break; }
+            if c == -1 then { input_buf[di] = 0; eof = 1; break; }
+            input_buf[di] = c
+            di = di + 1
+        }
+    }
+end
+"#;

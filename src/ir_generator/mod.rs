@@ -1,35 +1,27 @@
-use crate::ast::{
-    Arg, BuiltinType, CoroutineDefinition, Expr, FuncDefinition, Identifier, Program, SourceItem, Span, Statement,
-    TypeRef,
-};
-use crate::ir::{IrBlock, IrFunction, IrInstruction, IrLocal, IrOpcode, IrParameter, IrProgram, IrType};
+use crate::ast::{BuiltinType, Identifier, Program, SourceItem, Span, Statement, TypeRef};
+use crate::ir::{IrFunction, IrProgram, IrType};
 use crate::stdlib::StdLib;
 use std::collections::{HashMap, HashSet};
 
 mod expressions;
+mod functions;
 mod statements;
+mod symbols;
 
 pub struct IrGenerator {
     pub temp_counter: usize,
     pub block_counter: usize,
-    pub locals: HashMap<String, IrLocal>,
-    pub declared_vars: HashSet<String>,
+    pub symbols: symbols::SymbolTable,
     pub used_functions: Vec<String>,
     pub loop_exit_stack: Vec<String>,
     pub loop_depth: usize,
     pub external_functions: HashSet<String>,
-    pub function_return_types: HashMap<String, IrType>,
-    pub global_names: HashSet<String>,
-    pub global_types: HashMap<String, IrType>,
-    pub global_struct_type_names: HashMap<String, String>,
-    pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
-    pub local_struct_types: HashMap<String, String>,
     pub current_yield_state: usize,
     pub coroutine_state_blocks: Vec<String>,
     pub pending_functions: Vec<IrFunction>,
     pub lambda_counter: usize,
-    pub captured_vars: std::collections::HashMap<String, usize>,
-    pub closure_envs: std::collections::HashMap<String, String>,
+    pub captured_vars: HashMap<String, usize>,
+    pub closure_envs: HashMap<String, String>,
 }
 
 impl IrGenerator {
@@ -37,24 +29,17 @@ impl IrGenerator {
         Self {
             temp_counter: 0,
             block_counter: 0,
-            locals: HashMap::new(),
-            declared_vars: HashSet::new(),
+            symbols: symbols::SymbolTable::new(),
             used_functions: Vec::new(),
             loop_exit_stack: Vec::new(),
             loop_depth: 0,
             external_functions: HashSet::new(),
-            function_return_types: HashMap::new(),
-            global_names: HashSet::new(),
-            global_types: HashMap::new(),
-            global_struct_type_names: HashMap::new(),
-            struct_fields: HashMap::new(),
-            local_struct_types: HashMap::new(),
             current_yield_state: 0,
             coroutine_state_blocks: Vec::new(),
             pending_functions: Vec::new(),
             lambda_counter: 0,
-            captured_vars: std::collections::HashMap::new(),
-            closure_envs: std::collections::HashMap::new(),
+            captured_vars: HashMap::new(),
+            closure_envs: HashMap::new(),
         }
     }
 
@@ -99,8 +84,7 @@ impl IrGenerator {
                                 })
                         })
                         .unwrap_or(IrType::Int);
-                    self.function_return_types
-                        .insert(func_name, ret_type);
+                    self.symbols.function_return_types.insert(func_name, ret_type);
                 }
                 SourceItem::FuncDefinition(def) => {
                     let ret_type = def
@@ -108,31 +92,31 @@ impl IrGenerator {
                         .return_type
                         .as_ref()
                         .map_or(IrType::Void, |t| self.convert_type(t));
-                    self.function_return_types
+                    self.symbols
+                        .function_return_types
                         .insert(def.signature.name.name.clone(), ret_type);
                 }
                 SourceItem::GlobalDecl(global) => {
-                    self.global_names.insert(global.name.name.clone());
                     let ir_ty = self.convert_type(&global.ty);
-                    self.global_types.insert(global.name.name.clone(), ir_ty);
+                    self.symbols.global_types.insert(global.name.name.clone(), ir_ty);
                     if let crate::ast::TypeRef::Custom(ref id) = global.ty {
-                        if self.struct_fields.contains_key(&id.name) {
-                            self.global_struct_type_names
+                        if self.symbols.struct_fields.contains_key(&id.name) {
+                            self.symbols
+                                .global_struct_type_names
                                 .insert(global.name.name.clone(), id.name.clone());
                         }
                     }
                     if let crate::ast::TypeRef::Array { element_type, .. } = &global.ty {
                         if let crate::ast::TypeRef::Custom(ref id) = element_type.as_ref() {
-                            if self.struct_fields.contains_key(&id.name) {
-                                self.global_struct_type_names
+                            if self.symbols.struct_fields.contains_key(&id.name) {
+                                self.symbols
+                                    .global_struct_type_names
                                     .insert(global.name.name.clone(), id.name.clone());
                             }
                         }
                     }
                 }
-                SourceItem::CoroutineDef(_) => {
-                    // Coroutines are parsed like functions from FuncDefinition items
-                }
+                SourceItem::CoroutineDef(_) => {}
                 SourceItem::StructDef(s) => {
                     let mut fields = Vec::new();
                     let mut offset: usize = 0;
@@ -142,7 +126,7 @@ impl IrGenerator {
                         fields.push((f.name.name.clone(), fty, offset));
                         offset += size;
                     }
-                    self.struct_fields.insert(s.name.name.clone(), fields);
+                    self.symbols.struct_fields.insert(s.name.name.clone(), fields);
                 }
             }
         }
@@ -163,13 +147,11 @@ impl IrGenerator {
         for item in &program.items {
             if let SourceItem::FuncDefinition(def) = item {
                 self.block_counter = 0;
-                self.declared_vars.clear();
-                self.locals.clear();
+                self.symbols = symbols::SymbolTable::new();
                 self.used_functions.clear();
                 self.current_yield_state = 0;
                 let ir_func = self.generate_function(def);
                 functions.push(ir_func);
-                // Collect any pending functions generated by func literals
                 while !self.pending_functions.is_empty() {
                     let pf = self.pending_functions.remove(0);
                     functions.push(pf);
@@ -177,8 +159,7 @@ impl IrGenerator {
             }
             if let SourceItem::CoroutineDef(coroutine) = item {
                 self.block_counter = 0;
-                self.declared_vars.clear();
-                self.locals.clear();
+                self.symbols = symbols::SymbolTable::new();
                 self.used_functions.clear();
                 self.current_yield_state = 0;
                 let ir_func = self.generate_coroutine_function(coroutine);
@@ -189,140 +170,8 @@ impl IrGenerator {
         IrProgram { functions, globals }
     }
 
-    pub fn generate_function(&mut self, def: &FuncDefinition) -> IrFunction {
-        let return_type = match &def.signature.return_type {
-            Some(ty) => self.convert_type(ty),
-            None => IrType::Void,
-        };
-        let mut params = Vec::new();
-        if let Some(ref args) = def.signature.parameters {
-            for arg in args {
-                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                params.push(IrParameter {
-                    name: arg.name.name.clone(),
-                    ty: param_type,
-                });
-            }
-        }
-
-        self.locals.clear();
-        for param in &params {
-            self.locals.insert(
-                param.name.clone(),
-                IrLocal {
-                    name: param.name.clone(),
-                    ty: param.ty.clone(),
-                    stack_offset: None,
-                },
-            );
-        }
-        self.used_functions.clear();
-        let mut block_stack = Vec::new();
-        let mut current_block = IrBlock {
-            id: format!("BB{}", self.block_counter),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
-        self.block_counter += 1;
-
-        for stmt in &def.body {
-            self.visit_statement(&mut current_block, &mut block_stack, stmt);
-        }
-
-        // Add implicit Ret for void functions (e.g. closures without explicit return)
-        if matches!(return_type, IrType::Void) {
-            current_block.instructions.push(IrInstruction {
-                opcode: IrOpcode::Ret,
-                result: None,
-                result_type: None,
-                operands: vec![],
-                jump_target: None,
-                true_target: None,
-                false_target: None,
-                span: crate::ast::Span::new(0, 0),
-            });
-        }
-
-        let mut blocks = Vec::new();
-        blocks.push(current_block);
-        for block in block_stack.drain(..) {
-            blocks.push(block);
-        }
-
-        let mut used = Vec::new();
-        std::mem::swap(&mut used, &mut self.used_functions);
-
-        IrFunction {
-            name: def.signature.name.name.clone(),
-            return_type,
-            parameters: params,
-            blocks,
-            locals: self.locals.values().cloned().collect(),
-            used_functions: used,
-            yield_count: 0,
-            coroutine_blocks: vec![],
-            is_coroutine: false,
-        }
-    }
-
-    pub fn generate_coroutine_function(&mut self, def: &CoroutineDefinition) -> IrFunction {
-        let return_type = match &def.signature.return_type {
-            Some(ty) => self.convert_type(ty),
-            None => IrType::Void,
-        };
-        let mut params = Vec::new();
-        if let Some(ref args) = def.signature.parameters {
-            for arg in args {
-                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                params.push(IrParameter {
-                    name: arg.name.name.clone(),
-                    ty: param_type,
-                });
-            }
-        }
-
-        self.locals.clear();
-        self.used_functions.clear();
-        let mut block_stack = Vec::new();
-        let entry_id = format!("BB{}", self.block_counter);
-        let mut current_block = IrBlock {
-            id: entry_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
-        self.block_counter += 1;
-
-        self.coroutine_state_blocks = vec![entry_id];
-
-        for stmt in &def.body {
-            self.visit_statement(&mut current_block, &mut block_stack, stmt);
-        }
-
-        let mut blocks = Vec::new();
-        blocks.push(current_block);
-        for block in block_stack.drain(..) {
-            blocks.push(block);
-        }
-
-        let mut used = Vec::new();
-        std::mem::swap(&mut used, &mut self.used_functions);
-        let state_blocks = std::mem::take(&mut self.coroutine_state_blocks);
-
-        IrFunction {
-            name: def.signature.name.name.clone(),
-            return_type,
-            parameters: params,
-            blocks,
-            locals: self.locals.values().cloned().collect(),
-            used_functions: used,
-            yield_count: self.current_yield_state,
-            coroutine_blocks: state_blocks,
-            is_coroutine: true,
-        }
-    }
-
     pub fn get_ident_type(&self, id: &Identifier) -> IrType {
-        self.locals.get(&id.name).map_or(IrType::Int, |l| l.ty.clone())
+        self.symbols.get_type(&id.name)
     }
 
     pub fn convert_type(&self, ty: &TypeRef) -> IrType {
@@ -338,7 +187,7 @@ impl IrGenerator {
                 BuiltinType::String => IrType::String,
             },
             TypeRef::Custom(id) => {
-                if let Some(fields) = self.struct_fields.get(&id.name) {
+                if let Some(fields) = self.symbols.struct_fields.get(&id.name) {
                     if let Some(last) = fields.last() {
                         let size = last.2 + last.1.size() as usize;
                         IrType::Array(Box::new(IrType::Int), size / 4)
@@ -381,130 +230,8 @@ impl IrGenerator {
         }
     }
 
-    /// Scan a function body AST for variables captured from the outer scope.
-    /// Returns a list of (`var_name`, `env_slot_index`) for variables that are
-    /// used in the body but belong to an outer (saved) locals table.
-    pub fn scan_captures(
-        body: &[Statement],
-        params: &Option<Vec<Arg>>,
-        outer_locals: &std::collections::HashMap<String, IrLocal>,
-    ) -> Vec<(String, usize)> {
-        use std::collections::HashSet;
-        let param_names: HashSet<String> = params
-            .as_ref()
-            .map(|args| args.iter().map(|a| a.name.name.clone()).collect())
-            .unwrap_or_default();
-        let mut found: Vec<String> = Vec::new();
-        let mut seen: HashSet<String> = HashSet::new();
-        Self::scan_exprs_in_stmts(body, outer_locals, &param_names, &mut found, &mut seen);
-        found.iter().enumerate().map(|(i, name)| (name.clone(), i)).collect()
-    }
-
-    fn scan_exprs_in_stmts(
-        stmts: &[Statement],
-        outer_locals: &std::collections::HashMap<String, IrLocal>,
-        param_names: &std::collections::HashSet<String>,
-        found: &mut Vec<String>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        for stmt in stmts {
-            Self::scan_exprs_in_stmt(stmt, outer_locals, param_names, found, seen);
-        }
-    }
-
-    fn scan_exprs_in_stmt(
-        stmt: &Statement,
-        outer_locals: &std::collections::HashMap<String, IrLocal>,
-        param_names: &std::collections::HashSet<String>,
-        found: &mut Vec<String>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        match stmt {
-            Statement::Return(r) => {
-                if let Some(ref e) = r.expr {
-                    Self::scan_expr(e, outer_locals, param_names, found, seen);
-                }
-            }
-            Statement::If(i) => {
-                Self::scan_expr(&i.condition, outer_locals, param_names, found, seen);
-                Self::scan_exprs_in_stmt(&i.consequence, outer_locals, param_names, found, seen);
-                if let Some(ref a) = i.alternative {
-                    Self::scan_exprs_in_stmt(a, outer_locals, param_names, found, seen);
-                }
-            }
-            Statement::Loop(l) => {
-                Self::scan_expr(&l.condition, outer_locals, param_names, found, seen);
-                Self::scan_exprs_in_stmts(&l.body, outer_locals, param_names, found, seen);
-            }
-            Statement::Repeat(r) => {
-                Self::scan_expr(&r.condition, outer_locals, param_names, found, seen);
-                Self::scan_exprs_in_stmt(&r.body, outer_locals, param_names, found, seen);
-            }
-            Statement::Expression(e) => {
-                Self::scan_expr(&e.expr, outer_locals, param_names, found, seen);
-            }
-            Statement::Block(b) => {
-                Self::scan_exprs_in_stmts(&b.body, outer_locals, param_names, found, seen);
-            }
-            Statement::VarDecl(_vd) => {
-                // var decls inside the inner function body create new locals,
-                // not captured vars
-            }
-            Statement::Break(_) | Statement::Yield(_) => {}
-            Statement::FuncDef(fd) => {
-                Self::scan_exprs_in_stmts(&fd.body, outer_locals, param_names, found, seen);
-            }
-        }
-    }
-
-    fn scan_expr(
-        expr: &Expr,
-        outer_locals: &std::collections::HashMap<String, IrLocal>,
-        param_names: &std::collections::HashSet<String>,
-        found: &mut Vec<String>,
-        seen: &mut std::collections::HashSet<String>,
-    ) {
-        match expr {
-            Expr::Binary(b) => {
-                Self::scan_expr(&b.left, outer_locals, param_names, found, seen);
-                Self::scan_expr(&b.right, outer_locals, param_names, found, seen);
-            }
-            Expr::Unary(u) => {
-                Self::scan_expr(&u.operand, outer_locals, param_names, found, seen);
-            }
-            Expr::Parenthesized(inner) => {
-                Self::scan_expr(inner, outer_locals, param_names, found, seen);
-            }
-            Expr::Call(c) => {
-                Self::scan_expr(&c.function, outer_locals, param_names, found, seen);
-                for a in &c.arguments {
-                    Self::scan_expr(a, outer_locals, param_names, found, seen);
-                }
-            }
-            Expr::Slice(s) => {
-                Self::scan_expr(&s.array, outer_locals, param_names, found, seen);
-                for r in &s.ranges {
-                    Self::scan_expr(&r.start, outer_locals, param_names, found, seen);
-                }
-            }
-            Expr::Identifier(id) => {
-                if outer_locals.contains_key(&id.name) && !param_names.contains(&id.name) && !seen.contains(&id.name) {
-                    seen.insert(id.name.clone());
-                    found.push(id.name.clone());
-                }
-            }
-            Expr::FieldAccess(base, _) => {
-                Self::scan_expr(base, outer_locals, param_names, found, seen);
-            }
-            Expr::FuncLiteral(f) => {
-                Self::scan_exprs_in_stmts(&f.body, outer_locals, param_names, found, seen);
-            }
-            Expr::Literal(_) | Expr::ArrayLiteral(_) => {}
-        }
-    }
-
     pub fn find_field_offset_for_array(&self, _base: &str, field: &str) -> usize {
-        for fields in self.struct_fields.values() {
+        for fields in self.symbols.struct_fields.values() {
             for (fname, _, offset) in fields {
                 if fname == field {
                     return *offset;
@@ -516,11 +243,12 @@ impl IrGenerator {
 
     pub fn struct_size_for_var(&self, base: &str) -> usize {
         let struct_name = self
+            .symbols
             .global_struct_type_names
             .get(base)
-            .or_else(|| self.local_struct_types.get(base));
+            .or_else(|| self.symbols.local_struct_types.get(base));
         if let Some(struct_name) = struct_name {
-            if let Some(fields) = self.struct_fields.get(struct_name) {
+            if let Some(fields) = self.symbols.struct_fields.get(struct_name) {
                 if let Some((_, last_type, last_offset)) = fields.last() {
                     return last_offset + last_type.size() as usize;
                 }
@@ -531,11 +259,12 @@ impl IrGenerator {
 
     pub fn find_field_type_for_var(&self, base: &str, field: &str) -> IrType {
         let struct_name = self
+            .symbols
             .global_struct_type_names
             .get(base)
-            .or_else(|| self.local_struct_types.get(base));
+            .or_else(|| self.symbols.local_struct_types.get(base));
         if let Some(struct_name) = struct_name {
-            if let Some(fields) = self.struct_fields.get(struct_name) {
+            if let Some(fields) = self.symbols.struct_fields.get(struct_name) {
                 for (fname, ftype, _) in fields {
                     if fname == field {
                         return ftype.clone();
@@ -550,19 +279,20 @@ impl IrGenerator {
         match expr {
             crate::ast::Expr::FieldAccess(base, field) => {
                 let (base_name, base_offset) = self.resolve_field_chain(base);
-                // Find which struct the base variable belongs to
                 let struct_name = self
+                    .symbols
                     .local_struct_types
                     .get(&base_name)
-                    .map(std::string::String::as_str)
+                    .map(String::as_str)
                     .or_else(|| {
-                        // Check if base is a global with a struct type
-                        self.global_struct_type_names
+                        self.symbols
+                            .global_struct_type_names
                             .get(&base_name)
-                            .map(std::string::String::as_str)
+                            .map(String::as_str)
                     })
                     .unwrap_or(&base_name);
                 let field_offset = self
+                    .symbols
                     .struct_fields
                     .get(struct_name)
                     .and_then(|fields| fields.iter().find(|(n, _, _)| n == &field.name))

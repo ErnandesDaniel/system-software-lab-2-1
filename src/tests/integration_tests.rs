@@ -204,7 +204,7 @@ fn test_import_short_form_semantics() {
 
 #[test]
 fn test_cfg_generation() {
-    use crate::ir::cfg::CfgMermaidGenerator;
+    use crate::ir::diagram::CfgMermaidGenerator;
 
     let source = "def square(x of int) of int return x * x; end def main() of int return 42; end";
     let mut parser = Parser::new(source);

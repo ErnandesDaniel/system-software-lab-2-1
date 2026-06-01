@@ -179,6 +179,54 @@ impl JvmGenerator {
     }
 
     fn generate_store(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        if inst.operands.len() >= 4 {
+            // 4-operand store: [base, field_offset, value, index] → array-of-struct field write
+            if let (Some(base), Some(field_off), Some(value), Some(index)) =
+                (inst.operands.first(), inst.operands.get(1), inst.operands.get(2), inst.operands.get(3))
+            {
+                if self.is_struct_var(base) {
+                    // Object[] path: entries[i].field = value
+                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
+                    let var_name = if let IrOperand::Variable(n, _) = base { n.clone() } else { String::new() };
+                    let field_slot = self.get_field_slot_for_offset(&var_name, byte_off);
+                    // Load entries array
+                    self.emit_load_operand(code, base);  // Object[]
+                    // Load index i
+                    self.emit_load_operand(code, index); // int
+                    // aaload → entries[i] → Object
+                    code.push(Instruction::Aaload);
+                    // checkcast Object[]
+                    code.push(Instruction::Checkcast(self.object_array_class_idx));
+                    // Load field slot
+                    self.emit_load_constant(code, &Constant::Int(field_slot as i64));
+                    // Load value
+                    self.emit_load_operand(code, value);
+                    // Box if int, store reference
+                    let vt = value.get_type();
+                    if matches!(vt, IrType::String) {
+                        code.push(Instruction::Aastore);
+                    } else {
+                        code.push(Instruction::Invokestatic(self.integer_value_of_ref));
+                        code.push(Instruction::Aastore);
+                    }
+                } else {
+                    // int[][] path: entries[i][field_slot] = value
+                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
+                    let base_idx = byte_off / 4;
+                    self.emit_load_operand(code, base); // int[][]
+                    self.emit_load_operand(code, index); // i
+                    code.push(Instruction::Aaload);      // entries[i] → int[]
+                    if base_idx > 0 {
+                        self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                        code.push(Instruction::Iadd);
+                    }
+                    // entries[i] has correct index on stack, load value
+                    self.emit_load_operand(code, value);
+                    code.push(Instruction::Iastore);
+                }
+                return;
+            }
+        }
         if inst.operands.len() >= 3 {
             // 3-operand store: [base, offset, value] → struct field write
             if inst.operands.len() == 3 {
@@ -201,28 +249,6 @@ impl JvmGenerator {
                     }
                 }
             }
-            // 4-operand store: [base, field_offset, value, index] → inline array field write
-            if inst.operands.len() >= 4 {
-                if let (Some(base), Some(field_off), Some(value), Some(index)) =
-                    (inst.operands.first(), inst.operands.get(1), inst.operands.get(2), inst.operands.get(3))
-                {
-                    let base_idx = if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
-                        byte_off / 4
-                    } else {
-                        0
-                    };
-                    self.emit_load_operand(code, base);
-                    if base_idx > 0 {
-                        self.emit_load_constant(code, &Constant::Int(base_idx as i64));
-                        self.emit_load_operand(code, index);
-                        code.push(Instruction::Iadd);
-                    } else {
-                        self.emit_load_operand(code, index);
-                    }
-                    self.emit_load_operand(code, value);
-                    code.push(Instruction::Iastore);
-                }
-            }
         }
     }
 
@@ -230,41 +256,67 @@ impl JvmGenerator {
         if let (Some(ref result), Some(array), Some(index)) =
             (&inst.result, inst.operands.first(), inst.operands.get(1))
         {
-            if let IrOperand::Constant(Constant::Int(byte_off)) = index {
-                if *byte_off > 0 || self.is_struct_var(array) {
-                    self.emit_load_operand(code, array);
-                    let idx = byte_off / 4;
-                    if self.is_struct_var(array) {
-                        self.emit_load_constant(code, &Constant::Int(idx as i64));
-                        code.push(Instruction::Aaload);
-                        self.emit_boxed_field_load(code, inst, *byte_off as usize);
-                    } else {
-                        self.emit_load_constant(code, &Constant::Int(idx as i64));
-                        code.push(Instruction::Iaload);
-                    }
-                    self.emit_store_result(code, result, &IrType::Int);
-                    return;
-                }
-            }
-            // 4-operand Load: [base, field_offset, index_in_field, elem_stride]
-            // Inline array field access: sched.slots[i]
-            if inst.operands.len() >= 3 {
+            // 4-operand Load: [base, field_offset, element_index, elem_stride]
+            // entries[i].key → operands: [entries, 0(key), i, 16]
+            if inst.operands.len() >= 4 {
                 if let Some(field_off) = inst.operands.get(1) {
                     if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
-                        let base_idx = byte_off / 4;
                         if let Some(idx_op) = inst.operands.get(2) {
-                            self.emit_load_operand(code, array); // struct int[]
-                            if base_idx > 0 {
-                                self.emit_load_constant(code, &Constant::Int(base_idx as i64));
-                                self.emit_load_operand(code, idx_op);
-                                code.push(Instruction::Iadd);
+                            if self.is_struct_var(array) {
+                                // Object[] path: entries[i][field_slot]
+                                let var_name = if let IrOperand::Variable(n, _) = array { n.clone() } else { String::new() };
+                                let field_slot = self.get_field_slot_for_offset(&var_name, *byte_off as usize);
+                                // Load entries array
+                                self.emit_load_operand(code, array);  // Object[]
+                                // Load index i
+                                self.emit_load_operand(code, idx_op); // int
+                                // aaload → entries[i] → Object
+                                code.push(Instruction::Aaload);
+                    // checkcast Object[]
+                    code.push(Instruction::Checkcast(self.object_array_class_idx));
+                    // Load field slot
+                    self.emit_load_constant(code, &Constant::Int(field_slot as i64));
+                    // aaload → entries[i][field] → Object
+                    code.push(Instruction::Aaload);
+                    // Unbox if needed
+                    self.emit_boxed_field_load(code, inst, *byte_off as usize);
+                                // Store result with correct type
+                                let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                                self.emit_store_result(code, result, field_ty);
                             } else {
-                                self.emit_load_operand(code, idx_op);
+                                // int[][] path: entries[i][field_slot]
+                                let base_idx = byte_off / 4;
+                                self.emit_load_operand(code, array);  // int[][]
+                                self.emit_load_operand(code, idx_op); // i
+                                code.push(Instruction::Aaload);       // entries[i] → int[]
+                                if base_idx > 0 {
+                                    self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                    code.push(Instruction::Iadd);
+                                }
+                                code.push(Instruction::Iaload);
+                                self.emit_store_result(code, result, &IrType::Int);
                             }
-                            code.push(Instruction::Iaload);
-                            self.emit_store_result(code, result, &IrType::Int);
                             return;
                         }
+                    }
+                }
+            }
+            // 2/3-operand: struct field or array access
+            if inst.operands.len() <= 3 {
+                if let IrOperand::Constant(Constant::Int(byte_off)) = index {
+                    if *byte_off > 0 || self.is_struct_var(array) {
+                        self.emit_load_operand(code, array);
+                        let idx = byte_off / 4;
+                        if self.is_struct_var(array) {
+                            self.emit_load_constant(code, &Constant::Int(idx as i64));
+                            code.push(Instruction::Aaload);
+                            self.emit_boxed_field_load(code, inst, *byte_off as usize);
+                        } else {
+                            self.emit_load_constant(code, &Constant::Int(idx as i64));
+                            code.push(Instruction::Iaload);
+                        }
+                        self.emit_store_result(code, result, &IrType::Int);
+                        return;
                     }
                 }
             }

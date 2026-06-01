@@ -77,6 +77,8 @@ pub fn get_method_descriptor(target: &str) -> String {
         "map_size_jvm" => "()I".to_string(),
         "map_key_jvm" => "(I)[B".to_string(),
         "map_list_jvm" => "()[B".to_string(),
+        "malloc" => "(I)[B".to_string(),
+        "free" => "([B)V".to_string(),
         "resume_coroutine" => "(I)I".to_string(),
         "get_coroutine_state" => "(I)I".to_string(),
         "set_coroutine_param" => "(III)V".to_string(),

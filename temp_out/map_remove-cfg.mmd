@@ -1,9 +1,0 @@
-graph TD
-    BB_3["BB3\nt137 = map_n\[?\]\nt138 = map_n\[?\]\nt139 = 1\nt140 = t138 - t139\nmap_n = t140\nreturn"]
-    BB_1["BB1\nt120 = map_n\[?\]\nt121 = 1\nt122 = t120 - t121\nt123 = (idx < t122)\nif t123 goto BB_2 else BB_3"]
-    BB_2["BB2\nt124 = entries\[0\]\nt125 = 1\nt126 = idx + t125\nt127 = entries\[0\]\nentries\[0\] = ?\nt129 = entries\[0\]\nt130 = 1\nt131 = idx + t130\nt132 = entries\[4\]\nentries\[0\] = ?\nt134 = 1\nt135 = idx + t134\nidx = t135\ngoto BB_1"]
-    BB_0["BB0\ngoto BB_1"]
-BB_1 --> BB_2
-BB_1 --> BB_3
-BB_2 --> BB_1
-BB_0 --> BB_1

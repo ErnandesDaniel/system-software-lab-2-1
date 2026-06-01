@@ -6,6 +6,11 @@ impl JvmGenerator {
     pub fn emit_load_operand(&self, code: &mut Vec<Instruction>, operand: &IrOperand) {
         match operand {
             IrOperand::Variable(name, ty) => {
+                // Global static field load
+                if let Some(&field_ref) = self.global_field_refs.get(name) {
+                    code.push(Instruction::Getstatic(field_ref));
+                    return;
+                }
                 if self.is_coroutine {
                     if let Some(&field_ref) = self.coroutine_field_refs.get(name) {
                         code.push(Instruction::Aload_0);
