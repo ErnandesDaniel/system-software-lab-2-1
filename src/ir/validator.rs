@@ -161,6 +161,9 @@ impl IrValidator {
                     }
                 }
             } else {
+                if block.id == *func.blocks.last().map(|b| &b.id).unwrap_or(&String::new()) {
+                    continue;
+                }
                 errors.push(format!(
                     "Function '{}', block '{}': empty block (no instructions)",
                     func.name, block.id

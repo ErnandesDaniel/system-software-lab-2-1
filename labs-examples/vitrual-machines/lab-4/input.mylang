@@ -121,7 +121,7 @@ def parse_line()
     while 1 == 1 {
         c = input_buf[sp2]
         if c == 32 then { break; }
-        if c == 0 then { r1 = -1; return }
+        if c == 0 then { r2 = -1; return }
         sp2 = sp2 + 1
     }
     input_buf[sp2] = 0

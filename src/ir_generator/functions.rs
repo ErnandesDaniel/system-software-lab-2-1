@@ -52,10 +52,10 @@ impl IrGenerator {
         }
 
         let mut blocks = Vec::new();
-        blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
         }
+        blocks.push(current_block);
         if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
             if pos != 0 {
                 let entry = blocks.remove(pos);
@@ -115,10 +115,10 @@ impl IrGenerator {
         }
 
         let mut blocks = Vec::new();
-        blocks.push(current_block);
         for block in block_stack.drain(..) {
             blocks.push(block);
         }
+        blocks.push(current_block);
         if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
             if pos != 0 {
                 let entry = blocks.remove(pos);
