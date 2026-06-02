@@ -1,102 +1,59 @@
-// Lab 2 (SPO) — Streaming pipeline
-// File → pipe → parse → pipe → filter → pipe → output
-// Каждая строка — отдельный буфер в str_store, офсет передаётся через pipe
-
 import puts;
 import fopen;
 import fclose;
 import fgetc;
 import atoi
-import resume_coroutine;
-import coro_init
 
-global str_store of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ";
-global tmpbuf of string = "                                                                                ";
-global pool_next of int = 0
-
-def alloc_buf() of int
-    b = pool_next * 256;
-    pool_next = (pool_next + 1) % 32;
-    return b
-end
-
-struct Pipe { buf of int[256]; head; tail; count; done; }
-
-def pipe_init(p of Pipe) p.head = 0; p.tail = 0; p.count = 0; p.done = 0 end
-
-def pipe_write(p of Pipe, v of int)
-    while p.count >= 256 { yield }
-    p.buf[p.tail] = v; p.tail = (p.tail + 1) % 256; p.count = p.count + 1
-end
-def pipe_read(p of Pipe) of int
-    while p.count <= 0 && p.done == 0 { yield }
-    if p.done == 1 && p.count <= 0 then { return -1 }
-    r = p.buf[p.head]; p.head = (p.head + 1) % 256; p.count = p.count - 1; return r
-end
-def pipe_close(p of Pipe) p.done = 1 end
+global buf of string = "                                                                                                                                                                                                                                                                ";
+global tmp of string = "                                                                                                                                                                                                                                                                ";
 
 def csv_field(dst of string, src of string, pos of int) of int
-    i = 0; while 1 == 1 { c = src[pos + i]; if c == 0 || c == 10 || c == 13 || c == ',' then { dst[i] = 0; if c == 13 && src[pos + i + 1] == 10 then return pos + i + 2; if c == ',' then return pos + i + 1; return pos + i }; dst[i] = c; i = i + 1 }
-end
-
-struct Person { id of int; surname of int; }
-global persons of Person[31];
-global p_count of int = 0
-
-// Pipes
-global p_raw of Pipe; global p_parsed of Pipe; global p_filtered of Pipe
-
-coroutine reader() of int
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    // skip header
-    di = 0; while 1 == 1 { c = fgetc(f); if c < 0 || c == 10 then break }
-    // read lines
+    i = 0;
     while 1 == 1 {
-        buf = alloc_buf(); di = 0
-        while 1 == 1 {
-            c = fgetc(f); if c < 0 then { str_store[buf + di] = 0; pipe_close(p_raw); fclose(f); return 0 }
-            if c == 10 then { str_store[buf + di] = 0; break }
-            str_store[buf + di] = c; di = di + 1
-        }
-        pipe_write(p_raw, buf)
+        c = src[pos + i];
+        if c == 0 || c == 10 || c == 13 || c == ',' then {
+            dst[i] = 0;
+            if c == 13 && src[pos + i + 1] == 10 then { return pos + i + 2 };
+            if c == ',' then { return pos + i + 1 };
+            return pos + i
+        };
+        dst[i] = c;
+        i = i + 1
     }
+    return pos
 end
 
-coroutine parser() of int
+def read_line(f of int) of int
+    i = 0;
     while 1 == 1 {
-        buf = pipe_read(p_raw); if buf == -1 then { pipe_close(p_parsed); return 0 }
-        r = p_count; pos = 0
-        pos = csv_field(tmpbuf, str_store, buf + pos); persons[r].id = atoi(tmpbuf)
-        pos = csv_field(tmpbuf, str_store, buf + pos); persons[r].surname = r * 256
-        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip name
-        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip patronymic
-        pos = csv_field(tmpbuf, str_store, buf + pos)  // skip birthday
-        pipe_write(p_parsed, r); p_count = p_count + 1
-    }
-end
-
-coroutine filter() of int
-    while 1 == 1 {
-        r = pipe_read(p_parsed); if r == -1 then { pipe_close(p_filtered); return 0 }
-        if persons[r].id > 142390 && persons[r].id < 153285 then { pipe_write(p_filtered, r) }
-    }
-end
-
-global all_done of int = 0
-
-coroutine output() of int
-    while 1 == 1 {
-        r = pipe_read(p_filtered); if r == -1 then { all_done = 1; return 0 }
-        i = 0; while 1 == 1 { c = str_store[persons[r].surname + i]; tmpbuf[i] = c; if c == 0 then break; i = i + 1 }
-        puts(tmpbuf)
+        c = fgetc(f);
+        if c < 0 then { buf[i] = 0; return -1 };
+        if c == 10 then { buf[i] = 0; return i };
+        buf[i] = c;
+        i = i + 1
     }
 end
 
 def main() of int
-    pipe_init(p_raw); pipe_init(p_parsed); pipe_init(p_filtered)
-    coro_init()
-    puts("=== Lab 2: Pipeline ===")
-    while all_done == 0 { resume_coroutine(0); resume_coroutine(1); resume_coroutine(2); resume_coroutine(3) }
-    puts("=== Done ===")
+    puts("start")
+
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
+    _ = read_line(f)  // skip header
+
+    while 1 == 1 {
+        n = read_line(f)
+        if n < 0 then { break }
+
+        pos = 0
+        pos = csv_field(tmp, buf, pos); id = atoi(tmp)
+        // just check first 3 records
+        if id < 100003 then {
+            if id == 100001 then { puts("found 100001") }
+            if id == 100002 then { puts("found 100002") }
+        }
+    }
+
+    fclose(f)
+    puts("done")
     return 0
 end

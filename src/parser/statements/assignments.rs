@@ -233,7 +233,9 @@ impl Parser<'_> {
         };
         self.advance();
         let condition = self.parse_expression(0)?;
-        self.expect(Token::Semi)?;
+        if self.current_token() == Some(&Token::Semi) {
+            self.advance();
+        }
         let span = body_span.merge(self.current_span());
         Ok(Statement::Repeat(RepeatStatement {
             body: Box::new(body),

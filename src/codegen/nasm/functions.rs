@@ -128,19 +128,19 @@ impl AsmGenerator {
                 IrOperand::Variable(name, ty) => {
                     let is_pointer = ty.is_pointer();
                     if let Some(offset) = self.temps.get(name) {
-                        let reg = if is_pointer { "rax" } else { "eax" };
+                        let reg = if is_pointer || self.param_registers.contains(name) { "rax" } else { "eax" };
                         self.output.push_str(&format!("    mov {reg}, [rbp + {offset}]\n"));
                     } else if let Some(offset) = self.locals.get(name) {
-                        let reg = if is_pointer { "rax" } else { "eax" };
+                        let reg = if is_pointer || self.param_registers.contains(name) { "rax" } else { "eax" };
                         self.output.push_str(&format!("    mov {reg}, [rbp + {offset}]\n"));
                     } else if self.param_registers.contains(name) {
                         let idx = self.param_registers.iter().position(|r| r == name).expect("Param not found in register list");
                         let src_reg = match idx {
-                            0 => { if is_pointer { "rcx" } else { "ecx" } }
-                            1 => { if is_pointer { "rdx" } else { "edx" } }
-                            2 => { if is_pointer { "r8" } else { "r8d" } }
-                            3 => { if is_pointer { "r9" } else { "r9d" } }
-                            _ => { if is_pointer { "rax" } else { "eax" } }
+                            0 => "rcx",
+                            1 => "rdx",
+                            2 => "r8",
+                            3 => "r9",
+                            _ => "rcx",
                         };
                         let ret_reg = if is_pointer { "rax" } else { "eax" };
                         self.output.push_str(&format!("    mov {ret_reg}, {src_reg}\n"));

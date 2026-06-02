@@ -6,9 +6,19 @@ impl AsmGenerator {
     pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, is_pointer: bool) {
         match operand {
             IrOperand::Variable(name, ty) => {
-                let is_ptr = ty.is_pointer() || is_pointer;
+                let _is_ptr = ty.is_pointer() || is_pointer;
+                let dest64 = match dest {
+                    "ecx" => "rcx",
+                    "edx" => "rdx",
+                    "r8d" => "r8",
+                    "r9d" => "r9",
+                    "eax" => "rax",
+                    _ => dest,
+                };
                 if let Some(offset) = self.locals.get(name) {
-                    if self.is_coroutine {
+                    if self.param_registers.contains(name) {
+                        self.output.push_str(&format!("    mov {dest64}, [rbp + {offset}]\n"));
+                    } else if self.is_coroutine {
                         let co_off = 56 + (-offset);
                         self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov {dest}, [rcx + {co_off}]\n"));
@@ -20,23 +30,13 @@ impl AsmGenerator {
                 } else if self.param_registers.contains(name) {
                     let idx = self.param_registers.iter().position(|r| r == name).expect("Param not found in register list");
                     let src_reg = match idx {
-                        0 => {
-                            if is_ptr { "rcx" } else { "ecx" }
-                        }
-                        1 => {
-                            if is_ptr { "rdx" } else { "edx" }
-                        }
-                        2 => {
-                            if is_ptr { "r8" } else { "r8d" }
-                        }
-                        3 => {
-                            if is_ptr { "r9" } else { "r9d" }
-                        }
-                        _ => {
-                            if is_ptr { "rcx" } else { "ecx" }
-                        }
+                        0 => "rcx",
+                        1 => "rdx",
+                        2 => "r8",
+                        3 => "r9",
+                        _ => "rcx",
                     };
-                    self.output.push_str(&format!("    mov {dest}, {src_reg}\n"));
+                    self.output.push_str(&format!("    mov {dest64}, {src_reg}\n"));
                 } else {
                     self.output.push_str(&format!("    mov {dest}, [rel {name}]\n"));
                 }

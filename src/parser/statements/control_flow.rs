@@ -111,7 +111,9 @@ impl Parser<'_> {
             _ => return Err(CompilerError::Parse("Expected 'until' or 'while'".to_string())),
         };
         let condition = self.parse_expression(0)?;
-        self.expect(Token::Semi)?;
+        if self.current_token() == Some(&Token::Semi) {
+            self.advance();
+        }
         let span = start.merge(self.current_span());
         Ok(Statement::Repeat(RepeatStatement {
             body,
@@ -124,7 +126,9 @@ impl Parser<'_> {
     pub(crate) fn parse_break(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         self.expect(Token::Break)?;
-        self.expect(Token::Semi)?;
+        if self.current_token() == Some(&Token::Semi) {
+            self.advance();
+        }
         let span = start.merge(self.current_span());
         Ok(Statement::Break(BreakStatement { span }))
     }

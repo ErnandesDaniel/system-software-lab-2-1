@@ -94,6 +94,23 @@ impl Parser<'_> {
         self.parse_array_suffix(TypeRef::BuiltinType(base_type), start)
     }
 
+    pub(crate) fn is_type_start(&self) -> bool {
+        matches!(
+            self.current_token(),
+            Some(Token::Int)
+                | Some(Token::Uint)
+                | Some(Token::Long)
+                | Some(Token::Ulong)
+                | Some(Token::Byte)
+                | Some(Token::Bool)
+                | Some(Token::Char)
+                | Some(Token::String)
+                | Some(Token::Array)
+                | Some(Token::Identifier)
+                | Some(Token::Def)
+        )
+    }
+
     pub(crate) fn parse_type_inner(&mut self) -> crate::Result<TypeRef> {
         let start = self.current_span();
         let base_type = match self.current_token() {
