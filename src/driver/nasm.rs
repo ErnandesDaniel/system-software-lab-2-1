@@ -104,9 +104,7 @@ impl CompilerDriver {
 
             let obj = Path::new(output_dir).join("coro_helpers.obj");
             let output = Command::new("nasm")
-                .args(["-f", "win64", "-o"])
-                .arg(obj.to_str().expect("Path must be valid UTF-8"))
-                .arg(coro_path.to_str().expect("Path must be valid UTF-8"))
+                .args(["-f", "win64", "-O0", "-o", obj.to_str().expect("Path must be valid UTF-8"), coro_path.to_str().expect("Path must be valid UTF-8")])
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {
@@ -119,15 +117,9 @@ impl CompilerDriver {
             let asm_path = Path::new(output_dir).join(format!("{}.asm", func.name));
             let obj_path = Path::new(output_dir).join(format!("{}.obj", func.name));
 
-            let output = if func.yield_count > 0 {
-                Command::new("nasm")
-                    .args(["-f", "win64", "-O0", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
-                    .output()
-            } else {
-                Command::new("nasm")
-                    .args(["-f", "win64", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
-                    .output()
-            };
+            let output = Command::new("nasm")
+                .args(["-f", "win64", "-O0", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
+                .output();
 
             match output {
                 Ok(out) => {
@@ -145,9 +137,7 @@ impl CompilerDriver {
         if globals_asm.exists() {
             let globals_obj = Path::new(output_dir).join("globals.obj");
             let output = Command::new("nasm")
-                .args(["-f", "win64", "-o"])
-                .arg(globals_obj.to_str().expect("Path must be valid UTF-8"))
-                .arg(globals_asm.to_str().expect("Path must be valid UTF-8"))
+                .args(["-f", "win64", "-O0", "-o", globals_obj.to_str().expect("Path must be valid UTF-8"), globals_asm.to_str().expect("Path must be valid UTF-8")])
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {

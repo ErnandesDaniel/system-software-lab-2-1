@@ -64,11 +64,15 @@ impl AsmGenerator {
         if let (Some(result), Some(_operand0)) = (&inst.result, inst.operands.first()) {
             let result_reg = if self.load_result_reg(inst) == "rax" { "rax" } else { "eax" };
             if inst.operands.len() == 1 {
-                if let IrOperand::Variable(name, _) = &inst.operands[0] {
+                if let IrOperand::Variable(name, ty) = &inst.operands[0] {
                     if let Some(local_off) = self.locals.get(name) {
                         self.output.push_str(&format!("    mov {result_reg}, [rbp + {local_off}]\n"));
-                    } else if self.global_names.contains(name) && result_reg == "rax" {
-                        self.output.push_str(&format!("    lea {result_reg}, [rel {name}]\n"));
+                    } else if self.global_names.contains(name) && matches!(ty, IrType::Array(_, _)) {
+                        let reg = if result_reg != "rax" { "rax" } else { result_reg };
+                        self.output.push_str(&format!("    lea {reg}, [rel {name}]\n"));
+                        if reg != result_reg {
+                            self.output.push_str(&format!("    mov {result_reg}, {reg}\n"));
+                        }
                     } else {
                         self.output.push_str(&format!("    mov {result_reg}, [rel {name}]\n"));
                     }

@@ -72,16 +72,8 @@ impl IrGenerator {
                 (id.name.clone(), ir_type)
             } else {
                 let tmp = self.generate_temp();
-                block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Load,
-                    result: Some(tmp.clone()),
-                    result_type: Some(ir_type.clone()),
-                    operands: vec![IrOperand::Variable(id.name.clone(), ir_type.clone())],
-                    jump_target: None,
-                    true_target: None,
-                    false_target: None,
-                    span: id.span,
-                });
+                block.instructions.push(IrInstruction::load(tmp.clone(), ir_type.clone(),
+                    IrOperand::Variable(id.name.clone(), ir_type.clone()), id.span));
                 (tmp, ir_type)
             }
         } else {
