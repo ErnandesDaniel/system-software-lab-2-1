@@ -13,11 +13,7 @@ impl IrGenerator {
             let ei_body_id = self.generate_block_id();
             else_if_blocks.push((ei_cond_id.clone(), ei_body_id.clone()));
 
-            let mut ei_cond_block = IrBlock {
-                id: ei_cond_id,
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            };
+            let mut ei_cond_block = IrBlock::new(ei_cond_id);
             let (ei_cond_temp, _) = self.visit_expr(&mut ei_cond_block, &ei.condition);
             ei_cond_block.instructions.push(IrInstruction {
                 opcode: IrOpcode::CondBr,
@@ -32,11 +28,7 @@ impl IrGenerator {
             ei_cond_block.successors.push(ei_body_id.clone());
             block_stack.push(ei_cond_block);
 
-            let mut ei_body_block = IrBlock {
-                id: ei_body_id,
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            };
+            let mut ei_body_block = IrBlock::new(ei_body_id);
             for s in &ei.body {
                 self.visit_statement(&mut ei_body_block, block_stack, s);
             }
@@ -58,11 +50,7 @@ impl IrGenerator {
 
         let else_body_id = if stmt.else_body.is_some() {
             let eb_id = self.generate_block_id();
-            let mut else_block = IrBlock {
-                id: eb_id.clone(),
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            };
+            let mut else_block = IrBlock::new(eb_id.clone());
             for s in stmt.else_body.as_ref().unwrap() {
                 self.visit_statement(&mut else_block, block_stack, s);
             }
@@ -111,11 +99,7 @@ impl IrGenerator {
         block.successors.push(then_id.clone());
         block.successors.push(main_false_id.clone());
 
-        let mut then_block = IrBlock {
-            id: then_id,
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut then_block = IrBlock::new(then_id);
         for s in &stmt.body {
             self.visit_statement(&mut then_block, block_stack, s);
         }
@@ -156,11 +140,7 @@ impl IrGenerator {
 
         let entry_block = std::mem::replace(
             block,
-            IrBlock {
-                id: merge_id,
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            },
+            IrBlock::new(merge_id),
         );
         block_stack.push(entry_block);
     }
@@ -185,11 +165,7 @@ impl IrGenerator {
         });
         block.successors.push(header_id.clone());
 
-        let mut header_block = IrBlock {
-            id: header_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut header_block = IrBlock::new(header_id.clone());
 
         let (cond_temp, _) = self.visit_expr(&mut header_block, &stmt.condition);
 
@@ -215,11 +191,7 @@ impl IrGenerator {
         header_block.successors.push(false_target);
         block_stack.push(header_block);
 
-        let mut body_block = IrBlock {
-            id: body_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut body_block = IrBlock::new(body_id.clone());
 
         for s in &stmt.body {
             self.visit_statement(&mut body_block, block_stack, s);
@@ -240,11 +212,7 @@ impl IrGenerator {
 
         let entry_block = std::mem::replace(
             block,
-            IrBlock {
-                id: exit_id,
-                instructions: Vec::new(),
-                successors: Vec::new(),
-            },
+            IrBlock::new(exit_id),
         );
         block_stack.push(entry_block);
 
@@ -277,11 +245,7 @@ impl IrGenerator {
         });
         block.successors.push(body_id.clone());
 
-        let mut body_block = IrBlock {
-            id: body_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut body_block = IrBlock::new(body_id.clone());
 
         for s in &stmt.body {
             self.visit_statement(&mut body_block, block_stack, s);
@@ -300,11 +264,7 @@ impl IrGenerator {
         body_block.successors.push(header_id.clone());
         block_stack.push(body_block);
 
-        let mut header_block = IrBlock {
-            id: header_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut header_block = IrBlock::new(header_id.clone());
 
         let (cond_temp, _) = self.visit_expr(&mut header_block, &stmt.condition);
 
@@ -330,11 +290,7 @@ impl IrGenerator {
         header_block.successors.push(false_target);
         block_stack.push(header_block);
 
-        let exit_block = IrBlock {
-            id: exit_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let exit_block = IrBlock::new(exit_id.clone());
         block_stack.push(exit_block);
 
         self.loop_exit_stack.pop();

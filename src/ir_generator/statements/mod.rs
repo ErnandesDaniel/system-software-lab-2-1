@@ -71,9 +71,7 @@ impl IrGenerator {
         let new_id = format!("BB{}", self.block_counter);
         self.coroutine_state_blocks.push(new_id.clone());
         self.block_counter += 1;
-        let old_block = std::mem::replace(block, IrBlock {
-            id: new_id, instructions: Vec::new(), successors: Vec::new(),
-        });
+        let old_block = std::mem::replace(block, IrBlock::new(new_id));
         block_stack.push(old_block);
     }
 

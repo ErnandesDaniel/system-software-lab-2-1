@@ -88,6 +88,47 @@ pub struct IrBlock {
     pub successors: Vec<String>,
 }
 
+impl IrBlock {
+    pub fn new(id: String) -> Self {
+        Self { id, instructions: Vec::new(), successors: Vec::new() }
+    }
+
+    pub fn inst(&mut self, opcode: IrOpcode) -> IrInstBuilder<'_> {
+        IrInstBuilder { block: self, opcode }
+    }
+}
+
+pub struct IrInstBuilder<'a> {
+    block: &'a mut IrBlock,
+    opcode: IrOpcode,
+}
+
+impl IrInstBuilder<'_> {
+    pub fn with(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, span: Span) {
+        self.block.instructions.push(IrInstruction {
+            opcode: self.opcode,
+            result, result_type, operands,
+            jump_target: None, true_target: None, false_target: None, span,
+        });
+    }
+
+    pub fn jump(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, target: String, span: Span) {
+        self.block.instructions.push(IrInstruction {
+            opcode: self.opcode,
+            result, result_type, operands,
+            jump_target: Some(target), true_target: None, false_target: None, span,
+        });
+    }
+
+    pub fn cond(self, operands: Vec<IrOperand>, true_target: String, false_target: String, span: Span) {
+        self.block.instructions.push(IrInstruction {
+            opcode: self.opcode,
+            result: None, result_type: None, operands,
+            jump_target: None, true_target: Some(true_target), false_target: Some(false_target), span,
+        });
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IrInstruction {
     pub opcode: IrOpcode,

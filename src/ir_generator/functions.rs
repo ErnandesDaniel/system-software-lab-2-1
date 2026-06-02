@@ -30,11 +30,7 @@ impl IrGenerator {
         self.used_functions.clear();
         let mut block_stack = Vec::new();
         let entry_id = format!("BB{}", self.block_counter);
-        let mut current_block = IrBlock {
-            id: entry_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut current_block = IrBlock::new(entry_id.clone());
         self.block_counter += 1;
 
         for stmt in &def.body {
@@ -107,11 +103,7 @@ impl IrGenerator {
         self.used_functions.clear();
         let mut block_stack = Vec::new();
         let entry_id = format!("BB{}", self.block_counter);
-        let mut current_block = IrBlock {
-            id: entry_id.clone(),
-            instructions: Vec::new(),
-            successors: Vec::new(),
-        };
+        let mut current_block = IrBlock::new(entry_id.clone());
         self.block_counter += 1;
 
         self.coroutine_state_blocks = vec![entry_id.clone()];
