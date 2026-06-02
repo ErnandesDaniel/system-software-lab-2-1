@@ -39,16 +39,16 @@ impl AsmGenerator {
                         let val_is_ptr = value.get_type().is_pointer();
                         let val_reg = if val_is_ptr { "rax" } else { "eax" };
                         self.load_operand(value, val_reg, val_is_ptr);
-                        if let Some(local_off) = self.locals.get(name) {
-                            let addr = local_off + *off as i32;
-                            self.output.push_str(&format!("    mov [rbp + {addr}], {val_reg}\n"));
-                        } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+                        if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
                             let reg = self.get_param_register(param_idx, true);
                             if *off == 0 {
                                 self.output.push_str(&format!("    mov [{reg}], {val_reg}\n"));
                             } else {
                                 self.output.push_str(&format!("    mov [{reg} + {off}], {val_reg}\n"));
                             }
+                        } else if let Some(local_off) = self.locals.get(name) {
+                            let addr = local_off + *off as i32;
+                            self.output.push_str(&format!("    mov [rbp + {addr}], {val_reg}\n"));
                         } else if *off == 0 {
                             self.output.push_str(&format!("    mov [rel {name}], {val_reg}\n"));
                         } else {
@@ -115,16 +115,16 @@ impl AsmGenerator {
                 if let IrOperand::Constant(c) = second {
                     if let IrOperand::Variable(name, _) = first {
                         if let crate::ir::Constant::Int(offset) = c {
-                            if let Some(local_off) = self.locals.get(name) {
-                                let addr = local_off + *offset as i32;
-                                self.output.push_str(&format!("    mov {result_reg}, [rbp + {addr}]\n"));
-                            } else if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+                            if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
                                 let reg = self.get_param_register(param_idx, true);
                                 if *offset == 0 {
                                     self.output.push_str(&format!("    mov {result_reg}, [{reg}]\n"));
                                 } else {
                                     self.output.push_str(&format!("    mov {result_reg}, [{reg} + {offset}]\n"));
                                 }
+                            } else if let Some(local_off) = self.locals.get(name) {
+                                let addr = local_off + *offset as i32;
+                                self.output.push_str(&format!("    mov {result_reg}, [rbp + {addr}]\n"));
                             } else if *offset == 0 {
                                 self.output.push_str(&format!("    mov {result_reg}, [rel {name}]\n"));
                             } else {
@@ -210,7 +210,10 @@ impl AsmGenerator {
     }
 
     pub(crate) fn gen_lea_base(&mut self, name: &str, reg: &str) {
-        if let Some(local_off) = self.locals.get(name) {
+        if let Some(param_idx) = self.param_registers.iter().position(|r| r == name) {
+            let src = self.get_param_register(param_idx, true);
+            self.output.push_str(&format!("    mov {reg}, {src}\n"));
+        } else if let Some(local_off) = self.locals.get(name) {
             self.output.push_str(&format!("    lea {reg}, [rbp + {local_off}]\n"));
         } else if let Some(temp_off) = self.temps.get(name) {
             self.output.push_str(&format!("    lea {reg}, [rbp + {temp_off}]\n"));

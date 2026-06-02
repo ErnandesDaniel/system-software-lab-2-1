@@ -1,5 +1,5 @@
 use super::IrGenerator;
-use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Span, Statement};
+use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Span, Statement, TypeRef};
 use crate::ir_generator::symbols::SymbolTable;
 use crate::ir::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrParameter, IrType};
 use std::collections::HashSet;
@@ -14,6 +14,9 @@ impl IrGenerator {
         if let Some(ref args) = def.signature.parameters {
             for arg in args {
                 let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                if let Some(TypeRef::Custom(id)) = &arg.ty {
+                    self.symbols.local_struct_types.insert(arg.name.name.clone(), id.name.clone());
+                }
                 params.push(IrParameter {
                     name: arg.name.name.clone(),
                     ty: param_type,
@@ -88,6 +91,9 @@ impl IrGenerator {
         if let Some(ref args) = def.signature.parameters {
             for arg in args {
                 let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                if let Some(TypeRef::Custom(id)) = &arg.ty {
+                    self.symbols.local_struct_types.insert(arg.name.name.clone(), id.name.clone());
+                }
                 params.push(IrParameter {
                     name: arg.name.name.clone(),
                     ty: param_type,
