@@ -34,7 +34,20 @@ impl JvmGenerator {
                         code.push(Instruction::Aastore);
                     } else if matches!(vt, IrType::Int | IrType::Bool) {
                         self.emit_load_operand(code, base);
-                        self.emit_load_operand(code, index);
+                        let adjusted = if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
+                            *byte_off > 0
+                        } else {
+                            false
+                        };
+                        if adjusted {
+                            let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
+                            let base_idx = byte_off / 4;
+                            self.emit_load_operand(code, index);
+                            self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                            code.push(Instruction::Iadd);
+                        } else {
+                            self.emit_load_operand(code, index);
+                        }
                         self.emit_load_operand(code, value);
                         code.push(Instruction::Iastore);
                     } else {
@@ -125,16 +138,30 @@ impl JvmGenerator {
             }
             if inst.operands.len() <= 3 {
                 if let IrOperand::Constant(Constant::Int(byte_off)) = index {
-                    if *byte_off > 0 || self.is_struct_var(array) {
+                    let has_runtime_idx = inst.operands.len() >= 3;
+                    if *byte_off > 0 || self.is_struct_var(array) || has_runtime_idx {
                         self.emit_load_operand(code, array);
-                        let idx = byte_off / 4;
+                        let base_idx = byte_off / 4;
                         if self.is_struct_var(array) {
-                            self.emit_load_constant(code, &Constant::Int(idx as i64));
+                            if has_runtime_idx {
+                                self.emit_load_operand(code, inst.operands.get(2).unwrap());
+                            } else {
+                                self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                            }
                             code.push(Instruction::Aaload);
                             self.emit_boxed_field_load(code, inst, *byte_off as usize);
+                        } else if has_runtime_idx {
+                            if let Some(runtime_idx) = inst.operands.get(2) {
+                                self.emit_load_operand(code, runtime_idx);
+                                if base_idx > 0 {
+                                    self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                    code.push(Instruction::Iadd);
+                                }
+                                code.push(Instruction::Iaload);
+                            }
                         } else {
                             let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-                            self.emit_load_constant(code, &Constant::Int(idx as i64));
+                            self.emit_load_constant(code, &Constant::Int(base_idx as i64));
                             if matches!(elem_type, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
                                 code.push(Instruction::Aaload);
                             } else {

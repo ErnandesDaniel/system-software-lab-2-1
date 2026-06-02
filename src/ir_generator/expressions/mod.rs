@@ -263,7 +263,21 @@ impl IrGenerator {
                 return (tmp, field_type);
             }
         }
-        let (base_name, total_offset) = self.resolve_field_chain(base);
+        let (base_name, base_offset) = self.resolve_field_chain(base);
+        let struct_name = self
+            .symbols
+            .local_struct_types
+            .get(&base_name)
+            .map(String::as_str)
+            .or_else(|| self.symbols.global_struct_type_names.get(&base_name).map(String::as_str))
+            .unwrap_or(&base_name);
+        let field_offset = self
+            .symbols
+            .struct_fields
+            .get(struct_name)
+            .and_then(|fields| fields.iter().find(|(n, _, _)| n == &field.name))
+            .map_or(0, |(_, _, o)| *o);
+        let total_offset = base_offset + field_offset;
         let field_type = self.find_field_type_for_var(&base_name, &field.name);
         let tmp = self.generate_temp();
         block.instructions.push(IrInstruction {

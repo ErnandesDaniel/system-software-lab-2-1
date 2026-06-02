@@ -124,12 +124,33 @@ public class RuntimeStub {{
     }}
 
     public static int printf(byte[] format, int value) {{
-        System.out.print(new String(format)
-                                .replace("%d", String.valueOf(value))
-                                .replace("%c", String.valueOf((char) value))
-                                .replace("%s", String.valueOf(value))
-                                .replace("\\n", "\n")
-                                .replace("\\t", "\t"));
+        String fmt = new String(format);
+        StringBuilder sb = new StringBuilder();
+        for (int __i = 0; __i < fmt.length(); __i++) {{
+            char c = fmt.charAt(__i);
+            if (c != '%') {{ sb.append(c); continue; }}
+            __i++;
+            if (__i >= fmt.length()) {{ sb.append(c); break; }}
+            if (fmt.charAt(__i) == 'd') {{ sb.append(value); continue; }}
+            if (fmt.charAt(__i) == 'c') {{ sb.append((char) value); continue; }}
+            if (fmt.charAt(__i) == 's') {{ sb.append(value); continue; }}
+            boolean zeroPad = false;
+            if (fmt.charAt(__i) == '0') {{ zeroPad = true; __i++; }}
+            int width = 0;
+            while (__i < fmt.length() && fmt.charAt(__i) >= '0' && fmt.charAt(__i) <= '9') {{
+                width = width * 10 + (fmt.charAt(__i) - '0');
+                __i++;
+            }}
+            if (__i < fmt.length() && (fmt.charAt(__i) == 'd' || fmt.charAt(__i) == 'c' || fmt.charAt(__i) == 's')) {{
+                String num = String.valueOf(fmt.charAt(__i) == 'c' ? (char) value : value);
+                while (num.length() < width) num = zeroPad ? "0" + num : " " + num;
+                sb.append(num);
+            }} else {{
+                __i--;
+                sb.append('%');
+            }}
+        }}
+        System.out.print(sb.toString().replace("\\n", "\n").replace("\\t", "\t"));
         System.out.flush();
         return value;
     }}
