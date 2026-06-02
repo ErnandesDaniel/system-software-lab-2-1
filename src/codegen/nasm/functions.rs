@@ -86,9 +86,17 @@ impl AsmGenerator {
                 if self.is_coroutine {
                     if let Some(offset) = self.locals.get(name) {
                         let co_off = 56 + (-offset - 8);
-                        self.restore_coro_ctx();
-                        self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
-                        self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                        if load_reg == "rcx" {
+                            self.restore_coro_ctx();
+                            self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
+                            self.output.push_str(&format!("    mov rcx, rax\n"));
+                        } else {
+                            self.output.push_str("    push rcx\n");
+                            self.restore_coro_ctx();
+                            self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
+                            self.output.push_str("    pop rcx\n");
+                            self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                        }
                     } else if let Some(offset) = self.temps.get(name) {
                         self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));

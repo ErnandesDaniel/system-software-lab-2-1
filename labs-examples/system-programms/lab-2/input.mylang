@@ -186,10 +186,10 @@ global p_total of int = 0;
 coroutine q1_reader() of int {
     pipe_init(p_line);
     pos = 0;
-    pos = read_line_from_buf(csv_vedomosti, pos, 0);
+    pos = read_line_from_buf(buf + csv_vedomosti, pos, 0);
     while (true) {
         off = alloc_buf();
-        pos = read_line_from_buf(csv_vedomosti, pos, off);
+        pos = read_line_from_buf(buf + csv_vedomosti, pos, off);
         if (pos < 0) {
             pipe_close(p_line);
             return 0;
@@ -203,10 +203,10 @@ coroutine q1_reader() of int {
 coroutine q1_types_reader() of int {
     pipe_init(p_join);
     pos = 0;
-    pos = read_line_from_buf(csv_types_ved, pos, 0);
+    pos = read_line_from_buf(buf + csv_types_ved, pos, 0);
     while (true) {
         off = alloc_buf();
-        pos = read_line_from_buf(csv_types_ved, pos, off);
+        pos = read_line_from_buf(buf + csv_types_ved, pos, off);
         if (pos < 0) {
             pipe_close(p_join);
             return 0;
@@ -304,10 +304,10 @@ coroutine q1_output() of int {
 coroutine q2_reader() of int {
     pipe_init(p_line);
     pos = 0;
-    pos = read_line_from_buf(csv_people, pos, 0);
+    pos = read_line_from_buf(buf + csv_people, pos, 0);
     while (true) {
         off = alloc_buf();
-        pos = read_line_from_buf(csv_people, pos, off);
+        pos = read_line_from_buf(buf + csv_people, pos, off);
         if (pos < 0) {
             pipe_close(p_line);
             return 0;
@@ -320,10 +320,10 @@ coroutine q2_reader() of int {
 
 coroutine q2_processor() of int {
     spos = 0;
-    spos = read_line_from_buf(csv_studies, spos, 0);
+    spos = read_line_from_buf(buf + csv_studies, spos, 0);
     while (true) {
         off = alloc_buf();
-        spos = read_line_from_buf(csv_studies, spos, off);
+        spos = read_line_from_buf(buf + csv_studies, spos, off);
         if (spos < 0) { break; }
         ppos = 0;
         ppos = csv_field(tmp, buf, off + ppos);
@@ -420,10 +420,10 @@ coroutine q2_output() of int {
 def q3_run() of int {
     puts("=== Query 3: Count FKTИУ without patronymic ===");
     pos = 0;
-    pos = read_line_from_buf(csv_people, pos, 0);
+    pos = read_line_from_buf(buf + csv_people, pos, 0);
     count = 0;
     while (true) {
-        pos = read_line_from_buf(csv_people, pos, 0);
+        pos = read_line_from_buf(buf + csv_people, pos, 0);
         if (pos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -433,10 +433,10 @@ def q3_run() of int {
         pp = csv_field(tmp, buf, pp);
         if (tmp[0] == 0) {
             spos = 0;
-            spos = read_line_from_buf(csv_studies, spos, 0);
+            spos = read_line_from_buf(buf + csv_studies, spos, 0);
             found = 0;
             while (true) {
-                spos = read_line_from_buf(csv_studies, spos, 0);
+                spos = read_line_from_buf(buf + csv_studies, spos, 0);
                 if (spos < 0) { break; }
                 pp2 = 0;
                 pp2 = csv_field(tmp2, buf, pp2);
@@ -459,9 +459,9 @@ def q3_run() of int {
 def q4_run() of int {
     puts("=== Query 4: Plans >2 groups on VT ===");
     pos = 0;
-    pos = read_line_from_buf(csv_group_plans, pos, 0);
+    pos = read_line_from_buf(buf + csv_group_plans, pos, 0);
     while (true) {
-        pos = read_line_from_buf(csv_group_plans, pos, 0);
+        pos = read_line_from_buf(buf + csv_group_plans, pos, 0);
         if (pos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -501,9 +501,9 @@ def q4_run() of int {
 def q5_run() of int {
     puts("=== Query 5: Avg grades group 4100 >= group 1100 ===");
     spos = 0;
-    spos = read_line_from_buf(csv_students, spos, 0);
+    spos = read_line_from_buf(buf + csv_students, spos, 0);
     while (true) {
-        spos = read_line_from_buf(csv_students, spos, 0);
+        spos = read_line_from_buf(buf + csv_students, spos, 0);
         if (spos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -519,13 +519,13 @@ def q5_run() of int {
         }
     }
     vpos = 0;
-    vpos = read_line_from_buf(csv_vedomosti, vpos, 0);
+    vpos = read_line_from_buf(buf + csv_vedomosti, vpos, 0);
     j = 0;
     while (j < 16) { g4100_sum[j] = 0; g4100_n[j] = 0; j = j + 1; }
     g1100_sum = 0;
     g1100_n = 0;
     while (true) {
-        vpos = read_line_from_buf(csv_vedomosti, vpos, 0);
+        vpos = read_line_from_buf(buf + csv_vedomosti, vpos, 0);
         if (vpos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -576,9 +576,9 @@ def q5_run() of int {
 def q6_run() of int {
     puts("=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===");
     spos = 0;
-    spos = read_line_from_buf(csv_studies, spos, 0);
+    spos = read_line_from_buf(buf + csv_studies, spos, 0);
     while (true) {
-        spos = read_line_from_buf(csv_studies, spos, 0);
+        spos = read_line_from_buf(buf + csv_studies, spos, 0);
         if (spos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -596,10 +596,10 @@ def q6_run() of int {
         }
     }
     spos = 0;
-    spos = read_line_from_buf(csv_students, spos, 0);
+    spos = read_line_from_buf(buf + csv_students, spos, 0);
     count = 0;
     while (true) {
-        spos = read_line_from_buf(csv_students, spos, 0);
+        spos = read_line_from_buf(buf + csv_students, spos, 0);
         if (spos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, pp);
@@ -645,10 +645,10 @@ def puts_two_str(s1 of string, s2 of string) {
 def q7_run() of int {
     puts("=== Query 7: Same surname, different birthdays ===");
     pos = 0;
-    pos = read_line_from_buf(csv_people, pos, 0);
+    pos = read_line_from_buf(buf + csv_people, pos, 0);
     while (true) {
         off = alloc_buf();
-        pos = read_line_from_buf(csv_people, pos, off);
+        pos = read_line_from_buf(buf + csv_people, pos, off);
         if (pos < 0) { break; }
         pp = 0;
         pp = csv_field(tmp, buf, off + pp);

@@ -67,6 +67,8 @@ impl AsmGenerator {
                 if let IrOperand::Variable(name, _) = &inst.operands[0] {
                     if let Some(local_off) = self.locals.get(name) {
                         self.output.push_str(&format!("    mov {result_reg}, [rbp + {local_off}]\n"));
+                    } else if self.global_names.contains(name) && result_reg == "rax" {
+                        self.output.push_str(&format!("    lea {result_reg}, [rel {name}]\n"));
                     } else {
                         self.output.push_str(&format!("    mov {result_reg}, [rel {name}]\n"));
                     }
