@@ -57,7 +57,7 @@ impl AsmGenerator {
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {}\n", s));
-                self.output.push_str(&format!("    je co_{}\n", s));
+                self.output.push_str(&format!("    je {f}_co_{}\n", s, f = func.name));
             }
         }
 

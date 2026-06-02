@@ -196,7 +196,7 @@ impl AsmGenerator {
             self.output.push_str("    mov eax, [rcx]\n");
             for s in 0..=self.yield_counter {
                 self.output.push_str(&format!("    cmp eax, {s}\n"));
-                self.output.push_str(&format!("    je co_{s}\n"));
+                self.output.push_str(&format!("    je {f}_co_{s}\n", f = func.name));
             }
         }
 
@@ -207,7 +207,7 @@ impl AsmGenerator {
                 .collect();
             for block in &func.blocks {
                 if let Some(&state) = resume_map.get(block.id.as_str()) {
-                    self.output.push_str(&format!("co_{state}:\n"));
+                    self.output.push_str(&format!("{f}_co_{state}:\n", f = func.name));
                 }
                 self.generate_block(block);
             }
