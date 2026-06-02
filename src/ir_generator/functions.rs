@@ -1,5 +1,5 @@
 use super::IrGenerator;
-use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Span, Statement, TypeRef};
+use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Statement, TypeRef};
 use crate::ir_generator::symbols::SymbolTable;
 use crate::ir::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrParameter, IrType};
 use std::collections::HashSet;
@@ -50,7 +50,7 @@ impl IrGenerator {
                 jump_target: None,
                 true_target: None,
                 false_target: None,
-                span: Span::new(0, 0),
+                span: def.span,
             });
         }
 
@@ -264,7 +264,7 @@ impl IrGenerator {
             Expr::FuncLiteral(f) => {
                 Self::scan_exprs_in_stmts(&f.body, outer_symbols, param_names, found, seen);
             }
-            Expr::Literal(_) | Expr::ArrayLiteral(_) => {}
+            Expr::Literal(_, _) | Expr::ArrayLiteral(_, _) => {}
         }
     }
 }

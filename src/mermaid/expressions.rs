@@ -86,7 +86,7 @@ impl MermaidGenerator {
                 output.push_str(&format!("N{}[\"identifier: {}\"]\n", ident_id, i.name));
                 output.push_str(&format!("N{id} --> N{ident_id}\n"));
             }
-            Expr::Literal(l) => {
+            Expr::Literal(l, _) => {
                 let lit_id = self.next_id();
                 let (type_label, value_label): (&str, String) = match l {
                     Literal::Bool(b) => ("bool", if *b { "true".to_string() } else { "false".to_string() }),
@@ -110,7 +110,7 @@ impl MermaidGenerator {
 
                 self.generate_expr(e, output, Some(&format!("N{paren_id}")));
             }
-            Expr::ArrayLiteral(elements) => {
+            Expr::ArrayLiteral(elements, _) => {
                 let arr_id = self.next_id();
                 output.push_str(&format!("N{}[\"array_literal [{}]\"]\n", arr_id, elements.len()));
                 output.push_str(&format!("N{id} --> N{arr_id}\n"));

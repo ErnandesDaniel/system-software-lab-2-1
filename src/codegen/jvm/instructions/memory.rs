@@ -15,14 +15,14 @@ impl JvmGenerator {
                     self.emit_load_operand(code, base);
                     self.emit_load_operand(code, index);
                     code.push(Instruction::Aaload);
-                    code.push(Instruction::Checkcast(self.object_array_class_idx));
+                    code.push(Instruction::Checkcast(self.pool.object_array_class_idx));
                     self.emit_load_constant(code, &Constant::Int(field_slot as i64));
                     self.emit_load_operand(code, value);
                     let vt = value.get_type();
                     if matches!(vt, IrType::String) {
                         code.push(Instruction::Aastore);
                     } else {
-                        code.push(Instruction::Invokestatic(self.integer_value_of_ref));
+                        code.push(Instruction::Invokestatic(self.pool.integer_value_of_ref));
                         code.push(Instruction::Aastore);
                     }
                 } else {
@@ -90,7 +90,7 @@ impl JvmGenerator {
         if let (Some(ref result), Some(op)) = (&inst.result, inst.operands.first()) {
             if inst.operands.len() == 1 {
                 if let IrOperand::Variable(name, _) = op {
-                    if let Some(&field_ref) = self.global_field_refs.get(name) {
+                    if let Some(&field_ref) = self.global.global_field_refs.get(name) {
                         let ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                         code.push(Instruction::Getstatic(field_ref));
                         self.emit_store_result(code, result, ty);
@@ -113,7 +113,7 @@ impl JvmGenerator {
                                 self.emit_load_operand(code, array);
                                 self.emit_load_operand(code, idx_op);
                                 code.push(Instruction::Aaload);
-                                code.push(Instruction::Checkcast(self.object_array_class_idx));
+                                code.push(Instruction::Checkcast(self.pool.object_array_class_idx));
                                 self.emit_load_constant(code, &Constant::Int(field_slot as i64));
                                 code.push(Instruction::Aaload);
                                 self.emit_boxed_field_load(code, inst, *byte_off as usize);
@@ -196,8 +196,8 @@ impl JvmGenerator {
                 } else {
                     code.push(Instruction::Iconst_m1);
                 }
-                if self.string_slice_ref != 0 {
-                    code.push(Instruction::Invokestatic(self.string_slice_ref));
+                if self.pool.string_slice_ref != 0 {
+                    code.push(Instruction::Invokestatic(self.pool.string_slice_ref));
                 }
                 self.emit_store_result(code, result, &IrType::String);
             }
@@ -234,7 +234,7 @@ impl JvmGenerator {
                     IrType::Function(_, _) | IrType::String | IrType::Array(..) => {
                         let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem_type);
                         let class_name = desc.trim_start_matches('L').trim_end_matches(';');
-                        let class_idx = self.constant_pool.add_class(class_name)
+                        let class_idx = self.pool.constant_pool.add_class(class_name)
                             .expect("Failed to add class for anewarray");
                         code.push(Instruction::Anewarray(class_idx));
                     }

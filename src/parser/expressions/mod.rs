@@ -88,7 +88,7 @@ impl Expr {
             Expr::Slice(e) => e.span,
             Expr::Identifier(id) => id.span,
             Expr::FuncLiteral(f) => f.span,
-            Expr::Literal(_) | Expr::ArrayLiteral(_) => Span::new(0, 0),
+            Expr::Literal(_, s) | Expr::ArrayLiteral(_, s) => *s,
         }
     }
 }

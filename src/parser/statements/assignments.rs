@@ -30,6 +30,7 @@ impl Parser<'_> {
             let index = self.parse_expression(0)?;
             self.expect(Token::RBracket)?;
 
+            let slice_span = span.merge(self.current_span());
             let mut left = Expr::Slice(SliceExpr {
                 array: Box::new(Expr::Identifier(Identifier {
                     name: var_name.clone(),
@@ -38,9 +39,9 @@ impl Parser<'_> {
                 ranges: vec![Range {
                     start: index,
                     end: None,
-                    span: Span::new(0, 0),
+                    span: slice_span,
                 }],
-                span: span.merge(self.current_span()),
+                span: slice_span,
             });
 
             loop {

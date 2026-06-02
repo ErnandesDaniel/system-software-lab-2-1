@@ -6,7 +6,7 @@ impl JvmGenerator {
     pub(super) fn generate_make_closure(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let Some(ref result) = inst.result {
             let num_captures = inst.operands.len().saturating_sub(1);
-            let anewarray_idx = self.anewarray_int_class_idx.unwrap_or(0);
+            let anewarray_idx = self.pool.anewarray_int_class_idx.unwrap_or(0);
 
             self.emit_load_constant(code, &Constant::Int(num_captures as i64));
             code.push(Instruction::Anewarray(anewarray_idx));
@@ -16,7 +16,7 @@ impl JvmGenerator {
                 self.emit_load_constant(code, &Constant::Int((capture_idx - 1) as i64));
 
                 if let IrOperand::Variable(name, _) = op {
-                    if self.wrapped_vars.contains(name) {
+                    if self.closure.wrapped_vars.contains(name) {
                         let cap_slot = self.get_local_slot(name);
                         match cap_slot {
                             0 => code.push(Instruction::Aload_0),
@@ -51,12 +51,12 @@ impl JvmGenerator {
                 None
             };
 
-            let is_closure = lambda_name.as_ref().is_some_and(|n| self.func_ref_env_field_refs.contains_key(n));
+            let is_closure = lambda_name.as_ref().is_some_and(|n| self.pool.func_ref_env_field_refs.contains_key(n));
 
             if is_closure {
                 let name = lambda_name.expect("Lambda name must exist for closure");
-                let field_ref = self.func_ref_env_field_refs[&name];
-                let instance_slot = self.func_ref_instance_slots[&name];
+                let field_ref = self.pool.func_ref_env_field_refs[&name];
+                let instance_slot = self.pool.func_ref_instance_slots[&name];
 
                 code.push(Instruction::Dup);
                 self.emit_store_result(code, result, &IrType::Array(Box::new(IrType::Int), 0));
@@ -95,13 +95,13 @@ impl JvmGenerator {
             }
 
             let lambda_name = if let IrOperand::Variable(env_name, _) = env_operand {
-                self.closure_targets.get(env_name).cloned()
+                self.closure.closure_targets.get(env_name).cloned()
             } else {
                 None
             };
 
             if let Some(ref name) = lambda_name {
-                let method_idx = self.method_refs.get(name).copied().unwrap_or(1);
+                let method_idx = self.pool.method_refs.get(name).copied().unwrap_or(1);
                 code.push(Instruction::Invokestatic(method_idx));
             } else {
                 code.push(Instruction::Nop);
@@ -118,7 +118,7 @@ impl JvmGenerator {
         if let Some(func_op) = inst.operands.first() {
             if let IrType::Function(params, ret) = func_op.get_type() {
                 let iface_name = crate::codegen::jvm::types::get_fn_interface_name(&params, &ret);
-                if let Some(&method_idx) = self.interface_method_refs.get(&iface_name) {
+                if let Some(&method_idx) = self.pool.interface_method_refs.get(&iface_name) {
                     self.emit_load_operand(code, func_op);
                     for arg in inst.operands.iter().skip(1) {
                         self.emit_load_operand(code, arg);

@@ -172,7 +172,16 @@ impl IrGenerator {
             }
         }
 
-        Ok(IrProgram { functions, globals })
+        let mut layout_db = crate::struct_layout::LayoutDatabase::new();
+        for (struct_name, fields) in &self.symbols.struct_fields {
+            let ir_fields: Vec<(String, crate::ir::IrType)> = fields
+                .iter()
+                .map(|(name, ty, _)| (name.clone(), ty.clone()))
+                .collect();
+            layout_db.register_struct(struct_name, &ir_fields);
+        }
+
+        Ok(IrProgram { functions, globals, struct_layouts: layout_db })
     }
 
 

@@ -7,6 +7,7 @@ mod mermaid;
 mod parser;
 mod semantics;
 mod stdlib;
+pub mod struct_layout;
 
 #[cfg(test)]
 mod tests;

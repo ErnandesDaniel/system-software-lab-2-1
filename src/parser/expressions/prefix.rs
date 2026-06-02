@@ -9,19 +9,19 @@ impl Parser<'_> {
             Some(Token::DecLiteral) => {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
                 let value = self.get_text(&span).parse::<u64>().unwrap_or(0);
-                Ok(Expr::Literal(Literal::Dec(value)))
+                Ok(Expr::Literal(Literal::Dec(value), span))
             }
             Some(Token::HexLiteral) => {
                 let (_tok, span) = self.expect(Token::HexLiteral)?;
                 let text = self.get_text(&span);
                 let value = u64::from_str_radix(&text[2..], 16).unwrap_or(0);
-                Ok(Expr::Literal(Literal::Hex(value)))
+                Ok(Expr::Literal(Literal::Hex(value), span))
             }
             Some(Token::BitsLiteral) => {
                 let (_tok, span) = self.expect(Token::BitsLiteral)?;
                 let text = self.get_text(&span);
                 let value = u64::from_str_radix(&text[2..], 2).unwrap_or(0);
-                Ok(Expr::Literal(Literal::Bits(value)))
+                Ok(Expr::Literal(Literal::Bits(value), span))
             }
             Some(Token::StringLiteral) => {
                 let (_tok, span) = self.expect(Token::StringLiteral)?;
@@ -33,21 +33,23 @@ impl Parser<'_> {
                     .replace("\\t", "\t")
                     .replace("\\\\", "\\")
                     .replace("\\\"", "\"");
-                Ok(Expr::Literal(Literal::Str(processed)))
+                Ok(Expr::Literal(Literal::Str(processed), span))
             }
             Some(Token::CharLiteral) => {
                 let (_tok, span) = self.expect(Token::CharLiteral)?;
                 let s = self.get_text(&span);
                 let ch = s.chars().nth(1).unwrap_or('\0');
-                Ok(Expr::Literal(Literal::Char(ch)))
+                Ok(Expr::Literal(Literal::Char(ch), span))
             }
             Some(Token::True) => {
+                let start = self.current_span();
                 self.advance();
-                Ok(Expr::Literal(Literal::Bool(true)))
+                Ok(Expr::Literal(Literal::Bool(true), start))
             }
             Some(Token::False) => {
+                let start = self.current_span();
                 self.advance();
-                Ok(Expr::Literal(Literal::Bool(false)))
+                Ok(Expr::Literal(Literal::Bool(false), start))
             }
             Some(Token::Identifier) => {
                 let (_tok, span) = self.expect(Token::Identifier)?;
@@ -96,6 +98,7 @@ impl Parser<'_> {
                 }))
             }
             Some(Token::LBracket) => {
+                let start = self.current_span();
                 self.advance();
                 let mut elements = Vec::new();
                 if self.current_token() != Some(&Token::RBracket) {
@@ -106,7 +109,8 @@ impl Parser<'_> {
                     }
                 }
                 self.expect(Token::RBracket)?;
-                Ok(Expr::ArrayLiteral(elements))
+                let span = start.merge(self.current_span());
+                Ok(Expr::ArrayLiteral(elements, span))
             }
             Some(Token::Def) => {
                 let func_def = self.parse_function()?;

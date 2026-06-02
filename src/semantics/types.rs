@@ -1,83 +1,69 @@
-pub use std::collections::HashMap;
+use crate::ir::IrType;
+use std::collections::HashMap;
 
-#[derive(Debug, Clone, PartialEq)]
-pub enum SemanticType {
-    Int,
-    Uint,
-    Long,
-    Ulong,
-    Byte,
-    Char,
-    Bool,
-    String,
-    Array(Box<SemanticType>, usize),
-    Function(Vec<SemanticType>, Box<SemanticType>),
-    Void,
-}
-
-impl SemanticType {
-    pub fn is_int_like(&self) -> bool {
-        matches!(
-            self,
-            SemanticType::Int
-                | SemanticType::Uint
-                | SemanticType::Long
-                | SemanticType::Ulong
-                | SemanticType::Byte
-                | SemanticType::Char
-        )
-    }
-}
-
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct Symbol {
-    #[allow(dead_code)]
     pub name: String,
-    pub ty: SemanticType,
-    #[allow(dead_code)]
+    pub ty: IrType,
     pub stack_offset: Option<i32>,
 }
 
 impl Symbol {
-    pub fn new(name: String, ty: SemanticType) -> Self {
-        Self {
-            name,
-            ty,
-            stack_offset: None,
-        }
+    pub fn new(name: String, ty: IrType) -> Self {
+        Self { name, ty, stack_offset: None }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
-    symbols: HashMap<String, Symbol>,
+    scopes: Vec<HashMap<String, Symbol>>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
-        Self {
-            symbols: HashMap::new(),
+        Self { scopes: vec![HashMap::new()] }
+    }
+
+    #[allow(dead_code)]
+    pub fn push_scope(&mut self) {
+        self.scopes.push(HashMap::new());
+    }
+
+    #[allow(dead_code)]
+    pub fn pop_scope(&mut self) {
+        if self.scopes.len() > 1 {
+            self.scopes.pop();
         }
     }
 
-    pub fn add(&mut self, name: String, ty: SemanticType) -> crate::Result<()> {
-        if self.symbols.contains_key(&name) {
-            return Err(crate::error::CompilerError::Semantic(format!("Symbol '{name}' already exists")));
+    pub fn add(&mut self, name: String, ty: IrType) -> crate::Result<()> {
+        let scope = self.scopes.last_mut().expect("no scope");
+        if scope.contains_key(&name) {
+            return Err(crate::error::CompilerError::Semantic(
+                format!("Symbol '{name}' already exists in this scope"),
+            ));
         }
-        self.symbols.insert(name.clone(), Symbol::new(name, ty));
+        scope.insert(name.clone(), Symbol::new(name, ty));
         Ok(())
     }
 
     pub fn lookup(&self, name: &str) -> Option<&Symbol> {
-        self.symbols.get(name)
+        for scope in self.scopes.iter().rev() {
+            if let Some(sym) = scope.get(name) {
+                return Some(sym);
+            }
+        }
+        None
     }
 
     pub fn get(&self, name: &str) -> Option<&Symbol> {
         self.lookup(name)
     }
 
-    pub fn upsert(&mut self, name: String, ty: SemanticType) {
-        self.symbols.insert(name.clone(), Symbol::new(name, ty));
+    pub fn upsert(&mut self, name: String, ty: IrType) {
+        let scope = self.scopes.last_mut().expect("no scope");
+        scope.insert(name.clone(), Symbol::new(name, ty));
     }
 }
 

@@ -9,7 +9,7 @@ impl JvmGenerator {
         let mut instructions: Vec<JvmInst> = Vec::new();
         let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
 
-        if self.is_coroutine {
+        if self.coro.is_coroutine {
             let coro_handler_set: std::collections::HashSet<&str> = func
                 .coroutine_blocks
                 .iter()
@@ -22,14 +22,14 @@ impl JvmGenerator {
                 .map(|b| b.id.clone())
                 .unwrap_or_else(|| func.blocks[0].id.clone());
             instructions.push(JvmInst::Real(Instruction::Aload_0));
-            instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
+            instructions.push(JvmInst::Real(Instruction::Getfield(self.coro.coroutine_state_field)));
             instructions.push(JvmInst::Placeholder(JumpPlaceholder::Ifeq {
                 block_id: entry_block_id,
             }));
             for state_idx in 1..=func.yield_count {
                 if let Some(block_id) = func.coroutine_blocks.get(state_idx) {
                     instructions.push(JvmInst::Real(Instruction::Aload_0));
-                    instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
+                    instructions.push(JvmInst::Real(Instruction::Getfield(self.coro.coroutine_state_field)));
                     instructions.push(JvmInst::Real(Instruction::Bipush(state_idx as i8)));
                     instructions.push(JvmInst::Placeholder(JumpPlaceholder::IfIcmpeq {
                         block_id: block_id.clone(),
@@ -38,39 +38,39 @@ impl JvmGenerator {
             }
         }
 
-        if !self.is_coroutine {
+        if !self.coro.is_coroutine {
             let string_slots = collect_string_slots(self, func);
             let env_slot_nums: HashSet<u16> = self
-                .env_vars
+                .closure.env_vars
                 .iter()
-                .filter_map(|name| self.locals.get(name))
+                .filter_map(|name| self.func.locals.get(name))
                 .copied()
                 .collect();
             let wrapped_slot_nums: HashSet<u16> = self
-                .wrapped_vars
+                .closure.wrapped_vars
                 .iter()
-                .filter_map(|name| self.locals.get(name))
+                .filter_map(|name| self.func.locals.get(name))
                 .copied()
                 .collect();
             let fn_slot_nums: HashSet<u16> = func
                 .locals
                 .iter()
                 .filter(|l| matches!(l.ty, IrType::Function(_, _)))
-                .filter_map(|l| self.locals.get(&l.name))
+                .filter_map(|l| self.func.locals.get(&l.name))
                 .copied()
                 .collect();
             let array_ref_slot_nums: HashSet<u16> = func
                 .locals
                 .iter()
                 .filter(|l| matches!(&l.ty, IrType::Array(et, _) if !matches!(**et, IrType::Int)))
-                .filter_map(|l| self.locals.get(&l.name))
+                .filter_map(|l| self.func.locals.get(&l.name))
                 .copied()
                 .collect();
             let struct_slot_nums: HashSet<u16> = func
                 .locals
                 .iter()
                 .filter(|l| matches!(&l.ty, IrType::Array(et, _) if **et == IrType::Int))
-                .filter_map(|l| self.locals.get(&l.name))
+                .filter_map(|l| self.func.locals.get(&l.name))
                 .copied()
                 .collect();
             let mut temp_ref_slots: HashSet<u16> = HashSet::new();
@@ -79,7 +79,7 @@ impl JvmGenerator {
                     if let Some(ref result) = inst.result {
                         if let Some(ref ty) = inst.result_type {
                             if is_ref_type(ty) {
-                                if let Some(&slot) = self.locals.get(result) {
+                                if let Some(&slot) = self.func.locals.get(result) {
                                     temp_ref_slots.insert(slot);
                                 }
                             }
@@ -88,7 +88,7 @@ impl JvmGenerator {
                     for op in &inst.operands {
                         if let IrOperand::Variable(name, ty) = op {
                             if is_ref_type(ty) && Self::is_temp(name) {
-                                if let Some(&slot) = self.locals.get(name) {
+                                if let Some(&slot) = self.func.locals.get(name) {
                                     temp_ref_slots.insert(slot);
                                 }
                             }
@@ -97,8 +97,8 @@ impl JvmGenerator {
                 }
             }
             let num_params = func.parameters.len() as u16;
-            for slot in num_params..self.next_local_slot {
-                if self.locals.values().any(|&s| s == slot) {
+            for slot in num_params..self.func.next_local_slot {
+                if self.func.locals.values().any(|&s| s == slot) {
                     if string_slots.contains(&slot) || env_slot_nums.contains(&slot) || fn_slot_nums.contains(&slot) || array_ref_slot_nums.contains(&slot) || temp_ref_slots.contains(&slot) {
                         instructions.push(JvmInst::Real(Instruction::Aconst_null));
                         instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
@@ -109,20 +109,20 @@ impl JvmGenerator {
                         )));
                         instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
                     } else if struct_slot_nums.contains(&slot) {
-                        let name = func.locals.iter().find(|l| self.locals.get(&l.name) == Some(&slot)).map(|l| l.name.clone());
-                        if name.as_ref().is_some_and(|n| self.struct_uses_object_array.contains(n)) {
+                        let name = func.locals.iter().find(|l| self.func.locals.get(&l.name) == Some(&slot)).map(|l| l.name.clone());
+                        if name.as_ref().is_some_and(|n| self.st.struct_uses_object_array.contains(n)) {
                             let arr_size = func.locals.iter()
-                                .find(|l| self.locals.get(&l.name) == Some(&slot))
+                                .find(|l| self.func.locals.get(&l.name) == Some(&slot))
                                 .map_or(1, |l| match &l.ty {
                                     IrType::Array(_, size) => *size as u8,
                                     _ => 1,
                                 });
                             instructions.push(JvmInst::Real(Instruction::Bipush(arr_size as i8)));
-                            instructions.push(JvmInst::Real(Instruction::Anewarray(self.object_class_idx)));
+                            instructions.push(JvmInst::Real(Instruction::Anewarray(self.pool.object_class_idx)));
                             instructions.push(JvmInst::Real(Instruction::Astore(slot as u8)));
                         } else {
                             let arr_size = func.locals.iter()
-                                .find(|l| self.locals.get(&l.name) == Some(&slot))
+                                .find(|l| self.func.locals.get(&l.name) == Some(&slot))
                                 .map_or(1, |l| match &l.ty {
                                     IrType::Array(_, size) => *size as u8,
                                     _ => 1,
@@ -295,14 +295,14 @@ fn collect_string_slots(jg: &JvmGenerator, func: &IrFunction) -> Vec<u16> {
     let mut slots = Vec::new();
     for param in &func.parameters {
         if param.ty == IrType::String {
-            if let Some(&slot) = jg.locals.get(&param.name) {
+            if let Some(&slot) = jg.func.locals.get(&param.name) {
                 slots.push(slot);
             }
         }
     }
     for local in &func.locals {
         if local.ty == IrType::String {
-            if let Some(&slot) = jg.locals.get(&local.name) {
+            if let Some(&slot) = jg.func.locals.get(&local.name) {
                 if !slots.contains(&slot) {
                     slots.push(slot);
                 }
@@ -314,7 +314,7 @@ fn collect_string_slots(jg: &JvmGenerator, func: &IrFunction) -> Vec<u16> {
             for op in &inst.operands {
                 if let IrOperand::Variable(name, ty) = op {
                     if *ty == IrType::String {
-                        if let Some(&slot) = jg.locals.get(name) {
+                        if let Some(&slot) = jg.func.locals.get(name) {
                             if !slots.contains(&slot) {
                                 slots.push(slot);
                             }
@@ -326,7 +326,7 @@ fn collect_string_slots(jg: &JvmGenerator, func: &IrFunction) -> Vec<u16> {
                 if Some(IrType::String) == inst.result_type
                     || inst.operands.first().is_some_and(|op| op.get_type() == IrType::String)
                 {
-                    if let Some(&slot) = jg.locals.get(result) {
+                    if let Some(&slot) = jg.func.locals.get(result) {
                         if !slots.contains(&slot) {
                             slots.push(slot);
                         }

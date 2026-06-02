@@ -16,8 +16,8 @@ impl IrGenerator {
             Expr::Call(call) => self.visit_call_expr(block, call),
             Expr::Slice(slice) => self.visit_slice_expr(block, slice),
             Expr::Identifier(id) => self.visit_identifier(block, id),
-            Expr::Literal(lit) => self.visit_literal_expr(block, lit),
-            Expr::ArrayLiteral(elements) => self.visit_array_literal(block, elements),
+            Expr::Literal(lit, s) => self.visit_literal_expr(block, lit, *s),
+            Expr::ArrayLiteral(elements, _s) => self.visit_array_literal(block, elements),
             Expr::FuncLiteral(f) => self.visit_func_literal(block, f),
             Expr::FieldAccess(base, field) => self.visit_field_access(block, base, field),
         }
@@ -62,7 +62,7 @@ impl IrGenerator {
                 jump_target: None,
                 true_target: None,
                 false_target: None,
-                span: Span::new(0, 0),
+                span: id.span,
             });
             return (tmp, IrType::Int);
         }
@@ -80,7 +80,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span: id.span,
                 });
                 (tmp, ir_type)
             }
@@ -99,6 +99,7 @@ impl IrGenerator {
         let elem_type = elem_results.first().map(|(_, t)| t.clone()).unwrap_or(IrType::Int);
         let arr_type = IrType::Array(Box::new(elem_type.clone()), elements.len());
         self.symbols.define_local(&arr_tmp, arr_type.clone());
+        let arr_span = elements.first().map(|e| e.span()).unwrap_or(Span::new(0, 0));
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::AllocArray,
             result: Some(arr_tmp.clone()),
@@ -107,9 +108,10 @@ impl IrGenerator {
             jump_target: None,
             true_target: None,
             false_target: None,
-            span: Span::new(0, 0),
+            span: arr_span,
         });
         for (i, (elem_temp, ty)) in elem_results.iter().enumerate() {
+            let store_span = elements.get(i).map(|e| e.span()).unwrap_or(arr_span);
             block.instructions.push(IrInstruction {
                 opcode: IrOpcode::Store,
                 result: None,
@@ -123,7 +125,7 @@ impl IrGenerator {
                 jump_target: None,
                 true_target: None,
                 false_target: None,
-                span: Span::new(0, 0),
+                span: store_span,
             });
         }
         (arr_tmp, arr_type)
@@ -161,9 +163,9 @@ impl IrGenerator {
 
         if has_captures {
             let env_param = crate::ast::Arg {
-                name: Identifier { name: "__env".to_string(), span: Span::new(0, 0) },
+                name: Identifier { name: "__env".to_string(), span: f.span },
                 ty: None,
-                span: Span::new(0, 0),
+                span: f.span,
             };
             let mut new_params = vec![env_param];
             if let Some(ref args) = inner_def.signature.parameters {
@@ -258,7 +260,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span: field.span,
                 });
                 return (tmp, field_type);
             }
@@ -291,7 +293,7 @@ impl IrGenerator {
             jump_target: None,
             true_target: None,
             false_target: None,
-            span: Span::new(0, 0),
+            span: field.span,
         });
         (tmp, field_type)
     }

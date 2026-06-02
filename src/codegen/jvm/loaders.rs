@@ -7,19 +7,19 @@ impl JvmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 // Global static field load
-                if let Some(&field_ref) = self.global_field_refs.get(name) {
+                if let Some(&field_ref) = self.global.global_field_refs.get(name) {
                     code.push(Instruction::Getstatic(field_ref));
                     return;
                 }
-                if self.is_coroutine {
-                    if let Some(&field_ref) = self.coroutine_field_refs.get(name) {
+                if self.coro.is_coroutine {
+                    if let Some(&field_ref) = self.coro.coroutine_field_refs.get(name) {
                         code.push(Instruction::Aload_0);
                         code.push(Instruction::Getfield(field_ref));
                         return;
                     }
                 }
                 let slot = self.get_local_slot(name);
-                if self.wrapped_vars.contains(name) {
+                if self.closure.wrapped_vars.contains(name) {
                     // Wrapped var: load through int[1] wrapper
                     match slot {
                         0 => code.push(Instruction::Aload_0),
@@ -51,7 +51,7 @@ impl JvmGenerator {
             }
             IrOperand::Constant(c) => self.emit_load_constant(code, c),
             IrOperand::FuncRef(func_name) => {
-                if let Some(&(class_idx, init_ref)) = self.func_ref_init_refs.get(func_name) {
+                if let Some(&(class_idx, init_ref)) = self.pool.func_ref_init_refs.get(func_name) {
                     code.push(Instruction::New(class_idx));
                     code.push(Instruction::Dup);
                     code.push(Instruction::Invokespecial(init_ref));

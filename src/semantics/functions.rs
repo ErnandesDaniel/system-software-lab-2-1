@@ -1,6 +1,7 @@
 use crate::ast::{FuncDeclaration, FuncDefinition, Program, SourceItem};
+use crate::ir::IrType;
 use crate::semantics::analysis::{FunctionSig, SemanticsAnalyzer};
-use crate::semantics::types::{SemanticType, SymbolTable};
+use crate::semantics::types::SymbolTable;
 use crate::stdlib::StdLib;
 
 impl SemanticsAnalyzer {
@@ -17,7 +18,15 @@ impl SemanticsAnalyzer {
                     let ty = self.convert_type(&global.ty);
                     self.global_scope.add(global.name.name.clone(), ty).ok();
                 }
-                SourceItem::StructDef(_) | SourceItem::CoroutineDef(_) => {}
+                SourceItem::StructDef(s) => {
+                    let mut fields = Vec::new();
+                    for f in &s.fields {
+                        let fty = self.convert_type(&f.ty);
+                        fields.push((f.name.name.clone(), fty));
+                    }
+                    self.struct_fields.insert(s.name.name.clone(), fields);
+                }
+                SourceItem::CoroutineDef(_) => {}
             }
         }
         Ok(())
@@ -28,21 +37,21 @@ impl SemanticsAnalyzer {
             .signature
             .return_type
             .as_ref()
-            .map_or(SemanticType::Void, |ty| self.convert_type(ty));
+            .map_or(IrType::Void, |ty| self.convert_type(ty));
         let mut params = Vec::new();
 
         if let Some(ref args) = def.signature.parameters {
             for arg in args {
-                let param_type = arg.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t));
+                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                 params.push((arg.name.name.clone(), param_type));
             }
         }
 
-        let sem_params: Vec<SemanticType> = params.iter().map(|(_, t)| t.clone()).collect();
+        let sem_params: Vec<IrType> = params.iter().map(|(_, t)| t.clone()).collect();
         self.global_scope
             .add(
                 def.signature.name.name.clone(),
-                SemanticType::Function(sem_params, Box::new(return_type.clone())),
+                IrType::Function(sem_params, Box::new(return_type.clone())),
             )
             .ok();
 
@@ -66,31 +75,31 @@ impl SemanticsAnalyzer {
             if let Some((params_str, return_str)) = StdLib::get_signature(&func_name) {
                 let params = Self::parse_stdlib_params(params_str);
                 let return_type = match return_str {
-                    "string" => SemanticType::String,
-                    _ => SemanticType::Int,
+                    "string" => IrType::String,
+                    _ => IrType::Int,
                 };
                 (return_type, params)
             } else {
-                (SemanticType::Void, Vec::new())
+                (IrType::Void, Vec::new())
             }
         } else {
             let return_type = decl
                 .signature
                 .return_type
                 .as_ref()
-                .map_or(SemanticType::Void, |ty| self.convert_type(ty));
+                .map_or(IrType::Void, |ty| self.convert_type(ty));
             let mut params = Vec::new();
 
             if let Some(ref args) = decl.signature.parameters {
                 for arg in args {
-                    let param_type = arg.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t));
+                    let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                     params.push((arg.name.name.clone(), param_type));
                 }
             }
             (return_type, params)
         };
 
-        let sem_params: Vec<SemanticType> = params.iter().map(|(_, t)| t.clone()).collect();
+        let sem_params: Vec<IrType> = params.iter().map(|(_, t)| t.clone()).collect();
         self.functions.push(FunctionSig {
             name: decl.signature.name.name.clone(),
             return_type: return_type.clone(),
@@ -100,7 +109,7 @@ impl SemanticsAnalyzer {
         self.global_scope
             .add(
                 decl.signature.name.name.clone(),
-                SemanticType::Function(sem_params, Box::new(return_type)),
+                IrType::Function(sem_params, Box::new(return_type)),
             )
             .ok();
     }
@@ -119,7 +128,7 @@ impl SemanticsAnalyzer {
 
         if let Some(ref params) = def.signature.parameters {
             for arg in params {
-                let param_type = arg.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t));
+                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                 local_scope.add(arg.name.name.clone(), param_type).ok();
             }
         }
@@ -128,7 +137,7 @@ impl SemanticsAnalyzer {
             .signature
             .return_type
             .as_ref()
-            .map_or(SemanticType::Void, |t| self.convert_type(t));
+            .map_or(IrType::Void, |t| self.convert_type(t));
         self.current_return_type = Some(ret_type);
 
         for stmt in &def.body {
@@ -140,7 +149,7 @@ impl SemanticsAnalyzer {
         Ok(())
     }
 
-    pub fn parse_stdlib_params(params_str: &str) -> Vec<(String, SemanticType)> {
+    pub fn parse_stdlib_params(params_str: &str) -> Vec<(String, IrType)> {
         if params_str.is_empty() {
             return Vec::new();
         }
@@ -150,8 +159,8 @@ impl SemanticsAnalyzer {
                 let parts: Vec<&str> = param.split(": ").collect();
                 let name = parts[0].to_string();
                 let ty = match parts.get(1) {
-                    Some(&"string") => SemanticType::String,
-                    _ => SemanticType::Int,
+                    Some(&"string") => IrType::String,
+                    _ => IrType::Int,
                 };
                 (name, ty)
             })

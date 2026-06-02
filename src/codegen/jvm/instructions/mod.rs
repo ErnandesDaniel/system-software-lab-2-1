@@ -54,7 +54,7 @@ impl JvmGenerator {
 
     fn generate_assign(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
-            if self.wrapped_vars.contains(result) {
+            if self.closure.wrapped_vars.contains(result) {
                 let slot = self.get_local_slot(result);
                 match slot {
                     0 => code.push(Instruction::Aload_0),

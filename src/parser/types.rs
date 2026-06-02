@@ -44,9 +44,11 @@ impl Parser<'_> {
                 self.expect(Token::LBracket)?;
                 let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                     let (_tok, span) = self.expect(Token::DecLiteral)?;
-                    self.get_text(&span).parse().unwrap_or(0)
+                    self.get_text(&span).parse().map_err(|e| {
+                        CompilerError::Parse(format!("Invalid array size: {e}"))
+                    })?
                 } else {
-                    0
+                    return Err(CompilerError::Parse("Array type requires a size".to_string()));
                 };
                 self.expect(Token::RBracket)?;
                 let span = start.merge(self.current_span());
@@ -68,9 +70,7 @@ impl Parser<'_> {
                 self.expect(Token::LParen)?;
                 let mut params = Vec::new();
                 while self.current_token() != Some(&Token::RParen) {
-                    if !params.is_empty() {
-                        self.expect(Token::Comma)?;
-                    }
+                    if !params.is_empty() { self.expect(Token::Comma)?; }
                     let ty = self.parse_type()?;
                     params.push(ty);
                 }
@@ -90,7 +90,6 @@ impl Parser<'_> {
             }
             _ => return Err(CompilerError::Parse("Expected type".to_string())),
         };
-
         self.parse_array_suffix(TypeRef::BuiltinType(base_type), start)
     }
 
@@ -127,8 +126,12 @@ impl Parser<'_> {
                 self.expect(Token::LBracket)?;
                 let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                     let (_tok, span) = self.expect(Token::DecLiteral)?;
-                    self.get_text(&span).parse().unwrap_or(0)
-                } else { 0 };
+                    self.get_text(&span).parse().map_err(|e| {
+                        CompilerError::Parse(format!("Invalid array size: {e}"))
+                    })?
+                } else {
+                    return Err(CompilerError::Parse("Array type requires a size".to_string()));
+                };
                 self.expect(Token::RBracket)?;
                 let span = start.merge(self.current_span());
                 return Ok(TypeRef::Array { element_type: Box::new(TypeRef::BuiltinType(BuiltinType::Int)), size, span });
@@ -173,9 +176,11 @@ impl Parser<'_> {
             self.expect(Token::LBracket)?;
             let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().unwrap_or(0)
+                self.get_text(&span).parse().map_err(|e| {
+                    CompilerError::Parse(format!("Invalid array size: {e}"))
+                })?
             } else {
-                0
+                return Err(CompilerError::Parse("Array type requires a size".to_string()));
             };
             self.expect(Token::RBracket)?;
             let span = start.merge(self.current_span());
@@ -189,9 +194,11 @@ impl Parser<'_> {
             self.advance();
             let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().unwrap_or(0)
+                self.get_text(&span).parse().map_err(|e| {
+                    CompilerError::Parse(format!("Invalid array size: {e}"))
+                })?
             } else {
-                0
+                return Err(CompilerError::Parse("Array type requires a size".to_string()));
             };
             self.expect(Token::RBracket)?;
             let span = start.merge(self.current_span());

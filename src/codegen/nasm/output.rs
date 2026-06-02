@@ -1,73 +1,8 @@
 use crate::codegen::nasm::AsmGenerator;
-use crate::ir::types::{IrFunction, IrOpcode, IrOperand};
+use crate::ir::types::IrFunction;
 use std::collections::HashMap;
 
-#[cfg(test)]
-use crate::ir::types::IrProgram;
-
 impl AsmGenerator {
-    #[cfg(test)]
-    pub fn generate(&mut self, program: &IrProgram) -> String {
-        self.global_names = program.globals.iter().map(|g| g.name.clone()).collect();
-        self.output.push_str("bits 64\n");
-        self.output.push_str("default rel\n");
-        self.output.push_str("section .text\n\n");
-
-        let mut extern_funcs: std::collections::HashSet<&String> = std::collections::HashSet::new();
-        for func in &program.functions {
-            for ext_func in &func.used_functions {
-                extern_funcs.insert(ext_func);
-            }
-        }
-
-        if extern_funcs.contains(&"createThread".to_string()) {
-            self.output.push_str("extern createThread\n");
-        }
-
-        let mut user_funcs: std::collections::HashSet<&String> = std::collections::HashSet::new();
-        for func in &program.functions {
-            for block in &func.blocks {
-                for inst in &block.instructions {
-                    if let IrOpcode::Call = inst.opcode {
-                        if let Some(target) = &inst.jump_target {
-                            if !extern_funcs.contains(target) {
-                                user_funcs.insert(target);
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        for func_name in user_funcs {
-            self.output.push_str(&format!("extern {}\n", func_name));
-        }
-
-        for ext_func in extern_funcs {
-            self.output.push_str(&format!("extern {}\n", ext_func));
-        }
-
-        if !program.functions.is_empty() {
-            self.output.push_str("\n");
-        }
-
-        for func in &program.functions {
-            if func.is_coroutine {
-                self.set_coroutine(func.yield_count);
-            }
-            self.generate_function_internal(func);
-            self.is_coroutine = false;
-        }
-
-        if !self.data_section.is_empty() || !program.globals.is_empty() {
-            self.output.push_str("\nsection .data\n");
-            self.output.push_str(&self.data_section);
-            self.output.push_str(&Self::generate_globals_asm(&program.globals));
-        }
-
-        self.output.clone()
-    }
-
     pub fn generate_single_function(&mut self, func: &IrFunction) -> String {
         self.output.clear();
         self.string_counter = 0;
@@ -76,41 +11,42 @@ impl AsmGenerator {
         self.output.push_str("bits 64\n");
         self.output.push_str("default rel\n");
         self.output.push_str("section .text\n\n");
+        self.output.push_str(&format!("global {}\n", func.name));
 
-        let mut unique_externs: std::collections::HashSet<String> = std::collections::HashSet::new();
+        let mut unique_externs: Vec<String> = Vec::new();
         for ext_func in &func.used_functions {
-            unique_externs.insert(ext_func.clone());
+            if !unique_externs.contains(ext_func) {
+                unique_externs.push(ext_func.clone());
+            }
         }
-
         for block in &func.blocks {
             for inst in &block.instructions {
-                if inst.opcode == IrOpcode::Call {
+                if let crate::ir::types::IrOpcode::Call = inst.opcode {
                     if let Some(target) = &inst.jump_target {
-                        unique_externs.insert(target.clone());
+                        if !unique_externs.contains(target) {
+                            unique_externs.push(target.clone());
+                        }
                     }
                 }
                 for op in &inst.operands {
-                    if let IrOperand::FuncRef(name) = op {
-                        unique_externs.insert(name.clone());
+                    if let crate::ir::types::IrOperand::FuncRef(name) = op {
+                        if !unique_externs.contains(name) {
+                            unique_externs.push(name.clone());
+                        }
                     }
                 }
             }
         }
-
-        self.output.push_str("bits 64\n");
-        self.output.push_str("default rel\n");
-        self.output.push_str("section .text\n\n");
-        self.output.push_str(&format!("global {}\n", func.name));
-
-        let mut externs: Vec<_> = unique_externs.into_iter().collect();
-        externs.sort();
-        for ext_func in &externs {
-            if !ext_func.is_empty() {
-                self.output.push_str(&format!("extern {ext_func}\n"));
+        if !unique_externs.is_empty() {
+            self.output.push('\n');
+        }
+        unique_externs.sort();
+        for ext in &unique_externs {
+            if !ext.is_empty() {
+                self.output.push_str(&format!("extern {ext}\n"));
             }
         }
-
-        if !externs.is_empty() {
+        if !unique_externs.is_empty() {
             self.output.push('\n');
         }
 
@@ -118,7 +54,20 @@ impl AsmGenerator {
         self.locals.clear();
         self.temps.clear();
         self.temp_counter = 0;
+        self.param_registers.clear();
 
+        self.emit_function_prologue(func);
+        self.emit_function_body(func);
+
+        if !self.data_section.is_empty() {
+            self.output.push_str("\nsection .data\n");
+            self.output.push_str(&self.data_section);
+        }
+
+        std::mem::take(&mut self.output)
+    }
+
+    fn emit_function_prologue(&mut self, func: &IrFunction) {
         let mut local_counter: i32 = 1;
         for local in &func.locals {
             if self.global_names.contains(&local.name) {
@@ -159,7 +108,10 @@ impl AsmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
-                    if result.starts_with('t') && !self.global_names.contains(result.as_str()) && !self.temps.contains_key(result) {
+                    if result.starts_with('t')
+                        && !self.global_names.contains(result.as_str())
+                        && !self.temps.contains_key(result)
+                    {
                         self.temps.insert(result.clone(), temp_offset);
                         temp_offset -= 8;
                     }
@@ -167,24 +119,20 @@ impl AsmGenerator {
             }
         }
 
+        self.output.push_str(&format!("{}:\n", func.name));
+        self.output.push_str("    push rbp\n");
+        self.output.push_str("    mov rbp, rsp\n");
+
         let total_vars = local_counter + ((-temp_offset / 8) - local_counter);
         let stack_size = -8 * total_vars;
         let abs_stack = if stack_size < 0 { -stack_size } else { stack_size };
         let aligned = ((abs_stack + 15) / 16) * 16;
         let final_stack = aligned.max(16);
-
-        self.output.push_str(&format!("{}:\n", func.name));
-
-        self.output.push_str("    push rbp\n");
-        self.output.push_str("    mov rbp, rsp\n");
         self.output.push_str(&format!("    sub rsp, {final_stack}\n"));
 
         for (i, _param_name) in self.param_registers.iter().enumerate() {
             let reg = match i {
-                0 => "rcx",
-                1 => "rdx",
-                2 => "r8",
-                3 => "r9",
+                0 => "rcx", 1 => "rdx", 2 => "r8", 3 => "r9",
                 _ => "rax",
             };
             let offset = param_save_offsets[i];
@@ -199,7 +147,21 @@ impl AsmGenerator {
                 self.output.push_str(&format!("    je {f}_co_{s}\n", f = func.name));
             }
         }
+    }
 
+    pub(crate) fn format_block_label(&self, id: &str) -> String {
+        if id.starts_with("BB") {
+            if let Some(ref func_name) = self.current_function {
+                format!("{}_{}", func_name, id)
+            } else {
+                format!("BB_{}", id.trim_start_matches("BB"))
+            }
+        } else {
+            id.to_string()
+        }
+    }
+
+    fn emit_function_body(&mut self, func: &IrFunction) {
         if self.is_coroutine {
             let resume_map: HashMap<&str, usize> = func.coroutine_blocks.iter()
                 .enumerate()
@@ -221,24 +183,89 @@ impl AsmGenerator {
                 self.generate_block(block);
             }
         }
+    }
+}
 
-        if !self.data_section.is_empty() {
+#[cfg(test)]
+impl AsmGenerator {
+    pub fn generate(&mut self, program: &crate::ir::types::IrProgram) -> String {
+        self.global_names = program.globals.iter().map(|g| g.name.clone()).collect();
+        self.output.clear();
+        self.string_counter = 0;
+        self.data_section.clear();
+        self.locals.clear();
+        self.temps.clear();
+        self.temp_counter = 0;
+
+        self.output.push_str("bits 64\n");
+        self.output.push_str("default rel\n");
+        self.output.push_str("section .text\n\n");
+
+        let mut all_func_names: Vec<String> = Vec::new();
+        for func in &program.functions {
+            all_func_names.push(func.name.clone());
+            self.output.push_str(&format!("global {}\n", func.name));
+        }
+        self.output.push('\n');
+
+        let mut extern_set: std::collections::HashSet<String> = std::collections::HashSet::new();
+        for func in &program.functions {
+            for ext in &func.used_functions {
+                extern_set.insert(ext.clone());
+            }
+            for block in &func.blocks {
+                for inst in &block.instructions {
+                    if let crate::ir::types::IrOpcode::Call = inst.opcode {
+                        if let Some(target) = &inst.jump_target {
+                            if !all_func_names.contains(target) {
+                                extern_set.insert(target.clone());
+                            }
+                        }
+                    }
+                    for op in &inst.operands {
+                        if let crate::ir::types::IrOperand::FuncRef(name) = op {
+                            if !all_func_names.contains(name) {
+                                extern_set.insert(name.clone());
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut externs: Vec<String> = extern_set.into_iter().collect();
+        externs.sort();
+        for ext in &externs {
+            if !ext.is_empty() {
+                self.output.push_str(&format!("extern {ext}\n"));
+            }
+        }
+        if !externs.is_empty() {
+            self.output.push('\n');
+        }
+
+        for func in &program.functions {
+            if func.is_coroutine {
+                self.set_coroutine(func.yield_count);
+            } else {
+                self.is_coroutine = false;
+                self.yield_counter = 0;
+            }
+            self.current_function = Some(func.name.clone());
+            self.locals.clear();
+            self.temps.clear();
+            self.temp_counter = 0;
+            self.param_registers.clear();
+            self.emit_function_prologue(func);
+            self.emit_function_body(func);
+            self.is_coroutine = false;
+        }
+
+        if !self.data_section.is_empty() || !program.globals.is_empty() {
             self.output.push_str("\nsection .data\n");
             self.output.push_str(&self.data_section);
+            self.output.push_str(&Self::generate_globals_asm(&program.globals));
         }
 
-        std::mem::take(&mut self.output)
-    }
-
-    pub(crate) fn format_block_label(&self, id: &str) -> String {
-        if id.starts_with("BB") {
-            if let Some(ref func_name) = self.current_function {
-                format!("{}_{}", func_name, id)
-            } else {
-                format!("BB_{}", id.trim_start_matches("BB"))
-            }
-        } else {
-            id.to_string()
-        }
+        self.output.clone()
     }
 }

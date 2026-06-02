@@ -3,7 +3,7 @@ use crate::ast::{Literal, Span};
 use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
-    pub fn visit_literal_expr(&mut self, block: &mut IrBlock, lit: &Literal) -> (String, IrType) {
+    pub fn visit_literal_expr(&mut self, block: &mut IrBlock, lit: &Literal, span: Span) -> (String, IrType) {
         let result_temp = self.generate_temp();
 
         match lit {
@@ -16,7 +16,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span,
                 });
                 (result_temp, IrType::Bool)
             }
@@ -29,7 +29,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span,
                 });
                 (result_temp, IrType::Int)
             }
@@ -42,7 +42,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span,
                 });
                 (result_temp, IrType::Int)
             }
@@ -55,7 +55,7 @@ impl IrGenerator {
                     jump_target: None,
                     true_target: None,
                     false_target: None,
-                    span: Span::new(0, 0),
+                    span,
                 });
                 (result_temp, IrType::String)
             }

@@ -199,10 +199,10 @@ pub enum Expr {
     Parenthesized(Box<Expr>),
     Call(CallExpr),
     Slice(SliceExpr),
-    ArrayLiteral(Vec<Expr>),
+    ArrayLiteral(Vec<Expr>, Span),
     FieldAccess(Box<Expr>, Identifier),
     Identifier(Identifier),
-    Literal(Literal),
+    Literal(Literal, Span),
     FuncLiteral(FuncDefinition),
 }
 

@@ -1,6 +1,7 @@
 use crate::ast::Statement;
+use crate::ir::IrType;
 use crate::semantics::analysis::SemanticsAnalyzer;
-use crate::semantics::types::{SemanticType, SymbolTable};
+use crate::semantics::types::SymbolTable;
 
 impl SemanticsAnalyzer {
     pub fn check_statement(&mut self, scope: &mut SymbolTable, stmt: &Statement) -> crate::Result<()> {
@@ -12,7 +13,7 @@ impl SemanticsAnalyzer {
                     None
                 };
                 if let Some(ref expected) = self.current_return_type {
-                    if *expected == SemanticType::Void {
+                    if *expected == IrType::Void {
                         if expr_type.is_some() {
                             self.add_error("Void function should not return a value".to_string());
                         }
@@ -31,7 +32,7 @@ impl SemanticsAnalyzer {
             }
             Statement::If(if_stmt) => {
                 let cond_type = self.check_expression(scope, &if_stmt.condition)?;
-                if cond_type != SemanticType::Bool {
+                if !cond_type.is_bool() {
                     self.add_error(format!("If condition must be bool, got {cond_type:?}"));
                 }
                 let mut inner_scope = scope.clone();
@@ -40,7 +41,7 @@ impl SemanticsAnalyzer {
                 }
                 for ei in &if_stmt.else_ifs {
                     let ei_cond_type = self.check_expression(scope, &ei.condition)?;
-                    if ei_cond_type != SemanticType::Bool {
+                    if !ei_cond_type.is_bool() {
                         self.add_error(format!("Else-if condition must be bool, got {ei_cond_type:?}"));
                     }
                     let mut ei_scope = scope.clone();
@@ -57,7 +58,7 @@ impl SemanticsAnalyzer {
             }
             Statement::Loop(loop_stmt) => {
                 let cond_type = self.check_expression(scope, &loop_stmt.condition)?;
-                if cond_type != SemanticType::Bool {
+                if !cond_type.is_bool() {
                     self.add_error(format!("Loop condition must be bool, got {cond_type:?}"));
                 }
                 self.loop_depth += 1;
@@ -68,7 +69,7 @@ impl SemanticsAnalyzer {
             }
             Statement::Repeat(repeat_stmt) => {
                 let cond_type = self.check_expression(scope, &repeat_stmt.condition)?;
-                if cond_type != SemanticType::Bool {
+                if !cond_type.is_bool() {
                     self.add_error(format!("Repeat condition must be bool, got {cond_type:?}"));
                 }
                 self.loop_depth += 1;
@@ -92,15 +93,19 @@ impl SemanticsAnalyzer {
                     self.add_error("'break' outside loop".to_string());
                 }
             }
-            Statement::VarDecl(_) | Statement::Yield(_) => {}
+            Statement::VarDecl(vd) => {
+                let ty = self.convert_type(&vd.ty);
+                scope.add(vd.name.name.clone(), ty).ok();
+            }
+            Statement::Yield(_) => {}
             Statement::FuncDef(fd) => {
-                let param_types: Vec<SemanticType> = fd
+                let param_types: Vec<IrType> = fd
                     .signature
                     .parameters
                     .as_ref()
                     .map(|args| {
                         args.iter()
-                            .map(|a| a.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t)))
+                            .map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t)))
                             .collect()
                     })
                     .unwrap_or_default();
@@ -108,13 +113,13 @@ impl SemanticsAnalyzer {
                     .signature
                     .return_type
                     .as_ref()
-                    .map_or(SemanticType::Void, |t| self.convert_type(t));
-                let func_type = SemanticType::Function(param_types, Box::new(ret_type.clone()));
+                    .map_or(IrType::Void, |t| self.convert_type(t));
+                let func_type = IrType::Function(param_types, Box::new(ret_type.clone()));
                 let _ = scope.add(fd.signature.name.name.clone(), func_type);
                 let mut inner_scope = scope.clone();
                 if let Some(ref args) = fd.signature.parameters {
                     for arg in args {
-                        let pty = arg.ty.as_ref().map_or(SemanticType::Int, |t| self.convert_type(t));
+                        let pty = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                         let _ = inner_scope.add(arg.name.name.clone(), pty);
                     }
                 }

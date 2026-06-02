@@ -46,14 +46,14 @@ impl IrGenerator {
 
     pub fn expr_to_constant(&self, expr: &Expr) -> Option<crate::ir::Constant> {
         match expr {
-            Expr::Literal(lit) => match lit {
+            Expr::Literal(lit, _) => match lit {
                 crate::ast::Literal::Dec(v) => Some(crate::ir::Constant::Int(*v as i64)),
                 crate::ast::Literal::Str(s) => Some(crate::ir::Constant::String(s.clone())),
                 crate::ast::Literal::Char(c) => Some(crate::ir::Constant::Char(*c as u8)),
                 crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(i64::from(*b))),
                 _ => None,
             },
-            Expr::ArrayLiteral(elements) => {
+            Expr::ArrayLiteral(elements, _) => {
                 let constants: Vec<crate::ir::Constant> = elements
                     .iter()
                     .map(|e| self.expr_to_constant(e))

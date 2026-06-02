@@ -1,10 +1,12 @@
 use crate::ast::Span;
+use crate::struct_layout::LayoutDatabase;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IrProgram {
     pub functions: Vec<IrFunction>,
     pub globals: Vec<IrGlobal>,
+    pub struct_layouts: LayoutDatabase,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -66,6 +68,16 @@ impl IrType {
     #[must_use]
     pub fn is_pointer(&self) -> bool {
         matches!(self, IrType::String | IrType::Function(_, _))
+    }
+
+    #[must_use]
+    pub fn is_int_like(&self) -> bool {
+        matches!(self, IrType::Int)
+    }
+
+    #[must_use]
+    pub fn is_bool(&self) -> bool {
+        matches!(self, IrType::Bool)
     }
 }
 

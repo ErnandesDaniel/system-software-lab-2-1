@@ -15,14 +15,14 @@ impl JvmGenerator {
         code: Vec<Instruction>,
     ) -> Vec<u8> {
         let func_name = &func.name;
-        let this_class = self.constant_pool.add_class(class_name)
+        let this_class = self.pool.constant_pool.add_class(class_name)
             .expect("Failed to add class to constant pool");
-        let super_class = self.constant_pool.add_class("java/lang/Object")
+        let super_class = self.pool.constant_pool.add_class("java/lang/Object")
             .expect("Failed to add Object class to constant pool");
 
-        let code_attr_name_idx = self.constant_pool.add_utf8("Code")
+        let code_attr_name_idx = self.pool.constant_pool.add_utf8("Code")
             .expect("Failed to add UTF8 'Code'");
-        let max_locals = if self.is_coroutine { 1 } else { self.next_local_slot };
+        let max_locals = if self.coro.is_coroutine { 1 } else { self.func.next_local_slot };
         let max_stack = self.estimate_max_stack(&code);
 
         let code_size: u32 = code.iter().map(|i| self.instr_size(i) as u32).sum();
@@ -30,13 +30,13 @@ impl JvmGenerator {
             "Function {func_name}: Generated code size ({code_size}) exceeds JVM limit of 65535 bytes. max_stack={max_stack}, max_locals={max_locals}"
         );
 
-        if self.is_coroutine {
+        if self.coro.is_coroutine {
             return self.build_coroutine_class(class_name, func, code, this_class, super_class, code_attr_name_idx, max_stack);
         }
 
         let mut methods = Vec::new();
 
-        let is_func_ref_target = self.func_ref_targets.contains(&func.name);
+        let is_func_ref_target = self.closure.func_ref_targets.contains(&func.name);
         let has_env_param = func.parameters.first().is_some_and(|p| p.name == "__env");
 
         let param_types: String = func
@@ -68,7 +68,7 @@ impl JvmGenerator {
 
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,
-            constant_pool: self.constant_pool.clone(),
+            constant_pool: self.pool.constant_pool.clone(),
             access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::SUPER,
             this_class,
             super_class,
@@ -108,9 +108,9 @@ impl JvmGenerator {
         max_locals: u16,
         this_class: u16,
     ) {
-        let call_name_idx = self.constant_pool.add_utf8("call")
+        let call_name_idx = self.pool.constant_pool.add_utf8("call")
             .expect("Failed to add UTF8 'call'");
-        let call_desc_idx = self.constant_pool.add_utf8(call_desc)
+        let call_desc_idx = self.pool.constant_pool.add_utf8(call_desc)
             .expect("Failed to add call descriptor");
 
         methods.push(Method {
@@ -127,16 +127,16 @@ impl JvmGenerator {
             }],
         });
 
-        let main_name_idx = self.constant_pool.add_utf8("main")
+        let main_name_idx = self.pool.constant_pool.add_utf8("main")
             .expect("Failed to add UTF8 'main'");
-        let main_desc_idx = self.constant_pool.add_utf8("([Ljava/lang/String;)V")
+        let main_desc_idx = self.pool.constant_pool.add_utf8("([Ljava/lang/String;)V")
             .expect("Failed to add main descriptor");
 
-        let call_ref_idx = self.constant_pool.add_method_ref(this_class, "call", call_desc)
+        let call_ref_idx = self.pool.constant_pool.add_method_ref(this_class, "call", call_desc)
             .expect("Failed to add method ref for call");
-        let system_class = self.constant_pool.add_class("java/lang/System")
+        let system_class = self.pool.constant_pool.add_class("java/lang/System")
             .expect("Failed to add System class");
-        let exit_ref_idx = self.constant_pool.add_method_ref(system_class, "exit", "(I)V")
+        let exit_ref_idx = self.pool.constant_pool.add_method_ref(system_class, "exit", "(I)V")
             .expect("Failed to add exit method ref");
 
         let main_code = vec![
@@ -169,9 +169,9 @@ impl JvmGenerator {
         max_stack: u16,
         max_locals: u16,
     ) {
-        let call_name_idx = self.constant_pool.add_utf8("call")
+        let call_name_idx = self.pool.constant_pool.add_utf8("call")
             .expect("Failed to add UTF8 'call'");
-        let call_desc_idx = self.constant_pool.add_utf8(call_desc)
+        let call_desc_idx = self.pool.constant_pool.add_utf8(call_desc)
             .expect("Failed to add call descriptor");
 
         methods.push(Method {
@@ -200,13 +200,13 @@ impl JvmGenerator {
         has_env_param: bool,
         this_class: u16,
     ) {
-        let init_name_idx = self.constant_pool.add_utf8("<init>")
+        let init_name_idx = self.pool.constant_pool.add_utf8("<init>")
             .expect("Failed to add UTF8 '<init>'");
-        let init_desc_idx = self.constant_pool.add_utf8("()V")
+        let init_desc_idx = self.pool.constant_pool.add_utf8("()V")
             .expect("Failed to add init descriptor");
-        let obj_class = self.constant_pool.add_class("java/lang/Object")
+        let obj_class = self.pool.constant_pool.add_class("java/lang/Object")
             .expect("Failed to add Object class");
-        let obj_init_ref = self.constant_pool.add_method_ref(obj_class, "<init>", "()V")
+        let obj_init_ref = self.pool.constant_pool.add_method_ref(obj_class, "<init>", "()V")
             .expect("Failed to add Object init ref");
         let init_code = vec![
             Instruction::Aload_0,
@@ -227,7 +227,7 @@ impl JvmGenerator {
             }],
         });
 
-        let apply_name_idx = self.constant_pool.add_utf8("apply")
+        let apply_name_idx = self.pool.constant_pool.add_utf8("apply")
             .expect("Failed to add UTF8 'apply'");
         let user_param_types: Vec<IrType> = func
             .parameters
@@ -240,16 +240,16 @@ impl JvmGenerator {
             user_param_types.iter().map(ir_type_to_jvm_descriptor).collect::<String>(),
             ir_type_to_jvm_descriptor(&func.return_type)
         );
-        let instance_call_desc_idx = self.constant_pool.add_utf8(&instance_call_desc)
+        let instance_call_desc_idx = self.pool.constant_pool.add_utf8(&instance_call_desc)
             .expect("Failed to add instance call descriptor");
-        let static_call_ref = self.constant_pool.add_method_ref(this_class, "call", call_desc)
+        let static_call_ref = self.pool.constant_pool.add_method_ref(this_class, "call", call_desc)
             .expect("Failed to add static call ref for func ref");
 
         let mut instance_call_code = Vec::new();
 
         if has_env_param {
             instance_call_code.push(Instruction::Aload_0);
-            let env_field_ref = self.constant_pool.add_field_ref(this_class, "__env", "[[I")
+            let env_field_ref = self.pool.constant_pool.add_field_ref(this_class, "__env", "[[I")
                 .expect("Failed to add env field ref");
             instance_call_code.push(Instruction::Getfield(env_field_ref));
         }
@@ -297,7 +297,7 @@ impl JvmGenerator {
             .map(|p| p.ty.clone())
             .collect();
         let iface_name = get_fn_interface_name(&user_params, &func.return_type);
-        vec![self.constant_pool.add_class(&iface_name)
+        vec![self.pool.constant_pool.add_class(&iface_name)
             .expect("Failed to add interface class")]
     }
 
@@ -305,9 +305,9 @@ impl JvmGenerator {
         if !has_env {
             return (0, 0);
         }
-        let name_idx = self.constant_pool.add_utf8("__env")
+        let name_idx = self.pool.constant_pool.add_utf8("__env")
             .expect("Failed to add UTF8 '__env'");
-        let desc_idx = self.constant_pool.add_utf8("[[I")
+        let desc_idx = self.pool.constant_pool.add_utf8("[[I")
             .expect("Failed to add env descriptor");
         (name_idx, desc_idx)
     }
