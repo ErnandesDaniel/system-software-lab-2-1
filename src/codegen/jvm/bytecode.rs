@@ -10,18 +10,32 @@ impl JvmGenerator {
         let mut block_to_inst_idx: HashMap<String, usize> = HashMap::new();
 
         if self.is_coroutine {
+            let coro_handler_set: std::collections::HashSet<&str> = func
+                .coroutine_blocks
+                .iter()
+                .map(|s| s.as_str())
+                .collect();
+            let entry_block_id = func
+                .blocks
+                .iter()
+                .find(|b| !coro_handler_set.contains(b.id.as_str()))
+                .map(|b| b.id.clone())
+                .unwrap_or_else(|| func.blocks[0].id.clone());
             instructions.push(JvmInst::Real(Instruction::Aload_0));
             instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
+            instructions.push(JvmInst::Placeholder(JumpPlaceholder::Ifeq {
+                block_id: entry_block_id,
+            }));
             for state_idx in 1..=func.yield_count {
                 if let Some(block_id) = func.coroutine_blocks.get(state_idx) {
-                    instructions.push(JvmInst::Real(Instruction::Dup));
+                    instructions.push(JvmInst::Real(Instruction::Aload_0));
+                    instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
                     instructions.push(JvmInst::Real(Instruction::Bipush(state_idx as i8)));
                     instructions.push(JvmInst::Placeholder(JumpPlaceholder::IfIcmpeq {
                         block_id: block_id.clone(),
                     }));
                 }
             }
-            instructions.push(JvmInst::Real(Instruction::Pop));
         }
 
         if !self.is_coroutine {
