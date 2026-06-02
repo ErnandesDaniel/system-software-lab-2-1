@@ -54,8 +54,10 @@ impl JvmGenerator {
             .expect("Failed to add System.out field ref");
         let printstream_class = self.constant_pool.add_class("java/io/PrintStream")
             .expect("Failed to add PrintStream class");
-        let write_ref = self.constant_pool.add_method_ref(printstream_class, "print", "(C)V")
+        let print_char_ref = self.constant_pool.add_method_ref(printstream_class, "print", "(C)V")
             .expect("Failed to add print method ref");
+        let println_string_ref = self.constant_pool.add_method_ref(printstream_class, "println", "(Ljava/lang/String;)V")
+            .expect("Failed to add println method ref");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: putchar_name,
@@ -68,8 +70,40 @@ impl JvmGenerator {
                     Instruction::Getstatic(system_out_ref),
                     Instruction::Iload_0,
                     Instruction::I2c,
-                    Instruction::Invokevirtual(write_ref),
+                    Instruction::Invokevirtual(print_char_ref),
                     Instruction::Iload_0,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        let string_class = self.constant_pool.add_class("java/lang/String")
+            .expect("Failed to add String class");
+        let string_byte_init = self.constant_pool.add_method_ref(string_class, "<init>", "([B)V")
+            .expect("Failed to add String(byte[]) init");
+
+        let puts_name = self.constant_pool.add_utf8("puts")
+            .expect("Failed to add 'puts' UTF8");
+        let puts_desc = self.constant_pool.add_utf8("([B)I")
+            .expect("Failed to add puts descriptor");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: puts_name,
+            descriptor_index: puts_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 4,
+                max_locals: 1,
+                code: vec![
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Invokespecial(string_byte_init),
+                    Instruction::Invokevirtual(println_string_ref),
+                    Instruction::Iconst_0,
                     Instruction::Ireturn,
                 ],
                 exception_table: vec![],

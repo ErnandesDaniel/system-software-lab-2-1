@@ -49,8 +49,7 @@ impl JvmGenerator {
             let iconst_0_idx = u16::try_from(code.len()).expect("Logical: code length exceeds u16") + global_offset;
             code.push(Instruction::Iconst_0);
             let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
 
             code[first_ifeq] = Instruction::Ifeq(iconst_0_idx);
             code[second_ifeq] = Instruction::Ifeq(iconst_0_idx);
@@ -75,8 +74,7 @@ impl JvmGenerator {
             let iconst_1_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             code.push(Instruction::Iconst_1);
             let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
 
             code[first_ifne] = Instruction::Ifne(iconst_1_idx);
             code[second_ifne] = Instruction::Ifne(iconst_1_idx);
@@ -95,8 +93,7 @@ impl JvmGenerator {
             let iconst_1_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
             code.push(Instruction::Iconst_1);
             let istore_idx = u16::try_from(code.len()).expect("Code length exceeds u16 limit") + global_offset;
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
 
             code[start_idx] = Instruction::Ifeq(iconst_1_idx);
             code[start_idx + 2] = Instruction::Goto(istore_idx);
@@ -176,8 +173,7 @@ impl JvmGenerator {
                 code.push(Instruction::Iconst_1);
             }
 
-            let slot = self.get_local_slot(result);
-            code.push(Instruction::Istore(slot as u8));
+            self.emit_store_result(code, result, &IrType::Int);
         }
     }
 }

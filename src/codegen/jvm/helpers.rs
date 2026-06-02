@@ -13,8 +13,8 @@ impl JvmGenerator {
                 code.push(Instruction::Aload_0);
                 code.push(Instruction::Swap);
                 code.push(Instruction::Putfield(field_ref));
+                return;
             }
-            return;
         }
         if let Some(&field_ref) = self.global_field_refs.get(name) {
             code.push(Instruction::Putstatic(field_ref));
