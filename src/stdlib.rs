@@ -99,6 +99,7 @@ impl StdLib {
             // Coroutine runtime
             ("resume_coroutine", ("index: int", "int")),
             ("create_coroutine", ("", "")),
+            ("coro_init", ("", "")),
             ("get_coroutine_state", ("index: int", "int")),
             ("set_coroutine_param", ("index: int, p1: int, p2: int", "")),
         ];

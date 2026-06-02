@@ -22,8 +22,9 @@ impl JvmGenerator {
     pub(super) fn generate_return(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if self.is_coroutine {
             if let Some(operand) = inst.operands.first() {
-                code.push(Instruction::Aload_0);
                 self.emit_load_operand(code, operand);
+                code.push(Instruction::Aload_0);
+                code.push(Instruction::Swap);
                 code.push(Instruction::Putfield(self.coroutine_result_field));
             }
             code.push(Instruction::Aload_0);

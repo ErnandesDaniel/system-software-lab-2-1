@@ -44,6 +44,39 @@ impl JvmGenerator {
             self.build_coro_set_param(&mut methods, &coro_info, code_attr, coro_field_ref);
         }
 
+        let putchar_name = self.constant_pool.add_utf8("putchar")
+            .expect("Failed to add 'putchar' UTF8");
+        let putchar_desc = self.constant_pool.add_utf8("(I)I")
+            .expect("Failed to add putchar descriptor");
+        let system_class = self.constant_pool.add_class("java/lang/System")
+            .expect("Failed to add System class");
+        let system_out_ref = self.constant_pool.add_field_ref(system_class, "out", "Ljava/io/PrintStream;")
+            .expect("Failed to add System.out field ref");
+        let printstream_class = self.constant_pool.add_class("java/io/PrintStream")
+            .expect("Failed to add PrintStream class");
+        let write_ref = self.constant_pool.add_method_ref(printstream_class, "print", "(C)V")
+            .expect("Failed to add print method ref");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: putchar_name,
+            descriptor_index: putchar_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 2,
+                max_locals: 1,
+                code: vec![
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::Iload_0,
+                    Instruction::I2c,
+                    Instruction::Invokevirtual(write_ref),
+                    Instruction::Iload_0,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,
             constant_pool: self.constant_pool.clone(),
@@ -143,7 +176,7 @@ impl JvmGenerator {
                 .expect("Failed to add resume method ref");
             code.push(Instruction::Invokevirtual(rm));
             code.push(Instruction::Ireturn);
-            code[skip_at] = Instruction::If_icmpne((code.len() - skip_at - 1) as u16);
+            code[skip_at] = Instruction::If_icmpne(code.len() as u16);
         }
         code.push(Instruction::Iconst_1);
         code.push(Instruction::Ireturn);
@@ -187,7 +220,7 @@ impl JvmGenerator {
                 .expect("Failed to add getState method ref");
             sc.push(Instruction::Invokevirtual(sm));
             sc.push(Instruction::Ireturn);
-            sc[skip_at] = Instruction::If_icmpne((sc.len() - skip_at - 1) as u16);
+            sc[skip_at] = Instruction::If_icmpne(sc.len() as u16);
         }
         sc.push(Instruction::Iconst_m1);
         sc.push(Instruction::Ireturn);
@@ -240,7 +273,7 @@ impl JvmGenerator {
             }
             set_code.push(Instruction::Pop);
             set_code.push(Instruction::Return);
-            set_code[skip_at] = Instruction::If_icmpne((set_code.len() - skip_at - 1) as u16);
+            set_code[skip_at] = Instruction::If_icmpne(set_code.len() as u16);
         }
         set_code.push(Instruction::Return);
         methods.push(Method {

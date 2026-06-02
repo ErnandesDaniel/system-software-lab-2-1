@@ -72,6 +72,15 @@ impl JvmGenerator {
                 field_names.push(local.name.clone());
             }
         }
+        for block in &func.blocks {
+            for inst in &block.instructions {
+                if let Some(ref result) = inst.result {
+                    if Self::is_temp(result) && seen_names.insert(result.clone()) {
+                        field_names.push(result.clone());
+                    }
+                }
+            }
+        }
 
         for name in &field_names {
             if self.coroutine_field_refs.contains_key(name) {

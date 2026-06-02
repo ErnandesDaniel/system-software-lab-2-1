@@ -95,9 +95,12 @@ impl CompilerDriver {
         let mut gen = codegen::JvmGenerator::new();
         let classes = gen.generate_program(ir);
 
-        for (class_name, class_bytes) in classes {
+        // Write function class files first (needed for javac compilation)
+        let _stub_bytes = classes.iter().find(|(name, _)| name == "RuntimeStub").map(|(_, bytes)| bytes.clone());
+        for (class_name, class_bytes) in &classes {
+            if class_name == "RuntimeStub" { continue; }
             let path = Path::new(output_dir).join(format!("{class_name}.class"));
-            if let Err(e) = fs::write(&path, &class_bytes) {
+            if let Err(e) = fs::write(&path, class_bytes) {
                 return Err(CompilerError::Io(format!("Failed to write class file '{class_name}': {e}")));
             }
         }
@@ -162,6 +165,14 @@ impl CompilerDriver {
                 String::from_utf8_lossy(&runner_output.stderr)
             )));
         }
+
+        for (class_name, class_bytes) in classes {
+            let path = Path::new(output_dir).join(format!("{class_name}.class"));
+            if let Err(e) = fs::write(&path, &class_bytes) {
+                return Err(CompilerError::Io(format!("Failed to write class file '{class_name}': {e}")));
+            }
+        }
+
         Ok(())
     }
 }

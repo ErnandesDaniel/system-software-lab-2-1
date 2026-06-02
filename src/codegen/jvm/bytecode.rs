@@ -12,7 +12,7 @@ impl JvmGenerator {
         if self.is_coroutine {
             instructions.push(JvmInst::Real(Instruction::Aload_0));
             instructions.push(JvmInst::Real(Instruction::Getfield(self.coroutine_state_field)));
-            for state_idx in 0..=func.yield_count {
+            for state_idx in 1..=func.yield_count {
                 if let Some(block_id) = func.coroutine_blocks.get(state_idx) {
                     instructions.push(JvmInst::Real(Instruction::Dup));
                     instructions.push(JvmInst::Real(Instruction::Bipush(state_idx as i8)));
