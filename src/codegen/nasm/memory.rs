@@ -103,10 +103,11 @@ impl AsmGenerator {
                         if *off != 0 {
                             self.output.push_str(&format!("    add rax, {off}\n"));
                         }
-                        if elem_stride == 8 {
-                            self.output.push_str(&format!("    mov {result_reg}, [rax + rbx * 8]\n"));
+                        if matches!(elem_stride, 1 | 2 | 4 | 8) {
+                            self.output.push_str(&format!("    mov {result_reg}, [rax + rbx * {elem_stride}]\n"));
                         } else {
-                            self.output.push_str(&format!("    mov {result_reg}, [rax + rbx * 4]\n"));
+                            self.output.push_str(&format!("    imul rbx, rbx, {elem_stride}\n"));
+                            self.output.push_str(&format!("    mov {result_reg}, [rax + rbx]\n"));
                         }
                         self.store_variable(result, result_reg, result_reg == "rax");
                     }

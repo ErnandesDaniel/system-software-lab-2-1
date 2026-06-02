@@ -27,25 +27,22 @@ impl JvmGenerator {
                     }
                 } else {
                     let vt = value.get_type();
+                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
                     if matches!(vt, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
                         self.emit_load_operand(code, base);
-                        self.emit_load_operand(code, index);
-                        self.emit_load_operand(code, value);
-                        code.push(Instruction::Aastore);
-                    } else if matches!(vt, IrType::Int | IrType::Bool) {
-                        self.emit_load_operand(code, base);
-                        let adjusted = if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
-                            *byte_off > 0
-                        } else {
-                            false
-                        };
-                        if adjusted {
-                            let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
+                        if byte_off > 0 {
                             let base_idx = byte_off / 4;
                             self.emit_load_operand(code, index);
                             self.emit_load_constant(code, &Constant::Int(base_idx as i64));
                             code.push(Instruction::Iadd);
                         } else {
+                            self.emit_load_operand(code, index);
+                        }
+                        self.emit_load_operand(code, value);
+                        code.push(Instruction::Aastore);
+                    } else if matches!(vt, IrType::Int | IrType::Bool) {
+                        self.emit_load_operand(code, base);
+                        if byte_off > 0 {
                             self.emit_load_operand(code, index);
                         }
                         self.emit_load_operand(code, value);
