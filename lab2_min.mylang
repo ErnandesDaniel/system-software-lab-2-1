@@ -1,0 +1,17 @@
+﻿import puts;
+import printf;
+import malloc;
+import fopen;
+import fclose;
+import fgetc;
+global buf of string;
+def main() of int {
+    buf = malloc(200000);
+    puts("=== Lab 2 ===");
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (f == 0) { puts("fopen FAIL"); return 1; }
+    puts("fopen OK");
+    c = fgetc(f);
+    while (c != -1) { putchar(c); c = fgetc(f); }
+    fclose(f); puts(""); puts("=== Done ==="); return 0;
+}

@@ -1,0 +1,98 @@
+// Lab 2: Map-Reduce Pipeline (variant 59)
+// Synchronization: pipe + cooperative coroutines
+// Data: CSV files в†’ parse в†’ global arrays в†’ queries
+
+import puts;
+import printf;
+import putchar;
+import fopen;
+import fclose;
+import fgetc;
+import atoi;
+import strcmp;
+import strlen;
+import malloc;
+
+// ===================== String buffer =====================
+global buf of string;
+global buf_off of int = 0;
+
+// ===================== Global data arrays =====================
+// People: id, surname, name, patronymic, birthday
+global p_id of int[100]; global p_surname of int[100]; global p_name of int[100];
+global p_patr of int[100]; global p_bday of int[100]; global p_count of int = 0;
+
+// Studies: id, student_id, plan_id, course, group_name
+global s_id of int[100]; global s_student of int[100]; global s_plan of int[100];
+global s_course of int[100]; global s_group of int[100]; global s_count of int = 0;
+
+// Students: id, person_id, nzk
+global st_id of int[100]; global st_person of int[100]; global st_nzk of int[100]; global st_count of int = 0;
+
+// Vedomosti: id, study_id, type_id, date_str, grade
+global v_id of int[200]; global v_study of int[200]; global v_type of int[200];
+global v_date of int[200]; global v_grade of int[200]; global v_count of int = 0;
+
+// Types vedomostei: id, name
+global t_id of int[20]; global t_name of int[20]; global t_count of int = 0;
+
+// Group plans: id, plan_id, group_name
+global g_id of int[50]; global g_plan of int[50]; global g_group of int[50]; global g_count of int = 0;
+
+global _tmp of int[10];
+
+// ===================== CSV loader =====================
+// (other loaders removed to reduce binary size)
+def read_csv_into_buf(filename of string) of int {
+    f = fopen(filename, "r"); if (f == 0) { return -1; }
+    pos = buf_off;
+    while (true) {
+        c = fgetc(f);
+        if (c == -1) { buf[pos] = 0; fclose(f); return buf_off; }
+        buf[pos] = c; pos = pos + 1;
+    }
+}
+
+def parse_csv_line(src_off of int, dst of int, max_fields of int) of int {
+    i = 0; fi = 0;
+    dst[fi] = src_off; fi = fi + 1;
+    while (true) {
+        c = buf[src_off + i];
+        if (c == 0 || c == 10) { buf[src_off + i] = 0; return fi; }
+        if (c == 44) { buf[src_off + i] = 0; if (fi < max_fields) { dst[fi] = src_off + i + 1; fi = fi + 1; } }
+        i = i + 1;
+    }
+}
+
+def skip_header(pos of int) of int {
+    while (true) { c = buf[pos]; if (c == 0) { return -1; } pos = pos + 1; if (c == 10) { return pos; } }
+}
+
+def skip_line(pos of int) of int {
+    while (true) { if (pos == -1) { return -1; } c = buf[pos]; if (c == 0) { return -1; } pos = pos + 1; if (c == 10) { return pos; } }
+}
+
+def load_people(ofs of int) of int {
+    row = 0;
+    while (true) {
+        if (ofs == -1) { return row; }
+        _tmp[0] = 0; _tmp[1] = 0; _tmp[2] = 0; _tmp[3] = 0; _tmp[4] = 0;
+        nf = parse_csv_line(ofs, _tmp, 5);
+        if (nf >= 1) { p_id[row] = atoi(buf + _tmp[0]); }
+        if (nf >= 2) { p_surname[row] = _tmp[1]; }
+        if (nf >= 3) { p_name[row] = _tmp[2]; }
+        if (nf >= 4) { p_patr[row] = _tmp[3]; }
+        if (nf >= 5) { p_bday[row] = _tmp[4]; }
+        row = row + 1; ofs = skip_line(ofs);
+    }
+    return row;
+}
+
+def load_studies(ofs of int) of int { return 0; } def load_students(ofs of int) of int { return 0; } def load_vedomosti(ofs of int) of int { return 0; } def load_types(ofs of int) of int { return 0; } def load_group_plans(ofs of int) of int { return 0; } def main() of int {
+    buf = malloc(200000);
+    puts("start");
+    load_all_data();
+    puts("done");
+    return 0;
+}
+
