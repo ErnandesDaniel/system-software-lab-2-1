@@ -49,7 +49,7 @@ impl CompilerDriver {
             helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
             for f in ir.functions.iter().filter(|f| f.is_coroutine) {
                 let num_locals = f.locals.len();
-                let ctx_bytes = 56 + num_locals * 8 + 4;
+                let ctx_bytes = 56 + num_locals * 8 + 8;
                 let ctx_dwords = (ctx_bytes / 4).max(8);
                 helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
             }

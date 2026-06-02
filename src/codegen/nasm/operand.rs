@@ -19,7 +19,7 @@ impl AsmGenerator {
                     if self.param_registers.contains(name) {
                         self.output.push_str(&format!("    mov {dest64}, [rbp + {offset}]\n"));
                     } else if self.is_coroutine {
-                        let co_off = 56 + (-offset);
+                        let co_off = 56 + (-offset - 8);
                         self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov {dest}, [rcx + {co_off}]\n"));
                     } else {
@@ -80,7 +80,7 @@ impl AsmGenerator {
         }
         if self.is_coroutine {
             if let Some(offset) = self.locals.get(name) {
-                let co_off = 56 + (-offset);
+                let co_off = 56 + (-offset - 8);
                 self.restore_coro_ctx();
                 self.output.push_str(&format!("    mov [rcx + {co_off}], {src}\n"));
                 return;

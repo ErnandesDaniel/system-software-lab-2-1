@@ -6,6 +6,15 @@
 
 Все 7 запросов в одном файле `input.mylang`.
 
+## Компиляция и запуск
+
+Запускать из корня проекта (рабочая директория нужна для путей к CSV-файлам).
+
+```powershell
+cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
+.\output\program.exe
+```
+
 ## Файлы
 
 ```
@@ -22,15 +31,6 @@ labs-examples/system-programms/lab-2/
 │   ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
 │   └── ucheb_test.db            # Готовая БД
 └── input.mylang                 # Все 7 запросов
-```
-
-## Компиляция и запуск
-
-Запускать из корня проекта (рабочая директория нужна для путей к CSV-файлам).
-
-```powershell
-cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
-.\output\program.exe
 ```
 
 ## Ожидаемый вывод

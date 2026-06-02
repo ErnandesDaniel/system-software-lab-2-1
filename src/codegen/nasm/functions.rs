@@ -80,7 +80,7 @@ impl AsmGenerator {
             IrOperand::Variable(name, _) => {
                 if self.is_coroutine {
                     if let Some(offset) = self.locals.get(name) {
-                        let co_off = 56 + (-offset);
+                        let co_off = 56 + (-offset - 8);
                         self.restore_coro_ctx();
                         self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));
