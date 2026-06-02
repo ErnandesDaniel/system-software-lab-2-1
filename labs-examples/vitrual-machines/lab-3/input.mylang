@@ -1,8 +1,8 @@
-// lab-3: Mark-and-Sweep GC — Fibonacci Logger Demo
+// lab-3: Mark-and-Sweep GC - Fibonacci Logger Demo
 //
 // Считает числа Фибоначчи, каждое значение сохраняет в кольцевой буфер логов.
 //
-// GC_ON:  буфер на 10 записей, старые логи GC чистит — live-память стабильна
+// GC_ON:  буфер на 10 записей, старые логи GC чистит - live-память стабильна
 // GC_OFF: GC отключён, память только растёт
 //
 // Сравнение: NASM (без встроенного GC) vs JVM (со встроенным GC)
@@ -27,7 +27,7 @@ global gc_runs of int = 0;
 global gc_freed_objects of int = 0;
 global gc_enabled of int = 1;
 
-// === mark(idx) — рекурсивно маркирует объект и его ref ===
+// === mark(idx) - рекурсивно маркирует объект и его ref ===
 // Пропускает освобождённые слоты (gc_size[idx] == 0)
 def mark(idx of int) {
     if (idx < 0) { return; }
@@ -43,7 +43,7 @@ def mark(idx of int) {
     }
 }
 
-// === sweep() — освобождает немаркированные объекты ===
+// === sweep() - освобождает немаркированные объекты ===
 // НЕ сдвигает массив (иначе handle'ы сломаются).
 // Просто free + помечает слот как свободный (gc_size[i] = 0)
 def sweep() {
@@ -68,7 +68,7 @@ def sweep() {
     total_freed = total_freed + local_freed;
 }
 
-// === gc_alloc(size, ref) — аллоцирует блок и регистрирует в GC ===
+// === gc_alloc(size, ref) - аллоцирует блок и регистрирует в GC ===
 // Ищет свободный слот (gc_size[i] == 0) или добавляет новый
 def gc_alloc(size of int, ref of int) of int {
     idx = 0;
@@ -106,7 +106,7 @@ def gc_alloc(size of int, ref of int) of int {
 
 // ===================== Fibonacci Logger =====================
 
-// Кольцевой буфер логов — это корневые объекты для GC
+// Кольцевой буфер логов - это корневые объекты для GC
 global log_ring of int[10];
 global log_pos of int = 0;
 global fib_a of int = 0;
@@ -137,7 +137,7 @@ def push_log(size of int) of int {
     return handle;
 }
 
-// === gc_run() — маркирует от log_ring (корни), затем sweep ===
+// === gc_run() - маркирует от log_ring (корни), затем sweep ===
 def gc_run() {
     if (gc_enabled == 0) { return; }
 
@@ -152,7 +152,7 @@ def gc_run() {
         i = i + 1;
     }
 
-    // Sweep phase: всё немаркированное — мусор
+    // Sweep phase: всё немаркированное - мусор
     sweep();
 
     printf("  [GC #%d] before=", gc_runs);
@@ -171,8 +171,8 @@ def gc_run() {
 def demo_gc_on() {
     puts("========================================");
     puts("  MODE: GC_ON");
-    puts("  GC запускается каждые 5 итераций");
-    puts("  Кольцевой буфер хранит 10 логов");
+    puts("  GC runs every 5 iterations");
+    puts("  Ring buffer stores 10 logs");
     puts("========================================");
     putchar(10);
 
@@ -235,7 +235,7 @@ def demo_gc_on() {
         // Аллоцируем лог-запись под каждое число Фибоначчи
         push_log(64);
 
-        // GC каждые 5 итераций — чистит записи, выпавшие из буфера
+        // GC каждые 5 итераций - чистит записи, выпавшие из буфера
         gc_timer = gc_timer - 1;
         if (gc_timer == 0) {
             gc_run();
@@ -265,7 +265,7 @@ def demo_gc_on() {
 def demo_gc_off() {
     puts("========================================");
     puts("  MODE: GC_OFF");
-    puts("  GC отключён — память только растёт");
+    puts("  GC disabled - memory only grows");
     puts("========================================");
     putchar(10);
 
@@ -342,21 +342,21 @@ def demo_gc_off() {
 }
 
 // ===================== Stress Test: OOM =====================
-// Прямые malloc(1MB) без GC — показывает разницу между NASM и JVM
+// Прямые malloc(1MB) без GC - показывает разницу между NASM и JVM
 // NASM: процесс упадёт с access violation на ~2000 итерациях (2 GB)
 // JVM:  все итерации завершатся (встроенный GC управляет памятью)
 
 def demo_stress_oom() {
     puts("========================================");
-    puts("  STRESS TEST: malloc(50MB) без free()");
-    puts("  NASM: OOM crash при недостатке RAM");
-    puts("  JVM:  все итерации без ошибок");
+    puts("  STRESS TEST: malloc(50MB) without free()");
+    puts("  NASM: OOM crash when RAM exhausted");
+    puts("  JVM:  all iterations without errors");
     puts("========================================");
     putchar(10);
-    printf("  Аллоцирую по 50MB, касаюсь каждой страницы...\n", 0);
-    printf("  На NASM процесс упадёт при исчерпании\n", 0);
-    printf("  физической RAM + page file.\n", 0);
-    printf("  На JVM встроенный GC не допустит утечки.\n", 0);
+    printf("  Allocating 50MB each, touching every page...\n", 0);
+    printf("  On NASM process crashes when exhausted\n", 0);
+    printf("  physical RAM + page file.\n", 0);
+    printf("  On JVM built-in GC prevents leaks.\n", 0);
     putchar(10);
 
     max_iter = 850;
@@ -366,19 +366,19 @@ def demo_stress_oom() {
     while (i < max_iter) {
         p = malloc(block_size);
 
-        // Если malloc вернул NULL — на NASM закончилась память
+        // Если malloc вернул NULL - на NASM закончилась память
         // На JVM malloc никогда не возвращает NULL
         if (p == 0) {
-            printf("  OOM на итерации ", 0);
+            printf("  OOM at iteration ", 0);
             printf("%d", i);
             printf(" (", 0);
             printf("%d", i * 50);
             printf(" MB)\n", 0);
-            printf("  На JVM все итерации прошли бы без ошибок.\n", 0);
+            printf("  On JVM all iterations complete without errors.\n", 0);
             break;
         }
 
-        // Пишем в выделенную память — закоммитим страницы,
+        // Пишем в выделенную память - закоммитим страницы,
         // чтобы израсходовать физическую RAM + page file
         j = 0;
         while (j < block_size) {
@@ -389,16 +389,16 @@ def demo_stress_oom() {
         if (i % 100 == 0) {
             printf("  ", 0);
             printf("%d", i);
-            printf(" блоков по 50MB\n", 0);
+            printf(" blocks of 50MB\n", 0);
         }
 
         i = i + 1;
     }
 
     if (i == max_iter) {
-        printf("  Все ", 0);
+        printf("  All ", 0);
         printf("%d", max_iter);
-        printf(" блоков выделено — OOM не произошёл.\n", 0);
+        printf(" blocks allocated - OOM did not occur.\n", 0);
     }
     putchar(10);
 }
@@ -407,8 +407,8 @@ def demo_stress_oom() {
 
 def main() of int {
     puts("================================================");
-    puts("  Mark-and-Sweep GC — Fibonacci Logger");
-    puts("  GC_ON vs GC_OFF — сравнение");
+    puts("  Mark-and-Sweep GC - Fibonacci Logger");
+    puts("  GC_ON vs GC_OFF - comparison");
     puts("================================================");
     putchar(10);
 
@@ -439,9 +439,9 @@ def main() of int {
     demo_gc_off();
 
     puts("================================================");
-    puts("  Вывод:");
-    puts("  GC_ON  → freed>0 live<alloc — GC чистит");
-    puts("  GC_OFF → freed=0 live=alloc — GC не чистит");
+    puts("  Conclusion:");
+    puts("  GC_ON  → freed>0 live<alloc - GC cleans");
+    puts("  GC_OFF → freed=0 live=alloc - GC does not clean");
     puts("================================================");
     return 0;
 }

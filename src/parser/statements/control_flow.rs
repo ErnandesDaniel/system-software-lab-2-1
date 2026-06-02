@@ -1,6 +1,6 @@
 use super::Parser;
 use crate::ast::{
-    BreakStatement, ElseIfBranch, IfStatement, LoopKeyword, LoopStatement, RepeatStatement,
+    BreakStatement, ElseIfBranch, IfStatement, LoopKeyword, LoopStatement,
     ReturnStatement, Statement,
 };
 use crate::error::CompilerError;
@@ -117,42 +117,6 @@ impl Parser<'_> {
             keyword,
             condition,
             body,
-            span,
-        }))
-    }
-
-    pub(crate) fn parse_repeat(&mut self) -> crate::Result<Statement> {
-        let start = self.current_span();
-        // { ... }
-        self.expect(Token::LBrace)?;
-        let mut body = Vec::new();
-        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
-            body.push(self.parse_statement()?);
-        }
-        self.expect(Token::RBrace)?;
-        // while/until (expr) ;
-        let keyword = match self.current_token() {
-            Some(Token::While) => {
-                self.advance();
-                LoopKeyword::While
-            }
-            Some(Token::Until) => {
-                self.advance();
-                LoopKeyword::Until
-            }
-            _ => return Err(CompilerError::Parse("Expected 'while' or 'until' after block".to_string())),
-        };
-        self.expect(Token::LParen)?;
-        let condition = self.parse_expression(0)?;
-        self.expect(Token::RParen)?;
-        if self.current_token() == Some(&Token::Semi) {
-            self.advance();
-        }
-        let span = start.merge(self.current_span());
-        Ok(Statement::Repeat(RepeatStatement {
-            body,
-            keyword,
-            condition,
             span,
         }))
     }
