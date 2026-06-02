@@ -7,7 +7,7 @@ use crate::tests::parse;
 
 #[test]
 fn test_ir_generation_simple() {
-    let source = "def foo() return 42; end";
+    let source = "def foo() { return 42; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -17,7 +17,7 @@ fn test_ir_generation_simple() {
 
 #[test]
 fn test_asm_generation_simple() {
-    let source = "def foo() return 42; end";
+    let source = "def foo() { return 42; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -29,7 +29,7 @@ fn test_asm_generation_simple() {
 
 #[test]
 fn test_import_short_form_codegen() {
-    let source = "import puts def main() puts(\"hello\"); end";
+    let source = "import puts def main() { puts(\"hello\"); }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -40,7 +40,7 @@ fn test_import_short_form_codegen() {
 
 #[test]
 fn test_assembler_output_format() {
-    let ast = parse("def square(x of int) of int return x * x; end");
+    let ast = parse("def square(x of int) of int { return x * x; }");
     let mut ir_gen = IrGenerator::new();
     let ir_program = ir_gen.generate(&ast);
     let mut asm_gen = AsmGenerator::new();
@@ -59,12 +59,12 @@ fn test_assembler_output_format() {
 #[test]
 fn test_ir_generation_multiple_functions() {
     let source = r#"
-        def add(a of int, b of int) of int
-            return a + b
-        end
-        def main() of int
-            return add(1, 2)
-        end
+        def add(a of int, b of int) of int {
+            return a + b;
+        }
+        def main() of int {
+            return add(1, 2);
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();

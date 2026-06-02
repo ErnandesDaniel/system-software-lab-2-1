@@ -89,86 +89,85 @@ pub fn jvm_valid(source: &str) -> bool {
         && classes.iter().all(|(_, b)| b.len() >= 4 && b[0..4] == [0xCA, 0xFE, 0xBA, 0xBE])
 }
 
-const RETURN_42: &str = "def main() of int return 42; end";
+const RETURN_42: &str = "def main() of int { return 42; }";
 
 const ARITHMETIC: &str = r#"
-def main() of int
+def main() of int {
     a = 2;
     b = 3;
-    return a + b * 4
-end
+    return a + b * 4;
+}
 "#;
 
 const IF_ELSE: &str = r#"
-def main() of int
+def main() of int {
     x = 5;
-    if x > 0 then
-        return 1
-    else
-        return 0
-    end
-end
+    if (x > 0) {
+        return 1;
+    } else {
+        return 0;
+    }
+}
 "#;
 
 const WHILE_LOOP: &str = r#"
-def main() of int
+def main() of int {
     i = 1;
-    while i < 5 {
+    while (i < 5) {
         i = i + 1;
     }
-    loop_end
-    return i
-end
+    return i;
+}
 "#;
 
 const NEGATION: &str = r#"
-def main() of int
+def main() of int {
     x = 7;
-    return -x
-end
+    return -x;
+}
 "#;
 
 const NESTED_IF: &str = r#"
-def main() of int
+def main() of int {
     x = 10;
-    if x > 0 then
-        if x > 5 then
-            return 2
-        end
-        return 1
-    end
-    return 0
-end
+    if (x > 0) {
+        if (x > 5) {
+            return 2;
+        }
+        return 1;
+    }
+    return 0;
+}
 "#;
 
 const MULTIPLY: &str = r#"
-def main() of int
+def main() of int {
     a = 6;
-    return a * a
-end
+    return a * a;
+}
 "#;
 
 const MINUS: &str = r#"
-def main() of int
+def main() of int {
     a = 10;
     b = 3;
-    return a - b
-end
+    return a - b;
+}
 "#;
 
 const MODULUS: &str = r#"
-def main() of int
-    return 10 % 3
-end
+def main() of int {
+    return 10 % 3;
+}
 "#;
 
 const MULTI_VAR: &str = r#"
-def main() of int
+def main() of int {
     x = 1;
     y = 2;
     z = 3;
-    return x + y + z
-end
+    return x + y + z;
+}
 "#;
 
 #[test]

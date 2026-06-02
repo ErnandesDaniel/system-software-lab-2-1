@@ -1,175 +1,205 @@
-import getchar
-import putchar
-import malloc
-import free
+import getchar;
+import putchar;
+import malloc;
+import free;
 
-global NL of int = 10
+global NL of int = 10;
 
 struct Entry {
-    key of string
-    val of string
+    key of string;
+    val of string;
 }
 
-global table of Entry[8]
-global count of int = 0
-global buf of string
-global key_off of int = -1
-global val_off of int = -1
+global table of Entry[8];
+global count of int = 0;
+global buf of string;
+global key_off of int = -1;
+global val_off of int = -1;
 
-def streq_at(s of string, pos of int, t of string) of int
-    i = 0
-    while true {
-        a = s[pos + i]
-        b = t[i]
-        if a != b then { return 0 }
-        if a == 0 then { return 1 }
-        i = i + 1
+def streq_at(s of string, pos of int, t of string) of int {
+    i = 0;
+    while (true) {
+        a = s[pos + i];
+        b = t[i];
+        if (a != b) { return 0; }
+        if (a == 0) { return 1; }
+        i = i + 1;
     }
-end
+}
 
-def strdup(s of string, pos of int) of string
-    n = 0
-    while s[pos + n] != 0 { n = n + 1 }
-    p = malloc(n + 1)
-    i = 0
-    while i <= n {
-        p[i] = s[pos + i]
-        i = i + 1
+def strdup(s of string, pos of int) of string {
+    n = 0;
+    while (s[pos + n] != 0) { n = n + 1; }
+    p = malloc(n + 1);
+    i = 0;
+    while (i <= n) {
+        p[i] = s[pos + i];
+        i = i + 1;
     }
-    return p
-end
+    return p;
+}
 
-def puts(s of string)
-    i = 0
-    while true {
-        c = s[i]
-        if c == 0 then { return }
-        putchar(c)
-        i = i + 1
+def puts(s of string) {
+    i = 0;
+    while (true) {
+        c = s[i];
+        if (c == 0) { return; }
+        putchar(c);
+        i = i + 1;
     }
-end
+}
 
-def parse()
-    key_off = -1; val_off = -1
+def parse() {
+    key_off = -1;
+    val_off = -1;
 
-    p = 0
-    while true {
-        c = buf[p]
-        if c == ' ' then { break; }
-        if c == 0 then { return }
-        p = p + 1
+    p = 0;
+    while (true) {
+        c = buf[p];
+        if (c == ' ') { break; }
+        if (c == 0) { return; }
+        p = p + 1;
     }
-    buf[p] = 0
-    key_off = p + 1
+    buf[p] = 0;
+    key_off = p + 1;
 
-    p = key_off
-    while true {
-        c = buf[p]
-        if c == ' ' then { break; }
-        if c == 0 then { return }
-        p = p + 1
+    p = key_off;
+    while (true) {
+        c = buf[p];
+        if (c == ' ') { break; }
+        if (c == 0) { return; }
+        p = p + 1;
     }
-    buf[p] = 0
-    val_off = p + 1
-end
+    buf[p] = 0;
+    val_off = p + 1;
+}
 
-def find(pos of int) of int
-    i = 0
-    while i < count {
-        if streq_at(buf, pos, table[i].key) == 1 then { return i }
-        i = i + 1
+def find(pos of int) of int {
+    i = 0;
+    while (i < count) {
+        if (streq_at(buf, pos, table[i].key) == 1) { return i; }
+        i = i + 1;
     }
-    return -1
-end
+    return -1;
+}
 
-def add(kp of int, vp of int)
-    if count >= 8 then { return }
-    table[count].key = strdup(buf, kp)
-    table[count].val = strdup(buf, vp)
-    count = count + 1
-end
+def add(kp of int, vp of int) {
+    if (count >= 8) { return; }
+    table[count].key = strdup(buf, kp);
+    table[count].val = strdup(buf, vp);
+    count = count + 1;
+}
 
-def update(i of int, vp of int)
-    free(table[i].val)
-    table[i].val = strdup(buf, vp)
-end
+def update(i of int, vp of int) {
+    free(table[i].val);
+    table[i].val = strdup(buf, vp);
+}
 
-def remove(i of int)
-    free(table[i].key)
-    free(table[i].val)
-    while i < count - 1 {
-        table[i].key = table[i + 1].key
-        table[i].val = table[i + 1].val
-        i = i + 1
+def remove(i of int) {
+    free(table[i].key);
+    free(table[i].val);
+    while (i < count - 1) {
+        table[i].key = table[i + 1].key;
+        table[i].val = table[i + 1].val;
+        i = i + 1;
     }
-    count = count - 1
-end
+    count = count - 1;
+}
 
-def ok()
-    putchar('O'); putchar('K'); putchar(NL)
-end
+def ok() {
+    putchar('O');
+    putchar('K');
+    putchar(NL);
+}
 
-def ok_str(s of string)
-    putchar('O'); putchar('K'); putchar(' ')
-    puts(s)
-    putchar(NL)
-end
+def ok_str(s of string) {
+    putchar('O');
+    putchar('K');
+    putchar(' ');
+    puts(s);
+    putchar(NL);
+}
 
-def err(s of string)
-    putchar('E'); putchar('R'); putchar('R'); putchar(' ')
-    puts(s)
-    putchar(NL)
-end
+def err(s of string) {
+    putchar('E');
+    putchar('R');
+    putchar('R');
+    putchar(' ');
+    puts(s);
+    putchar(NL);
+}
 
-def read() of int
-    p = 0
-    while true {
-        c = getchar()
-        if c == NL then { buf[p] = 0; return 1 }
-        if c == -1 then { buf[p] = 0; return 0 }
-        buf[p] = c
-        p = p + 1
+def read() of int {
+    p = 0;
+    while (true) {
+        c = getchar();
+        if (c == NL) {
+            buf[p] = 0;
+            return 1;
+        }
+        if (c == -1) {
+            buf[p] = 0;
+            return 0;
+        }
+        buf[p] = c;
+        p = p + 1;
     }
-end
+}
 
-def main() of int
-    buf = malloc(256)
+def main() of int {
+    buf = malloc(256);
 
-    while read() == 1 {
-        parse()
+    while (read() == 1) {
+        parse();
 
-        if streq_at(buf, 0, "exit") == 1 then {
-            i = 0
-            while i < count {
-                free(table[i].key); free(table[i].val)
-                i = i + 1
+        if (streq_at(buf, 0, "exit") == 1) {
+            i = 0;
+            while (i < count) {
+                free(table[i].key);
+                free(table[i].val);
+                i = i + 1;
             }
-            ok()
-            return 0
-        } else if streq_at(buf, 0, "list") == 1 then {
-            putchar('O'); putchar('K'); putchar(' ')
-            i = 0
-            while i < count {
-                if i > 0 then { putchar(',') }
-                puts(table[i].key)
-                i = i + 1
+            ok();
+            return 0;
+        } else if (streq_at(buf, 0, "list") == 1) {
+            putchar('O');
+            putchar('K');
+            putchar(' ');
+            i = 0;
+            while (i < count) {
+                if (i > 0) { putchar(','); }
+                puts(table[i].key);
+                i = i + 1;
             }
-            putchar(NL)
-        } else if key_off >= 0 && streq_at(buf, 0, "get") == 1 then {
-            i = find(key_off)
-            if i >= 0 then { ok_str(table[i].val) } else { err("Key not found") }
-        } else if key_off >= 0 && streq_at(buf, 0, "create") == 1 then {
-            i = find(key_off)
-            if i >= 0 then { err("Exists") } else { add(key_off, val_off); ok() }
-        } else if key_off >= 0 && streq_at(buf, 0, "set") == 1 then {
-            i = find(key_off)
-            if i >= 0 then { update(i, val_off); ok() } else { err("Key not found") }
-        } else if key_off >= 0 && streq_at(buf, 0, "delete") == 1 then {
-            i = find(key_off)
-            if i >= 0 then { remove(i); ok() } else { err("Key not found") }
+            putchar(NL);
+        } else if (key_off >= 0 && streq_at(buf, 0, "get") == 1) {
+            i = find(key_off);
+            if (i >= 0) { ok_str(table[i].val); } else { err("Key not found"); }
+        } else if (key_off >= 0 && streq_at(buf, 0, "create") == 1) {
+            i = find(key_off);
+            if (i >= 0) { err("Exists"); } else {
+                add(key_off, val_off);
+                ok();
+            }
+        } else if (key_off >= 0 && streq_at(buf, 0, "set") == 1) {
+            i = find(key_off);
+            if (i >= 0) {
+                update(i, val_off);
+                ok();
+            } else {
+                err("Key not found");
+            }
+        } else if (key_off >= 0 && streq_at(buf, 0, "delete") == 1) {
+            i = find(key_off);
+            if (i >= 0) {
+                remove(i);
+                ok();
+            } else {
+                err("Key not found");
+            }
         }
     }
 
-    err("EOF")
-    return 0
-end
+    err("EOF");
+    return 0;
+}

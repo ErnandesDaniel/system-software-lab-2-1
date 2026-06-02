@@ -2,7 +2,7 @@ use crate::tests::parse;
 
 #[test]
 fn test_function_with_params() {
-    let program = parse("def add(a of int, b of int) return a + b; end");
+    let program = parse("def add(a of int, b of int) { return a + b; }");
     assert_eq!(program.items.len(), 1);
     if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[0] {
         assert_eq!(f.signature.name.name, "add");
@@ -20,7 +20,7 @@ fn test_function_with_params() {
 
 #[test]
 fn test_function_with_return_type() {
-    let program = parse("def foo() of int return 1; end");
+    let program = parse("def foo() of int { return 1; }");
     assert_eq!(program.items.len(), 1);
     if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[0] {
         assert_eq!(f.signature.name.name, "foo");
@@ -30,19 +30,19 @@ fn test_function_with_return_type() {
 
 #[test]
 fn test_if_statement() {
-    let program = parse("def foo() if x then return 1; end end");
+    let program = parse("def foo() { if (x) { return 1; } }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_while_loop() {
-    let program = parse("def foo() x = 1; while x < 10 { x = x + 1; } loop_end end");
+    let program = parse("def foo() { x = 1; while (x < 10) { x = x + 1; } }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_import_declaration() {
-    let program = parse("import def print(msg of string) end");
+    let program = parse("import def print(msg of string);");
     assert_eq!(program.items.len(), 1);
     if let crate::ast::SourceItem::FuncDeclaration(d) = &program.items[0] {
         assert_eq!(d.signature.name.name, "print");
@@ -61,31 +61,31 @@ fn test_import_short_form() {
 
 #[test]
 fn test_binary_expressions() {
-    let program = parse("def foo() x = 1 + 2 * 3; end");
+    let program = parse("def foo() { x = 1 + 2 * 3; }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_string_literal_assignment() {
-    let program = parse("def foo() s = \"hello\"; end");
+    let program = parse("def foo() { s = \"hello\"; }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_begin_end_block() {
-    let program = parse("def foo() begin x = 1; end end");
+    let program = parse("def foo() { { x = 1; } }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_array_indexed_assignment() {
-    let program = parse("def foo() arr[0] = 1; end");
+    let program = parse("def foo() { arr[0] = 1; }");
     assert_eq!(program.items.len(), 1);
 }
 
 #[test]
 fn test_function_call_with_args() {
-    let program = parse("import puts def main() puts(\"hello\"); end");
+    let program = parse("import puts def main() { puts(\"hello\"); }");
     assert_eq!(program.items.len(), 2);
     if let crate::ast::SourceItem::FuncDefinition(f) = &program.items[1] {
         assert_eq!(f.signature.name.name, "main");
@@ -95,18 +95,16 @@ fn test_function_call_with_args() {
 #[test]
 fn test_nested_while_loops() {
     let source = r#"
-        def foo()
-        i = 0;
-        while i < 3 {
-            j = 0;
-            while j < 2 {
-                j = j + 1;
+        def foo() {
+            i = 0;
+            while (i < 3) {
+                j = 0;
+                while (j < 2) {
+                    j = j + 1;
+                }
+                i = i + 1;
             }
-            loop_end
-            i = i + 1;
         }
-        loop_end
-        end
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
@@ -115,13 +113,13 @@ fn test_nested_while_loops() {
 #[test]
 fn test_if_with_else() {
     let source = r#"
-        def foo(x of int) of int
-        if x > 0 then
-            return 1
-        else
-            return 0
-        end
-        end
+        def foo(x of int) of int {
+            if (x > 0) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
@@ -130,12 +128,12 @@ fn test_if_with_else() {
 #[test]
 fn test_multiple_functions() {
     let source = r#"
-        def add(a of int, b of int) of int
-            return a + b
-        end
-        def main() of int
-            return add(1, 2)
-        end
+        def add(a of int, b of int) of int {
+            return a + b;
+        }
+        def main() of int {
+            return add(1, 2);
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 2);
@@ -144,12 +142,12 @@ fn test_multiple_functions() {
 #[test]
 fn test_multiple_statements_in_sequence() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1;
             b = 2;
             c = a + b;
-            return c
-        end
+            return c;
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
@@ -157,7 +155,7 @@ fn test_multiple_statements_in_sequence() {
 
 #[test]
 fn test_import_with_params_and_return() {
-    let source = "import def map_put_jvm(name of string, value of string) of int end";
+    let source = "import def map_put_jvm(name of string, value of string) of int;";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }
@@ -195,9 +193,9 @@ fn test_global_with_import_and_def() {
     let source = r#"
         global counter of int = 0;
         import puts
-        def main() of int
-            return counter
-        end
+        def main() of int {
+            return counter;
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 3);
@@ -223,9 +221,9 @@ fn test_global_struct() {
             y of int;
         }
         global p of Point;
-        def main() of int
-            return p.x
-        end
+        def main() of int {
+            return p.x;
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 3);
@@ -234,9 +232,9 @@ fn test_global_struct() {
 #[test]
 fn test_field_access() {
     let source = r#"
-        def main() of int
-            return a.b
-        end
+        def main() of int {
+            return a.b;
+        }
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
@@ -244,7 +242,7 @@ fn test_field_access() {
 
 #[test]
 fn test_simple_assign() {
-    let source = "def foo() a = 5; end";
+    let source = "def foo() { a = 5; }";
     let program = parse(source);
     assert_eq!(program.items.len(), 1);
 }

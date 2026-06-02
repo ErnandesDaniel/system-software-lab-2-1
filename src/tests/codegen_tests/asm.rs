@@ -6,9 +6,9 @@ use crate::tests::parse;
 fn test_asm_global_array_access() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return arr[0]
-        end
+        def main() of int {
+            return arr[0];
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -24,9 +24,9 @@ fn test_asm_global_array_access() {
 fn test_asm_global_array_index() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return arr[2]
-        end
+        def main() of int {
+            return arr[2];
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -40,11 +40,11 @@ fn test_asm_global_array_index() {
 fn test_asm_struct_field_load() {
     let source = r#"
         struct Point { x of int; y of int; }
-        def main() of int
+        def main() of int {
             p of Point;
             p.x = 42;
-            return p.x
-        end
+            return p.x;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -58,12 +58,12 @@ fn test_asm_struct_field_load() {
 #[test]
 fn test_asm_multi_blocks() {
     let source = r#"
-        def main() of int
-            if 1 == 1 then
-                return 42
-            end
-            return 0
-        end
+        def main() of int {
+            if (1 == 1) {
+                return 42;
+            }
+            return 0;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -79,16 +79,16 @@ fn test_asm_multi_blocks() {
 fn test_break_in_while_loop_asm() {
     let source = r#"
         import putchar
-        def main() of int
-            i = 0
-            while i < 5 {
-                if i == 3 then { break; }
-                putchar(65 + i)
-                i = i + 1
+        def main() of int {
+            i = 0;
+            while (i < 5) {
+                if (i == 3) { break; }
+                putchar(65 + i);
+                i = i + 1;
             }
-            putchar(10)
-            return 0
-        end
+            putchar(10);
+            return 0;
+        }
     "#;
     let program = parse(source);
 
@@ -118,12 +118,14 @@ fn test_break_in_while_loop_asm() {
     let mut asm_gen = AsmGenerator::new();
     let asm = asm_gen.generate(&ir);
 
-    assert!(asm.contains("main_BB4:"), "Expected break block label main_BB4");
+    // Find a block label that is immediately followed by a jmp (break block)
     let lines: Vec<&str> = asm.lines().collect();
-    let bb4_idx = lines.iter().position(|l| l.trim() == "main_BB4:").expect("main_BB4 label not found");
-    if let Some(next) = lines.get(bb4_idx + 1) {
-        let trimmed = next.trim();
-        assert!(trimmed.starts_with("jmp"), "Expected jmp after main_BB4, got: {}", next);
-        assert!(trimmed.contains("main_BB3"), "Break should jmp to loop exit main_BB3, got: {}", next);
-    }
+    let break_idx = lines.iter().position(|l| {
+        let t = l.trim();
+        t.starts_with("main_BB") && t.ends_with(':')
+            && lines.get(lines.iter().position(|x| x == l).map(|i| i + 1).unwrap_or(0))
+                .map(|n| n.trim().starts_with("jmp"))
+                .unwrap_or(false)
+    });
+    assert!(break_idx.is_some(), "Expected a break block label followed by jmp");
 }

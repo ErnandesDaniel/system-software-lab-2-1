@@ -2,25 +2,25 @@
 // Демонстрация: локальные функции, функциональные литералы,
 // композиция, замыкания (read-only и mutate), счётчик
 
-import puts
-import printf
+import puts;
+import printf;
 
-def test() of int
+def test() of int {
     c1 = [
-        def add2(x of int) of int
-            return x + 2
-        end,
-        def mul2(x of int) of int
-            return x * 2
-        end
+        def add2(x of int) of int {
+            return x + 2;
+        },
+        def mul2(x of int) of int {
+            return x * 2;
+        }
     ];
     c2 = [
-        def add2_2(x of int) of int
-            return x + 2
-        end,
-        def mul2_2(x of int) of int
-            return x * 2
-        end
+        def add2_2(x of int) of int {
+            return x + 2;
+        },
+        def mul2_2(x of int) of int {
+            return x * 2;
+        }
     ];
 
     x1 = c1[0](2);
@@ -41,17 +41,17 @@ def test() of int
     y3 = c2[0](3);
     printf("c2[0](3) = %d\n", y3);
 
-    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3)
-end
+    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3);
+}
 
-def main() of int
+def main() of int {
 
     // ========== 1. Локальная функция ==========
     puts("--- 1. Local function ---");
 
-    def double(x of int) of int
-        return x * 2
-    end
+    def double(x of int) of int {
+        return x * 2;
+    }
 
     r1 = double(21);
     printf("double(21) = %d\n", r1);
@@ -59,9 +59,9 @@ def main() of int
     // ========== 2. Функциональный литерал ==========
     puts("--- 2. Function literal ---");
 
-    f = def square(x of int) of int
-        return x * x
-    end
+    f = def square(x of int) of int {
+        return x * x;
+    }
 
     r2 = f(5);
     printf("square(5) = %d\n", r2);
@@ -69,13 +69,13 @@ def main() of int
     // ========== 3. Композиция функций ==========
     puts("--- 3. Function composition ---");
 
-    double2 = def dbl(x of int) of int
-        return x * 2
-    end
+    double2 = def dbl(x of int) of int {
+        return x * 2;
+    }
 
-    def apply_twice(f of def(int) of int, x of int) of int
-        return f(f(x))
-    end
+    def apply_twice(f of def(int) of int, x of int) of int {
+        return f(f(x));
+    }
 
     r3 = apply_twice(double2, 3);
     printf("apply_twice(double, 3) = %d\n", r3);
@@ -85,9 +85,9 @@ def main() of int
 
     x = 10;
 
-    def read_x() of int
-        return x
-    end
+    def read_x() of int {
+        return x;
+    }
 
     r4 = read_x();
     printf("read_x() = %d\n", r4);
@@ -97,9 +97,9 @@ def main() of int
 
     y = 0;
 
-    def inc_y()
-        y = y + 1
-    end
+    def inc_y() {
+        y = y + 1;
+    }
 
     inc_y();
     inc_y();
@@ -111,10 +111,10 @@ def main() of int
 
     count = 0;
 
-    def inc_count() of int
+    def inc_count() of int {
         count = count + 1;
-        return count
-    end
+        return count;
+    }
 
     c1 = inc_count();
     c2 = inc_count();
@@ -124,15 +124,15 @@ def main() of int
     // ========== 7. Комбинация всего ==========
     puts("--- 7. All together ---");
 
-    mul3 = def triple(x of int) of int
-        return x * 3
-    end
+    mul3 = def triple(x of int) of int {
+        return x * 3;
+    }
 
     counter = 0;
-    def tick() of int
+    def tick() of int {
         counter = counter + 1;
-        return counter
-    end
+        return counter;
+    }
 
     tick();
     tick();
@@ -145,5 +145,5 @@ def main() of int
 
     puts("--- All done ---");
 
-    return 0
-end
+    return 0;
+}

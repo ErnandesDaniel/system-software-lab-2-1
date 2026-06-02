@@ -5,12 +5,12 @@ use crate::tests::parse;
 #[test]
 fn test_asm_function_call() {
     let source = r#"
-        def double(x of int) of int
-            return x + x
-        end
-        def main() of int
-            return double(21)
-        end
+        def double(x of int) of int {
+            return x + x;
+        }
+        def main() of int {
+            return double(21);
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -25,13 +25,13 @@ fn test_asm_function_call() {
 #[test]
 fn test_asm_if_else_structure() {
     let source = r#"
-        def max(a of int, b of int) of int
-            if a > b then
-                return a
-            else
-                return b
-            end
-        end
+        def max(a of int, b of int) of int {
+            if (a > b) {
+                return a;
+            } else {
+                return b;
+            }
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -46,10 +46,10 @@ fn test_asm_if_else_structure() {
 #[test]
 fn test_asm_string_literal() {
     let source = r#"
-        def main() of int
+        def main() of int {
             s = "hello";
-            return 0
-        end
+            return 0;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -68,16 +68,15 @@ fn test_asm_string_literal() {
 #[test]
 fn test_asm_while_loop_structure() {
     let source = r#"
-        def sum() of int
+        def sum() of int {
             i = 1;
             total = 0;
-            while i <= 10 {
+            while (i <= 10) {
                 total = total + i;
                 i = i + 1;
             }
-            loop_end
-            return total
-        end
+            return total;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -92,7 +91,7 @@ fn test_asm_while_loop_structure() {
 
 #[test]
 fn test_asm_unary_negate() {
-    let source = "def main() of int x = 7; return -x; end";
+    let source = "def main() of int { x = 7; return -x; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -103,7 +102,7 @@ fn test_asm_unary_negate() {
 
 #[test]
 fn test_asm_logical_not() {
-    let source = "def main() of int x = 0; return !x; end";
+    let source = "def main() of int { x = 0; return !x; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -114,7 +113,7 @@ fn test_asm_logical_not() {
 
 #[test]
 fn test_asm_comparison_eq() {
-    let source = "def main() of int return 1 == 2; end";
+    let source = "def main() of int { return 1 == 2; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -126,7 +125,7 @@ fn test_asm_comparison_eq() {
 
 #[test]
 fn test_asm_comparison_lt() {
-    let source = "def main() of int return 5 < 10; end";
+    let source = "def main() of int { return 5 < 10; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -138,7 +137,7 @@ fn test_asm_comparison_lt() {
 
 #[test]
 fn test_asm_comparison_gt() {
-    let source = "def main() of int return 10 > 5; end";
+    let source = "def main() of int { return 10 > 5; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);

@@ -34,9 +34,25 @@ impl SemanticsAnalyzer {
                 if cond_type != SemanticType::Bool {
                     self.add_error(format!("If condition must be bool, got {cond_type:?}"));
                 }
-                self.check_statement(scope, &if_stmt.consequence)?;
-                if let Some(ref alt) = if_stmt.alternative {
-                    self.check_statement(scope, alt)?;
+                let mut inner_scope = scope.clone();
+                for s in &if_stmt.body {
+                    self.check_statement(&mut inner_scope, s)?;
+                }
+                for ei in &if_stmt.else_ifs {
+                    let ei_cond_type = self.check_expression(scope, &ei.condition)?;
+                    if ei_cond_type != SemanticType::Bool {
+                        self.add_error(format!("Else-if condition must be bool, got {ei_cond_type:?}"));
+                    }
+                    let mut ei_scope = scope.clone();
+                    for s in &ei.body {
+                        self.check_statement(&mut ei_scope, s)?;
+                    }
+                }
+                if let Some(ref eb) = if_stmt.else_body {
+                    let mut else_scope = scope.clone();
+                    for s in eb {
+                        self.check_statement(&mut else_scope, s)?;
+                    }
                 }
             }
             Statement::Loop(loop_stmt) => {
@@ -56,7 +72,10 @@ impl SemanticsAnalyzer {
                     self.add_error(format!("Repeat condition must be bool, got {cond_type:?}"));
                 }
                 self.loop_depth += 1;
-                self.check_statement(scope, &repeat_stmt.body)?;
+                let mut inner_scope = scope.clone();
+                for s in &repeat_stmt.body {
+                    self.check_statement(&mut inner_scope, s)?;
+                }
                 self.loop_depth -= 1;
             }
             Statement::Expression(expr_stmt) => {

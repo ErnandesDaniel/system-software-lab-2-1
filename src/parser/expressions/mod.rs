@@ -12,11 +12,8 @@ impl Parser<'_> {
         while let Some(token) = self.current_token() {
             if matches!(
                 token,
-                Token::End
-                    | Token::Semi
-                    | Token::Then
+                Token::Semi
                     | Token::Else
-                    | Token::Do
                     | Token::While
                     | Token::Until
                     | Token::RParen
@@ -45,7 +42,6 @@ impl Parser<'_> {
                     | Token::Struct
                     | Token::Coroutine
                     | Token::Yield
-                    | Token::Begin
                     | Token::LBrace
             ) {
                 break;

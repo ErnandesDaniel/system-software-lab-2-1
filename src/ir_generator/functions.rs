@@ -191,9 +191,13 @@ impl IrGenerator {
             }
             Statement::If(i) => {
                 Self::scan_expr(&i.condition, outer_symbols, param_names, found, seen);
-                Self::scan_exprs_in_stmt(&i.consequence, outer_symbols, param_names, found, seen);
-                if let Some(ref a) = i.alternative {
-                    Self::scan_exprs_in_stmt(a, outer_symbols, param_names, found, seen);
+                Self::scan_exprs_in_stmts(&i.body, outer_symbols, param_names, found, seen);
+                for ei in &i.else_ifs {
+                    Self::scan_expr(&ei.condition, outer_symbols, param_names, found, seen);
+                    Self::scan_exprs_in_stmts(&ei.body, outer_symbols, param_names, found, seen);
+                }
+                if let Some(ref eb) = i.else_body {
+                    Self::scan_exprs_in_stmts(eb, outer_symbols, param_names, found, seen);
                 }
             }
             Statement::Loop(l) => {
@@ -208,7 +212,7 @@ impl IrGenerator {
             }
             Statement::Repeat(r) => {
                 Self::scan_expr(&r.condition, outer_symbols, param_names, found, seen);
-                Self::scan_exprs_in_stmt(&r.body, outer_symbols, param_names, found, seen);
+                Self::scan_exprs_in_stmts(&r.body, outer_symbols, param_names, found, seen);
             }
             Statement::VarDecl(_) => {}
             Statement::Break(_) | Statement::Yield(_) => {}

@@ -140,8 +140,16 @@ pub struct ReturnStatement {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IfStatement {
     pub condition: Expr,
-    pub consequence: Box<Statement>,
-    pub alternative: Option<Box<Statement>>,
+    pub body: Vec<Statement>,
+    pub else_ifs: Vec<ElseIfBranch>,
+    pub else_body: Option<Vec<Statement>>,
+    pub span: Span,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ElseIfBranch {
+    pub condition: Expr,
+    pub body: Vec<Statement>,
     pub span: Span,
 }
 
@@ -161,7 +169,7 @@ pub enum LoopKeyword {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepeatStatement {
-    pub body: Box<Statement>,
+    pub body: Vec<Statement>,
     pub keyword: LoopKeyword,
     pub condition: Expr,
     pub span: Span,

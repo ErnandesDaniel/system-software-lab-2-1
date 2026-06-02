@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
     Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl,
-    Identifier, Statement, StructDefinition, StructField, TypeRef,
+    Identifier, StructDefinition, StructField, TypeRef,
 };
 use crate::lexer::Token;
 
@@ -11,41 +11,13 @@ impl Parser<'_> {
         self.expect(Token::Def)?;
         let sig = self.parse_signature()?;
 
+        self.expect(Token::LBrace)?;
         let mut body = Vec::new();
-
-        if self.current_token() == Some(&Token::Begin) || self.current_token() == Some(&Token::LBrace) {
-            let block_stmt = self.parse_block_like()?;
-            if let Statement::Block(block) = block_stmt {
-                body = block.body;
-            }
-        } else {
-            while let Some(tok) = self.current_token() {
-                if tok == &Token::End {
-                    self.expect(Token::End)?;
-                    break;
-                }
-
-                if tok == &Token::Semi {
-                    self.advance();
-                    continue;
-                }
-
-                let stmt = self.parse_statement()?;
-                body.push(stmt);
-
-                while self.current_token() == Some(&Token::Semi) {
-                    self.advance();
-                }
-
-                if self.current_token() == Some(&Token::End) {
-                    break;
-                }
-            }
-
-            if self.current_token() == Some(&Token::End) {
-                self.expect(Token::End)?;
-            }
+        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+            let stmt = self.parse_statement()?;
+            body.push(stmt);
         }
+        self.expect(Token::RBrace)?;
 
         let span = start.merge(self.current_span());
         Ok(FuncDefinition {
@@ -180,20 +152,10 @@ impl Parser<'_> {
             let (_, f_span) = self.expect(Token::Identifier)?;
             let field_name = self.get_text(&f_span).to_string();
 
-            let has_of = self.current_token() == Some(&Token::Of);
-            if has_of {
-                self.expect(Token::Of)?;
-            }
+            self.expect(Token::Of)?;
+            let ty = self.parse_type()?;
 
-            let ty = if has_of || self.is_type_start() {
-                self.parse_type()?
-            } else {
-                TypeRef::BuiltinType(BuiltinType::Int)
-            };
-
-            if self.current_token() == Some(&Token::Semi) {
-                self.advance();
-            }
+            self.expect(Token::Semi)?;
 
             fields.push(StructField {
                 name: Identifier {
@@ -220,28 +182,13 @@ impl Parser<'_> {
         self.expect(Token::Coroutine)?;
         let sig = self.parse_signature()?;
 
+        self.expect(Token::LBrace)?;
         let mut body = Vec::new();
-        while let Some(tok) = self.current_token() {
-            if tok == &Token::End {
-                self.expect(Token::End)?;
-                break;
-            }
-            if tok == &Token::Semi {
-                self.advance();
-                continue;
-            }
+        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
             let stmt = self.parse_statement()?;
             body.push(stmt);
-            while self.current_token() == Some(&Token::Semi) {
-                self.advance();
-            }
-            if self.current_token() == Some(&Token::End) {
-                break;
-            }
         }
-        if self.current_token() == Some(&Token::End) {
-            self.expect(Token::End)?;
-        }
+        self.expect(Token::RBrace)?;
 
         let span = start.merge(self.current_span());
         Ok(CoroutineDefinition {

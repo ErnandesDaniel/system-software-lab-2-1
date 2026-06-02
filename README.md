@@ -135,22 +135,22 @@ typeRef: {
 };
 
 statement: { // присваивание через '='
-    |if: 'if' expr 'then' statement ('else' statement)?;
-    |loop: ('while'|'until') expr statement* 'end';
-    |repeat: statement ('while'|'until') expr ';';
+    |if: 'if' '(' expr ')' '{' statement* '}' ('else' 'if' '(' expr ')' '{' statement* '}')* ('else' '{' statement* '}')?;
+    |loop: ('while'|'until') '(' expr ')' '{' statement* '}';
+    |repeat: '{' statement* '}' ('while'|'until') '(' expr ')' ';';
     |break: 'break' ';';
     |yield: 'yield' ';';
     |expression: expr ';';
-    |block: ('begin'|'{') (statement|sourceItem)* ('end'|'}');
-    |funcDef: 'def' funcSignature statement* 'end'; // локальная функция
+    |block: '{' (statement|sourceItem)* '}';
+    |funcDef: 'def' funcSignature '{' statement* '}'; // локальная функция
 };
 
-sourceItem: { // дополнено structDef и coroutineDef
-    |funcDef: 'def' funcSignature statement* 'end';
+sourceItem: {
+    |funcDef: 'def' funcSignature '{' statement* '}';
     |structDef: 'struct' identifier '{' list<field> '}' {
-        field: identifier ('of' typeRef)? ';';
+        field: identifier 'of' typeRef ';';
     };
-    |coroutineDef: 'coroutine' funcSignature statement* 'end';
+    |coroutineDef: 'coroutine' funcSignature '{' statement* '}';
 };
 
 expr: {
@@ -163,7 +163,7 @@ expr: {
     };
     |place: identifier;
     |literal: bool|str|char|hex|bits|dec;
-    |funcLiteral: 'def' funcSignature statement* 'end'; // функциональный литерал
+    |funcLiteral: 'def' funcSignature '{' statement* '}'; // функциональный литерал
 };
 ```
 

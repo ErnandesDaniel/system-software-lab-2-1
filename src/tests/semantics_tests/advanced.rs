@@ -12,9 +12,9 @@ fn analyze(source: &str) -> crate::Result<()> {
 fn test_semantics_global_var_ok() {
     let source = r#"
         global counter of int = 0;
-        def main() of int
-            return counter
-        end
+        def main() of int {
+            return counter;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -23,12 +23,12 @@ fn test_semantics_global_var_ok() {
 #[test]
 fn test_semantics_logical_and_on_bools_ok() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1 == 1;
             b = 2 == 2;
             c = a && b;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -37,12 +37,12 @@ fn test_semantics_logical_and_on_bools_ok() {
 #[test]
 fn test_semantics_logical_or_on_bools_ok() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1 == 1;
             b = 2 == 3;
             c = a || b;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -51,11 +51,11 @@ fn test_semantics_logical_or_on_bools_ok() {
 #[test]
 fn test_semantics_not_on_bool_ok() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1 == 1;
             b = !a;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -64,15 +64,15 @@ fn test_semantics_not_on_bool_ok() {
 #[test]
 fn test_semantics_comparison_ops_ok() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1 == 2;
             b = 3 != 4;
             c = 5 < 6;
             d = 7 > 8;
             e = 9 <= 10;
             f = 11 >= 12;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -80,14 +80,14 @@ fn test_semantics_comparison_ops_ok() {
 
 #[test]
 fn test_semantics_unary_negate_on_int_ok() {
-    let source = "def main() of int x = 5; return -x; end";
+    let source = "def main() of int { x = 5; return -x; }";
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
 }
 
 #[test]
 fn test_semantics_bitwise_not_on_int_ok() {
-    let source = "def main() of int x = 5; return ~x; end";
+    let source = "def main() of int { x = 5; return ~x; }";
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
 }
@@ -95,9 +95,9 @@ fn test_semantics_bitwise_not_on_int_ok() {
 #[test]
 fn test_semantics_void_function_ok() {
     let source = r#"
-        def log(msg of string) 
-            puts(msg)
-        end
+        def log(msg of string) {
+            puts(msg);
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
@@ -106,10 +106,10 @@ fn test_semantics_void_function_ok() {
 #[test]
 fn test_semantics_string_plus_string_error() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = "hello" + "world";
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for string + string");
@@ -118,10 +118,10 @@ fn test_semantics_string_plus_string_error() {
 #[test]
 fn test_semantics_undeclared_rhs_error() {
     let source = r#"
-        def main() of int
+        def main() of int {
             x = y;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for undeclared identifier on RHS");
@@ -136,11 +136,11 @@ fn test_semantics_undeclared_rhs_error() {
 #[test]
 fn test_semantics_assign_non_identifier_error() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 5;
             (a + 1) = 10;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(
@@ -152,11 +152,11 @@ fn test_semantics_assign_non_identifier_error() {
 #[test]
 fn test_semantics_bool_assign_then_arithmetic() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 1 == 1;
             b = a + 1;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for bool in arithmetic");
@@ -171,11 +171,11 @@ fn test_semantics_bool_assign_then_arithmetic() {
 #[test]
 fn test_semantics_unary_not_on_int_error() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 5;
             b = !a;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for unary not on int");
@@ -190,12 +190,12 @@ fn test_semantics_unary_not_on_int_error() {
 #[test]
 fn test_semantics_compare_strings_ok() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = "hello";
             b = "world";
             c = a == b;
-            return 0
-        end
+            return 0;
+        }
     "#;
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);

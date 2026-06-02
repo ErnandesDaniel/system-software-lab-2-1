@@ -1,43 +1,41 @@
 //Получить символ из консоли по его ASCII коду в виде числа
-import getchar
+import getchar;
 
 // инициализировать генератор случайных чисел
-import srand
+import srand;
 
 // получить текущее время как число
-import time
+import time;
 
 //получить случайное число
-import rand
+import rand;
 
 //Напечатать символ по его ASCII коду
-import putchar
+import putchar;
 
 //Напечатать строку
-import puts
+import puts;
 
 //Вывести число в консоль
-import printf
+import printf;
 
 //Подождать время (остановить поток программы) в миллисекундах
-import Sleep
+import Sleep;
 
 //Умножить два числа
-def square(x of int) of int
+def square(x of int) of int {
     return x * x;
-end
+}
 
-def main () of int
+def main () of int {
 
 i=1;
 
-while i<5 {
+while (i<5) {
 
 i=i+1;
 
 }
-
-loop_end
 
 t = time(0);      // получить текущее время как число
 srand(t);        // инициализировать генератор
@@ -72,6 +70,4 @@ putchar(10);      // выводим перевод строки (\n)
 
 return r;
 
-end
-
-
+}

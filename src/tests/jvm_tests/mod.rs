@@ -7,7 +7,7 @@ use crate::tests::parse;
 
 #[test]
 fn test_jvm_generation_simple() {
-    let source = "def main() of int return 42; end";
+    let source = "def main() of int { return 42; }";
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&program);
@@ -21,11 +21,11 @@ fn test_jvm_generation_simple() {
 #[test]
 fn test_jvm_generation_with_locals() {
     let source = r#"
-        def main() of int
+        def main() of int {
             a = 10;
             b = 20;
-            return a + b
-        end
+            return a + b;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -40,12 +40,12 @@ fn test_jvm_generation_with_locals() {
 #[test]
 fn test_jvm_generation_arithmetic() {
     let source = r#"
-        def calc(x of int, y of int) of int
+        def calc(x of int, y of int) of int {
             sum = x + y;
             diff = x - y;
             prod = x * y;
-            return sum + diff + prod
-        end
+            return sum + diff + prod;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -60,10 +60,10 @@ fn test_jvm_generation_arithmetic() {
 #[test]
 fn test_jvm_generation_comparison() {
     let source = r#"
-        def compare(a of int, b of int) of int
-            if a == b then return 1; end
-            return 0
-        end
+        def compare(a of int, b of int) of int {
+            if (a == b) { return 1; }
+            return 0;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -77,13 +77,13 @@ fn test_jvm_generation_comparison() {
 #[test]
 fn test_jvm_multiple_functions() {
     let source = r#"
-        def add(a of int, b of int) of int
-            return a + b
-        end
-        def main() of int
+        def add(a of int, b of int) of int {
+            return a + b;
+        }
+        def main() of int {
             result = add(10, 20);
-            return result
-        end
+            return result;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -99,14 +99,13 @@ fn test_jvm_multiple_functions() {
 #[test]
 fn test_jvm_generation_with_loop() {
     let source = r#"
-        def main() of int
+        def main() of int {
             i = 1;
-            while i < 5 {
+            while (i < 5) {
                 i = i + 1;
             }
-            loop_end
-            return i
-        end
+            return i;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();

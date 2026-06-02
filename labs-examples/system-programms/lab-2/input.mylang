@@ -1,10 +1,3 @@
-import puts;
-import fopen;
-import fclose;
-import fgetc;
-import atoi;
-import strcmp;
-import strlen;
 import strcpy;
 import sprintf;
 import resume_coroutine;
@@ -15,548 +8,748 @@ import get_coroutine_state;
 global buf of string = "                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  ";
 global tmp of string = "                                                                                                                                                                                                                                                                                                                                ";
 global tmp2 of string = "                                                                                                                                                                                                                                                                ";
-global buf_off of int = 0
+global buf_off of int = 0;
 
-def alloc_buf() of int
-    r = buf_off
-    buf_off = buf_off + 256
-    return r
-end
+def alloc_buf() of int {
+    r = buf_off;
+    buf_off = buf_off + 256;
+    return r;
+}
 
 // ===================== Pipe =====================
-struct Pipe { buf of int[256]; head; tail; count; done; }
+struct Pipe {
+    buf of int[256];
+    head of int;
+    tail of int;
+    count of int;
+    done of int;
+}
 
-def pipe_init(p of Pipe)
-    p.head = 0; p.tail = 0; p.count = 0; p.done = 0
-end
+def pipe_init(p of Pipe) {
+    p.head = 0;
+    p.tail = 0;
+    p.count = 0;
+    p.done = 0;
+}
 
-def pipe_write(p of Pipe, v of int) of int
-    if p.count < 256 then
-        p.buf[p.tail] = v
-        p.tail = (p.tail + 1) % 256
-        p.count = p.count + 1
-        return 0
-    end
-    return -2
-end
+def pipe_write(p of Pipe, v of int) of int {
+    if (p.count < 256) {
+        p.buf[p.tail] = v;
+        p.tail = (p.tail + 1) % 256;
+        p.count = p.count + 1;
+        return 0;
+    }
+    return -2;
+}
 
-def pipe_read(p of Pipe) of int
-    if p.done == 1 && p.count <= 0 then return -1
-    if p.count > 0 then
-        r = p.buf[p.head]
-        p.head = (p.head + 1) % 256
-        p.count = p.count - 1
-        return r
-    end
-    return -2
-end
+def pipe_read(p of Pipe) of int {
+    if (p.done == 1 && p.count <= 0) { return -1; }
+    if (p.count > 0) {
+        r = p.buf[p.head];
+        p.head = (p.head + 1) % 256;
+        p.count = p.count - 1;
+        return r;
+    }
+    return -2;
+}
 
-def pipe_close(p of Pipe) p.done = 1 end
+def pipe_close(p of Pipe) { p.done = 1; }
 
 // ===================== CSV utilities =====================
-def read_line(f of int, off of int) of int
-    i = 0
-    while 1 == 1
-        c = fgetc(f)
-        if c < 0 then buf[off + i] = 0; return -1
-        if c == 10 then buf[off + i] = 0; return i
-        buf[off + i] = c
-        i = i + 1
-    end
-end
+def read_line(f of int, off of int) of int {
+    i = 0;
+    while (true) {
+        c = fgetc(f);
+        if (c < 0) {
+            buf[off + i] = 0;
+            return -1;
+        }
+        if (c == 10) {
+            buf[off + i] = 0;
+            return i;
+        }
+        buf[off + i] = c;
+        i = i + 1;
+    }
+}
 
-def csv_field(dst of string, src of string, pos of int) of int
-    i = 0
-    while 1 == 1
-        c = src[pos + i]
-        if c == 0 || c == 10 || c == 13 || c == ',' then
-            dst[i] = 0
-            if c == 13 && src[pos + i + 1] == 10 then return pos + i + 2
-            if c == ',' then return pos + i + 1
-            return pos + i
-        end
-        dst[i] = c
-        i = i + 1
-    end
-end
+def csv_field(dst of string, src of string, pos of int) of int {
+    i = 0;
+    while (true) {
+        c = src[pos + i];
+        if (c == 0 || c == 10 || c == 13 || c == ',') {
+            dst[i] = 0;
+            if (c == 13 && src[pos + i + 1] == 10) { return pos + i + 2; }
+            if (c == ',') { return pos + i + 1; }
+            return pos + i;
+        }
+        dst[i] = c;
+        i = i + 1;
+    }
+}
 
 // ===================== People struct =====================
-struct Person { id of int; surname of int; name of int; patronymic of int; birthday of int; }
-global people of Person[32]
-global people_count of int = 0
+struct Person {
+    id of int;
+    surname of int;
+    name of int;
+    patronymic of int;
+    birthday of int;
+}
+global people of Person[32];
+global people_count of int = 0;
 
 // ===================== Pipes =====================
-global p_line of Pipe
-global p_join of Pipe
-global p_result of Pipe
+global p_line of Pipe;
+global p_join of Pipe;
+global p_result of Pipe;
 
 // ===================== Query 1: INNER JOIN =====================
-coroutine q1_reader() of int
-    pipe_init(p_line)
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r")
-    _ = read_line(f, 0)  // skip header
-    while 1 == 1
-        off = alloc_buf(); n = read_line(f, off)
-        if n < 0 then pipe_close(p_line); fclose(f); return 0
-        r = -2
-        while r == -2 r = pipe_write(p_line, off)
-        yield
-    end
-end
+coroutine q1_reader() of int {
+    pipe_init(p_line);
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
+    _ = read_line(f, 0);
+    // skip header
+    while (true) {
+        off = alloc_buf();
+        n = read_line(f, off);
+        if (n < 0) {
+            pipe_close(p_line);
+            fclose(f);
+            return 0;
+        }
+        r = -2;
+        while (r == -2) { r = pipe_write(p_line, off); }
+        yield;
+    }
+}
 
-coroutine q1_types_reader() of int
-    pipe_init(p_join)
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv", "r")
-    _ = read_line(f, 0)
-    while 1 == 1
-        off = alloc_buf(); n = read_line(f, off)
-        if n < 0 then pipe_close(p_join); fclose(f); return 0
-        r = -2
-        while r == -2 r = pipe_write(p_join, off)
-        yield
-    end
-end
+coroutine q1_types_reader() of int {
+    pipe_init(p_join);
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv", "r");
+    _ = read_line(f, 0);
+    while (true) {
+        off = alloc_buf();
+        n = read_line(f, off);
+        if (n < 0) {
+            pipe_close(p_join);
+            fclose(f);
+            return 0;
+        }
+        r = -2;
+        while (r == -2) { r = pipe_write(p_join, off); }
+        yield;
+    }
+}
 
-coroutine q1_joiner() of int
+coroutine q1_joiner() of int {
     // Read types into local buffer
-    t_id = 0; t_name = 0
-    while 1 == 1
-        off = pipe_read(p_join)
-        if off == -2 then yield else
-            if off == -1 then break
-            pos = 0; pos = csv_field(tmp, buf, off + pos); id = atoi(tmp)
-            pos = csv_field(tmp, buf, off + pos)
-            if id == 3 then t_id = id; memcpy(tmp2, tmp, 20)
-        end
-    end
+    t_id = 0;
+    t_name = 0;
+    while (true) {
+        off = pipe_read(p_join);
+        if (off == -2) {
+            yield;
+        } else {
+            if (off == -1) { break; }
+            pos = 0;
+            pos = csv_field(tmp, buf, off + pos);
+            id = atoi(tmp);
+            pos = csv_field(tmp, buf, off + pos);
+            if (id == 3) {
+                t_id = id;
+                memcpy(tmp2, tmp, 20);
+            }
+        }
+    }
     // Join with vedomosti
-    pipe_init(p_result)
-    while 1 == 1
-        off = pipe_read(p_line)
-        if off == -2 then yield else
-            if off == -1 then pipe_close(p_result); return 0
-            pos = 0; pos = csv_field(tmp, buf, off + pos); _ = atoi(tmp)  // id
-            pos = csv_field(tmp, buf, off + pos); tid = atoi(tmp)          // type_id
-            pos = csv_field(tmp, buf, off + pos); pid = atoi(tmp)          // person_id
-            if tid == 3 && pid > 153285 then
-                r = -2
-                while r == -2
+    pipe_init(p_result);
+    while (true) {
+        off = pipe_read(p_line);
+        if (off == -2) {
+            yield;
+        } else {
+            if (off == -1) {
+                pipe_close(p_result);
+                return 0;
+            }
+            pos = 0;
+            pos = csv_field(tmp, buf, off + pos);
+            _ = atoi(tmp);
+            // id
+            pos = csv_field(tmp, buf, off + pos);
+            tid = atoi(tmp);
+            // type_id
+            pos = csv_field(tmp, buf, off + pos);
+            pid = atoi(tmp);
+            // person_id
+            if (tid == 3 && pid > 153285) {
+                r = -2;
+                while (r == -2) {
                     // Build output: type_name, date
-                    dst = alloc_buf()
-                    i = 0
-                    while 1 == 1
-                        c = tmp2[i]
-                        if c == 0 then buf[dst + i] = 0; break
-                        buf[dst + i] = c; i = i + 1
-                    end
-                    buf[dst + i] = 44  // ','
-                    i = i + 1
-                    pos2 = 0
-                    pos2 = csv_field(tmp, buf, off + pos)  // date
-                    j = 0
-                    while 1 == 1
-                        c = tmp[j]; buf[dst + i] = c; if c == 0 then break
-                        i = i + 1; j = j + 1
-                    end
-                    r = pipe_write(p_result, dst)
-                    if r == -2 then yield
-                end
-            end
-        end
-    end
-end
+                    dst = alloc_buf();
+                    i = 0;
+                    while (true) {
+                        c = tmp2[i];
+                        if (c == 0) {
+                            buf[dst + i] = 0;
+                            break;
+                        }
+                        buf[dst + i] = c;
+                        i = i + 1;
+                    }
+                    buf[dst + i] = 44;
+                    // ','
+                    i = i + 1;
+                    pos2 = 0;
+                    pos2 = csv_field(tmp, buf, off + pos);
+                    // date
+                    j = 0;
+                    while (true) {
+                        c = tmp[j];
+                        buf[dst + i] = c;
+                        if (c == 0) { break; };
+                        i = i + 1;
+                        j = j + 1;
+                    }
+                    r = pipe_write(p_result, dst);
+                    if (r == -2) { yield; }
+                }
+            }
+        }
+    }
+}
 
-coroutine q1_output() of int
-    puts("=== Query 1: INNER JOIN ===")
-    while 1 == 1
-        off = pipe_read(p_result)
-        if off == -2 then yield else
-            if off == -1 then return 0
-            puts(buf + off)
-        end
-    end
-end
+coroutine q1_output() of int {
+    puts("=== Query 1: INNER JOIN ===");
+    while (true) {
+        off = pipe_read(p_result);
+        if (off == -2) {
+            yield;
+        } else {
+            if (off == -1) { return 0; }
+            puts(buf + off);
+        }
+    }
+}
 
 // ===================== Query 2: LEFT JOIN =====================
-coroutine q2_reader() of int
-    pipe_init(p_line)
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    _ = read_line(f, 0)
-    while 1 == 1
-        off = alloc_buf(); n = read_line(f, off)
-        if n < 0 then pipe_close(p_line); fclose(f); return 0
-        r = -2
-        while r == -2 r = pipe_write(p_line, off)
-        yield
-    end
-end
+coroutine q2_reader() of int {
+    pipe_init(p_line);
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    _ = read_line(f, 0);
+    while (true) {
+        off = alloc_buf();
+        n = read_line(f, off);
+        if (n < 0) {
+            pipe_close(p_line);
+            fclose(f);
+            return 0;
+        }
+        r = -2;
+        while (r == -2) { r = pipe_write(p_line, off); }
+        yield;
+    }
+}
 
-coroutine q2_processor() of int
+coroutine q2_processor() of int {
     // Store all studies for lookup
-    global s_nzk of int[32]; global s_person of int[32]; global s_count of int = 0
-    fs = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r")
-    _ = read_line(fs, 0)
-    while 1 == 1
-        off = alloc_buf(); n = read_line(fs, off)
-        if n < 0 then fclose(fs); break
-        pos = 0; pos = csv_field(tmp, buf, off + pos); pid = atoi(tmp)
-        pos = csv_field(tmp, buf, off + pos); nzk_off = alloc_buf()
-        i = 0
-        while 1 == 1
-            c = tmp[i]; buf[nzk_off + i] = c; if c == 0 then break
-            i = i + 1
-        end
-        if pid == 163276 then
-            s_person[s_count] = pid
-            s_nzk[s_count] = nzk_off
-            s_count = s_count + 1
-        end
-    end
+    global s_nzk of int[32];
+    global s_person of int[32];
+    global s_count of int = 0;
+    fs = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+    _ = read_line(fs, 0);
+    while (true) {
+        off = alloc_buf();
+        n = read_line(fs, off);
+        if (n < 0) {
+            fclose(fs);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, off + pos);
+        pid = atoi(tmp);
+        pos = csv_field(tmp, buf, off + pos);
+        nzk_off = alloc_buf();
+        i = 0;
+        while (true) {
+            c = tmp[i];
+            buf[nzk_off + i] = c;
+            if (c == 0) { break; };
+            i = i + 1;
+        }
+        if (pid == 163276) {
+            s_person[s_count] = pid;
+            s_nzk[s_count] = nzk_off;
+            s_count = s_count + 1;
+        }
+    }
     // Process people
-    pipe_init(p_result)
-    while 1 == 1
-        off = pipe_read(p_line)
-        if off == -2 then yield else
-            if off == -1 then pipe_close(p_result); return 0
-            pos = 0; pos = csv_field(tmp, buf, off + pos); id = atoi(tmp)
-            pos = csv_field(tmp, buf, off + pos)  // surname
-            surname_off = alloc_buf()
-            i = 0
-            while 1 == 1
-                c = tmp[i]; buf[surname_off + i] = c; if c == 0 then break
-                i = i + 1
-            end
-            if strcmp(buf + surname_off, "Ёлкин") > 0 then
+    pipe_init(p_result);
+    while (true) {
+        off = pipe_read(p_line);
+        if (off == -2) {
+            yield;
+        } else {
+            if (off == -1) {
+                pipe_close(p_result);
+                return 0;
+            }
+            pos = 0;
+            pos = csv_field(tmp, buf, off + pos);
+            id = atoi(tmp);
+            pos = csv_field(tmp, buf, off + pos);
+            // surname
+            surname_off = alloc_buf();
+            i = 0;
+            while (true) {
+                c = tmp[i];
+                buf[surname_off + i] = c;
+                if (c == 0) { break; };
+                i = i + 1;
+            }
+            if (strcmp(buf + surname_off, "Ёлкин") > 0) {
                 // Output: id, nzk, id
-                dst = alloc_buf(); di = 0
+                dst = alloc_buf();
+                di = 0;
                 // find nzk for this person
-                nzk_str = 0; j = 0
-                while j < s_count
-                    if s_person[j] == 163276 then nzk_str = s_nzk[j]
-                    j = j + 1
-                end
-                if nzk_str > 0 then
-                    r = -2
-                    while r == -2
-                        sprintf(buf + dst, "%d", id); di = strlen(buf + dst)
-                        buf[dst + di] = 44; di = di + 1  // ','
-                        k = 0
-                        while 1 == 1
-                            c = buf[nzk_str + k]; buf[dst + di] = c
-                            if c == 0 then break
-                            di = di + 1; k = k + 1
-                        end
-                        buf[dst + di] = 44; di = di + 1
-                        sprintf(buf + dst + di, "%d", id); di = di + strlen(buf + dst + di)
-                        buf[dst + di] = 0
-                        r = pipe_write(p_result, dst)
-                        if r == -2 then yield
-                    end
-                end
-            end
-        end
-    end
-end
+                nzk_str = 0;
+                j = 0;
+                while (j < s_count) {
+                    if (s_person[j] == 163276) { nzk_str = s_nzk[j]; }
+                    j = j + 1;
+                }
+                if (nzk_str > 0) {
+                    r = -2;
+                    while (r == -2) {
+                        sprintf(buf + dst, "%d", id);
+                        di = strlen(buf + dst);
+                        buf[dst + di] = 44;
+                        di = di + 1;
+                        // ','
+                        k = 0;
+                        while (true) {
+                            c = buf[nzk_str + k];
+                            buf[dst + di] = c;
+                            if (c == 0) { break; }
+                            di = di + 1;
+                            k = k + 1;
+                        }
+                        buf[dst + di] = 44;
+                        di = di + 1;
+                        sprintf(buf + dst + di, "%d", id);
+                        di = di + strlen(buf + dst + di);
+                        buf[dst + di] = 0;
+                        r = pipe_write(p_result, dst);
+                        if (r == -2) { yield; }
+                    }
+                }
+            }
+        }
+    }
+}
 
-coroutine q2_output() of int
-    puts("=== Query 2: LEFT JOIN ===")
-    while 1 == 1
-        off = pipe_read(p_result)
-        if off == -2 then yield else
-            if off == -1 then return 0
-            puts(buf + off)
-        end
-    end
-end
+coroutine q2_output() of int {
+    puts("=== Query 2: LEFT JOIN ===");
+    while (true) {
+        off = pipe_read(p_result);
+        if (off == -2) {
+            yield;
+        } else {
+            if (off == -1) { return 0; }
+            puts(buf + off);
+        }
+    }
+}
 
 // ===================== Query 3: COUNT FKTИУ without patronymic =====================
-def q3_run() of int
-    puts("=== Query 3: Count FKTИУ without patronymic ===")
-    pipe_init(p_line)
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    _ = read_line(f, 0)
-    count = 0
-    while 1 == 1
-        n = read_line(f, 0)
-        if n < 0 then fclose(f); break
-        pos = 0; pos = csv_field(tmp, buf, pos); _ = atoi(tmp)  // id
-        pos = csv_field(tmp, buf, pos)  // surname
-        pos = csv_field(tmp, buf, pos)  // name
-        pos = csv_field(tmp, buf, pos)  // patronymic
-        if tmp[0] == 0 then
+def q3_run() of int {
+    puts("=== Query 3: Count FKTИУ without patronymic ===");
+    pipe_init(p_line);
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    _ = read_line(f, 0);
+    count = 0;
+    while (true) {
+        n = read_line(f, 0);
+        if (n < 0) {
+            fclose(f);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        _ = atoi(tmp);
+        // id
+        pos = csv_field(tmp, buf, pos);
+        // surname
+        pos = csv_field(tmp, buf, pos);
+        // name
+        pos = csv_field(tmp, buf, pos);
+        // patronymic
+        if (tmp[0] == 0) {
             // Check studies for FKTИУ
-            fs = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r")
-            _ = read_line(fs, 0)
-            found = 0
-            while 1 == 1
-                n2 = read_line(fs, 0)
-                if n2 < 0 then break
-                pos2 = 0; pos2 = csv_field(tmp2, buf, pos2); pid = atoi(tmp2)
-                pos2 = csv_field(tmp2, buf, pos2)  // nzk
-                pos2 = csv_field(tmp2, buf, pos2)  // form
-                pos2 = csv_field(tmp2, buf, pos2)  // direction
-                pos2 = csv_field(tmp2, buf, pos2)  // department
-                pos2 = csv_field(tmp2, buf, pos2)  // faculty
-                if pid == id && strcmp(tmp2, "ФКТИУ") == 0 then found = 1
-            end
-            fclose(fs)
-            if found == 1 then count = count + 1
-        end
-    end
-    sprintf(buf, "%d", count)
-    puts(buf)
-    return 0
-end
+            fs = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+            _ = read_line(fs, 0);
+            found = 0;
+            while (true) {
+                n2 = read_line(fs, 0);
+                if (n2 < 0) { break; }
+                pos2 = 0;
+                pos2 = csv_field(tmp2, buf, pos2);
+                pid = atoi(tmp2);
+                pos2 = csv_field(tmp2, buf, pos2);
+                // nzk
+                pos2 = csv_field(tmp2, buf, pos2);
+                // form
+                pos2 = csv_field(tmp2, buf, pos2);
+                // direction
+                pos2 = csv_field(tmp2, buf, pos2);
+                // department
+                pos2 = csv_field(tmp2, buf, pos2);
+                // faculty
+                if (pid == id && strcmp(tmp2, "ФКТИУ") == 0) { found = 1; }
+            }
+            fclose(fs);
+            if (found == 1) { count = count + 1; }
+        }
+    }
+    sprintf(buf, "%d", count);
+    puts(buf);
+    return 0;
+}
 
 // ===================== Query 4: Plans >2 groups on VT =====================
-def q4_run() of int
-    puts("=== Query 4: Plans >2 groups on VT ===")
-    pipe_init(p_line)
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r")
-    _ = read_line(f, 0)
+def q4_run() of int {
+    puts("=== Query 4: Plans >2 groups on VT ===");
+    pipe_init(p_line);
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r");
+    _ = read_line(f, 0);
     // Store plans in temp arrays
-    global plan_ids of int[16]; global plan_counts of int[16]; global plan_total of int = 0
-    while 1 == 1
-        n = read_line(f, 0)
-        if n < 0 then fclose(f); break
-        pos = 0; pos = csv_field(tmp, buf, pos); pid = atoi(tmp)
-        pos = csv_field(tmp, buf, pos)  // group name
-        pos = csv_field(tmp, buf, pos)  // department
-        if strcmp(tmp, "Кафедра вычислительной техники") == 0 then
+    global plan_ids of int[16];
+    global plan_counts of int[16];
+    global plan_total of int = 0;
+    while (true) {
+        n = read_line(f, 0);
+        if (n < 0) {
+            fclose(f);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        pid = atoi(tmp);
+        pos = csv_field(tmp, buf, pos);
+        // group name
+        pos = csv_field(tmp, buf, pos);
+        // department
+        if (strcmp(tmp, "Кафедра вычислительной техники") == 0) {
             // Find or create plan entry
-            found = -1; j = 0
-            while j < plan_total
-                if plan_ids[j] == pid then found = j; j = plan_total
-                j = j + 1
-            end
-            if found >= 0 then
-                plan_counts[found] = plan_counts[found] + 1
-            else
-                plan_ids[plan_total] = pid
-                plan_counts[plan_total] = 1
-                plan_total = plan_total + 1
-            end
-        end
-    end
-    j = 0
-    while j < plan_total
-        if plan_counts[j] > 2 then
-            sprintf(buf, "%d: %d groups", plan_ids[j], plan_counts[j])
-            puts(buf)
-        end
-        j = j + 1
-    end
-    return 0
-end
+            found = -1;
+            j = 0;
+            while (j < plan_total) {
+                if (plan_ids[j] == pid) {
+                    found = j;
+                    j = plan_total;
+                }
+                j = j + 1;
+            }
+            if (found >= 0) {
+                plan_counts[found] = plan_counts[found] + 1;
+            } else {
+                plan_ids[plan_total] = pid;
+                plan_counts[plan_total] = 1;
+                plan_total = plan_total + 1;
+            }
+        }
+    }
+    j = 0;
+    while (j < plan_total) {
+        if (plan_counts[j] > 2) {
+            sprintf(buf, "%d: %d groups", plan_ids[j], plan_counts[j]);
+            puts(buf);
+        }
+        j = j + 1;
+    }
+    return 0;
+}
 
 // ===================== Query 5: Avg grades group 4100 vs 1100 =====================
-def q5_run() of int
-    puts("=== Query 5: Avg grades group 4100 >= group 1100 ===")
+def q5_run() of int {
+    puts("=== Query 5: Avg grades group 4100 >= group 1100 ===");
     // Find students in group 4100 and 1100
-    fs = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r")
-    _ = read_line(fs, 0)
-    global g4100_ids of int[16]; global g4100_count of int = 0
-    global g1100_ids of int[16]; global g1100_count of int = 0
-    while 1 == 1
-        n = read_line(fs, 0)
-        if n < 0 then fclose(fs); break
-        pos = 0; pos = csv_field(tmp, buf, pos); pid = atoi(tmp)
-        pos = csv_field(tmp, buf, pos); group = tmp[0] * 1000 + tmp[1] * 100 + tmp[2] * 10 + tmp[3]  // rough parse
-        if strcmp(tmp, "4100") == 0 then
-            g4100_ids[g4100_count] = pid; g4100_count = g4100_count + 1
-        end
-        if strcmp(tmp, "1100") == 0 then
-            g1100_ids[g1100_count] = pid; g1100_count = g1100_count + 1
-        end
-    end
+    fs = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    _ = read_line(fs, 0);
+    global g4100_ids of int[16];
+    global g4100_count of int = 0;
+    global g1100_ids of int[16];
+    global g1100_count of int = 0;
+    while (true) {
+        n = read_line(fs, 0);
+        if (n < 0) {
+            fclose(fs);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        pid = atoi(tmp);
+        pos = csv_field(tmp, buf, pos);
+        group = tmp[0] * 1000 + tmp[1] * 100 + tmp[2] * 10 + tmp[3];
+        // rough parse
+        if (strcmp(tmp, "4100") == 0) {
+            g4100_ids[g4100_count] = pid;
+            g4100_count = g4100_count + 1;
+        }
+        if (strcmp(tmp, "1100") == 0) {
+            g1100_ids[g1100_count] = pid;
+            g1100_count = g1100_count + 1;
+        }
+    }
     // Read vedomosti and compute averages
-    fv = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r")
-    _ = read_line(fv, 0)
-    global g4100_sum of int[16]; global g4100_n of int[16]
-    global g1100_sum of int; global g1100_n of int
-    j = 0; while j < 16 g4100_sum[j] = 0; g4100_n[j] = 0; j = j + 1
-    g1100_sum = 0; g1100_n = 0
-    while 1 == 1
-        n = read_line(fv, 0)
-        if n < 0 then fclose(fv); break
-        pos = 0; pos = csv_field(tmp, buf, pos); _ = atoi(tmp)   // id
-        pos = csv_field(tmp, buf, pos); _ = atoi(tmp)             // type_id
-        pos = csv_field(tmp, buf, pos); pid = atoi(tmp)           // person_id
-        pos = csv_field(tmp, buf, pos)                            // date
-        pos = csv_field(tmp, buf, pos); mark = atoi(tmp)          // mark
+    fv = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
+    _ = read_line(fv, 0);
+    global g4100_sum of int[16];
+    global g4100_n of int[16];
+    global g1100_sum of int;
+    global g1100_n of int;
+    j = 0;
+    while (j < 16) { g4100_sum[j] = 0; g4100_n[j] = 0; j = j + 1; };
+    g1100_sum = 0;
+    g1100_n = 0;
+    while (true) {
+        n = read_line(fv, 0);
+        if (n < 0) {
+            fclose(fv);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        _ = atoi(tmp);
+        // id
+        pos = csv_field(tmp, buf, pos);
+        _ = atoi(tmp);
+        // type_id
+        pos = csv_field(tmp, buf, pos);
+        pid = atoi(tmp);
+        // person_id
+        pos = csv_field(tmp, buf, pos);
+        // date
+        pos = csv_field(tmp, buf, pos);
+        mark = atoi(tmp);
+        // mark
         // Check if pid is in g4100
-        j = 0
-        while j < g4100_count
-            if g4100_ids[j] == pid then
-                g4100_sum[j] = g4100_sum[j] + mark
-                g4100_n[j] = g4100_n[j] + 1
-                j = g4100_count
-            end
-            j = j + 1
-        end
+        j = 0;
+        while (j < g4100_count) {
+            if (g4100_ids[j] == pid) {
+                g4100_sum[j] = g4100_sum[j] + mark;
+                g4100_n[j] = g4100_n[j] + 1;
+                j = g4100_count;
+            }
+            j = j + 1;
+        }
         // Check if pid is in g1100
-        j = 0
-        while j < g1100_count
-            if g1100_ids[j] == pid then
-                g1100_sum[0] = g1100_sum[0] + mark
-                g1100_n = g1100_n + 1
-                j = g1100_count
-            end
-            j = j + 1
-        end
-    end
+        j = 0;
+        while (j < g1100_count) {
+            if (g1100_ids[j] == pid) {
+                g1100_sum[0] = g1100_sum[0] + mark;
+                g1100_n = g1100_n + 1;
+                j = g1100_count;
+            }
+            j = j + 1;
+        }
+    }
     // Compute avg 1100
-    avg1100 = 0
-    if g1100_n > 0 then avg1100 = g1100_sum[0] / g1100_n
-    sprintf(buf, "Avg 1100 = %d", avg1100)
-    puts(buf)
+    avg1100 = 0;
+    if (g1100_n > 0) { avg1100 = g1100_sum[0] / g1100_n; }
+    sprintf(buf, "Avg 1100 = %d", avg1100);
+    puts(buf);
     // Find 4100 students with avg >= avg1100
-    found = 0; j = 0
-    while j < g4100_count
-        if g4100_n[j] > 0 then
-            avg = g4100_sum[j] / g4100_n[j]
-            if avg >= avg1100 then found = found + 1
-        end
-        j = j + 1
-    end
-    sprintf(buf, "Students found: %d", found)
-    puts(buf)
-    return 0
-end
+    found = 0;
+    j = 0;
+    while (j < g4100_count) {
+        if (g4100_n[j] > 0) {
+            avg = g4100_sum[j] / g4100_n[j];
+            if (avg >= avg1100) { found = found + 1; }
+        }
+        j = j + 1;
+    }
+    sprintf(buf, "Students found: %d", found);
+    puts(buf);
+    return 0;
+}
 
 // ===================== Query 6: Enrolled after 2012-09-01, course 1, zaoch =====================
-def q6_run() of int
-    puts("=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===")
+def q6_run() of int {
+    puts("=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===");
     // First pass: find zaoch course 1 students
-    fo = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r")
-    _ = read_line(fo, 0)
-    global zaoch_ids of int[32]; global zaoch_count of int = 0
-    while 1 == 1
-        n = read_line(fo, 0)
-        if n < 0 then fclose(fo); break
-        pos = 0; pos = csv_field(tmp, buf, pos); pid = atoi(tmp)
-        pos = csv_field(tmp, buf, pos)  // nzk
-        pos = csv_field(tmp, buf, pos); form = strlen(tmp) > 0  // form
-        pos = csv_field(tmp, buf, pos)  // direction
-        pos = csv_field(tmp, buf, pos)  // department
-        pos = csv_field(tmp, buf, pos)  // faculty
-        pos = csv_field(tmp, buf, pos); course = atoi(tmp)
-        if strcmp(tmp2, "заочная") == 0 && course == 1 then
-            zaoch_ids[zaoch_count] = pid; zaoch_count = zaoch_count + 1
-        end
-    end
+    fo = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+    _ = read_line(fo, 0);
+    global zaoch_ids of int[32];
+    global zaoch_count of int = 0;
+    while (true) {
+        n = read_line(fo, 0);
+        if (n < 0) {
+            fclose(fo);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        pid = atoi(tmp);
+        pos = csv_field(tmp, buf, pos);
+        // nzk
+        pos = csv_field(tmp, buf, pos);
+        form = strlen(tmp) > 0;
+        // form
+        pos = csv_field(tmp, buf, pos);
+        // direction
+        pos = csv_field(tmp, buf, pos);
+        // department
+        pos = csv_field(tmp, buf, pos);
+        // faculty
+        pos = csv_field(tmp, buf, pos);
+        course = atoi(tmp);
+        if (strcmp(tmp2, "заочная") == 0 && course == 1) {
+            zaoch_ids[zaoch_count] = pid;
+            zaoch_count = zaoch_count + 1;
+        }
+    }
     // Read students, find zaoch with start_date > 2012-09-01
-    fs = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r")
-    _ = read_line(fs, 0)
-    count = 0
-    while 1 == 1
-        n = read_line(fs, 0)
-        if n < 0 then fclose(fs); break
-        pos = 0; pos = csv_field(tmp, buf, pos); pid = atoi(tmp)
-        pos = csv_field(tmp, buf, pos)  // group
-        pos = csv_field(tmp, buf, pos); start = strlen(tmp)  // start_date
+    fs = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    _ = read_line(fs, 0);
+    count = 0;
+    while (true) {
+        n = read_line(fs, 0);
+        if (n < 0) {
+            fclose(fs);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, pos);
+        pid = atoi(tmp);
+        pos = csv_field(tmp, buf, pos);
+        // group
+        pos = csv_field(tmp, buf, pos);
+        start = strlen(tmp);
+        // start_date
         // Check if pid is in zaoch list
-        j = 0; in_list = 0
-        while j < zaoch_count
-            if zaoch_ids[j] == pid then in_list = 1; j = zaoch_count
-            j = j + 1
-        end
-        if in_list == 1 && strcmp(tmp, "2012-09-01") > 0 then count = count + 1
-    end
-    sprintf(buf, "Count: %d", count)
-    puts(buf)
-    return 0
-end
+        j = 0;
+        in_list = 0;
+        while (j < zaoch_count) {
+            if (zaoch_ids[j] == pid) {
+                in_list = 1;
+                j = zaoch_count;
+            }
+            j = j + 1;
+        }
+        if (in_list == 1 && strcmp(tmp, "2012-09-01") > 0) { count = count + 1; }
+    }
+    sprintf(buf, "Count: %d", count);
+    puts(buf);
+    return 0;
+}
 
 // ===================== Query 7: Same surname, different birthdays =====================
-def q7_run() of int
-    puts("=== Query 7: Same surname, different birthdays ===")
+def q7_run() of int {
+    puts("=== Query 7: Same surname, different birthdays ===");
     // Read all people into arrays
-    global p_id of int[32]; global p_surname of int[32]
-    global p_birthday of int[32]; global p_total of int = 0
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r")
-    _ = read_line(f, 0)
-    while 1 == 1
-        off = alloc_buf(); n = read_line(f, off)
-        if n < 0 then fclose(f); break
-        pos = 0; pos = csv_field(tmp, buf, off + pos); p_id[p_total] = atoi(tmp)
-        pos = csv_field(tmp, buf, off + pos)
-        p_surname[p_total] = alloc_buf()
-        i = 0
-        while 1 == 1
-            c = tmp[i]; buf[p_surname[p_total] + i] = c; if c == 0 then break
-            i = i + 1
-        end
-        pos = csv_field(tmp, buf, off + pos)  // name
-        pos = csv_field(tmp, buf, off + pos)  // patronymic
-        pos = csv_field(tmp, buf, off + pos)
-        p_birthday[p_total] = alloc_buf()
-        i = 0
-        while 1 == 1
-            c = tmp[i]; buf[p_birthday[p_total] + i] = c; if c == 0 then break
-            i = i + 1
-        end
-        p_total = p_total + 1
-    end
+    global p_id of int[32];
+    global p_surname of int[32];
+    global p_birthday of int[32];
+    global p_total of int = 0;
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    _ = read_line(f, 0);
+    while (true) {
+        off = alloc_buf();
+        n = read_line(f, off);
+        if (n < 0) {
+            fclose(f);
+            break;
+        }
+        pos = 0;
+        pos = csv_field(tmp, buf, off + pos);
+        p_id[p_total] = atoi(tmp);
+        pos = csv_field(tmp, buf, off + pos);
+        p_surname[p_total] = alloc_buf();
+        i = 0;
+        while (true) {
+            c = tmp[i];
+            buf[p_surname[p_total] + i] = c;
+            if (c == 0) { break; };
+            i = i + 1;
+        }
+        pos = csv_field(tmp, buf, off + pos);
+        // name
+        pos = csv_field(tmp, buf, off + pos);
+        // patronymic
+        pos = csv_field(tmp, buf, off + pos);
+        p_birthday[p_total] = alloc_buf();
+        i = 0;
+        while (true) {
+            c = tmp[i];
+            buf[p_birthday[p_total] + i] = c;
+            if (c == 0) { break; };
+            i = i + 1;
+        }
+        p_total = p_total + 1;
+    }
     // Find surnames with >1 different birthdays
-    count = 0; j = 0
-    while j < p_total
-        k = j + 1
-        while k < p_total
-            if strcmp(buf + p_surname[j], buf + p_surname[k]) == 0 then
+    count = 0;
+    j = 0;
+    while (j < p_total) {
+        k = j + 1;
+        while (k < p_total) {
+            if (strcmp(buf + p_surname[j], buf + p_surname[k]) == 0) {
                 // Same surname, check different birthdays
-                if strcmp(buf + p_birthday[j], buf + p_birthday[k]) != 0 then
-                    count = count + 1
-                    sprintf(buf, "%s: %s", buf + p_surname[j], buf + p_birthday[j])
-                    puts(buf)
-                    k = p_total  // break inner
-                end
-            end
-            k = k + 1
-        end
-        j = j + 1
-    end
-    sprintf(buf, "Surname groups: %d", count)
-    puts(buf)
-    return 0
-end
+                if (strcmp(buf + p_birthday[j], buf + p_birthday[k]) != 0) {
+                    count = count + 1;
+                    sprintf(buf, "%s: %s", buf + p_surname[j], buf + p_birthday[j]);
+                    puts(buf);
+                    k = p_total;
+                    // break inner
+                }
+            }
+            k = k + 1;
+        }
+        j = j + 1;
+    }
+    sprintf(buf, "Surname groups: %d", count);
+    puts(buf);
+    return 0;
+}
 
 // ===================== Scheduler =====================
-def run_queries_q1() of int
-    coro_init()
-    all = 0
-    while all == 0
-        all = 1
-        if resume_coroutine(0) == 0 then all = 0
-        if resume_coroutine(1) == 0 then all = 0
-        if resume_coroutine(2) == 0 then all = 0
-        if resume_coroutine(3) == 0 then all = 0
-    end
-    return 0
-end
+def run_queries_q1() of int {
+    coro_init();
+    all = 0;
+    while (all == 0) {
+        all = 1;
+        if (resume_coroutine(0) == 0) { all = 0; }
+        if (resume_coroutine(1) == 0) { all = 0; }
+        if (resume_coroutine(2) == 0) { all = 0; }
+        if (resume_coroutine(3) == 0) { all = 0; }
+    }
+    return 0;
+}
 
-def main() of int
-    puts("=== System Software Lab 2: Map-Reduce Pipeline ===")
-    puts("")
+def main() of int {
+    puts("=== System Software Lab 2: Map-Reduce Pipeline ===");
+    puts("");
 
-    _ = run_queries_q1()
-    puts("")
+    _ = run_queries_q1();
+    puts("");
 
-    _ = q3_run()
-    puts("")
+    _ = q3_run();
+    puts("");
 
-    _ = q4_run()
-    puts("")
+    _ = q4_run();
+    puts("");
 
-    _ = q5_run()
-    puts("")
+    _ = q5_run();
+    puts("");
 
-    _ = q6_run()
-    puts("")
+    _ = q6_run();
+    puts("");
 
-    _ = q7_run()
-    puts("")
+    _ = q7_run();
+    puts("");
 
-    puts("=== All queries done ===")
-    return 0
-end
+    puts("=== All queries done ===");
+    return 0;
+}

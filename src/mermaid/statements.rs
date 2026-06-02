@@ -29,9 +29,19 @@ impl MermaidGenerator {
                 output.push_str(&format!("N{stmt_id} --> N{keyword_id}\n"));
 
                 self.generate_expr(&i.condition, output, Some(&format!("N{stmt_id}")));
-                self.generate_statement(&i.consequence, output, Some(&format!("N{stmt_id}")));
-                if let Some(alt) = &i.alternative {
-                    self.generate_statement(alt, output, Some(&format!("N{stmt_id}")));
+                for s in &i.body {
+                    self.generate_statement(s, output, Some(&format!("N{stmt_id}")));
+                }
+                for ei in &i.else_ifs {
+                    self.generate_expr(&ei.condition, output, Some(&format!("N{stmt_id}")));
+                    for s in &ei.body {
+                        self.generate_statement(s, output, Some(&format!("N{stmt_id}")));
+                    }
+                }
+                if let Some(ref eb) = i.else_body {
+                    for s in eb {
+                        self.generate_statement(s, output, Some(&format!("N{stmt_id}")));
+                    }
                 }
             }
             Statement::Loop(l) => {
@@ -57,17 +67,9 @@ impl MermaidGenerator {
                 output.push_str(&format!("N{stmt_id}[\"block_statement\"]\n"));
                 output.push_str(&format!("N{id} --> N{stmt_id}\n"));
 
-                let begin_id = self.next_id();
-                output.push_str(&format!("N{begin_id}[\"begin\"]\n"));
-                output.push_str(&format!("N{stmt_id} --> N{begin_id}\n"));
-
                 for s in &b.body {
                     self.generate_statement(s, output, Some(&format!("N{stmt_id}")));
                 }
-
-                let end_id = self.next_id();
-                output.push_str(&format!("N{end_id}[\"end\"]\n"));
-                output.push_str(&format!("N{stmt_id} --> N{end_id}\n"));
             }
             Statement::Yield(_) => {
                 let id = self.next_id();
@@ -112,10 +114,6 @@ impl MermaidGenerator {
         for b in &l.body {
             self.generate_statement(b, output, Some(&format!("N{id}")));
         }
-
-        let end_id = self.next_id();
-        output.push_str(&format!("N{end_id}[\"end\"]\n"));
-        output.push_str(&format!("N{id} --> N{end_id}\n"));
     }
 
     fn generate_repeat(&mut self, r: &RepeatStatement, output: &mut String, parent_id: Option<&str>) {
@@ -126,7 +124,9 @@ impl MermaidGenerator {
             output.push_str(&format!("{p} --> N{id}\n"));
         }
 
-        self.generate_statement(&r.body, output, Some(&format!("N{id}")));
+        for s in &r.body {
+            self.generate_statement(s, output, Some(&format!("N{id}")));
+        }
 
         let keyword_id = self.next_id();
         let keyword = match r.keyword {

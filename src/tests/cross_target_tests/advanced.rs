@@ -1,28 +1,28 @@
 use super::*;
 
-const JVM_RETURN_42: &str = "def main() of int return 42; end";
+const JVM_RETURN_42: &str = "def main() of int { return 42; }";
 
 const JVM_CLOSURE_SIMPLE: &str = r#"
-def main() of int
+def main() of int {
     x = 10;
-    def inner() of int
-        return x
-    end
-    return inner()
-end
+    def inner() of int {
+        return x;
+    }
+    return inner();
+}
 "#;
 
 const JVM_CLOSURE_MUTATE: &str = r#"
-def main() of int
+def main() of int {
     x = 0;
-    def inc()
-        x = x + 1
-    end
+    def inc() {
+        x = x + 1;
+    }
     inc();
     inc();
     inc();
-    return x
-end
+    return x;
+}
 "#;
 
 #[test]
@@ -45,12 +45,12 @@ fn test_jvm_runtime_closure_mutate() {
 
 const STRUCT_LOCAL: &str = r#"
 struct Point { x of int; y of int; }
-def main() of int
+def main() of int {
     p of Point;
     p.x = 42;
     p.y = 13;
-    return p.x
-end
+    return p.x;
+}
 "#;
 
 #[test]
@@ -67,10 +67,10 @@ fn test_jvm_struct_valid() {
 const STRUCT_GLOBAL: &str = r#"
 struct Point { x of int; y of int; }
 global p of Point;
-def main() of int
+def main() of int {
     p.x = 42;
-    return p.x
-end
+    return p.x;
+}
 "#;
 
 #[test]
@@ -87,11 +87,11 @@ fn test_jvm_struct_global_valid() {
 const STRUCT_NESTED_FIELD: &str = r#"
 struct Point { x of int; y of int; }
 struct Rect { topleft of Point; bottomright of Point; }
-def main() of int
+def main() of int {
     r of Rect;
     r.topleft.x = 42;
-    return r.topleft.x
-end
+    return r.topleft.x;
+}
 "#;
 
 #[test]
@@ -106,15 +106,15 @@ fn test_jvm_struct_nested_field_valid() {
 }
 
 const COROUTINE_SIMPLE: &str = r#"
-coroutine counter() of int
+coroutine counter() of int {
     i = 0;
     yield;
     i = 42;
-    return i
-end
-def main() of int
-    return 0
-end
+    return i;
+}
+def main() of int {
+    return 0;
+}
 "#;
 
 #[test]
@@ -131,13 +131,13 @@ fn test_jvm_coroutine_valid() {
 }
 
 const COROUTINE_WITH_PARAMS: &str = r#"
-coroutine worker(x of int, y of int) of int
+coroutine worker(x of int, y of int) of int {
     yield;
-    return x + y
-end
-def main() of int
-    return 0
-end
+    return x + y;
+}
+def main() of int {
+    return 0;
+}
 "#;
 
 #[test]
@@ -153,17 +153,17 @@ fn test_jvm_coroutine_with_params_valid() {
 }
 
 const COROUTINE_MULTI_YIELD: &str = r#"
-coroutine multi() of int
+coroutine multi() of int {
     i = 0;
     yield;
     i = 1;
     yield;
     i = 2;
-    return i
-end
-def main() of int
-    return 0
-end
+    return i;
+}
+def main() of int {
+    return 0;
+}
 "#;
 
 #[test]
@@ -182,14 +182,14 @@ fn test_jvm_coroutine_multi_yield_valid() {
 const COROUTINE_WITH_PARAMS_NASM: &str = r#"
 import resume_coroutine
 import coro_init
-coroutine adder(a of int) of int
-    return a + 1
-end
-def main() of int
-    coro_init()
-    resume_coroutine(0)
-    return 0
-end
+coroutine adder(a of int) of int {
+    return a + 1;
+}
+def main() of int {
+    coro_init();
+    resume_coroutine(0);
+    return 0;
+}
 "#;
 
 #[test]
@@ -199,12 +199,12 @@ fn test_nasm_coroutine_with_params_runtime() {
 }
 
 const COROUTINE_MULTI_PARAM: &str = r#"
-coroutine summer(a of int, b of int) of int
-    return a + b
-end
-def main() of int
-    return 0
-end
+coroutine summer(a of int, b of int) of int {
+    return a + b;
+}
+def main() of int {
+    return 0;
+}
 "#;
 
 #[test]
@@ -213,13 +213,13 @@ fn test_jvm_coroutine_multi_param_valid() {
 }
 
 const COROUTINE_YIELD_WITH_PARAM: &str = r#"
-coroutine worker(x of int) of int
+coroutine worker(x of int) of int {
     yield;
-    return x
-end
-def main() of int
-    return 0
-end
+    return x;
+}
+def main() of int {
+    return 0;
+}
 "#;
 
 #[test]
@@ -235,22 +235,22 @@ fn test_jvm_coroutine_yield_with_param_valid() {
 }
 
 const NASM_ARRAY_OF_FUNCTIONS: &str = r#"
-def main() of int
+def main() of int {
     c1 = [
-        def add2(x of int) of int
-            return x + 2
-        end,
-        def mul2(x of int) of int
-            return x * 2
-        end
+        def add2(x of int) of int {
+            return x + 2;
+        },
+        def mul2(x of int) of int {
+            return x * 2;
+        }
     ];
     c2 = [
-        def add2_2(x of int) of int
-            return x + 2
-        end,
-        def mul2_2(x of int) of int
-            return x * 2
-        end
+        def add2_2(x of int) of int {
+            return x + 2;
+        },
+        def mul2_2(x of int) of int {
+            return x * 2;
+        }
     ];
 
     x1 = c1[0](2);
@@ -260,24 +260,24 @@ def main() of int
     x3 = c1[1](7);
     y3 = c2[0](3);
 
-    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3)
-end
+    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3);
+}
 "#;
 
 const JVM_ARRAY_OF_FUNCTIONS: &str = r#"
-def f5() of def(int) of int array[2]
+def f5() of def(int) of int array[2] {
     arr = [
-        def add2(x of int) of int
-            return x + 2
-        end,
-        def mul2(x of int) of int
-            return x * 2
-        end
+        def add2(x of int) of int {
+            return x + 2;
+        },
+        def mul2(x of int) of int {
+            return x * 2;
+        }
     ];
-    return arr
-end
+    return arr;
+}
 
-def main() of int
+def main() of int {
     c1 = f5();
     c2 = f5();
 
@@ -290,8 +290,8 @@ def main() of int
     x3 = c1[1](7);
     y3 = c2[0](3);
 
-    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3)
-end
+    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3);
+}
 "#;
 
 #[test]

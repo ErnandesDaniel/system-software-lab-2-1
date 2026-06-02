@@ -31,16 +31,6 @@ impl<'source> Parser<'source> {
         while self.current_token().is_some() {
             let token = self.current_token().expect("Token must exist after is_some check");
 
-            if token == &Token::End {
-                self.advance();
-                continue;
-            }
-
-            if token == &Token::Semi {
-                self.advance();
-                continue;
-            }
-
             if !matches!(
                 token,
                 Token::Def | Token::Import | Token::Global | Token::Struct | Token::Coroutine
@@ -69,12 +59,9 @@ impl<'source> Parser<'source> {
                 }
             }
 
-            while let Some(t) = self.current_token() {
-                if t == &Token::End || t == &Token::Semi {
-                    self.advance();
-                } else {
-                    break;
-                }
+            // Consume trailing semicolons between top-level items
+            while self.current_token() == Some(&Token::Semi) {
+                self.advance();
             }
         }
 

@@ -8,9 +8,9 @@ use super::compile_only;
 fn test_exe_global_read() {
     let source = r#"
         global counter of int = 42;
-        def main() of int
-            return counter
-        end
+        def main() of int {
+            return counter;
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
@@ -20,9 +20,9 @@ fn test_exe_global_read() {
 fn test_asm_global_in_data_section() {
     let source = r#"
         global counter of int = 42;
-        def main() of int
-            return counter
-        end
+        def main() of int {
+            return counter;
+        }
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("counter"), "Expected global label in asm");
@@ -34,10 +34,10 @@ fn test_asm_global_in_data_section() {
 fn test_exe_global_write() {
     let source = r#"
         global value of int = 0;
-        def main() of int
+        def main() of int {
             value = 99;
-            return value
-        end
+            return value;
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
@@ -47,9 +47,9 @@ fn test_exe_global_write() {
 fn test_exe_global_string() {
     let source = r#"
         global name of string = "test";
-        def main() of int
-            return 0
-        end
+        def main() of int {
+            return 0;
+        }
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("section .data"), "Expected data section");
@@ -67,9 +67,9 @@ fn test_exe_global_struct_field() {
             index of int;
         }
         global sched of Sched;
-        def main() of int
-            return sched.count
-        end
+        def main() of int {
+            return sched.count;
+        }
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("global main"), "Expected global main");
@@ -85,9 +85,9 @@ fn test_exe_struct_array_field_read() {
             count of int;
         }
         global sched of Sched;
-        def main() of int
-            return sched.slots[0]
-        end
+        def main() of int {
+            return sched.slots[0];
+        }
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("sched"), "Expected sched label");
@@ -98,11 +98,11 @@ fn test_exe_struct_array_field_read() {
 fn test_exe_local_struct() {
     let source = r#"
         struct Point { x of int; y of int; }
-        def main() of int
+        def main() of int {
             p of Point;
             p.x = 42;
-            return p.x
-        end
+            return p.x;
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
@@ -112,12 +112,12 @@ fn test_exe_local_struct() {
 fn test_asm_coroutine_state_machine() {
     let source = r#"
         import putchar
-        coroutine worker() of int
-            putchar(49)
-            yield
-            putchar(50)
-            return 0
-        end
+        coroutine worker() of int {
+            putchar(49);
+            yield;
+            putchar(50);
+            return 0;
+        }
     "#;
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
@@ -137,11 +137,11 @@ fn test_asm_coroutine_state_machine() {
 #[test]
 fn test_asm_coroutine_locals() {
     let source = r#"
-        coroutine counter() of int
+        coroutine counter() of int {
             i = 0;
             yield;
-            return i
-        end
+            return i;
+        }
     "#;
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
@@ -158,9 +158,9 @@ fn test_asm_coroutine_locals() {
 #[test]
 fn test_nasm_coroutine_compiles() {
     let source = r#"
-        coroutine simple() of int
-            return 0
-        end
+        coroutine simple() of int {
+            return 0;
+        }
     "#;
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
@@ -178,9 +178,9 @@ fn test_nasm_coroutine_compiles() {
 fn test_exe_global_array_read() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return arr[0]
-        end
+        def main() of int {
+            return arr[0];
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
@@ -190,9 +190,9 @@ fn test_exe_global_array_read() {
 fn test_exe_global_array_index() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return arr[2]
-        end
+        def main() of int {
+            return arr[2];
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
@@ -202,18 +202,18 @@ fn test_exe_global_array_index() {
 fn test_asm_global_array_parse() {
     let source1 = r#"
         global arr of int[3];
-        def main() of int
-            return 0
-        end
+        def main() of int {
+            return 0;
+        }
     "#;
     let mut parser = Parser::new(source1);
     let ast1 = parser.parse().unwrap();
 
     let source2 = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return 0
-        end
+        def main() of int {
+            return 0;
+        }
     "#;
     let mut parser2 = Parser::new(source2);
     let ast2 = parser2.parse().unwrap();
@@ -226,9 +226,9 @@ fn test_asm_global_array_parse() {
 fn test_asm_global_array_init() {
     let source = r#"
         global arr of int[3] = [10, 20, 30];
-        def main() of int
-            return arr[0]
-        end
+        def main() of int {
+            return arr[0];
+        }
     "#;
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();

@@ -1,6 +1,7 @@
 use super::Parser;
 use crate::ast::{
-    BreakStatement, IfStatement, LoopKeyword, LoopStatement, RepeatStatement, ReturnStatement, Statement,
+    BreakStatement, ElseIfBranch, IfStatement, LoopKeyword, LoopStatement, RepeatStatement,
+    ReturnStatement, Statement,
 };
 use crate::error::CompilerError;
 use crate::lexer::Token;
@@ -11,7 +12,6 @@ impl Parser<'_> {
         self.expect(Token::Return)?;
         let expr = if self.current_token().is_some()
             && self.current_token() != Some(&Token::Semi)
-            && self.current_token() != Some(&Token::End)
             && self.current_token() != Some(&Token::RBrace)
         {
             Some(self.parse_expression(0)?)
@@ -28,24 +28,61 @@ impl Parser<'_> {
     pub(crate) fn parse_if(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
         self.expect(Token::If)?;
+        self.expect(Token::LParen)?;
         let condition = self.parse_expression(0)?;
-        self.expect(Token::Then)?;
-        let is_block_consequence = matches!(self.current_token(), Some(Token::LBrace | Token::Begin));
-        let consequence = Box::new(self.parse_statement()?);
-        let alternative = if self.current_token() == Some(&Token::Else) {
-            self.expect(Token::Else)?;
-            Some(Box::new(self.parse_statement()?))
-        } else {
-            None
-        };
-        if !is_block_consequence && self.current_token() == Some(&Token::End) {
-            self.expect(Token::End)?;
+        self.expect(Token::RParen)?;
+
+        // if body: { ... }
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+            body.push(self.parse_statement()?);
         }
+        self.expect(Token::RBrace)?;
+
+        // else if chain and optional else
+        let mut else_ifs = Vec::new();
+        let mut else_body = None;
+
+        while self.current_token() == Some(&Token::Else) {
+            self.advance();
+            if self.current_token() == Some(&Token::If) {
+                // else if (...)
+                let ei_start = self.current_span();
+                self.expect(Token::If)?;
+                self.expect(Token::LParen)?;
+                let ei_cond = self.parse_expression(0)?;
+                self.expect(Token::RParen)?;
+                self.expect(Token::LBrace)?;
+                let mut ei_body = Vec::new();
+                while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+                    ei_body.push(self.parse_statement()?);
+                }
+                self.expect(Token::RBrace)?;
+                let ei_span = ei_start.merge(self.current_span());
+                else_ifs.push(ElseIfBranch {
+                    condition: ei_cond,
+                    body: ei_body,
+                    span: ei_span,
+                });
+            } else {
+                // else { ... }
+                self.expect(Token::LBrace)?;
+                let mut eb = Vec::new();
+                while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+                    eb.push(self.parse_statement()?);
+                }
+                self.expect(Token::RBrace)?;
+                else_body = Some(eb);
+            }
+        }
+
         let span = start.merge(self.current_span());
         Ok(Statement::If(IfStatement {
             condition,
-            consequence,
-            alternative,
+            body,
+            else_ifs,
+            else_body,
             span,
         }))
     }
@@ -64,27 +101,16 @@ impl Parser<'_> {
             _ => return Err(CompilerError::Parse("Expected 'while' or 'until'".to_string())),
         };
 
+        self.expect(Token::LParen)?;
         let condition = self.parse_expression(0)?;
+        self.expect(Token::RParen)?;
 
-        while self.current_token() == Some(&Token::Semi) {
-            self.advance();
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+            body.push(self.parse_statement()?);
         }
-
-        let body_stmt = self.parse_statement()?;
-
-        while self.current_token() == Some(&Token::Semi) {
-            self.advance();
-        }
-
-        if self.current_token() == Some(&Token::LoopEnd) {
-            self.expect(Token::LoopEnd)?;
-        }
-
-        let body = if let Statement::Block(block) = body_stmt {
-            block.body
-        } else {
-            vec![body_stmt]
-        };
+        self.expect(Token::RBrace)?;
 
         let span = start.merge(self.current_span());
         Ok(Statement::Loop(LoopStatement {
@@ -97,20 +123,28 @@ impl Parser<'_> {
 
     pub(crate) fn parse_repeat(&mut self) -> crate::Result<Statement> {
         let start = self.current_span();
-        // accept "repeat" or "do"
-        match self.current_token() {
-            Some(Token::Repeat) => { self.advance(); }
-            Some(Token::Do) => { self.advance(); }
-            _ => return Err(CompilerError::Parse("Expected 'repeat' or 'do'".to_string())),
+        // { ... }
+        self.expect(Token::LBrace)?;
+        let mut body = Vec::new();
+        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
+            body.push(self.parse_statement()?);
         }
-        let body = Box::new(self.parse_statement()?);
-        // accept "until" or "while"
+        self.expect(Token::RBrace)?;
+        // while/until (expr) ;
         let keyword = match self.current_token() {
-            Some(Token::Until) => { self.advance(); LoopKeyword::Until }
-            Some(Token::While) => { self.advance(); LoopKeyword::While }
-            _ => return Err(CompilerError::Parse("Expected 'until' or 'while'".to_string())),
+            Some(Token::While) => {
+                self.advance();
+                LoopKeyword::While
+            }
+            Some(Token::Until) => {
+                self.advance();
+                LoopKeyword::Until
+            }
+            _ => return Err(CompilerError::Parse("Expected 'while' or 'until' after block".to_string())),
         };
+        self.expect(Token::LParen)?;
         let condition = self.parse_expression(0)?;
+        self.expect(Token::RParen)?;
         if self.current_token() == Some(&Token::Semi) {
             self.advance();
         }

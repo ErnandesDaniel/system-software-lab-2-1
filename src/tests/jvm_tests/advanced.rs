@@ -5,19 +5,17 @@ use crate::tests::parse;
 #[test]
 fn test_jvm_generation_nested_while() {
     let source = r#"
-        def main() of int
+        def main() of int {
             i = 0;
-            while i < 3 {
+            while (i < 3) {
                 j = 0;
-                while j < 2 {
+                while (j < 2) {
                     j = j + 1;
                 }
-                loop_end
                 i = i + 1;
             }
-            loop_end
-            return i
-        end
+            return i;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -32,12 +30,10 @@ fn test_jvm_generation_nested_while() {
 #[test]
 fn test_jvm_generation_begin_end_block() {
     let source = r#"
-        def foo() of int
-        begin
+        def foo() of int {
             x = 1;
-            return x
-        end
-        end
+            return x;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -52,11 +48,11 @@ fn test_jvm_generation_begin_end_block() {
 #[test]
 fn test_jvm_generation_import_call_with_string() {
     let source = r#"
-        import def puts(msg of string) end
-        def main() of int
+        import def puts(msg of string);
+        def main() of int {
             puts("hello from jvm");
-            return 0
-        end
+            return 0;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -71,12 +67,12 @@ fn test_jvm_generation_import_call_with_string() {
 #[test]
 fn test_jvm_generation_logical_not() {
     let source = r#"
-        def not_test(x of int) of int
-            if !(x == 0) then
-                return 1
-            end
-            return 0
-        end
+        def not_test(x of int) of int {
+            if (!(x == 0)) {
+                return 1;
+            }
+            return 0;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();
@@ -91,9 +87,9 @@ fn test_jvm_generation_logical_not() {
 #[test]
 fn test_jvm_generation_minus_expression() {
     let source = r#"
-        def diff(a of int, b of int) of int
-            return a - b
-        end
+        def diff(a of int, b of int) of int {
+            return a - b;
+        }
     "#;
     let program = parse(source);
     let mut ir_gen = IrGenerator::new();

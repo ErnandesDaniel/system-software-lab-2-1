@@ -7,7 +7,7 @@ use super::compile_only;
 
 #[test]
 fn test_import_short_form_semantics() {
-    let source = "import puts def main() puts(\"hello\"); end";
+    let source = "import puts def main() { puts(\"hello\"); }";
     let program = parse(source);
     let mut analyzer = SemanticsAnalyzer::new();
     let result = analyzer.analyze(&program);
@@ -18,7 +18,7 @@ fn test_import_short_form_semantics() {
 fn test_cfg_generation() {
     use crate::ir::diagram::CfgMermaidGenerator;
 
-    let source = "def square(x of int) of int return x * x; end def main() of int return 42; end";
+    let source = "def square(x of int) of int { return x * x; } def main() of int { return 42; }";
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
 
@@ -35,7 +35,7 @@ fn test_cfg_generation() {
 
 #[test]
 fn test_while_loop_block_order() {
-    let source = "def foo() i=1; while i<5 { i=i+1; } loop_end return i; end";
+    let source = "def foo() { i=1; while (i<5) { i=i+1; } return i; }";
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
 
@@ -48,49 +48,49 @@ fn test_while_loop_block_order() {
 
 #[test]
 fn test_exe_return_value() {
-    let source = "def main() of int return 42; end";
+    let source = "def main() of int { return 42; }";
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
 }
 
 #[test]
 fn test_exe_arithmetic() {
-    let source = "def main() of int return 5 + 3 * 2; end";
+    let source = "def main() of int { return 5 + 3 * 2; }";
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
 }
 
 #[test]
 fn test_exe_with_loop() {
-    let source = "def main() of int i = 1; while i < 5 { i = i + 1; } loop_end return i; end";
+    let source = "def main() of int { i = 1; while (i < 5) { i = i + 1; } return i; }";
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
 }
 
 #[test]
 fn test_exe_if_else() {
-    let source = "def main() of int x = 10; if x > 5 then return 1; end return 0; end";
+    let source = "def main() of int { x = 10; if (x > 5) { return 1; } return 0; }";
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
 }
 
 #[test]
 fn test_exe_return_value_42() {
-    let source = "def main() of int return 42; end";
+    let source = "def main() of int { return 42; }";
     let output = compile_and_run(source);
     assert!(output.status.success() || output.status.code() == Some(42));
 }
 
 #[test]
 fn test_exe_return_value_zero() {
-    let source = "def main() of int return 0; end";
+    let source = "def main() of int { return 0; }";
     let output = compile_and_run(source);
     assert!(output.status.success() || output.status.code() == Some(0));
 }
 
 #[test]
 fn test_exe_simple_arithmetic() {
-    let source = "def main() of int return 7 + 3; end";
+    let source = "def main() of int { return 7 + 3; }";
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "Program should run");
 }
@@ -98,16 +98,16 @@ fn test_exe_simple_arithmetic() {
 #[test]
 fn test_exe_nested_if() {
     let source = r#"
-        def main() of int
+        def main() of int {
             x = 10;
-            if x > 0 then
-                if x > 5 then
-                    return 1
-                end
-                return 2
-            end
-            return 0
-        end
+            if (x > 0) {
+                if (x > 5) {
+                    return 1;
+                }
+                return 2;
+            }
+            return 0;
+        }
     "#;
     let output = compile_and_run(source);
     assert!(output.status.success() || output.status.code() != Some(-1));
@@ -116,12 +116,12 @@ fn test_exe_nested_if() {
 #[test]
 fn test_compile_multi_function_asm() {
     let source = r#"
-        def double(x of int) of int
-            return x + x
-        end
-        def main() of int
-            return double(21)
-        end
+        def double(x of int) of int {
+            return x + x;
+        }
+        def main() of int {
+            return double(21);
+        }
     "#;
     let mut parser = Parser::new(source);
     let ast = parser.parse().unwrap();
@@ -135,10 +135,10 @@ fn test_compile_multi_function_asm() {
 #[test]
 fn test_asm_contains_data_section_for_strings() {
     let source = r#"
-        def main() of int
+        def main() of int {
             s = "test_string";
-            return 0
-        end
+            return 0;
+        }
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("main:"));

@@ -8,8 +8,6 @@ use thiserror::Error;
 pub enum Token {
     #[token("def")]
     Def,
-    #[token("end")]
-    End,
     #[token("import")]
     Import,
     #[token("global")]
@@ -22,20 +20,12 @@ pub enum Token {
     Yield,
     #[token("if")]
     If,
-    #[token("then")]
-    Then,
     #[token("else")]
     Else,
     #[token("while")]
     While,
     #[token("until")]
     Until,
-    #[token("loop_end")]
-    LoopEnd,
-    #[token("repeat")]
-    Repeat,
-    #[token("do")]
-    Do,
     #[token("break")]
     Break,
     #[token("return")]
@@ -65,9 +55,6 @@ pub enum Token {
     String,
     #[token("array")]
     Array,
-
-    #[token("begin")]
-    Begin,
 
     #[token("&&")]
     And,

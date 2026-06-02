@@ -1,45 +1,45 @@
 // Lab 1 — Coroutine demo: two infinite loops
 // Печатает "1" и "2" поочерёдно через корутины
 
-import puts
-import putchar
-import resume_coroutine
-import coro_init
-import create_coroutine
+import puts;
+import putchar;
+import resume_coroutine;
+import coro_init;
+import create_coroutine;
 
-coroutine print_once() of int
-    while 1 == 1 {
-        putchar(49)
-        yield
+coroutine print_once() of int {
+    while (true) {
+        putchar(49);
+        yield;
     }
-    return 0
-end
+    return 0;
+}
 
-coroutine print_two() of int
-    while 1 == 1 {
-        putchar(50)
-        yield
+coroutine print_two() of int {
+    while (true) {
+        putchar(50);
+        yield;
     }
-    return 0
-end
+    return 0;
+}
 
-def run() of int
-    f0 = 0
-    f1 = 0
-    while f0 == 0 || f1 == 0 {
-        if f0 == 0 then
-            f0 = resume_coroutine(0)
-        end
-        if f1 == 0 then
-            f1 = resume_coroutine(1)
-        end
+def run() of int {
+    f0 = 0;
+    f1 = 0;
+    while (f0 == 0 || f1 == 0) {
+        if (f0 == 0) {
+            f0 = resume_coroutine(0);
+        }
+        if (f1 == 0) {
+            f1 = resume_coroutine(1);
+        }
     }
-    return 0
-end
+    return 0;
+}
 
-def main() of int
-    puts("Start")
-    coro_init()
-    run()
-    return 0
-end
+def main() of int {
+    puts("Start");
+    coro_init();
+    run();
+    return 0;
+}
