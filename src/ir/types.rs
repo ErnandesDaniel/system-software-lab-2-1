@@ -173,8 +173,10 @@ impl IrInstruction {
     pub fn ret_void(span: Span) -> Self {
         Self { opcode: IrOpcode::Ret, result: None, result_type: None, operands: vec![], jump_target: None, true_target: None, false_target: None, span }
     }
-    pub fn make_closure(func: String, captures: Vec<IrOperand>, result: String, span: Span) -> Self {
-        Self { opcode: IrOpcode::MakeClosure, result: Some(result), result_type: Some(IrType::Int), operands: captures, jump_target: Some(func), true_target: None, false_target: None, span }
+    pub fn make_closure(func: String, captured_vars: Vec<IrOperand>, result: String, span: Span) -> Self {
+        let mut operands = vec![IrOperand::FuncRef(func.clone())];
+        operands.extend(captured_vars);
+        Self { opcode: IrOpcode::MakeClosure, result: Some(result), result_type: Some(IrType::Int), operands, jump_target: Some(func), true_target: None, false_target: None, span }
     }
     pub fn call_closure(closure: IrOperand, env: IrOperand, args: Vec<IrOperand>, result: Option<String>, ty: IrType, span: Span) -> Self {
         let mut operands = vec![closure, env];
