@@ -14,24 +14,14 @@ cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
 
 ## Запуск
 
-### NASM, text
+### NASM
 ```powershell
 php labs-examples/vitrual-machines/lab-4/input.php
 ```
 
-### NASM, binary
-```powershell
-php labs-examples/vitrual-machines/lab-4/input.php --protocol binary
-```
-
-### JVM, text
+### JVM
 ```powershell
 php labs-examples/vitrual-machines/lab-4/input.php --target jvm
-```
-
-### JVM, binary
-```powershell
-php labs-examples/vitrual-machines/lab-4/input.php --target jvm --protocol binary
 ```
 
 ## Команды

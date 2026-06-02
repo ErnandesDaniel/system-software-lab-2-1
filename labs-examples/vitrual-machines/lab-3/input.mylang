@@ -18,7 +18,7 @@ import free;
 global gc_marked of int[2048];
 global gc_refs of int[2048];
 global gc_size of int[2048];
-global gc_data of string[2048];
+global gc_store of string[2048];
 global gc_count of int = 0;
 
 global total_alloc of int = 0;
@@ -54,7 +54,7 @@ def sweep() {
     while (i < gc_count) {
         if (gc_marked[i] == 0) {
             if (gc_size[i] != 0) {
-                free(gc_data[i]);
+                free(gc_store[i]);
                 local_freed = local_freed + gc_size[i];
                 gc_freed_objects = gc_freed_objects + 1;
                 gc_size[i] = 0;
@@ -98,7 +98,7 @@ def gc_alloc(size of int, ref of int) of int {
     gc_marked[idx] = 0;
     gc_refs[idx] = ref;
     gc_size[idx] = size;
-    gc_data[idx] = data;
+    gc_store[idx] = data;
     total_alloc = total_alloc + size;
 
     return idx + 1;
@@ -418,7 +418,7 @@ def main() of int {
     // === Reset GC state ===
     i = 0;
     while (i < gc_count) {
-        if (gc_size[i] != 0) { free(gc_data[i]); }
+        if (gc_size[i] != 0) { free(gc_store[i]); }
         i = i + 1;
     }
     gc_count = 0;

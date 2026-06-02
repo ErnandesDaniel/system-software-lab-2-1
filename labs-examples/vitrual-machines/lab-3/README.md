@@ -10,6 +10,12 @@ cargo run -- labs-examples/vitrual-machines/lab-3/input.mylang -o output -t nasm
 .\output\program.exe
 ```
 
+### JVM
+```powershell
+cargo run -- labs-examples/vitrual-machines/lab-3/input.mylang -o output -t jvm
+java -cp output Main
+```
+
 ## GC алгоритм
 
 ### Mark
