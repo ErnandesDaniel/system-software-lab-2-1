@@ -25,7 +25,12 @@ impl AsmGenerator {
                             && !self.temps.contains_key(name)
                             && !self.param_registers.contains(&name.clone())
                         {
-                            self.output.push_str(&format!("    lea {load_reg}, [rel {name}]\n"));
+                            let lea_reg = match load_reg.as_str() {
+                                "ecx" => "rcx", "edx" => "rdx",
+                                "r8d" => "r8", "r9d" => "r9",
+                                _ => &load_reg,
+                            };
+                            self.output.push_str(&format!("    lea {lea_reg}, [rel {name}]\n"));
                         } else {
                             self.load_operand(arg, &load_reg, false);
                         }

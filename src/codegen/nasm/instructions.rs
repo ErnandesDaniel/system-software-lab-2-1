@@ -78,6 +78,19 @@ impl AsmGenerator {
             .or_else(|| self.temps.get(result).copied());
         if let (Some(src_off), Some(dst_off)) = (src_offset, dst_offset) {
             let qwords = size / 8;
+            if self.is_coroutine {
+                if let IrOperand::Variable(name, _) = operand {
+                    if self.locals.get(name).is_some() && self.temps.get(name).is_none() {
+                        let co_off = 56 + (-src_off - 8);
+                        self.restore_coro_ctx();
+                        self.output.push_str(&format!("    lea rsi, [rcx + {co_off}]\n"));
+                        self.output.push_str(&format!("    lea rdi, [rbp + {dst_off}]\n"));
+                        self.output.push_str(&format!("    mov rcx, {qwords}\n"));
+                        self.output.push_str("    rep movsq\n");
+                        return;
+                    }
+                }
+            }
             self.output.push_str(&format!("    lea rsi, [rbp + {src_off}]\n"));
             self.output.push_str(&format!("    lea rdi, [rbp + {dst_off}]\n"));
             self.output.push_str(&format!("    mov rcx, {qwords}\n"));

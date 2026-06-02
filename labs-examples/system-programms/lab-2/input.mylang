@@ -153,12 +153,12 @@ global p_join of Pipe;
 global p_result of Pipe;
 
 // ===================== CSV data buffers =====================
-global csv_vedomosti of string = 0;
-global csv_types_ved of string = 0;
-global csv_people of string = 0;
-global csv_studies of string = 0;
-global csv_students of string = 0;
-global csv_group_plans of string = 0;
+global csv_vedomosti of int = 0;
+global csv_types_ved of int = 0;
+global csv_people of int = 0;
+global csv_studies of int = 0;
+global csv_students of int = 0;
+global csv_group_plans of int = 0;
 
 // ===================== Per-query globals =====================
 global s_nzk of int[32];
