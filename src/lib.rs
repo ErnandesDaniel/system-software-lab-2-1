@@ -8,6 +8,7 @@ mod parser;
 mod semantics;
 mod stdlib;
 pub mod struct_layout;
+pub mod symbol_table;
 
 #[cfg(test)]
 mod tests;

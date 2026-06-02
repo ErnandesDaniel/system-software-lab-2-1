@@ -195,7 +195,7 @@ impl SemanticsAnalyzer {
     }
 
     fn check_identifier(&mut self, scope: &mut SymbolTable, id: &Identifier) -> IrType {
-        if let Some(symbol) = scope.get(&id.name) {
+        if let Some(symbol) = scope.lookup(&id.name) {
             return symbol.ty.clone();
         }
         if let Some(symbol) = self.get_global_symbol(&id.name) {

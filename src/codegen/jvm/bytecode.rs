@@ -1,5 +1,5 @@
 use crate::codegen::jvm::{JvmGenerator, JvmInst, JumpPlaceholder};
-use crate::codegen::traits::OperandLoader;
+use crate::codegen::traits;
 use crate::ir::types::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrOperand, IrType};
 use ristretto_classfile::attributes::Instruction;
 use std::collections::{HashMap, HashSet};
@@ -87,7 +87,7 @@ impl JvmGenerator {
                     }
                     for op in &inst.operands {
                         if let IrOperand::Variable(name, ty) = op {
-                            if is_ref_type(ty) && Self::is_temp(name) {
+                            if is_ref_type(ty) && traits::is_temp(name) {
                                 if let Some(&slot) = self.func.locals.get(name) {
                                     temp_ref_slots.insert(slot);
                                 }

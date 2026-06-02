@@ -1,6 +1,6 @@
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
-use crate::codegen::traits::OperandLoader;
+use crate::codegen::traits;
 use crate::ir::types::{Constant, IrFunction, IrOpcode, IrOperand, IrType};
 use std::collections::{HashMap, HashSet};
 
@@ -75,7 +75,7 @@ impl JvmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
-                    if Self::is_temp(result) && seen_names.insert(result.clone()) {
+                    if traits::is_temp(result) && seen_names.insert(result.clone()) {
                         field_names.push(result.clone());
                     }
                 }
@@ -116,7 +116,7 @@ impl JvmGenerator {
         }
 
         for local in &func.locals {
-            if !Self::is_temp(&local.name) && !self.func.locals.contains_key(&local.name) {
+            if !traits::is_temp(&local.name) && !self.func.locals.contains_key(&local.name) {
                 self.func.locals.insert(local.name.clone(), self.func.next_local_slot);
                 self.func.next_local_slot += 1;
             }
@@ -152,7 +152,7 @@ impl JvmGenerator {
                     }
                     _ => {
                         if let Some(ref result) = inst.result {
-                            if Self::is_temp(result) && !temps_used.contains(result) {
+                            if traits::is_temp(result) && !temps_used.contains(result) {
                                 temps_used.push(result.clone());
                             }
                         }

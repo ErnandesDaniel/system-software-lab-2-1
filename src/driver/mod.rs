@@ -25,9 +25,7 @@ impl CompilerDriver {
         Self::generate_ast_diagrams(&ast, &args.output_dir);
         Self::run_semantic_analysis(&ast)?;
         let ir_program = Self::generate_ir(&ast)?;
-        if let Err(e) = IrValidator::validate(&ir_program) {
-            eprintln!("IR validation error: {e}");
-        }
+        IrValidator::validate(&ir_program)?;
         Self::generate_cfg_diagrams(&ir_program, &args.output_dir);
 
         match args.target {

@@ -85,8 +85,8 @@ impl SemanticsAnalyzer {
         self.functions.iter().find(|f| f.name == name)
     }
 
-    pub fn get_global_symbol(&self, name: &str) -> Option<&crate::semantics::types::Symbol> {
-        self.global_scope.get(name)
+    pub fn get_global_symbol(&self, name: &str) -> Option<&crate::ir::IrLocal> {
+        self.global_scope.lookup(name)
     }
 
     pub fn resolve_field_type(&self, base_expr: &crate::ast::Expr, field: &str) -> IrType {
