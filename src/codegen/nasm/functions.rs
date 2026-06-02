@@ -16,7 +16,8 @@ impl AsmGenerator {
 
             for (i, arg) in inst.operands.iter().enumerate() {
                 if i < 4 {
-                    let is_pointer = arg.get_type().is_pointer();
+                    let arg_ty = arg.get_type();
+                    let is_pointer = arg_ty.is_pointer() || arg_ty.size() > 8;
                     let load_reg = self.get_param_register(i, is_pointer);
                     if is_pointer {
                         self.load_pointer_arg(arg, &load_reg);
@@ -74,6 +75,7 @@ impl AsmGenerator {
     }
 
     fn load_pointer_arg(&mut self, arg: &IrOperand, load_reg: &str) {
+        let is_struct = matches!(arg, IrOperand::Variable(_, ty) if !ty.is_pointer() && ty.size() > 8);
         match arg {
             IrOperand::Constant(Constant::String(s)) => {
                 let func = self.current_function.as_deref().unwrap_or("anon");
@@ -82,11 +84,16 @@ impl AsmGenerator {
                 self.emit_string_data(&label, s);
                 self.output.push_str(&format!("    lea {load_reg}, [{label}]\n"));
             }
-            IrOperand::Variable(name, _) => {
+            IrOperand::Variable(name, ty) => {
+                let use_lea = is_struct || (ty.is_pointer() && ty.size() > 8);
                 if self.is_coroutine {
                     if let Some(offset) = self.locals.get(name) {
                         let co_off = 56 + (-offset - 8);
-                        if load_reg == "rcx" {
+                        if use_lea {
+                            self.restore_coro_ctx();
+                            self.output.push_str(&format!("    lea rax, [rcx + {co_off}]\n"));
+                            self.output.push_str(&format!("    mov {load_reg}, rax\n"));
+                        } else if load_reg == "rcx" {
                             self.restore_coro_ctx();
                             self.output.push_str(&format!("    mov rax, [rcx + {co_off}]\n"));
                             self.output.push_str(&format!("    mov rcx, rax\n"));
@@ -98,20 +105,40 @@ impl AsmGenerator {
                             self.output.push_str(&format!("    mov {load_reg}, rax\n"));
                         }
                     } else if let Some(offset) = self.temps.get(name) {
-                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        if use_lea {
+                            self.output.push_str(&format!("    lea rax, [rbp + {offset}]\n"));
+                        } else {
+                            self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        }
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));
                     } else {
-                        self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                        if use_lea {
+                            self.output.push_str(&format!("    lea {load_reg}, [rel {name}]\n"));
+                        } else {
+                            self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                        }
                     }
                 } else {
                     if let Some(offset) = self.locals.get(name) {
-                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        if use_lea {
+                            self.output.push_str(&format!("    lea rax, [rbp + {offset}]\n"));
+                        } else {
+                            self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        }
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));
                     } else if let Some(offset) = self.temps.get(name) {
-                        self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        if use_lea {
+                            self.output.push_str(&format!("    lea rax, [rbp + {offset}]\n"));
+                        } else {
+                            self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                        }
                         self.output.push_str(&format!("    mov {load_reg}, rax\n"));
                     } else {
-                        self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                        if use_lea {
+                            self.output.push_str(&format!("    lea {load_reg}, [rel {name}]\n"));
+                        } else {
+                            self.output.push_str(&format!("    mov {load_reg}, [rel {name}]\n"));
+                        }
                     }
                 }
             }
