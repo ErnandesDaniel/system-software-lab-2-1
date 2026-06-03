@@ -87,7 +87,6 @@ pub struct JvmGlobalState {
     pub global_struct_offset_sets: HashMap<String, Vec<usize>>,
     pub global_field_refs: HashMap<String, u16>,
     pub struct_names: HashSet<String>,
-    pub struct_sizes: HashMap<String, usize>,
 }
 
 pub struct JvmGenerator {
@@ -151,7 +150,6 @@ impl JvmGenerator {
                 global_struct_offset_sets: HashMap::new(),
                 global_field_refs: HashMap::new(),
                 struct_names: HashSet::new(),
-                struct_sizes: HashMap::new(),
             },
         }
     }
