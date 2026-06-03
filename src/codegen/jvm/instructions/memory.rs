@@ -42,8 +42,11 @@ impl JvmGenerator {
                         code.push(Instruction::Aastore);
                     } else if matches!(vt, IrType::Int | IrType::Bool) {
                         self.emit_load_operand(code, base);
+                        self.emit_load_operand(code, index);
                         if byte_off > 0 {
-                            self.emit_load_operand(code, index);
+                            let base_idx = byte_off / 4;
+                            self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                            code.push(Instruction::Iadd);
                         }
                         self.emit_load_operand(code, value);
                         code.push(Instruction::Iastore);

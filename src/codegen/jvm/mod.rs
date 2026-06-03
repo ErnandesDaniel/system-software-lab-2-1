@@ -1,7 +1,6 @@
 use crate::ir::types::{
     Constant, IrFunction, IrOperand, IrParameter, IrProgram, IrType,
 };
-use crate::struct_layout::LayoutDatabase;
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
 use std::collections::{HashMap, HashSet};
@@ -152,6 +151,7 @@ impl JvmGenerator {
                 global_struct_offset_sets: HashMap::new(),
                 global_field_refs: HashMap::new(),
                 struct_names: HashSet::new(),
+                struct_sizes: HashMap::new(),
             },
         }
     }
