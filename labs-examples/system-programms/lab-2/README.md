@@ -1,38 +1,38 @@
-# Lab 2: Map-Reduce Pipeline (SPO)
+# Лаба 2: Map-Reduce конвейер (СПО)
 
-Implementation of 7 SQL queries (variant 59). Data is read from CSV files
-at runtime via `fopen`/`fgetc`. All 7 queries use direct loops.
+Реализация 7 SQL-запросов (вариант 59). Данные читаются из CSV-файлов
+в рантайме через `fopen`/`fgetc`. Все 7 запросов — прямые циклы.
 
-All 7 queries in one file `input.mylang`.
+Все запросы в одном файле `input.mylang`.
 
-## Compile & Run
+## Компиляция и запуск
 
-Run from the project root (working directory matters for CSV paths).
+Запускать из корня проекта (рабочая директория нужна для путей к CSV).
 
 ```powershell
 cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
 .\output\program.exe
 ```
 
-## Files
+## Файлы
 
 ```
 labs-examples/system-programms/lab-2/
-├── csv-data/                    # CSV files (read at runtime)
+├── csv-data/                    # CSV-файлы (читаются в рантайме)
 │   ├── people.csv
 │   ├── studies.csv
 │   ├── students.csv
 │   ├── vedomosti.csv
 │   ├── types_vedomostei.csv
 │   └── group_plans.csv
-├── sql/                         # SQLite verification
-│   ├── queries.sql              # 7 queries
-│   ├── run_verification.cmd     # Batch: create DB + run queries
+├── sql/                         # Верификация через SQLite
+│   ├── queries.sql              # 7 запросов
+│   ├── run_verification.cmd     # Батник: создать БД + выполнить запросы
 │   └── ucheb_test.db
-└── input.mylang                 # All 7 queries
+└── input.mylang                 # Все 7 запросов
 ```
 
-## Expected output
+## Ожидаемый вывод
 
 ```
 === Lab 2: Map-Reduce Pipeline ===
@@ -86,7 +86,7 @@ Groups: 12
 === Done ===
 ```
 
-## SQLite verification
+## Верификация через SQLite
 
 ```powershell
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
@@ -94,7 +94,7 @@ labs-examples\system-programms\lab-2\sql\run_verification.cmd
 
 Results:
 
-| # | Result |
+| # | Результат |
 |---|--------|
 | 1 | 4 rows (DiffPass with dates) |
 | 2 | 1 row (163276, OK500, 163276) |
