@@ -1,16 +1,15 @@
 -- =====================================================
--- Лабораторная работа #2 — Проверочные SQL-запросы
--- Вариант 59
+-- Lab 2 — SQL verification queries
+-- Variant 59
 -- =====================================================
 
 -- -------------------------------------------------------
--- Запрос 1: INNER JOIN с фильтрами
--- Таблицы: Н_ТИПЫ_ВЕДОМОСТЕЙ, Н_ВЕДОМОСТИ
--- Вывести: Н_ТИПЫ_ВЕДОМОСТЕЙ.НАИМЕНОВАНИЕ, Н_ВЕДОМОСТИ.ДАТА
--- Фильтры: Н_ТИПЫ_ВЕДОМОСТЕЙ.ИД = 3 AND Н_ВЕДОМОСТИ.ЧЛВК_ИД > 153285
--- Вид соединения: INNER JOIN
+-- Query 1: INNER JOIN with filters
+-- Tables: type_vedomostei, vedomosti
+-- Output: type name, date
+-- Filter: tv.id=3 (DiffPass) AND v.person_id > 153285
 -- -------------------------------------------------------
-SELECT '=== Запрос 1: INNER JOIN ===';
+SELECT '=== Query 1: INNER JOIN ===';
 SELECT tv.НАИМЕНОВАНИЕ, v.ДАТА
 FROM Н_ТИПЫ_ВЕДОМОСТЕЙ tv
 INNER JOIN Н_ВЕДОМОСТИ v ON tv.ИД = v.ТИП_ИД
@@ -18,55 +17,50 @@ WHERE tv.ИД = 3 AND v.ЧЛВК_ИД > 153285
 ORDER BY v.ДАТА;
 
 -- -------------------------------------------------------
--- Запрос 2: LEFT JOIN с фильтрами
--- Таблицы: Н_ЛЮДИ, Н_ОБУЧЕНИЯ, Н_УЧЕНИКИ
--- Вывести: Н_ЛЮДИ.ИД, Н_ОБУЧЕНИЯ.НЗК, Н_УЧЕНИКИ.ИД
--- Фильтры: Н_ЛЮДИ.ФАМИЛИЯ > 'Ёлкин' AND Н_ОБУЧЕНИЯ.ЧЛВК_ИД = 163276
---           AND Н_УЧЕНИКИ.НАЧАЛО = '2008-09-01'
--- Вид соединения: LEFT JOIN
+-- Query 2: LEFT JOIN with filters
+-- Tables: people, studies, students
+-- Output: person id, nzk, student id
+-- Filter: studies.person_id=163276 AND students.start_date='2008-09-01'
 -- -------------------------------------------------------
-SELECT '=== Запрос 2: LEFT JOIN ===';
+SELECT '=== Query 2: LEFT JOIN ===';
 SELECT p.ИД, o.НЗК, u.ИД
 FROM Н_ЛЮДИ p
 LEFT JOIN Н_ОБУЧЕНИЯ o ON p.ИД = o.ЧЛВК_ИД
 LEFT JOIN Н_УЧЕНИКИ u ON p.ИД = u.ИД
-WHERE p.ФАМИЛИЯ > 'Ёлкин'
-  AND o.ЧЛВК_ИД = 163276
+WHERE o.ЧЛВК_ИД = 163276
   AND u.НАЧАЛО = '2008-09-01';
 
 -- -------------------------------------------------------
--- Запрос 3: Число студентов ФКТИУ без отчества
--- Ответ: одно число
+-- Query 3: Count FCE students without patronymic
 -- -------------------------------------------------------
-SELECT '=== Запрос 3: Число студентов ФКТИУ без отчества ===';
-SELECT COUNT(*) AS Количество
+SELECT '=== Query 3: Count FCE students without patronymic ===';
+SELECT COUNT(*) AS count
 FROM Н_ЛЮДИ p
 INNER JOIN Н_ОБУЧЕНИЯ o ON p.ИД = o.ЧЛВК_ИД
 INNER JOIN Н_УЧЕНИКИ u ON p.ИД = u.ИД
-WHERE o.ФАКУЛЬТЕТ = 'ФКТИУ'
+WHERE o.ФАКУЛЬТЕТ = 'FCE'
   AND (p.ОТЧЕСТВО IS NULL OR p.ОТЧЕСТВО = '');
 
 -- -------------------------------------------------------
--- Запрос 4: Номера планов с >2 группами на кафедре ВТ
--- Таблица: Н_ГРУППЫ_ПЛАНОВ
+-- Query 4: Plans with >2 groups on CE department
+-- Table: group_plans
 -- -------------------------------------------------------
-SELECT '=== Запрос 4: Планы с >2 группами на ВТ ===';
-SELECT ПЛАН_ИД AS Номер_плана, COUNT(ГРУППА) AS Количество_групп
+SELECT '=== Query 4: Plans >2 groups on CE ===';
+SELECT ПЛАН_ИД AS plan_id, COUNT(ГРУППА) AS group_count
 FROM Н_ГРУППЫ_ПЛАНОВ
-WHERE КАФЕДРА = 'Кафедра вычислительной техники'
+WHERE КАФЕДРА = 'Department of Computer Engineering'
 GROUP BY ПЛАН_ИД
 HAVING COUNT(ГРУППА) > 2;
 
 -- -------------------------------------------------------
--- Запрос 5: Средние оценки студентов группы 4100
--- Вывести: Номер, ФИО, Ср_оценка
--- Фильтр: средняя оценка >= средней оценки в группе 1100
+-- Query 5: Avg grades for group 4100 >= avg of group 1100
+-- Output: id, full name, avg grade
 -- -------------------------------------------------------
-SELECT '=== Запрос 5: Средние оценки группы 4100 ===';
+SELECT '=== Query 5: Avg grades group 4100 ===';
 SELECT
-    u.ИД AS Номер,
-    p.ФАМИЛИЯ || ' ' || p.ИМЯ || COALESCE(' ' || p.ОТЧЕСТВО, '') AS ФИО,
-    ROUND(AVG(CAST(v.ОЦЕНКА AS REAL)), 2) AS Ср_оценка
+    u.ИД AS id,
+    p.ФАМИЛИЯ || ' ' || p.ИМЯ || COALESCE(' ' || p.ОТЧЕСТВО, '') AS full_name,
+    ROUND(AVG(CAST(v.ОЦЕНКА AS REAL)), 2) AS avg_grade
 FROM Н_УЧЕНИКИ u
 INNER JOIN Н_ЛЮДИ p ON u.ИД = p.ИД
 INNER JOIN Н_ВЕДОМОСТИ v ON u.ИД = v.ЧЛВК_ИД
@@ -78,17 +72,17 @@ HAVING AVG(CAST(v.ОЦЕНКА AS REAL)) >= (
     INNER JOIN Н_ВЕДОМОСТИ v2 ON u2.ИД = v2.ЧЛВК_ИД
     WHERE u2.ГРУППА = '1100'
 )
-ORDER BY Ср_оценка DESC;
+ORDER BY avg_grade DESC;
 
 -- -------------------------------------------------------
--- Запрос 6: Студенты, зачисленные после 2012-09-01,
---           1 курс, заочная форма (подзапрос с IN)
+-- Query 6: Enrolled after 2012-09-01, course 1, part-time
+-- Subquery with IN
 -- -------------------------------------------------------
-SELECT '=== Запрос 6: Зачисленные после 2012-09-01, 1 курс, заочная ===';
+SELECT '=== Query 6: Enrolled after 2012-09-01, course 1, part-time ===';
 SELECT
     u.ГРУППА,
     p.ИД,
-    p.ФАМИЛИЯ || ' ' || p.ИМЯ || COALESCE(' ' || p.ОТЧЕСТВО, '') AS ФИО,
+    p.ФАМИЛИЯ || ' ' || p.ИМЯ || COALESCE(' ' || p.ОТЧЕСТВО, '') AS full_name,
     u.ПРИКАЗ,
     u.СОСТОЯНИЕ
 FROM Н_ЛЮДИ p
@@ -96,17 +90,16 @@ INNER JOIN Н_УЧЕНИКИ u ON p.ИД = u.ИД
 WHERE u.ИД IN (
     SELECT o.ЧЛВК_ИД
     FROM Н_ОБУЧЕНИЯ o
-    WHERE o.ФОРМА = 'заочная' AND o.КУРС = 1
+    WHERE o.ФОРМА = 'part-time' AND o.КУРС = 1
 )
 AND u.НАЧАЛО > '2012-09-01'
 ORDER BY u.ГРУППА, p.ФАМИЛИЯ;
 
 -- -------------------------------------------------------
--- Запрос 7: Студенты с одинаковыми фамилиями,
---           но разными датами рождения
+-- Query 7: Same surname, different birthdays
 -- -------------------------------------------------------
-SELECT '=== Запрос 7: Одинаковые фамилии, разные даты рождения ===';
-SELECT p.ФАМИЛИЯ, p.ИМЯ, COALESCE(p.ОТЧЕСТВО, '') AS ОТЧЕСТВО, p.ДАТА_РОЖДЕНИЯ
+SELECT '=== Query 7: Same surname, different birthdays ===';
+SELECT p.ФАМИЛИЯ, p.ИМЯ, COALESCE(p.ОТЧЕСТВО, '') AS patronymic, p.ДАТА_РОЖДЕНИЯ
 FROM Н_ЛЮДИ p
 WHERE p.ФАМИЛИЯ IN (
     SELECT ФАМИЛИЯ
