@@ -94,8 +94,8 @@ def save_type_name(src_ofs of int) of int {
 
 // ============================================================
 // Q1: INNER JOIN types_vedomostei + vedomosti
-// Условие: tv.ИД = 3 (Дифзачет) AND v.ЧЛВК_ИД > 153285
-// Вывод: НАИМЕНОВАНИЕ, ДАТА
+// Condition: tv.id = 3 (DiffPass) AND v.person_id > 153285
+// Output: NAME, DATE
 //
 // Pipeline (streaming):
 //   1. Read types_vedomostei row by row, save names in type_buf
@@ -173,7 +173,7 @@ def main() of int {
     n_types = load_types("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
     printf("Types loaded: %d\n", n_types);
 
-    puts("=== Q1: INNER JOIN (Дифзачёты) ===");
+    puts("=== Q1: INNER JOIN (DiffPass) ===");
     n = query1_stream("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
     printf("Found: %d\n", n);
 

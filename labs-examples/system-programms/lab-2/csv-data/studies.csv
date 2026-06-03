@@ -1,31 +1,31 @@
 person_id,nzk,form,direction_code,department,faculty,course
-100001,ZA001,заочная,090301,Кафедра информационных систем,ФИТиП,2
-100002,ZA002,заочная,090301,Кафедра информационных систем,ФИТиП,2
-100003,ZA003,заочная,090301,Кафедра информационных систем,ФИТиП,2
-100004,ZA004,заочная,090301,Кафедра информационных систем,ФИТиП,2
-100005,ZA005,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100006,ZA006,заочная,090301,Кафедра информационных систем,ФИТиП,2
-100007,ZA007,очная,230101,Кафедра вычислительной техники,ФКТИУ,2
-100008,OK001,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100009,OK002,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100010,OK003,очная,230101,Кафедра вычислительной техники,ФКТИУ,3
-100011,OK004,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100012,OK005,очная,230101,Кафедра вычислительной техники,ФКТИУ,2
-100013,OK006,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100014,OK007,очная,230101,Кафедра вычислительной техники,ФКТИУ,3
-100015,ZT001,заочная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100016,ZT002,заочная,230101,Кафедра вычислительной техники,ФКТИУ,1
-100017,ZT003,очная,090301,Кафедра информационных систем,ФИТиП,2
-163276,OK500,очная,230101,Кафедра вычислительной техники,ФКТИУ,2
-153285,FT285,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-153286,FT286,очная,230101,Кафедра вычислительной техники,ФКТИУ,2
-153290,FT290,заочная,230101,Кафедра вычислительной техники,ФКТИУ,2
-163249,FT249,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-170000,ZT700,заочная,230101,Кафедра вычислительной техники,ФКТИУ,2
-180000,ZT800,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
-190000,ZT900,очная,090301,Кафедра информационных систем,ФИТиП,1
-200001,FT001,заочная,230101,Кафедра вычислительной техники,ФКТИУ,1
-200002,FT002,очная,230101,Кафедра вычислительной техники,ФКТИУ,2
-210001,BE001,заочная,230101,Кафедра вычислительной техники,ФКТИУ,1
-210002,BE002,очная,090301,Кафедра информационных систем,ФИТиП,3
-220001,KR001,очная,230101,Кафедра вычислительной техники,ФКТИУ,1
+100001,ZA001,part-time,090301,Department of Information Systems,FITiP,2
+100002,ZA002,part-time,090301,Department of Information Systems,FITiP,2
+100003,ZA003,part-time,090301,Department of Information Systems,FITiP,2
+100004,ZA004,part-time,090301,Department of Information Systems,FITiP,2
+100005,ZA005,full-time,230101,Department of Computer Engineering,FCE,1
+100006,ZA006,part-time,090301,Department of Information Systems,FITiP,2
+100007,ZA007,full-time,230101,Department of Computer Engineering,FCE,2
+100008,OK001,full-time,230101,Department of Computer Engineering,FCE,1
+100009,OK002,full-time,230101,Department of Computer Engineering,FCE,1
+100010,OK003,full-time,230101,Department of Computer Engineering,FCE,3
+100011,OK004,full-time,230101,Department of Computer Engineering,FCE,1
+100012,OK005,full-time,230101,Department of Computer Engineering,FCE,2
+100013,OK006,full-time,230101,Department of Computer Engineering,FCE,1
+100014,OK007,full-time,230101,Department of Computer Engineering,FCE,3
+100015,ZT001,part-time,230101,Department of Computer Engineering,FCE,1
+100016,ZT002,part-time,230101,Department of Computer Engineering,FCE,1
+100017,ZT003,full-time,090301,Department of Information Systems,FITiP,2
+163276,OK500,full-time,230101,Department of Computer Engineering,FCE,2
+153285,FT285,full-time,230101,Department of Computer Engineering,FCE,1
+153286,FT286,full-time,230101,Department of Computer Engineering,FCE,2
+153290,FT290,part-time,230101,Department of Computer Engineering,FCE,2
+163249,FT249,full-time,230101,Department of Computer Engineering,FCE,1
+170000,ZT700,part-time,230101,Department of Computer Engineering,FCE,2
+180000,ZT800,full-time,230101,Department of Computer Engineering,FCE,1
+190000,ZT900,full-time,090301,Department of Information Systems,FITiP,1
+200001,FT001,part-time,230101,Department of Computer Engineering,FCE,1
+200002,FT002,full-time,230101,Department of Computer Engineering,FCE,2
+210001,BE001,part-time,230101,Department of Computer Engineering,FCE,1
+210002,BE002,full-time,090301,Department of Information Systems,FITiP,3
+220001,KR001,full-time,230101,Department of Computer Engineering,FCE,1

@@ -1,6 +1,6 @@
 id,name
-1,Экзамен
-2,Зачет
-3,Дифзачет
-4,Курсовая
-5,Практика
+1,Exam
+2,Pass
+3,DiffPass
+4,Coursework
+5,Internship
