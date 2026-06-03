@@ -28,8 +28,8 @@ def pipe_close(p of Pipe) { p.done = 1; }
 // Чтение CSV-файла в буфер
 def read_csv(fn of string) of int {
     f = fopen(fn, "r"); if (f == 0) { return -1; }
-    pos = buf_off;
-    while (true) { c = fgetc(f); if (c == -1) { buf[pos] = 0; fclose(f); return buf_off; } buf[pos] = c; pos = pos + 1; }
+    start = buf_off; pos = buf_off;
+    while (true) { c = fgetc(f); if (c == -1) { buf[pos] = 0; fclose(f); buf_off = pos; return start; } buf[pos] = c; pos = pos + 1; }
 }
 
 def skip_line(pos of int) of int {
