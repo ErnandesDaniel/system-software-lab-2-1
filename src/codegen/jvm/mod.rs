@@ -1,6 +1,7 @@
 use crate::ir::types::{
     Constant, IrFunction, IrOperand, IrParameter, IrProgram, IrType,
 };
+use crate::struct_layout::LayoutDatabase;
 use ristretto_classfile::attributes::Instruction;
 use ristretto_classfile::ConstantPool;
 use std::collections::{HashMap, HashSet};
@@ -86,6 +87,8 @@ pub struct JvmGlobalState {
     pub global_uses_object_array: HashSet<String>,
     pub global_struct_offset_sets: HashMap<String, Vec<usize>>,
     pub global_field_refs: HashMap<String, u16>,
+    pub struct_names: HashSet<String>,
+    pub struct_sizes: HashMap<String, usize>,
 }
 
 pub struct JvmGenerator {
@@ -148,6 +151,7 @@ impl JvmGenerator {
                 global_uses_object_array: HashSet::new(),
                 global_struct_offset_sets: HashMap::new(),
                 global_field_refs: HashMap::new(),
+                struct_names: HashSet::new(),
             },
         }
     }
@@ -158,8 +162,12 @@ impl JvmGenerator {
 
         self.global.global_vars.clear();
         self.global.global_uses_object_array.clear();
+        self.global.struct_names.clear();
         for g in &program.globals {
             self.global.global_vars.insert(g.name.clone(), g.ty.clone());
+        }
+        for (sname, _) in &program.struct_layouts.structs {
+            self.global.struct_names.insert(sname.clone());
         }
 
         self.global.global_struct_offset_sets.clear();

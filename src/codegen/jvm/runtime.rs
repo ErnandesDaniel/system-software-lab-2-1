@@ -1,6 +1,6 @@
 use crate::codegen::jvm::types::capitalize_first;
 use crate::codegen::jvm::JvmGenerator;
-use crate::ir::types::IrFunction;
+use crate::ir::types::{IrFunction, IrType};
 use ristretto_classfile::attributes::{Attribute, Instruction};
 use ristretto_classfile::{ClassAccessFlags, ClassFile, Field, FieldAccessFlags, FieldType, Method, MethodAccessFlags};
 
@@ -317,22 +317,59 @@ impl JvmGenerator {
             }],
         });
 
-        // === Static initializer: fileStreams = new InputStream[16] ===
+        // === Static initializer: fileStreams + global structs/arrays ===
         let clinit_name = self.pool.constant_pool.add_utf8("<clinit>").expect("utf8");
         let clinit_desc = self.pool.constant_pool.add_utf8("()V").expect("utf8");
+        let mut clinit_code = vec![
+            Instruction::Bipush(16),
+            Instruction::Anewarray(is_class),
+            Instruction::Putstatic(file_fds_ref),
+        ];
+        for (gname, gty) in &self.global.global_vars {
+            if let Some(&fr) = self.global.global_field_refs.get(gname) {
+                if self.global.global_uses_object_array.contains(gname) {
+                    let size = self.get_global_object_array_inner_size(gname) as i8;
+                    if self.pool.object_class_idx == 0 {
+                        self.pool.object_class_idx = self.pool.constant_pool.add_class("java/lang/Object")
+                            .expect("Failed to add Object class");
+                    }
+                    clinit_code.push(Instruction::Bipush(size));
+                    clinit_code.push(Instruction::Anewarray(self.pool.object_class_idx));
+                    clinit_code.push(Instruction::Putstatic(fr));
+                } else if let IrType::Array(_, n) = gty {
+                    if *n > 0 {
+                        let sz = *n as i16;
+                        if sz <= 127 {
+                            clinit_code.push(Instruction::Bipush(sz as i8));
+                        } else {
+                            clinit_code.push(Instruction::Sipush(sz));
+                        }
+                        clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+                        clinit_code.push(Instruction::Putstatic(fr));
+                    }
+                } else if self.global.global_struct_offset_sets.contains_key(gname) {
+                    let offsets = self.global.global_struct_offset_sets.get(gname).unwrap();
+                    let size = (offsets.iter().max().unwrap_or(&0) / 4 + 1) as i16;
+                    if size <= 127 {
+                        clinit_code.push(Instruction::Bipush(size as i8));
+                    } else {
+                        clinit_code.push(Instruction::Sipush(size));
+                    }
+                    clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+                    clinit_code.push(Instruction::Putstatic(fr));
+                }
+            }
+        }
+        clinit_code.push(Instruction::Return);
+        let clinit_max = 3;
         methods.push(Method {
             access_flags: MethodAccessFlags::STATIC,
             name_index: clinit_name,
             descriptor_index: clinit_desc,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 2, max_locals: 0,
-                code: vec![
-                    Instruction::Bipush(16),
-                    Instruction::Anewarray(is_class),
-                    Instruction::Putstatic(file_fds_ref),
-                    Instruction::Return,
-                ],
+                max_stack: clinit_max, max_locals: 0,
+                code: clinit_code,
                 exception_table: vec![],
                 attributes: vec![],
             }],
