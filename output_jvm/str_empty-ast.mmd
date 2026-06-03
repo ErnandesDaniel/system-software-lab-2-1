@@ -1,0 +1,54 @@
+graph TD;
+N0["function: str_empty"]
+N1["statement"]
+N0 --> N1
+N2["if_statement"]
+N1 --> N2
+N3["if"]
+N2 --> N3
+N4["expr"]
+N2 --> N4
+N5["binary_expr"]
+N4 --> N5
+N6["expr"]
+N5 --> N6
+N7["slice_expr"]
+N6 --> N7
+N8["expr"]
+N7 --> N8
+N9["identifier: buf"]
+N8 --> N9
+N10["range"]
+N7 --> N10
+N11["expr"]
+N10 --> N11
+N12["identifier: off"]
+N11 --> N12
+N13["=="]
+N5 --> N13
+N14["expr"]
+N5 --> N14
+N15["literal"]
+N14 --> N15
+N16["dec: 0"]
+N15 --> N16
+N17["statement"]
+N2 --> N17
+N18["return_statement"]
+N17 --> N18
+N19["expr"]
+N18 --> N19
+N20["literal"]
+N19 --> N20
+N21["dec: 1"]
+N20 --> N21
+N22["statement"]
+N0 --> N22
+N23["return_statement"]
+N22 --> N23
+N24["expr"]
+N23 --> N24
+N25["literal"]
+N24 --> N25
+N26["dec: 0"]
+N25 --> N26

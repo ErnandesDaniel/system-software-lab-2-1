@@ -1,0 +1,791 @@
+graph TD;
+N0["function: q6"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["call_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: puts"]
+N5 --> N6
+N7["expr"]
+N4 --> N7
+N8["literal"]
+N7 --> N8
+N9["str: "=== Q6: Enrolled after 2012-09-01, 1 course, part-time ===""]
+N8 --> N9
+N10[";"]
+N2 --> N10
+N11["statement"]
+N0 --> N11
+N12["expression_statement"]
+N11 --> N12
+N13["expr"]
+N12 --> N13
+N14["binary_expr"]
+N13 --> N14
+N15["expr"]
+N14 --> N15
+N16["identifier: count"]
+N15 --> N16
+N17["="]
+N14 --> N17
+N18["expr"]
+N14 --> N18
+N19["literal"]
+N18 --> N19
+N20["dec: 0"]
+N19 --> N20
+N21[";"]
+N12 --> N21
+N22["statement"]
+N0 --> N22
+N23["expression_statement"]
+N22 --> N23
+N24["expr"]
+N23 --> N24
+N25["binary_expr"]
+N24 --> N25
+N26["expr"]
+N25 --> N26
+N27["identifier: i"]
+N26 --> N27
+N28["="]
+N25 --> N28
+N29["expr"]
+N25 --> N29
+N30["literal"]
+N29 --> N30
+N31["dec: 0"]
+N30 --> N31
+N32[";"]
+N23 --> N32
+N33["statement"]
+N0 --> N33
+N34["loop_statement"]
+N33 --> N34
+N35["while"]
+N34 --> N35
+N36["expr"]
+N34 --> N36
+N37["binary_expr"]
+N36 --> N37
+N38["expr"]
+N37 --> N38
+N39["identifier: i"]
+N38 --> N39
+N40["<"]
+N37 --> N40
+N41["expr"]
+N37 --> N41
+N42["identifier: sd_n"]
+N41 --> N42
+N43["statement"]
+N34 --> N43
+N44["if_statement"]
+N43 --> N44
+N45["if"]
+N44 --> N45
+N46["expr"]
+N44 --> N46
+N47["binary_expr"]
+N46 --> N47
+N48["expr"]
+N47 --> N48
+N49["call_expr"]
+N48 --> N49
+N50["expr"]
+N49 --> N50
+N51["identifier: str_gt_lit"]
+N50 --> N51
+N52["expr"]
+N49 --> N52
+N53["identifier: sd_buf"]
+N52 --> N53
+N54["expr"]
+N49 --> N54
+N55["slice_expr"]
+N54 --> N55
+N56["expr"]
+N55 --> N56
+N57["identifier: sd_start"]
+N56 --> N57
+N58["range"]
+N55 --> N58
+N59["expr"]
+N58 --> N59
+N60["identifier: i"]
+N59 --> N60
+N61["expr"]
+N49 --> N61
+N62["literal"]
+N61 --> N62
+N63["str: "2012-09-01""]
+N62 --> N63
+N64[">"]
+N47 --> N64
+N65["expr"]
+N47 --> N65
+N66["literal"]
+N65 --> N66
+N67["dec: 0"]
+N66 --> N67
+N68["statement"]
+N44 --> N68
+N69["expression_statement"]
+N68 --> N69
+N70["expr"]
+N69 --> N70
+N71["binary_expr"]
+N70 --> N71
+N72["expr"]
+N71 --> N72
+N73["identifier: pid"]
+N72 --> N73
+N74["="]
+N71 --> N74
+N75["expr"]
+N71 --> N75
+N76["slice_expr"]
+N75 --> N76
+N77["expr"]
+N76 --> N77
+N78["identifier: sd_pid"]
+N77 --> N78
+N79["range"]
+N76 --> N79
+N80["expr"]
+N79 --> N80
+N81["identifier: i"]
+N80 --> N81
+N82[";"]
+N69 --> N82
+N83["statement"]
+N44 --> N83
+N84["expression_statement"]
+N83 --> N84
+N85["expr"]
+N84 --> N85
+N86["binary_expr"]
+N85 --> N86
+N87["expr"]
+N86 --> N87
+N88["identifier: si"]
+N87 --> N88
+N89["="]
+N86 --> N89
+N90["expr"]
+N86 --> N90
+N91["literal"]
+N90 --> N91
+N92["dec: 0"]
+N91 --> N92
+N93[";"]
+N84 --> N93
+N94["statement"]
+N44 --> N94
+N95["loop_statement"]
+N94 --> N95
+N96["while"]
+N95 --> N96
+N97["expr"]
+N95 --> N97
+N98["binary_expr"]
+N97 --> N98
+N99["expr"]
+N98 --> N99
+N100["identifier: si"]
+N99 --> N100
+N101["<"]
+N98 --> N101
+N102["expr"]
+N98 --> N102
+N103["identifier: st_n"]
+N102 --> N103
+N104["statement"]
+N95 --> N104
+N105["if_statement"]
+N104 --> N105
+N106["if"]
+N105 --> N106
+N107["expr"]
+N105 --> N107
+N108["binary_expr"]
+N107 --> N108
+N109["expr"]
+N108 --> N109
+N110["binary_expr"]
+N109 --> N110
+N111["expr"]
+N110 --> N111
+N112["binary_expr"]
+N111 --> N112
+N113["expr"]
+N112 --> N113
+N114["slice_expr"]
+N113 --> N114
+N115["expr"]
+N114 --> N115
+N116["identifier: st_pid"]
+N115 --> N116
+N117["range"]
+N114 --> N117
+N118["expr"]
+N117 --> N118
+N119["identifier: si"]
+N118 --> N119
+N120["=="]
+N112 --> N120
+N121["expr"]
+N112 --> N121
+N122["identifier: pid"]
+N121 --> N122
+N123["&&"]
+N110 --> N123
+N124["expr"]
+N110 --> N124
+N125["binary_expr"]
+N124 --> N125
+N126["expr"]
+N125 --> N126
+N127["call_expr"]
+N126 --> N127
+N128["expr"]
+N127 --> N128
+N129["identifier: str_eq_lit"]
+N128 --> N129
+N130["expr"]
+N127 --> N130
+N131["identifier: st_buf"]
+N130 --> N131
+N132["expr"]
+N127 --> N132
+N133["slice_expr"]
+N132 --> N133
+N134["expr"]
+N133 --> N134
+N135["identifier: st_form"]
+N134 --> N135
+N136["range"]
+N133 --> N136
+N137["expr"]
+N136 --> N137
+N138["identifier: si"]
+N137 --> N138
+N139["expr"]
+N127 --> N139
+N140["literal"]
+N139 --> N140
+N141["str: "part-time""]
+N140 --> N141
+N142["!="]
+N125 --> N142
+N143["expr"]
+N125 --> N143
+N144["literal"]
+N143 --> N144
+N145["dec: 0"]
+N144 --> N145
+N146["&&"]
+N108 --> N146
+N147["expr"]
+N108 --> N147
+N148["binary_expr"]
+N147 --> N148
+N149["expr"]
+N148 --> N149
+N150["slice_expr"]
+N149 --> N150
+N151["expr"]
+N150 --> N151
+N152["identifier: st_course"]
+N151 --> N152
+N153["range"]
+N150 --> N153
+N154["expr"]
+N153 --> N154
+N155["identifier: si"]
+N154 --> N155
+N156["=="]
+N148 --> N156
+N157["expr"]
+N148 --> N157
+N158["literal"]
+N157 --> N158
+N159["dec: 1"]
+N158 --> N159
+N160["statement"]
+N105 --> N160
+N161["expression_statement"]
+N160 --> N161
+N162["expr"]
+N161 --> N162
+N163["binary_expr"]
+N162 --> N163
+N164["expr"]
+N163 --> N164
+N165["identifier: count"]
+N164 --> N165
+N166["="]
+N163 --> N166
+N167["expr"]
+N163 --> N167
+N168["binary_expr"]
+N167 --> N168
+N169["expr"]
+N168 --> N169
+N170["identifier: count"]
+N169 --> N170
+N171["+"]
+N168 --> N171
+N172["expr"]
+N168 --> N172
+N173["literal"]
+N172 --> N173
+N174["dec: 1"]
+N173 --> N174
+N175[";"]
+N161 --> N175
+N176["statement"]
+N105 --> N176
+N177["expression_statement"]
+N176 --> N177
+N178["expr"]
+N177 --> N178
+N179["binary_expr"]
+N178 --> N179
+N180["expr"]
+N179 --> N180
+N181["identifier: pi"]
+N180 --> N181
+N182["="]
+N179 --> N182
+N183["expr"]
+N179 --> N183
+N184["literal"]
+N183 --> N184
+N185["dec: 0"]
+N184 --> N185
+N186[";"]
+N177 --> N186
+N187["statement"]
+N105 --> N187
+N188["loop_statement"]
+N187 --> N188
+N189["while"]
+N188 --> N189
+N190["expr"]
+N188 --> N190
+N191["binary_expr"]
+N190 --> N191
+N192["expr"]
+N191 --> N192
+N193["identifier: pi"]
+N192 --> N193
+N194["<"]
+N191 --> N194
+N195["expr"]
+N191 --> N195
+N196["identifier: pp_n"]
+N195 --> N196
+N197["statement"]
+N188 --> N197
+N198["if_statement"]
+N197 --> N198
+N199["if"]
+N198 --> N199
+N200["expr"]
+N198 --> N200
+N201["binary_expr"]
+N200 --> N201
+N202["expr"]
+N201 --> N202
+N203["slice_expr"]
+N202 --> N203
+N204["expr"]
+N203 --> N204
+N205["identifier: pp_id"]
+N204 --> N205
+N206["range"]
+N203 --> N206
+N207["expr"]
+N206 --> N207
+N208["identifier: pi"]
+N207 --> N208
+N209["=="]
+N201 --> N209
+N210["expr"]
+N201 --> N210
+N211["identifier: pid"]
+N210 --> N211
+N212["statement"]
+N198 --> N212
+N213["expression_statement"]
+N212 --> N213
+N214["expr"]
+N213 --> N214
+N215["call_expr"]
+N214 --> N215
+N216["expr"]
+N215 --> N216
+N217["identifier: print_str"]
+N216 --> N217
+N218["expr"]
+N215 --> N218
+N219["identifier: sd_buf"]
+N218 --> N219
+N220["expr"]
+N215 --> N220
+N221["slice_expr"]
+N220 --> N221
+N222["expr"]
+N221 --> N222
+N223["identifier: sd_group"]
+N222 --> N223
+N224["range"]
+N221 --> N224
+N225["expr"]
+N224 --> N225
+N226["identifier: i"]
+N225 --> N226
+N227[";"]
+N213 --> N227
+N228["statement"]
+N198 --> N228
+N229["expression_statement"]
+N228 --> N229
+N230["expr"]
+N229 --> N230
+N231["call_expr"]
+N230 --> N231
+N232["expr"]
+N231 --> N232
+N233["identifier: putchar"]
+N232 --> N233
+N234["expr"]
+N231 --> N234
+N235["literal"]
+N234 --> N235
+N236["dec: 44"]
+N235 --> N236
+N237[";"]
+N229 --> N237
+N238["statement"]
+N198 --> N238
+N239["expression_statement"]
+N238 --> N239
+N240["expr"]
+N239 --> N240
+N241["call_expr"]
+N240 --> N241
+N242["expr"]
+N241 --> N242
+N243["identifier: putchar"]
+N242 --> N243
+N244["expr"]
+N241 --> N244
+N245["literal"]
+N244 --> N245
+N246["dec: 32"]
+N245 --> N246
+N247[";"]
+N239 --> N247
+N248["statement"]
+N198 --> N248
+N249["expression_statement"]
+N248 --> N249
+N250["expr"]
+N249 --> N250
+N251["call_expr"]
+N250 --> N251
+N252["expr"]
+N251 --> N252
+N253["identifier: printf"]
+N252 --> N253
+N254["expr"]
+N251 --> N254
+N255["literal"]
+N254 --> N255
+N256["str: "%d""]
+N255 --> N256
+N257["expr"]
+N251 --> N257
+N258["identifier: pid"]
+N257 --> N258
+N259[";"]
+N249 --> N259
+N260["statement"]
+N198 --> N260
+N261["expression_statement"]
+N260 --> N261
+N262["expr"]
+N261 --> N262
+N263["call_expr"]
+N262 --> N263
+N264["expr"]
+N263 --> N264
+N265["identifier: putchar"]
+N264 --> N265
+N266["expr"]
+N263 --> N266
+N267["literal"]
+N266 --> N267
+N268["dec: 44"]
+N267 --> N268
+N269[";"]
+N261 --> N269
+N270["statement"]
+N198 --> N270
+N271["expression_statement"]
+N270 --> N271
+N272["expr"]
+N271 --> N272
+N273["call_expr"]
+N272 --> N273
+N274["expr"]
+N273 --> N274
+N275["identifier: putchar"]
+N274 --> N275
+N276["expr"]
+N273 --> N276
+N277["literal"]
+N276 --> N277
+N278["dec: 32"]
+N277 --> N278
+N279[";"]
+N271 --> N279
+N280["statement"]
+N198 --> N280
+N281["expression_statement"]
+N280 --> N281
+N282["expr"]
+N281 --> N282
+N283["call_expr"]
+N282 --> N283
+N284["expr"]
+N283 --> N284
+N285["identifier: print_str"]
+N284 --> N285
+N286["expr"]
+N283 --> N286
+N287["identifier: pp_buf"]
+N286 --> N287
+N288["expr"]
+N283 --> N288
+N289["slice_expr"]
+N288 --> N289
+N290["expr"]
+N289 --> N290
+N291["identifier: pp_surname"]
+N290 --> N291
+N292["range"]
+N289 --> N292
+N293["expr"]
+N292 --> N293
+N294["identifier: pi"]
+N293 --> N294
+N295[";"]
+N281 --> N295
+N296["statement"]
+N198 --> N296
+N297["expression_statement"]
+N296 --> N297
+N298["expr"]
+N297 --> N298
+N299["call_expr"]
+N298 --> N299
+N300["expr"]
+N299 --> N300
+N301["identifier: putchar"]
+N300 --> N301
+N302["expr"]
+N299 --> N302
+N303["literal"]
+N302 --> N303
+N304["dec: 32"]
+N303 --> N304
+N305[";"]
+N297 --> N305
+N306["statement"]
+N198 --> N306
+N307["expression_statement"]
+N306 --> N307
+N308["expr"]
+N307 --> N308
+N309["call_expr"]
+N308 --> N309
+N310["expr"]
+N309 --> N310
+N311["identifier: print_str"]
+N310 --> N311
+N312["expr"]
+N309 --> N312
+N313["identifier: pp_buf"]
+N312 --> N313
+N314["expr"]
+N309 --> N314
+N315["slice_expr"]
+N314 --> N315
+N316["expr"]
+N315 --> N316
+N317["identifier: pp_name"]
+N316 --> N317
+N318["range"]
+N315 --> N318
+N319["expr"]
+N318 --> N319
+N320["identifier: pi"]
+N319 --> N320
+N321[";"]
+N307 --> N321
+N322["statement"]
+N198 --> N322
+N323["expression_statement"]
+N322 --> N323
+N324["expr"]
+N323 --> N324
+N325["call_expr"]
+N324 --> N325
+N326["expr"]
+N325 --> N326
+N327["identifier: putchar"]
+N326 --> N327
+N328["expr"]
+N325 --> N328
+N329["literal"]
+N328 --> N329
+N330["dec: 10"]
+N329 --> N330
+N331[";"]
+N323 --> N331
+N332["statement"]
+N188 --> N332
+N333["expression_statement"]
+N332 --> N333
+N334["expr"]
+N333 --> N334
+N335["binary_expr"]
+N334 --> N335
+N336["expr"]
+N335 --> N336
+N337["identifier: pi"]
+N336 --> N337
+N338["="]
+N335 --> N338
+N339["expr"]
+N335 --> N339
+N340["binary_expr"]
+N339 --> N340
+N341["expr"]
+N340 --> N341
+N342["identifier: pi"]
+N341 --> N342
+N343["+"]
+N340 --> N343
+N344["expr"]
+N340 --> N344
+N345["literal"]
+N344 --> N345
+N346["dec: 1"]
+N345 --> N346
+N347[";"]
+N333 --> N347
+N348["statement"]
+N105 --> N348
+N349["break_statement"]
+N348 --> N349
+N350[";"]
+N349 --> N350
+N351["statement"]
+N95 --> N351
+N352["expression_statement"]
+N351 --> N352
+N353["expr"]
+N352 --> N353
+N354["binary_expr"]
+N353 --> N354
+N355["expr"]
+N354 --> N355
+N356["identifier: si"]
+N355 --> N356
+N357["="]
+N354 --> N357
+N358["expr"]
+N354 --> N358
+N359["binary_expr"]
+N358 --> N359
+N360["expr"]
+N359 --> N360
+N361["identifier: si"]
+N360 --> N361
+N362["+"]
+N359 --> N362
+N363["expr"]
+N359 --> N363
+N364["literal"]
+N363 --> N364
+N365["dec: 1"]
+N364 --> N365
+N366[";"]
+N352 --> N366
+N367["statement"]
+N34 --> N367
+N368["expression_statement"]
+N367 --> N368
+N369["expr"]
+N368 --> N369
+N370["binary_expr"]
+N369 --> N370
+N371["expr"]
+N370 --> N371
+N372["identifier: i"]
+N371 --> N372
+N373["="]
+N370 --> N373
+N374["expr"]
+N370 --> N374
+N375["binary_expr"]
+N374 --> N375
+N376["expr"]
+N375 --> N376
+N377["identifier: i"]
+N376 --> N377
+N378["+"]
+N375 --> N378
+N379["expr"]
+N375 --> N379
+N380["literal"]
+N379 --> N380
+N381["dec: 1"]
+N380 --> N381
+N382[";"]
+N368 --> N382
+N383["statement"]
+N0 --> N383
+N384["expression_statement"]
+N383 --> N384
+N385["expr"]
+N384 --> N385
+N386["call_expr"]
+N385 --> N386
+N387["expr"]
+N386 --> N387
+N388["identifier: printf"]
+N387 --> N388
+N389["expr"]
+N386 --> N389
+N390["literal"]
+N389 --> N390
+N391["str: "Count: %d
+""]
+N390 --> N391
+N392["expr"]
+N386 --> N392
+N393["identifier: count"]
+N392 --> N393
+N394[";"]
+N384 --> N394

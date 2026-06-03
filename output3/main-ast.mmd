@@ -1,0 +1,391 @@
+graph TD;
+N0["function: main"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["binary_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: row_buf"]
+N5 --> N6
+N7["="]
+N4 --> N7
+N8["expr"]
+N4 --> N8
+N9["call_expr"]
+N8 --> N9
+N10["expr"]
+N9 --> N10
+N11["identifier: malloc"]
+N10 --> N11
+N12["expr"]
+N9 --> N12
+N13["literal"]
+N12 --> N13
+N14["dec: 10000"]
+N13 --> N14
+N15[";"]
+N2 --> N15
+N16["statement"]
+N0 --> N16
+N17["if_statement"]
+N16 --> N17
+N18["if"]
+N17 --> N18
+N19["expr"]
+N17 --> N19
+N20["binary_expr"]
+N19 --> N20
+N21["expr"]
+N20 --> N21
+N22["identifier: row_buf"]
+N21 --> N22
+N23["=="]
+N20 --> N23
+N24["expr"]
+N20 --> N24
+N25["literal"]
+N24 --> N25
+N26["dec: 0"]
+N25 --> N26
+N27["statement"]
+N17 --> N27
+N28["expression_statement"]
+N27 --> N28
+N29["expr"]
+N28 --> N29
+N30["call_expr"]
+N29 --> N30
+N31["expr"]
+N30 --> N31
+N32["identifier: puts"]
+N31 --> N32
+N33["expr"]
+N30 --> N33
+N34["literal"]
+N33 --> N34
+N35["str: "malloc failed""]
+N34 --> N35
+N36[";"]
+N28 --> N36
+N37["statement"]
+N17 --> N37
+N38["return_statement"]
+N37 --> N38
+N39["expr"]
+N38 --> N39
+N40["literal"]
+N39 --> N40
+N41["dec: 1"]
+N40 --> N41
+N42["statement"]
+N0 --> N42
+N43["expression_statement"]
+N42 --> N43
+N44["expr"]
+N43 --> N44
+N45["call_expr"]
+N44 --> N45
+N46["expr"]
+N45 --> N46
+N47["identifier: puts"]
+N46 --> N47
+N48["expr"]
+N45 --> N48
+N49["literal"]
+N48 --> N49
+N50["str: "=== fopen test without coro ===""]
+N49 --> N50
+N51[";"]
+N43 --> N51
+N52["statement"]
+N0 --> N52
+N53["expression_statement"]
+N52 --> N53
+N54["expr"]
+N53 --> N54
+N55["binary_expr"]
+N54 --> N55
+N56["expr"]
+N55 --> N56
+N57["identifier: f"]
+N56 --> N57
+N58["="]
+N55 --> N58
+N59["expr"]
+N55 --> N59
+N60["call_expr"]
+N59 --> N60
+N61["expr"]
+N60 --> N61
+N62["identifier: fopen"]
+N61 --> N62
+N63["expr"]
+N60 --> N63
+N64["literal"]
+N63 --> N64
+N65["str: "labs-examples/system-programms/lab-2/input-coroutines.mylang""]
+N64 --> N65
+N66["expr"]
+N60 --> N66
+N67["literal"]
+N66 --> N67
+N68["str: "r""]
+N67 --> N68
+N69[";"]
+N53 --> N69
+N70["statement"]
+N0 --> N70
+N71["if_statement"]
+N70 --> N71
+N72["if"]
+N71 --> N72
+N73["expr"]
+N71 --> N73
+N74["binary_expr"]
+N73 --> N74
+N75["expr"]
+N74 --> N75
+N76["identifier: f"]
+N75 --> N76
+N77["=="]
+N74 --> N77
+N78["expr"]
+N74 --> N78
+N79["literal"]
+N78 --> N79
+N80["dec: 0"]
+N79 --> N80
+N81["statement"]
+N71 --> N81
+N82["expression_statement"]
+N81 --> N82
+N83["expr"]
+N82 --> N83
+N84["call_expr"]
+N83 --> N84
+N85["expr"]
+N84 --> N85
+N86["identifier: puts"]
+N85 --> N86
+N87["expr"]
+N84 --> N87
+N88["literal"]
+N87 --> N88
+N89["str: "fopen failed""]
+N88 --> N89
+N90[";"]
+N82 --> N90
+N91["statement"]
+N71 --> N91
+N92["return_statement"]
+N91 --> N92
+N93["expr"]
+N92 --> N93
+N94["literal"]
+N93 --> N94
+N95["dec: 1"]
+N94 --> N95
+N96["statement"]
+N0 --> N96
+N97["expression_statement"]
+N96 --> N97
+N98["expr"]
+N97 --> N98
+N99["call_expr"]
+N98 --> N99
+N100["expr"]
+N99 --> N100
+N101["identifier: read_line"]
+N100 --> N101
+N102["expr"]
+N99 --> N102
+N103["identifier: f"]
+N102 --> N103
+N104[";"]
+N97 --> N104
+N105["statement"]
+N0 --> N105
+N106["expression_statement"]
+N105 --> N106
+N107["expr"]
+N106 --> N107
+N108["binary_expr"]
+N107 --> N108
+N109["expr"]
+N108 --> N109
+N110["identifier: n"]
+N109 --> N110
+N111["="]
+N108 --> N111
+N112["expr"]
+N108 --> N112
+N113["literal"]
+N112 --> N113
+N114["dec: 0"]
+N113 --> N114
+N115[";"]
+N106 --> N115
+N116["statement"]
+N0 --> N116
+N117["loop_statement"]
+N116 --> N117
+N118["while"]
+N117 --> N118
+N119["expr"]
+N117 --> N119
+N120["literal"]
+N119 --> N120
+N121["bool: true"]
+N120 --> N121
+N122["statement"]
+N117 --> N122
+N123["if_statement"]
+N122 --> N123
+N124["if"]
+N123 --> N124
+N125["expr"]
+N123 --> N125
+N126["binary_expr"]
+N125 --> N126
+N127["expr"]
+N126 --> N127
+N128["call_expr"]
+N127 --> N128
+N129["expr"]
+N128 --> N129
+N130["identifier: read_line"]
+N129 --> N130
+N131["expr"]
+N128 --> N131
+N132["identifier: f"]
+N131 --> N132
+N133["=="]
+N126 --> N133
+N134["expr"]
+N126 --> N134
+N135["unary_expr"]
+N134 --> N135
+N136["-"]
+N135 --> N136
+N137["expr"]
+N135 --> N137
+N138["literal"]
+N137 --> N138
+N139["dec: 1"]
+N138 --> N139
+N140["statement"]
+N123 --> N140
+N141["break_statement"]
+N140 --> N141
+N142[";"]
+N141 --> N142
+N143["statement"]
+N117 --> N143
+N144["expression_statement"]
+N143 --> N144
+N145["expr"]
+N144 --> N145
+N146["binary_expr"]
+N145 --> N146
+N147["expr"]
+N146 --> N147
+N148["identifier: n"]
+N147 --> N148
+N149["="]
+N146 --> N149
+N150["expr"]
+N146 --> N150
+N151["binary_expr"]
+N150 --> N151
+N152["expr"]
+N151 --> N152
+N153["identifier: n"]
+N152 --> N153
+N154["+"]
+N151 --> N154
+N155["expr"]
+N151 --> N155
+N156["literal"]
+N155 --> N156
+N157["dec: 1"]
+N156 --> N157
+N158[";"]
+N144 --> N158
+N159["statement"]
+N0 --> N159
+N160["expression_statement"]
+N159 --> N160
+N161["expr"]
+N160 --> N161
+N162["call_expr"]
+N161 --> N162
+N163["expr"]
+N162 --> N163
+N164["identifier: printf"]
+N163 --> N164
+N165["expr"]
+N162 --> N165
+N166["literal"]
+N165 --> N166
+N167["str: "Lines: %d
+""]
+N166 --> N167
+N168["expr"]
+N162 --> N168
+N169["identifier: n"]
+N168 --> N169
+N170[";"]
+N160 --> N170
+N171["statement"]
+N0 --> N171
+N172["expression_statement"]
+N171 --> N172
+N173["expr"]
+N172 --> N173
+N174["call_expr"]
+N173 --> N174
+N175["expr"]
+N174 --> N175
+N176["identifier: fclose"]
+N175 --> N176
+N177["expr"]
+N174 --> N177
+N178["identifier: f"]
+N177 --> N178
+N179[";"]
+N172 --> N179
+N180["statement"]
+N0 --> N180
+N181["expression_statement"]
+N180 --> N181
+N182["expr"]
+N181 --> N182
+N183["call_expr"]
+N182 --> N183
+N184["expr"]
+N183 --> N184
+N185["identifier: puts"]
+N184 --> N185
+N186["expr"]
+N183 --> N186
+N187["literal"]
+N186 --> N187
+N188["str: "=== Done ===""]
+N187 --> N188
+N189[";"]
+N181 --> N189
+N190["statement"]
+N0 --> N190
+N191["return_statement"]
+N190 --> N191
+N192["expr"]
+N191 --> N192
+N193["literal"]
+N192 --> N193
+N194["dec: 0"]
+N193 --> N194

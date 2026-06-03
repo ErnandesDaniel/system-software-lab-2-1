@@ -1,0 +1,29 @@
+graph TD
+    BB_0["BB0\nt154 = 0\ni = t154\ngoto BB_1"]
+    BB_1["BB1\nt155 = true\nif t155 goto BB_2 else BB_3"]
+    BB_5["BB5\nt164 = 0\nreturn t164"]
+    BB_2["BB2\nt156 = off + i\nt157 = buf\[t156\] (str)\nbc = t157\nt158 = lit\[i\] (str)\nlc = t158\nt159 = 0\nt160 = (bc == t159)\nt161 = 0\nt162 = (lc == t161)\nt163 = t160 && t162\nif t163 goto BB_5 else BB_4"]
+    BB_7["BB7\nt167 = 1\nt168 = -t167\nreturn t168"]
+    BB_4["BB4\nt165 = 0\nt166 = (bc == t165)\nif t166 goto BB_7 else BB_6"]
+    BB_9["BB9\nt171 = 1\nreturn t171"]
+    BB_6["BB6\nt169 = 0\nt170 = (lc == t169)\nif t170 goto BB_9 else BB_8"]
+    BB_11["BB11\nt173 = bc - lc\nreturn t173"]
+    BB_8["BB8\nt172 = (bc != lc)\nif t172 goto BB_11 else BB_10"]
+    BB_10["BB10\nt174 = 1\nt175 = i + t174\ni = t175\ngoto BB_1"]
+    BB_3["BB3\n"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_5 --> BB_4
+BB_2 --> BB_5
+BB_2 --> BB_4
+BB_7 --> BB_6
+BB_4 --> BB_7
+BB_4 --> BB_6
+BB_9 --> BB_8
+BB_6 --> BB_9
+BB_6 --> BB_8
+BB_11 --> BB_10
+BB_8 --> BB_11
+BB_8 --> BB_10
+BB_10 --> BB_1

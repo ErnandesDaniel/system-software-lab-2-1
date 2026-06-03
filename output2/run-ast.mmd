@@ -1,0 +1,204 @@
+graph TD;
+N0["function: run"]
+N1["statement"]
+N0 --> N1
+N2["expression_statement"]
+N1 --> N2
+N3["expr"]
+N2 --> N3
+N4["binary_expr"]
+N3 --> N4
+N5["expr"]
+N4 --> N5
+N6["identifier: f0"]
+N5 --> N6
+N7["="]
+N4 --> N7
+N8["expr"]
+N4 --> N8
+N9["literal"]
+N8 --> N9
+N10["dec: 0"]
+N9 --> N10
+N11[";"]
+N2 --> N11
+N12["statement"]
+N0 --> N12
+N13["expression_statement"]
+N12 --> N13
+N14["expr"]
+N13 --> N14
+N15["binary_expr"]
+N14 --> N15
+N16["expr"]
+N15 --> N16
+N17["identifier: f1"]
+N16 --> N17
+N18["="]
+N15 --> N18
+N19["expr"]
+N15 --> N19
+N20["literal"]
+N19 --> N20
+N21["dec: 0"]
+N20 --> N21
+N22[";"]
+N13 --> N22
+N23["statement"]
+N0 --> N23
+N24["loop_statement"]
+N23 --> N24
+N25["while"]
+N24 --> N25
+N26["expr"]
+N24 --> N26
+N27["binary_expr"]
+N26 --> N27
+N28["expr"]
+N27 --> N28
+N29["binary_expr"]
+N28 --> N29
+N30["expr"]
+N29 --> N30
+N31["identifier: f0"]
+N30 --> N31
+N32["=="]
+N29 --> N32
+N33["expr"]
+N29 --> N33
+N34["literal"]
+N33 --> N34
+N35["dec: 0"]
+N34 --> N35
+N36["||"]
+N27 --> N36
+N37["expr"]
+N27 --> N37
+N38["binary_expr"]
+N37 --> N38
+N39["expr"]
+N38 --> N39
+N40["identifier: f1"]
+N39 --> N40
+N41["=="]
+N38 --> N41
+N42["expr"]
+N38 --> N42
+N43["literal"]
+N42 --> N43
+N44["dec: 0"]
+N43 --> N44
+N45["statement"]
+N24 --> N45
+N46["if_statement"]
+N45 --> N46
+N47["if"]
+N46 --> N47
+N48["expr"]
+N46 --> N48
+N49["binary_expr"]
+N48 --> N49
+N50["expr"]
+N49 --> N50
+N51["identifier: f0"]
+N50 --> N51
+N52["=="]
+N49 --> N52
+N53["expr"]
+N49 --> N53
+N54["literal"]
+N53 --> N54
+N55["dec: 0"]
+N54 --> N55
+N56["statement"]
+N46 --> N56
+N57["expression_statement"]
+N56 --> N57
+N58["expr"]
+N57 --> N58
+N59["binary_expr"]
+N58 --> N59
+N60["expr"]
+N59 --> N60
+N61["identifier: f0"]
+N60 --> N61
+N62["="]
+N59 --> N62
+N63["expr"]
+N59 --> N63
+N64["call_expr"]
+N63 --> N64
+N65["expr"]
+N64 --> N65
+N66["identifier: resume_coroutine"]
+N65 --> N66
+N67["expr"]
+N64 --> N67
+N68["literal"]
+N67 --> N68
+N69["dec: 0"]
+N68 --> N69
+N70[";"]
+N57 --> N70
+N71["statement"]
+N24 --> N71
+N72["if_statement"]
+N71 --> N72
+N73["if"]
+N72 --> N73
+N74["expr"]
+N72 --> N74
+N75["binary_expr"]
+N74 --> N75
+N76["expr"]
+N75 --> N76
+N77["identifier: f1"]
+N76 --> N77
+N78["=="]
+N75 --> N78
+N79["expr"]
+N75 --> N79
+N80["literal"]
+N79 --> N80
+N81["dec: 0"]
+N80 --> N81
+N82["statement"]
+N72 --> N82
+N83["expression_statement"]
+N82 --> N83
+N84["expr"]
+N83 --> N84
+N85["binary_expr"]
+N84 --> N85
+N86["expr"]
+N85 --> N86
+N87["identifier: f1"]
+N86 --> N87
+N88["="]
+N85 --> N88
+N89["expr"]
+N85 --> N89
+N90["call_expr"]
+N89 --> N90
+N91["expr"]
+N90 --> N91
+N92["identifier: resume_coroutine"]
+N91 --> N92
+N93["expr"]
+N90 --> N93
+N94["literal"]
+N93 --> N94
+N95["dec: 1"]
+N94 --> N95
+N96[";"]
+N83 --> N96
+N97["statement"]
+N0 --> N97
+N98["return_statement"]
+N97 --> N98
+N99["expr"]
+N98 --> N99
+N100["literal"]
+N99 --> N100
+N101["dec: 0"]
+N100 --> N101

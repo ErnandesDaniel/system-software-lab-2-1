@@ -81,7 +81,10 @@ impl JvmGenerator {
                 if val > 32767 || val < -32768 {
                     if !self.pool.large_int_refs.contains_key(&val) {
                         if let Ok(idx) = self.pool.constant_pool.add_integer(val as i32) {
-                            self.pool.large_int_refs.insert(val, idx);
+                            // add_integer returns 1-based index; 0 is invalid
+                            if idx > 0 {
+                                self.pool.large_int_refs.insert(val, idx);
+                            }
                         }
                     }
                 }

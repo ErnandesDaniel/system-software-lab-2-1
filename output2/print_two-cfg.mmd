@@ -1,0 +1,10 @@
+graph TD
+    BB_0["BB0\ngoto BB_1"]
+    BB_1["BB1\nt4 = true\nif t4 goto BB_2 else BB_3"]
+    BB_2["BB2\nt5 = 50\nt6 = putchar(t5)\nyield"]
+    BB_4["BB4\ngoto BB_1"]
+    BB_3["BB3\nt7 = 0\nreturn t7"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_4 --> BB_1

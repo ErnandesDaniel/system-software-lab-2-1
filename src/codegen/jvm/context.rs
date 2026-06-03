@@ -33,6 +33,7 @@ impl JvmGenerator {
         self.pool.byte_array_class_idx = 0;
         self.pool.object_class_idx = 0;
         self.pool.object_array_class_idx = 0;
+        self.pool.large_int_refs.clear();
         self.global.global_field_refs.clear();
         self.pool.runtime_stub_class_ref = 0;
     }

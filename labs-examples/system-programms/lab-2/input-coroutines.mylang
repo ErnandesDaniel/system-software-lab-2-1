@@ -1,0 +1,56 @@
+import puts;
+import putchar;
+import printf;
+import fopen;
+import fgetc;
+import malloc;
+import resume_coroutine;
+import coro_init;
+import create_coroutine;
+
+global row_buf of string;
+global gf of int;
+
+def read_line(f of int) of int {
+    pos = 0;
+    while (true) {
+        c = fgetc(f);
+        if (c == -1) { if (pos == 0) { return -1; } row_buf[pos] = 0; return 0; }
+        if (c == 10) { row_buf[pos] = 0; return 0; }
+        row_buf[pos] = c; pos = pos + 1;
+    }
+}
+
+// Just use the file handle opened in main
+coroutine file_reader() of int {
+    puts("Inside coroutine");
+    yield;
+    puts("After yield");
+    if (gf != 0) { puts("File handle is valid"); }
+    return 1;
+}
+
+coroutine tick() of int {
+    putchar(46);
+    yield;
+    return 1;
+}
+
+def main() of int {
+    row_buf = malloc(10000);
+    if (row_buf == 0) { puts("malloc failed"); return 1; }
+
+    gf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (gf == 0) { puts("fopen failed"); return 1; }
+
+    puts("=== Test ===");
+    coro_init();
+    r1 = 0; r2 = 0;
+    while (r1 == 0 || r2 == 0) {
+        if (r1 == 0) { r1 = resume_coroutine(0); }
+        if (r2 == 0) { r2 = resume_coroutine(1); }
+    }
+    putchar(10);
+    puts("=== Done ===");
+    return 0;
+}

@@ -1,0 +1,7 @@
+graph TD
+    BB_0["BB0\nt882 = row_buf\[?\]\nt883 = 10000\nt884 = malloc(t883)\nrow_buf = t884\nt885 = row_buf\[?\]\nt886 = 0\nt887 = (t885 == t886)\nif t887 goto BB_2 else BB_1"]
+    BB_2["BB2\nt888 = malloc failed\nt889 = puts(t888)\nt890 = 1\nreturn t890"]
+    BB_1["BB1\nt891 = === Lab 2: Map-Reduce Pipeline ===\nt892 = puts(t891)\nt893 = labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv\nt894 = load_types(t893)\nt895 = labs-examples/system-programms/lab-2/csv-data/people.csv\nt896 = load_people(t895)\nt897 = labs-examples/system-programms/lab-2/csv-data/studies.csv\nt898 = load_studies(t897)\nt899 = labs-examples/system-programms/lab-2/csv-data/students.csv\nt900 = load_students(t899)\nt901 = labs-examples/system-programms/lab-2/csv-data/vedomosti.csv\nt902 = load_vedomosti(t901)\nt903 = labs-examples/system-programms/lab-2/csv-data/group_plans.csv\nt904 = load_group_plans(t903)\nt905 = Types: %d\\n\nt906 = tv_n\[?\]\nt907 = printf(t905, t906)\nt908 = People: %d\\n\nt909 = pp_n\[?\]\nt910 = printf(t908, t909)\nt911 = Studies: %d\\n\nt912 = st_n\[?\]\nt913 = printf(t911, t912)\nt914 = Students: %d\\n\nt915 = sd_n\[?\]\nt916 = printf(t914, t915)\nt917 = Vedomosti: %d\\n\nt918 = vv_n\[?\]\nt919 = printf(t917, t918)\nt920 = Plans: %d\\n\nt921 = gp_n\[?\]\nt922 = printf(t920, t921)\n? = q1()\n? = q2()\n? = q3()\n? = q4()\n? = q5()\n? = q6()\n? = q7()\nt923 = === Done ===\nt924 = puts(t923)\nt925 = 0\nreturn t925"]
+BB_0 --> BB_2
+BB_0 --> BB_1
+BB_2 --> BB_1

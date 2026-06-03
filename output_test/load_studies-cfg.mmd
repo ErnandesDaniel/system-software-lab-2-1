@@ -1,0 +1,20 @@
+graph TD
+    BB_0["BB0\nt289 = r\nt290 = fopen(fn, t289)\nf = t290\nt291 = 0\nt292 = (f == t291)\nif t292 goto BB_2 else BB_1"]
+    BB_2["BB2\nt293 = 1\nt294 = -t293\nreturn t294"]
+    BB_3["BB3\nt302 = true\nif t302 goto BB_4 else BB_5"]
+    BB_7["BB7\ngoto BB_5"]
+    BB_4["BB4\nt303 = read_line(f)\nt304 = 1\nt305 = -t304\nt306 = (t303 == t305)\nif t306 goto BB_7 else BB_6"]
+    BB_6["BB6\nt307 = parse_row()\nt308 = st_n\[?\]\nt309 = st_pid\[t308\]\nt310 = row_buf\[?\]\nt311 = 0\nt312 = co\[t311\]\nt313 = t310 + t312\nt314 = atoi(t313)\nt315 = st_n\[?\]\nst_pid\[0\] = ?\nt316 = st_n\[?\]\nt317 = st_form\[t316\]\nt318 = st_n\[?\]\nst_form\[0\] = ?\nt319 = st_buf\[?\]\nt320 = 2\nt321 = co\[t320\]\nt322 = str_save(t319, pos, t321)\npos = t322\nt323 = st_n\[?\]\nt324 = st_fac\[t323\]\nt325 = st_n\[?\]\nst_fac\[0\] = ?\nt326 = st_buf\[?\]\nt327 = 5\nt328 = co\[t327\]\nt329 = str_save(t326, pos, t328)\npos = t329\nt330 = st_n\[?\]\nt331 = st_course\[t330\]\nt332 = row_buf\[?\]\nt333 = 6\nt334 = co\[t333\]\nt335 = t332 + t334\nt336 = atoi(t335)\nt337 = st_n\[?\]\nst_course\[0\] = ?\nt338 = st_n\[?\]\nt339 = st_n\[?\]\nt340 = 1\nt341 = t339 + t340\nst_n = t341\ngoto BB_3"]
+    BB_1["BB1\nt295 = read_line(f)\nt296 = st_n\[?\]\nt297 = 0\nst_n = t297\nt298 = st_buf\[?\]\nt299 = 5000\nt300 = malloc(t299)\nst_buf = t300\nt301 = 0\npos = t301\ngoto BB_3"]
+    BB_5["BB5\nt342 = fclose(f)\nt343 = st_n\[?\]\nreturn t343"]
+BB_0 --> BB_2
+BB_0 --> BB_1
+BB_2 --> BB_1
+BB_3 --> BB_4
+BB_3 --> BB_5
+BB_7 --> BB_5
+BB_7 --> BB_6
+BB_4 --> BB_7
+BB_4 --> BB_6
+BB_6 --> BB_3
+BB_1 --> BB_3
