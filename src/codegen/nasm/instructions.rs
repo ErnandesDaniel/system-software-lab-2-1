@@ -101,11 +101,17 @@ impl AsmGenerator {
     pub fn binary_op(&mut self, inst: &IrInstruction, op: &str) {
         if let (Some(result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
             let is_ptr = left.get_type().is_pointer();
-            let (lreg, rreg, sreg) = if is_ptr { ("rax", "rbx", "rax") } else { ("eax", "ebx", "eax") };
-            self.load_operand(left, lreg, is_ptr);
-            self.load_operand(right, rreg, is_ptr);
-            self.output.push_str(&format!("    {op} {lreg}, {rreg}\n"));
-            self.store_variable(result, sreg, is_ptr);
+            if is_ptr {
+                self.load_operand(left, "rax", true);
+                self.load_operand(right, "ebx", false);
+                self.output.push_str(&format!("    {op} rax, rbx\n"));
+                self.store_variable(result, "rax", true);
+            } else {
+                self.load_operand(left, "eax", false);
+                self.load_operand(right, "ebx", false);
+                self.output.push_str(&format!("    {op} eax, ebx\n"));
+                self.store_variable(result, "eax", false);
+            }
         }
     }
 

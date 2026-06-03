@@ -135,14 +135,20 @@ impl IrGenerator {
             let (idx, _) = self.visit_expr(block, &range.start);
             let (base_name, base_type) = self.visit_expr(block, &slice.array);
             let opcode = if base_type == IrType::String { IrOpcode::StrSetByte } else { IrOpcode::Store };
-            let mut operands = vec![
-                IrOperand::Variable(base_name, base_type.clone()),
-                IrOperand::Variable(idx, IrType::Int),
-                IrOperand::Variable(right_temp.to_string(), right_type.clone()),
-            ];
-            if !matches!(base_type, IrType::String) {
-                operands.insert(1, IrOperand::Constant(Constant::Int(0)));
-            }
+            let operands = if matches!(base_type, IrType::String) {
+                vec![
+                    IrOperand::Variable(base_name, base_type.clone()),
+                    IrOperand::Variable(idx, IrType::Int),
+                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
+                ]
+            } else {
+                vec![
+                    IrOperand::Variable(base_name, base_type.clone()),
+                    IrOperand::Constant(Constant::Int(0)),
+                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
+                    IrOperand::Variable(idx, IrType::Int),
+                ]
+            };
             block.instructions.push(IrInstruction {
                 opcode, result: None, result_type: None,
                 operands,
