@@ -182,6 +182,25 @@ impl JvmGenerator {
             })
             .collect();
 
+        let mut result = result;
+        let ends_with_return = result.last().is_some_and(|i| matches!(i,
+            Instruction::Return | Instruction::Ireturn | Instruction::Areturn
+            | Instruction::Lreturn | Instruction::Freturn | Instruction::Dreturn
+        ));
+        if !ends_with_return {
+            match &func.return_type {
+                IrType::Void => result.push(Instruction::Return),
+                IrType::String | IrType::Function(_, _) | IrType::Array(..) => {
+                    result.push(Instruction::Aconst_null);
+                    result.push(Instruction::Areturn);
+                }
+                _ => {
+                    result.push(Instruction::Iconst_0);
+                    result.push(Instruction::Ireturn);
+                }
+            }
+        }
+
         let total = result.len() as u16;
         let has_out_of_bounds = block_inst_indices.values().any(|&idx| idx >= total);
         if has_out_of_bounds {
