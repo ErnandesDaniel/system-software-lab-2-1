@@ -1,133 +1,159 @@
-import resume_coroutine;
-import coro_init;
 import puts;
 import printf;
 import fopen;
 import fclose;
 import fgetc;
 import atoi;
-import strcmp;
 import malloc;
+import putchar;
 
 global buf of string;
-global buf_off of int = 0;
-global _tmp of int[10];
+global buf_pos of int = 0;
+global tmp of int[20];
 
-// Пайп для потоковой передачи данных между корутинами
-struct Pipe { arr of int[256]; head of int; tail of int; count of int; done of int; }
-def pipe_init(p of Pipe) { p.head = 0; p.tail = 0; p.count = 0; p.done = 0; }
-def pipe_write(p of Pipe, v of int) of int {
-    if (p.count < 256) { p.arr[p.tail] = v; p.tail = (p.tail + 1) % 256; p.count = p.count + 1; return 0; } return -2;
-}
-def pipe_read(p of Pipe) of int {
-    if (p.done == 1 && p.count <= 0) { return -1; }
-    if (p.count > 0) { r = p.arr[p.head]; p.head = (p.head + 1) % 256; p.count = p.count - 1; return r; } return -2;
-}
-def pipe_close(p of Pipe) { p.done = 1; }
-
-// Чтение CSV-файла в буфер
-def read_csv(fn of string) of int {
-    f = fopen(fn, "r"); if (f == 0) { return -1; }
-    start = buf_off; pos = buf_off;
-    while (true) { c = fgetc(f); if (c == -1) { buf[pos] = 0; fclose(f); buf_off = pos; return start; } buf[pos] = c; pos = pos + 1; }
-}
-
-def skip_line(pos of int) of int {
-    while (true) { if (pos == -1) { return -1; } c = buf[pos]; pos = pos + 1; if (c == 10) { return pos; } if (c == 0) { return -1; } }
-}
-
-// Глобальные данные: люди
-global p_id of int[50]; global p_surname of int[50]; global p_bday of int[50]; global p_count of int = 0;
-global v_date of int[100]; global v_type of int[100]; global v_count of int = 0;
-
-// Загрузка людей из CSV (колонки: id,surname,name,patronymic,birthday)
-def load_people(ofs of int) of int {
-    row = 0;
+// === Buffer: load file into memory ===
+def load_file(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    s = buf_pos; p = buf_pos;
     while (true) {
-        if (ofs == -1) { return row; }
-        _tmp[0] = 0; _tmp[1] = 0; _tmp[2] = 0; _tmp[3] = 0; _tmp[4] = 0;
-        i = 0; fi = 0; _tmp[fi] = ofs; fi = fi + 1;
-        while (true) { c = buf[ofs + i]; if (c == 0 || c == 10) { buf[ofs + i] = 0; break; } if (c == 44) { buf[ofs + i] = 0; if (fi < 5) { _tmp[fi] = ofs + i + 1; fi = fi + 1; } } i = i + 1; }
-        p_id[row] = atoi(buf + _tmp[0]);
-        p_surname[row] = _tmp[1];
-        p_bday[row] = _tmp[4];
-        row = row + 1; ofs = skip_line(ofs);
+        c = fgetc(f);
+        if (c == -1) {
+            buf[p] = 0;
+            p = p + 1;
+            buf[p] = 0;  // double-null marks EOF
+            fclose(f);
+            buf_pos = p + 1;
+            return s;
+        }
+        buf[p] = c;
+        p = p + 1;
     }
-    return row;
 }
 
-// Загрузка ведомостей (колонки: id,study_id,type_id,date,grade)
-def load_vedomosti(ofs of int) of int {
-    row = 0;
+// === Skip one line, return next line start ===
+// Returns -1 on double-null (EOF marker)
+def next_line(pos of int) of int {
+    if (pos == -1) { return -1; }
     while (true) {
-        if (ofs == -1) { return row; }
-        _tmp[0] = 0; _tmp[1] = 0; _tmp[2] = 0; _tmp[3] = 0; _tmp[4] = 0;
-        i = 0; fi = 0; _tmp[fi] = ofs; fi = fi + 1;
-        while (true) { c = buf[ofs + i]; if (c == 0 || c == 10) { buf[ofs + i] = 0; break; } if (c == 44) { buf[ofs + i] = 0; if (fi < 5) { _tmp[fi] = ofs + i + 1; fi = fi + 1; } } i = i + 1; }
-        v_type[row] = atoi(buf + _tmp[2]);
-        v_date[row] = _tmp[3];
-        row = row + 1; ofs = skip_line(ofs);
+        c = buf[pos];
+        if (c == 10) { buf[pos] = 0; return pos + 1; }
+        if (c == 0) {
+            if (buf[pos + 1] == 0) { return -1; }
+            return pos + 1;
+        }
+        pos = pos + 1;
     }
-    return row;
 }
 
-// Корутина-читатель: передаёт даты дифзачётов через пайп
-global p of Pipe;
-
-coroutine reader(pipe of Pipe) {
+// === Parse CSV row: split by commas, null-terminate each column ===
+// Writes column start offsets into global tmp[], returns column count
+def split_row(ofs of int) of int {
+    if (ofs == -1 || buf[ofs] == 0) { return 0; }
+    n = 0;
+    tmp[n] = ofs; n = n + 1;
     i = 0;
-    while (i < v_count) {
-        if (v_type[i] == 2) {
-            pipe_write(pipe, v_date[i]);
+    while (true) {
+        c = buf[ofs + i];
+        if (c == 0 || c == 10) {
+            buf[ofs + i] = 0;
+            break;
+        }
+        if (c == 44) {
+            buf[ofs + i] = 0;
+            tmp[n] = ofs + i + 1; n = n + 1;
         }
         i = i + 1;
-        yield;
     }
-    pipe_close(pipe);
+    tmp[n] = -1;
+    return n;
+}
+
+// === Print string from buffer offset ===
+def puts_ofs(ofs of int) {
+    if (ofs == -1) { return; }
+    i = 0;
+    while (true) {
+        c = buf[ofs + i];
+        if (c == 0) { break; }
+        putchar(c);
+        i = i + 1;
+    }
+}
+
+// === Q1: INNER JOIN types_vedomostei + vedomosti ===
+// Условие: tv.ИД = 3 (Дифзачет) AND v.ЧЛВК_ИД > 153285
+// Вывод: НАИМЕНОВАНИЕ, ДАТА
+
+global t_id of int[10];
+global t_nm of int[10];
+
+def query1(ofs_types of int, ofs_ved of int) of int {
+    t_n = 0;
+
+    // Load types into lookup arrays
+    row = ofs_types; row = next_line(row);
+    while (row != -1) {
+        if (buf[row] != 0 && buf[row] != 10) {
+            split_row(row);
+            if (tmp[0] != -1 && tmp[1] != -1) {
+                t_id[t_n] = atoi(buf + tmp[0]);
+                t_nm[t_n] = tmp[1];
+                t_n = t_n + 1;
+            }
+        }
+        row = next_line(row);
+    }
+
+    // Scan vedomosti
+    row = ofs_ved; row = next_line(row);
+    found = 0;
+    while (row != -1) {
+        if (buf[row] != 0 && buf[row] != 10) {
+            split_row(row);
+            if (tmp[0] != -1 && tmp[1] != -1 && tmp[2] != -1 && tmp[3] != -1) {
+                tid = atoi(buf + tmp[1]);
+                pid = atoi(buf + tmp[2]);
+
+                if (tid == 3 && pid > 153285) {
+                    nm = tmp[3];
+                    ti = 0;
+                    while (ti < t_n) {
+                        if (t_id[ti] == 3) {
+                            puts_ofs(t_nm[ti]);
+                            putchar(44);
+                            putchar(32);
+                            puts_ofs(nm);
+                            putchar(10);
+                            found = found + 1;
+                        }
+                        ti = ti + 1;
+                    }
+                }
+            }
+        }
+        row = next_line(row);
+    }
+
+    return found;
 }
 
 def main() of int {
     buf = malloc(200000);
+    if (buf == 0) { puts("malloc failed"); return 1; }
+
     puts("=== Lab 2: Map-Reduce Pipeline ===");
-    
-    // Загрузка данных
-    ofs = read_csv("labs-examples/system-programms/lab-2/csv-data/people.csv");
-    ofs = skip_line(ofs); p_count = load_people(ofs);
-    printf("People: %d\n", p_count);
-    
-    ofs = read_csv("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
-    ofs = skip_line(ofs); v_count = load_vedomosti(ofs);
-    printf("Vedomosti: %d\n", v_count);
-    
-    // Q1: INNER JOIN через пайп + корутину
-    puts("--- Q1: Дифзачёты (pipe + coroutine) ---");
-    pipe_init(p);
-    coro_init();
-    _ = resume_coroutine(0);
-    while (true) {
-        d = pipe_read(p);
-        if (d == -1) { break; }
-        if (d == -2) { _ = resume_coroutine(0); }
-        else { puts(buf + d); }
-    }
-    
-    // Q7: Однофамильцы с разными датами рождения
-    puts("--- Q7: Однофамильцы ---");
-    cnt = 0; i = 0;
-    while (i < p_count) {
-        j = i + 1;
-        while (j < p_count) {
-            if (strcmp(buf + p_surname[i], buf + p_surname[j]) == 0) {
-                if (strcmp(buf + p_bday[i], buf + p_bday[j]) != 0) {
-                    cnt = cnt + 1;
-                }
-            }
-            j = j + 1;
-        }
-        i = i + 1;
-    }
-    printf("Групп однофамильцев: %d\n", cnt);
-    
+
+    ofs_tv = load_file("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
+    if (ofs_tv == -1) { puts("Failed to load types"); return 1; }
+    ofs_vd = load_file("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
+    if (ofs_vd == -1) { puts("Failed to load vedomosti"); return 1; }
+
+    puts("=== Q1: INNER JOIN (Дифзачёты) ===");
+    n = query1(ofs_tv, ofs_vd);
+    printf("Found: %d\n", n);
+
+    putchar(10);
     puts("=== Done ===");
     return 0;
 }

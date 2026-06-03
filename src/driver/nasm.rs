@@ -3,7 +3,7 @@ use std::path::Path;
 
 use crate::codegen::nasm::AsmGenerator;
 use crate::driver::CompilerDriver;
-use crate::ir::IrProgram;
+use crate::ir::{IrFunction, IrProgram};
 
 impl CompilerDriver {
     pub fn generate_nasm(ir: &IrProgram, output_dir: &str) {
@@ -48,9 +48,7 @@ impl CompilerDriver {
             let coro_count = ir.functions.iter().filter(|f| f.is_coroutine).count().max(8);
             helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
             for f in ir.functions.iter().filter(|f| f.is_coroutine) {
-                let num_locals = f.locals.len();
-                let ctx_bytes = 56 + num_locals * 8 + 8;
-                let ctx_dwords = (ctx_bytes / 4).max(8);
+                let ctx_dwords = (coro_state_needed(f, &global_names) + 3) / 4;
                 helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
             }
 
@@ -163,4 +161,42 @@ impl CompilerDriver {
             }
         }
     }
+}
+
+fn coro_state_needed(f: &IrFunction, global_names: &[String]) -> usize {
+    let mut local_counter: i32 = 1;
+    let mut max_end: usize = 56;
+
+    for local in &f.locals {
+        if global_names.contains(&local.name) {
+            continue;
+        }
+        let local_size = local.ty.size().max(8) as i32;
+        let num_slots = (local_size + 7) / 8;
+        let offset = -8 * local_counter - 8 * (num_slots - 1).max(0);
+        local_counter += num_slots;
+
+        let co_off = 56 + (-offset - 8) as usize;
+        let end = co_off + local.ty.size() as usize;
+        max_end = max_end.max(end);
+    }
+
+    for (i, param) in f.parameters.iter().enumerate() {
+        if i >= 4 {
+            break;
+        }
+        let offset = -8 * local_counter;
+        local_counter += 1;
+
+        let co_off = 56 + (-offset - 8) as usize;
+        let end = co_off + param.ty.size() as usize;
+        max_end = max_end.max(end);
+    }
+
+    let co_off = 56 + (8 * local_counter - 8) as usize;
+    let end = co_off + 8;
+    max_end = max_end.max(end);
+
+    eprintln!("coro_state_needed({}): local_counter={}, max_end={} ({} dwords)", f.name, local_counter, max_end, (max_end + 3) / 4);
+    max_end
 }
