@@ -45,7 +45,8 @@ impl IrGenerator {
 
             let result_temp = self.generate_temp();
 
-            if range.end.is_some() {
+            if let Some(ref end_expr) = range.end {
+                let (end_temp, _) = self.visit_expr(block, end_expr);
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Slice,
                     result: Some(result_temp.clone()),
@@ -53,6 +54,7 @@ impl IrGenerator {
                     operands: vec![
                         IrOperand::Variable(array_temp, array_type.clone()),
                         IrOperand::Variable(start_temp, IrType::Int),
+                        IrOperand::Variable(end_temp, IrType::Int),
                     ],
                     jump_target: None,
                     true_target: None,

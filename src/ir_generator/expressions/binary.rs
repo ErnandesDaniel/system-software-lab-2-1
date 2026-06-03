@@ -21,8 +21,8 @@ impl IrGenerator {
             BinaryOp::Multiply => (IrOpcode::Mul, IrType::Int),
             BinaryOp::Divide => (IrOpcode::Div, IrType::Int),
             BinaryOp::Modulo => (IrOpcode::Mod, IrType::Int),
-            BinaryOp::Add => (IrOpcode::Add, if left_type.is_pointer() { left_type.clone() } else { IrType::Int }),
-            BinaryOp::Subtract => (IrOpcode::Sub, if left_type.is_pointer() { left_type.clone() } else { IrType::Int }),
+            BinaryOp::Add => (IrOpcode::Add, IrType::Int),
+            BinaryOp::Subtract => (IrOpcode::Sub, IrType::Int),
             BinaryOp::Equal => (IrOpcode::Eq, IrType::Bool),
             BinaryOp::NotEqual => (IrOpcode::Ne, IrType::Bool),
             BinaryOp::Less => (IrOpcode::Lt, IrType::Bool),
@@ -203,31 +203,28 @@ impl IrGenerator {
             let (idx, _) = self.visit_expr(block, &range.start);
             let (base_name, base_type) = self.visit_expr(block, &slice.array);
 
-            let opcode = if base_type == IrType::String {
-                IrOpcode::StrSetByte
+            if base_type == IrType::String {
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::StrSetByte, result: None, result_type: None,
+                    operands: vec![
+                        IrOperand::Variable(base_name, base_type),
+                        IrOperand::Variable(idx, IrType::Int),
+                        IrOperand::Variable(right_temp.to_string(), right_type.clone()),
+                    ],
+                    jump_target: None, true_target: None, false_target: None, span: expr.span,
+                });
             } else {
-                IrOpcode::Store
-            };
-
-            let operands = if matches!(base_type, IrType::String) {
-                vec![
-                    IrOperand::Variable(base_name, base_type.clone()),
-                    IrOperand::Variable(idx, IrType::Int),
-                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
-                ]
-            } else {
-                vec![
-                    IrOperand::Variable(base_name, base_type.clone()),
-                    IrOperand::Variable(idx, IrType::Int),
-                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
-                ]
-            };
-
-            block.instructions.push(IrInstruction {
-                opcode, result: None, result_type: None,
-                operands,
-                jump_target: None, true_target: None, false_target: None, span: expr.span,
-            });
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Store, result: None, result_type: None,
+                    operands: vec![
+                        IrOperand::Variable(base_name, base_type),
+                        IrOperand::Constant(Constant::Int(0)),
+                        IrOperand::Variable(right_temp.to_string(), right_type.clone()),
+                        IrOperand::Variable(idx, IrType::Int),
+                    ],
+                    jump_target: None, true_target: None, false_target: None, span: expr.span,
+                });
+            }
         }
     }
 

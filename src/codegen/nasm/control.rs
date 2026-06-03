@@ -1,24 +1,25 @@
-use crate::ir::types::IrInstruction;
 use crate::codegen::nasm::AsmGenerator;
+use crate::ir::types::IrInstruction;
 
 impl AsmGenerator {
-    pub fn generate_jump(&mut self, inst: &IrInstruction) {
+    pub fn emit_jump(&mut self, inst: &IrInstruction) {
         if let Some(ref target) = inst.jump_target {
             let formatted = self.format_block_label(target);
-            self.output.push_str(&format!("    jmp {formatted}\n"));
+            self.line(&format!("jmp {formatted}"));
         }
     }
 
-    pub fn generate_cond_br(&mut self, inst: &IrInstruction) {
+    pub fn emit_cond_br(&mut self, inst: &IrInstruction) {
         if let Some(operand) = inst.operands.first() {
-            self.load_operand(operand, "eax", false);
-            self.output.push_str("    test eax, eax\n");
+            let r = self.alloc_scratch(false);
+            self.load_operand(operand, r);
+            self.line(&format!("test {r}, {r}"));
 
             if let (Some(ref true_t), Some(ref false_t)) = (&inst.true_target, &inst.false_target) {
-                let formatted_true = self.format_block_label(true_t);
-                let formatted_false = self.format_block_label(false_t);
-                self.output.push_str(&format!("    jne {formatted_true}\n"));
-                self.output.push_str(&format!("    jmp {formatted_false}\n"));
+                let true_label = self.format_block_label(true_t);
+                let false_label = self.format_block_label(false_t);
+                self.line(&format!("jne {true_label}"));
+                self.line(&format!("jmp {false_label}"));
             }
         }
     }

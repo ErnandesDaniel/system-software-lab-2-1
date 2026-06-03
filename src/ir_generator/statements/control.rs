@@ -232,8 +232,8 @@ impl IrGenerator {
         header_block.successors.push(false_target);
         self.block_stack.push(header_block);
 
-        let exit_block = IrBlock::new(exit_id.clone());
-        self.block_stack.push(exit_block);
+        let entry_block = std::mem::replace(block, IrBlock::new(exit_id));
+        self.block_stack.push(entry_block);
 
         self.loop_exit_stack.pop();
         self.loop_depth -= 1;

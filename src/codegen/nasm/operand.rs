@@ -1,103 +1,128 @@
-use crate::ir::types::{Constant, IrOperand};
-
 use crate::codegen::nasm::AsmGenerator;
+use crate::codegen::nasm::REGS_32;
+use crate::ir::types::{Constant, IrOperand, IrType};
 
 impl AsmGenerator {
-    pub fn load_operand(&mut self, operand: &IrOperand, dest: &str, is_pointer: bool) {
+    pub fn mem_for(&self, name: &str) -> String {
+        if self.global_names.contains(name) {
+            format!("[rel {name}]")
+        } else if let Some(slot) = self.get_slot(name) {
+            format!("[rbp + {}]", slot.offset)
+        } else {
+            format!("[rel {name}]")
+        }
+    }
+
+    pub fn coro_offset(&self, name: &str) -> Option<i32> {
+        if self.is_coroutine {
+            if let Some(slot) = self.get_slot(name) {
+                return Some(56 + (-slot.offset - 8));
+            }
+        }
+        None
+    }
+
+    pub fn load_operand(&mut self, operand: &IrOperand, reg: &str) {
         match operand {
             IrOperand::Variable(name, ty) => {
-                let _is_ptr = ty.is_pointer() || is_pointer;
-                let dest64 = match dest {
-                    "ecx" => "rcx",
-                    "edx" => "rdx",
-                    "r8d" => "r8",
-                    "r9d" => "r9",
-                    "eax" => "rax",
-                    _ => dest,
-                };
-                if let Some(offset) = self.locals.get(name) {
-                    if self.param_registers.contains(name) {
-                        self.output.push_str(&format!("    mov {dest64}, [rbp + {offset}]\n"));
-                    } else if self.is_coroutine {
-                        let co_off = 56 + (-offset - 8);
-                        self.restore_coro_ctx();
-                        self.output.push_str(&format!("    mov {dest}, [rcx + {co_off}]\n"));
+                if let Some(co_off) = self.coro_offset(name) {
+                    self.restore_coro_ctx();
+                    let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
+                    if Self::is_wide_type(ty) {
+                        self.line(&format!("mov {nreg}, [rcx + {co_off}]"));
                     } else {
-                        self.output.push_str(&format!("    mov {dest}, [rbp + {offset}]\n"));
+                        self.line(&format!("mov {nreg}, [rcx + {co_off}]"));
                     }
-                } else if let Some(offset) = self.temps.get(name) {
-                    let temp_dest = if ty.is_pointer() && dest.starts_with('e') { dest64 } else { dest };
-                    self.output.push_str(&format!("    mov {temp_dest}, [rbp + {offset}]\n"));
-                } else if self.param_registers.contains(name) {
-                    let idx = self.param_registers.iter().position(|r| r == name).expect("Param not found in register list");
-                    let src_reg = match idx {
-                        0 => "rcx",
-                        1 => "rdx",
-                        2 => "r8",
-                        3 => "r9",
-                        _ => "rcx",
+                    if nreg != reg {
+                        self.line(&format!("mov {reg}, {nreg}"));
+                    }
+                    return;
+                }
+                let mem = self.mem_for(name);
+                let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
+                if use_lea {
+                    let lea_reg = if reg.starts_with('e') { 
+                        self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                    } else { reg };
+                    self.line(&format!("lea {lea_reg}, {mem}"));
+                } else if Self::is_wide_type(ty) {
+                    let reg64 = if reg.starts_with('e') {
+                        self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                    } else {
+                        reg
                     };
-                    self.output.push_str(&format!("    mov {dest64}, {src_reg}\n"));
+                    self.line(&format!("mov {reg64}, {mem}"));
                 } else {
-                    self.output.push_str(&format!("    mov {dest}, [rel {name}]\n"));
+                    self.line(&format!("mov {reg}, {mem}"));
                 }
             }
-            IrOperand::Constant(c) => self.load_constant(c, dest),
+            IrOperand::Constant(c) => self.load_constant(c, reg),
             IrOperand::FuncRef(func_name) => {
-                self.output.push_str(&format!("    lea rax, [rel {func_name}]\n"));
-                if dest != "rax" {
-                    self.output.push_str(&format!("    mov {dest}, rax\n"));
+                self.line(&format!("lea rax, [rel {func_name}]"));
+                if reg != "rax" {
+                    self.line(&format!("mov {reg}, rax"));
                 }
             }
         }
     }
 
-    pub fn load_constant(&mut self, constant: &Constant, dest: &str) {
+    pub fn store_result(&mut self, name: &str, reg: &str, ty: &IrType) {
+        if self.global_names.contains(name) {
+            self.line(&format!("mov [rel {name}], {reg}"));
+            return;
+        }
+
+        if let Some(co_off) = self.coro_offset(name) {
+            self.restore_coro_ctx();
+            let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
+            if nreg != reg {
+                self.line(&format!("mov {nreg}, {reg}"));
+            }
+            self.line(&format!("mov [rcx + {co_off}], {nreg}"));
+            return;
+        }
+
+        let slot_size = self.ensure_slot(name, ty);
+        let mem = format!("[rbp + {}]", self.get_slot(name).unwrap().offset);
+
+        if slot_size > 4 {
+            let reg64 = if reg.starts_with('e') {
+                self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+            } else {
+                reg
+            };
+            self.line(&format!("mov {mem}, {reg64}"));
+        } else {
+            self.line(&format!("mov {mem}, {reg}"));
+        }
+    }
+
+    fn ensure_slot(&mut self, name: &str, ty: &IrType) -> u32 {
+        if let Some(slot) = self.get_slot(name) {
+            return slot.size;
+        }
+        let size = ty.size().max(4);
+        self.alloc_slot(name, size);
+        size
+    }
+
+    pub fn load_constant(&mut self, constant: &Constant, reg: &str) {
         match constant {
-            Constant::Int(v) => self.output.push_str(&format!("    mov {dest}, {v}\n")),
-            Constant::Bool(b) => self.output.push_str(&format!("    mov {}, {}\n", dest, i32::from(*b))),
+            Constant::Int(v) => self.line(&format!("mov {reg}, {v}")),
+            Constant::Bool(b) => self.line(&format!("mov {reg}, {}", i32::from(*b))),
+            Constant::Char(c) => self.line(&format!("mov {reg}, {}", i32::from(*c))),
             Constant::String(s) => {
                 let func = self.current_function.as_deref().unwrap_or("anon");
                 let label = format!("{func}_str_{}", self.string_counter);
                 self.string_counter += 1;
                 self.emit_string_data(&label, s);
-                let reg = if dest == "eax" { "rax" } else { dest };
-                self.output.push_str(&format!("    lea {reg}, [{label}]\n"));
-            }
-            Constant::Char(c) => {
-                let reg = if dest == "eax" { "eax" } else { dest };
-                self.output.push_str(&format!("    mov {}, {}\n", reg, i32::from(*c)));
+                let wide = if reg == "eax" { "rax" } else { reg };
+                self.line(&format!("lea {wide}, [{label}]"));
             }
             Constant::Array(_) => {
-                self.output.push_str(&format!("    mov {dest}, 0\n"));
+                self.line(&format!("mov {reg}, 0"));
             }
         }
     }
 
-    pub fn store_variable(&mut self, name: &str, src: &str, _is_pointer: bool) {
-        if self.global_names.contains(name) {
-            self.output.push_str(&format!("    mov [rel {name}], {src}\n"));
-            return;
-        }
-        if self.is_coroutine {
-            if let Some(offset) = self.locals.get(name) {
-                let co_off = 56 + (-offset - 8);
-                self.restore_coro_ctx();
-                self.output.push_str(&format!("    mov [rcx + {co_off}], {src}\n"));
-                return;
-            }
-        }
-        if let Some(offset) = self.locals.get(name) {
-            self.output.push_str(&format!("    mov [rbp + {offset}], {src}\n"));
-        } else if let Some(offset) = self.temps.get(name) {
-            self.output.push_str(&format!("    mov [rbp + {offset}], {src}\n"));
-        } else if name.starts_with('t') {
-            let offset = -8 * (self.temp_counter as i32 + 1);
-            self.temps.insert(name.to_string(), offset);
-            self.temp_counter += 1;
-            self.output.push_str(&format!("    mov [rbp + {offset}], {src}\n"));
-        } else {
-            self.output.push_str(&format!("    mov [rel {name}], {src}\n"));
-        }
-    }
 }

@@ -91,7 +91,7 @@ fn test_exe_struct_array_field_read() {
     "#;
     let (_, asm) = compile_only(source);
     assert!(asm.contains("sched"), "Expected sched label");
-    assert!(asm.contains("lea rax"), "Expected lea for array field");
+    assert!(asm.contains("lea "), "Expected lea for array field");
 }
 
 #[test]

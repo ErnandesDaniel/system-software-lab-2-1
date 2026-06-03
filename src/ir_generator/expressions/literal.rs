@@ -43,8 +43,8 @@ impl IrGenerator {
             }
             Literal::Char(c) => {
                 let val = IrOperand::Constant(Constant::Char(*c as u8));
-                block.instructions.push(IrInstruction::assign(result_temp.clone(), IrType::Int, val, span));
-                (result_temp, IrType::Int)
+                block.instructions.push(IrInstruction::assign(result_temp.clone(), IrType::Char, val, span));
+                (result_temp, IrType::Char)
             }
             Literal::Str(s) => {
                 let val = IrOperand::Constant(Constant::String(unescape_string(s)));
