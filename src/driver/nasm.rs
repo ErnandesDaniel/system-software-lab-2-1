@@ -193,10 +193,5 @@ fn coro_state_needed(f: &IrFunction, global_names: &[String]) -> usize {
         max_end = max_end.max(end);
     }
 
-    let co_off = 56 + (8 * local_counter - 8) as usize;
-    let end = co_off + 8;
-    max_end = max_end.max(end);
-
-    eprintln!("coro_state_needed({}): local_counter={}, max_end={} ({} dwords)", f.name, local_counter, max_end, (max_end + 3) / 4);
     max_end
 }
