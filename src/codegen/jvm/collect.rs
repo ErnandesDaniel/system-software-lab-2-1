@@ -52,6 +52,7 @@ impl JvmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 self.collect_string_constants(inst);
+                self.collect_large_int_constants(inst);
                 self.collect_call_ref(inst, runtime_stub_class);
                 self.collect_call_closure_ref(inst);
                 self.collect_make_closure_ref(inst);
@@ -67,6 +68,21 @@ impl JvmGenerator {
                 if !self.pool.string_consts.contains_key(s) {
                     if let Ok(idx) = self.pool.constant_pool.add_string(s) {
                         self.pool.string_consts.insert(s.clone(), idx);
+                    }
+                }
+            }
+        }
+    }
+
+    fn collect_large_int_constants(&mut self, inst: &crate::ir::IrInstruction) {
+        for operand in &inst.operands {
+            if let IrOperand::Constant(Constant::Int(n)) = operand {
+                let val = *n;
+                if val > 32767 || val < -32768 {
+                    if !self.pool.large_int_refs.contains_key(&val) {
+                        if let Ok(idx) = self.pool.constant_pool.add_integer(val as i32) {
+                            self.pool.large_int_refs.insert(val, idx);
+                        }
                     }
                 }
             }

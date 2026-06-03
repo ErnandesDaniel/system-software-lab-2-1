@@ -77,7 +77,14 @@ impl JvmGenerator {
                 5 => code.push(Instruction::Iconst_5),
                 n if (-128..=127).contains(&n) => code.push(Instruction::Bipush(n as i8)),
                 n if (-32768..=32767).contains(&n) => code.push(Instruction::Sipush(n as i16)),
-                _ => code.push(Instruction::Iconst_0),
+                n => {
+                    // Large integer: use pre-stored constant pool index
+                    if let Some(&idx) = self.pool.large_int_refs.get(&n) {
+                        code.push(Instruction::Ldc_w(idx));
+                    } else {
+                        code.push(Instruction::Iconst_0);
+                    }
+                },
             },
             Constant::Bool(true) => code.push(Instruction::Iconst_1),
             Constant::Bool(false) => code.push(Instruction::Iconst_0),
