@@ -107,10 +107,12 @@ impl JvmGenerator {
     }
 
     pub fn setup_local_variables(&mut self, func: &IrFunction) {
+        self.func.param_type_map.clear();
         for param in &func.parameters {
             if param.name == "__env" {
                 self.closure.env_vars.insert(param.name.clone());
             }
+            self.func.param_type_map.insert(param.name.clone(), param.ty.clone());
             self.func.locals.insert(param.name.clone(), self.func.next_local_slot);
             self.func.next_local_slot += 1;
         }

@@ -129,6 +129,7 @@ impl JvmGenerator {
         let is_close = self.pool.constant_pool.add_method_ref(is_class, "close", "()V").expect("mref");
         let int_class = self.pool.constant_pool.add_class("java/lang/Integer").expect("class");
         let int_parse = self.pool.constant_pool.add_method_ref(int_class, "parseInt", "(Ljava/lang/String;)I").expect("mref");
+        let str_init_3arg = self.pool.constant_pool.add_method_ref(string_class, "<init>", "([BII)V").expect("mref");
 
         // === fopen([B[B)I ===
         let fopen_name = self.pool.constant_pool.add_utf8("fopen").expect("utf8");
@@ -267,9 +268,9 @@ impl JvmGenerator {
             descriptor_index: ss_desc,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 5, max_locals: 5,
+                max_stack: 5, max_locals: 7,
                 code: vec![
-                    // len = end - start
+                    // len = end - start (simple version, no null scanning)
                     Instruction::Iload_2,
                     Instruction::Iload_1,
                     Instruction::Isub,
@@ -294,6 +295,39 @@ impl JvmGenerator {
             }],
         });
 
+        // === printf([BI)I ===
+        let printf_name = self.pool.constant_pool.add_utf8("printf").expect("utf8");
+        let printf_desc = self.pool.constant_pool.add_utf8("([BI)I").expect("utf8");
+        let print_str_ref = self.pool.constant_pool.add_method_ref(printstream_class, "print", "(Ljava/lang/String;)V").expect("mref");
+        let int_to_str = self.pool.constant_pool.add_method_ref(int_class, "toString", "(I)Ljava/lang/String;").expect("mref");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: printf_name,
+            descriptor_index: printf_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 4, max_locals: 2,
+                code: vec![
+                    // print(format)
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Invokespecial(str_init),
+                    Instruction::Invokevirtual(print_str_ref),
+                    // print(value)
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::Iload_1,
+                    Instruction::Invokestatic(int_to_str),
+                    Instruction::Invokevirtual(print_str_ref),
+                    Instruction::Iconst_0,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
         // === atoi([B)I ===
         let atoi_name = self.pool.constant_pool.add_utf8("atoi").expect("utf8");
         let atoi_desc = self.pool.constant_pool.add_utf8("([B)I").expect("utf8");
@@ -303,12 +337,44 @@ impl JvmGenerator {
             descriptor_index: atoi_desc,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 3, max_locals: 1,
+                max_stack: 5, max_locals: 3,
                 code: vec![
+                    // i = 0
+                    Instruction::Iconst_0,
+                    Instruction::Istore(1),
+                    Instruction::Goto(4),
+                    // loop body: i++ (index 3)
+                    Instruction::Iinc(1, 1),
+                    // check (index 4): if i >= arr.length, exit
+                    Instruction::Iload(1),
+                    Instruction::Aload_0,
+                    Instruction::Arraylength,
+                    Instruction::If_icmpge(21),
+                    // load byte at arr[i]
+                    Instruction::Aload_0,
+                    Instruction::Iload(1),
+                    Instruction::Baload,
+                    Instruction::Istore(2),
+                    // if byte == 0, exit
+                    Instruction::Iload(2),
+                    Instruction::Ifeq(21),
+                    // if byte == 10, exit
+                    Instruction::Iload(2),
+                    Instruction::Bipush(10),
+                    Instruction::If_icmpeq(21),
+                    // if byte == 13, exit
+                    Instruction::Iload(2),
+                    Instruction::Bipush(13),
+                    Instruction::If_icmpeq(21),
+                    // else continue loop
+                    Instruction::Goto(3),
+                    // new String(bytes, 0, i) (index 21)
                     Instruction::New(string_class),
                     Instruction::Dup,
                     Instruction::Aload_0,
-                    Instruction::Invokespecial(str_init),
+                    Instruction::Iconst_0,
+                    Instruction::Iload(1),
+                    Instruction::Invokespecial(str_init_3arg),
                     Instruction::Invokestatic(int_parse),
                     Instruction::Ireturn,
                 ],

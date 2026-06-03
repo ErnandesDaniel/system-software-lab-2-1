@@ -32,7 +32,9 @@ impl JvmGenerator {
                     code.push(Instruction::Iaload);
                     return;
                 }
-                match ty {
+                // Use parameter's declared type if available (struct params may have wrong IR type)
+                let effective_ty = self.func.param_type_map.get(name.as_str()).unwrap_or(ty);
+                match effective_ty {
                     IrType::String | IrType::Function(_, _) | IrType::Array(..) => match slot {
                         0 => code.push(Instruction::Aload_0),
                         1 => code.push(Instruction::Aload_1),

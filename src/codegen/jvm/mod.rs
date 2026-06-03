@@ -58,6 +58,7 @@ pub struct JvmFuncState {
     pub current_function_name: String,
     pub current_params: Vec<IrParameter>,
     pub current_return_type: IrType,
+    pub param_type_map: HashMap<String, IrType>,
 }
 
 pub struct JvmClosureState {
@@ -125,6 +126,7 @@ impl JvmGenerator {
                 current_function_name: String::new(),
                 current_params: Vec::new(),
                 current_return_type: IrType::Void,
+                param_type_map: HashMap::new(),
             },
             closure: JvmClosureState {
                 env_vars: HashSet::new(),
