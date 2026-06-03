@@ -14,6 +14,11 @@ cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
 .\output\program.exe
 ```
 
+```powershell
+cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output -t jvm
+java -cp output Main
+```
+
 ## Файлы
 
 ```
