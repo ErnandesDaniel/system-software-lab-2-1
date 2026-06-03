@@ -1,86 +1,105 @@
-# lab-2: Map-Reduce конвейер (СПО)
+# Lab 2: Map-Reduce Pipeline (SPO)
 
-Реализация 7 SQL-запросов (вариант 59). Данные читаются из CSV-файлов
-в рантайме через `fopen`/`fgetc`. Q1 использует корутины и pipe'ы
-(кооперативная многозадачность с passive waiting), Q2-Q7 — прямые циклы.
+Implementation of 7 SQL queries (variant 59). Data is read from CSV files
+at runtime via `fopen`/`fgetc`. All 7 queries use direct loops.
 
-Все 7 запросов в одном файле `input.mylang`.
+All 7 queries in one file `input.mylang`.
 
-## Компиляция и запуск
+## Compile & Run
 
-Запускать из корня проекта (рабочая директория нужна для путей к CSV-файлам).
+Run from the project root (working directory matters for CSV paths).
 
 ```powershell
 cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
 .\output\program.exe
 ```
 
-## Файлы
+## Files
 
 ```
 labs-examples/system-programms/lab-2/
-├── csv-data/                    # CSV-файлы (читаются в рантайме)
-│   ├── people.csv               # Н_ЛЮДИ
-│   ├── studies.csv              # Н_ОБУЧЕНИЯ
-│   ├── students.csv             # Н_УЧЕНИКИ
-│   ├── vedomosti.csv            # Н_ВЕДОМОСТИ
-│   ├── types_vedomostei.csv     # Н_ТИПЫ_ВЕДОМОСТЕЙ
-│   └── group_plans.csv          # Н_ГРУППЫ_ПЛАНОВ
-├── sql/                         # Верификация через SQLite
-│   ├── queries.sql              # 7 запросов
-│   ├── run_verification.cmd     # Батник: создать БД и выполнить запросы
-│   └── ucheb_test.db            # Готовая БД
-└── input.mylang                 # Все 7 запросов
+├── csv-data/                    # CSV files (read at runtime)
+│   ├── people.csv
+│   ├── studies.csv
+│   ├── students.csv
+│   ├── vedomosti.csv
+│   ├── types_vedomostei.csv
+│   └── group_plans.csv
+├── sql/                         # SQLite verification
+│   ├── queries.sql              # 7 queries
+│   ├── run_verification.cmd     # Batch: create DB + run queries
+│   └── ucheb_test.db
+└── input.mylang                 # All 7 queries
 ```
 
-## Ожидаемый вывод
+## Expected output
 
 ```
-=== System Software Lab 2: Map-Reduce Pipeline ===
+=== Lab 2: Map-Reduce Pipeline ===
 
-=== Query 1: INNER JOIN ===
-Дифзачет, 2013-06-01
-Дифзачет, 2013-06-02
-Дифзачет, 2013-06-07
-Дифзачет, 2014-01-25
+=== Q1: INNER JOIN ===
+DiffPass, 2013-06-01
+DiffPass, 2013-06-07
+DiffPass, 2013-06-02
+DiffPass, 2014-01-25
+Found: 4
 
-=== Query 2: LEFT JOIN ===
+=== Q2: LEFT JOIN ===
 163276, OK500, 163276
+Found: 1
 
-=== Query 3: Count FKTИU without patronymic ===
+=== Q3: Count FCE without patronymic ===
 6
 
-=== Query 4: Plans >2 groups on VT ===
+=== Q4: Plans >2 groups on CE ===
 101: 3 groups
 104: 3 groups
 
-=== Query 5: Avg grades group 4100 >= group 1100 ===
-Avg 1100 = 483
-Students found: 2
+=== Q5: Avg grades 4100 >= 1100 ===
+Avg 1100 = 48
+100010, Zaitsev Zakhar 5.0
+100014, Grigoriev Georgy 5.0
+Found: 2
 
-=== Query 6: Enrolled after 2012-09-01, course 1, zaoch ===
+=== Q6: Enrolled after 2012-09-01, 1 course, part-time ===
+4100, 100015, Timofeev Timur
+2100, 100016, Zhukov Zhan
+2100, 200001, Sokolov Maksim
+2100, 210001, Belov Ivan
 Count: 4
 
-=== Query 7: Same surname, different birthdays ===
-Surname groups: 12
+=== Q7: Same surname, diff bday ===
+Morozov, Dmitry, 2005-08-08
+Morozov, Alexey, 2004-12-01
+Novikov, Nikolay, 2005-01-01
+Zhukov, Zhan, 2001-12-12
+Zhukov, Zhenya, 2003-08-18
+Krylov, Kirill, 2003-09-09
+Novikov, Stepan, 2004-12-12
+Sokolov, Maksim, 2003-03-03
+Sokolov, Vitaly, 2005-05-05
+Belov, Ivan, 2004-04-04
+Belov, Sergey, 2002-02-02
+Krylov, Denis, 2001-01-01
+Groups: 12
 
-=== All queries done ===
+=== Done ===
 ```
 
-## Верификация через SQLite
+## SQLite verification
 
 ```powershell
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
 ```
 
-Результаты запросов:
+Results:
 
-| # | Результат |
-|---|-----------|
-| 1 | 4 строки (Дифзачет с датами) |
-| 2 | 1 строка (Крылов Кирилл, НЗК=OK500) |
-| 3 | 6 (студентов ФКТИУ без отчества) |
-| 4 | 2 плана (101: 3 группы, 104: 3 группы) |
-| 5 | 2 студента (Григорьев 5.0, Зайцев 5.0) |
-| 6 | 4 студента (заочные 1 курс после 2012) |
-| 7 | 12 строк (6 пар с одинаковыми фамилиями) |
+| # | Result |
+|---|--------|
+| 1 | 4 rows (DiffPass with dates) |
+| 2 | 1 row (163276, OK500, 163276) |
+| 3 | 6 (FCE students without patronymic) |
+| 4 | 2 plans (101: 3 groups, 104: 3 groups) |
+| 5 | 2 students (Grigoriev 5.0, Zaitsev 5.0) |
+| 6 | 4 students (part-time, course 1, after 2012) |
+| 7 | 12 rows (6 pairs with same surname) |
