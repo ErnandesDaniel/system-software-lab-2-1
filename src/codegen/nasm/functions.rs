@@ -121,7 +121,11 @@ impl AsmGenerator {
                 } else {
                     if let Some(offset) = self.locals.get(name) {
                         if use_lea {
-                            self.output.push_str(&format!("    lea rax, [rbp + {offset}]\n"));
+                            if self.param_registers.contains(name) {
+                                self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
+                            } else {
+                                self.output.push_str(&format!("    lea rax, [rbp + {offset}]\n"));
+                            }
                         } else {
                             self.output.push_str(&format!("    mov rax, [rbp + {offset}]\n"));
                         }

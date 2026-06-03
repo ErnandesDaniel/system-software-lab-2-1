@@ -7,153 +7,175 @@ import atoi;
 import malloc;
 import putchar;
 
-global buf of string;
-global buf_pos of int = 0;
-global tmp of int[20];
+// ============================================================
+// Pipe: FIFO of ints for streaming data between stages
+// ============================================================
+struct Pipe { arr of int[256]; head of int; tail of int; count of int; }
 
-// === Buffer: load file into memory ===
-def load_file(fn of string) of int {
-    f = fopen(fn, "r");
-    if (f == 0) { return -1; }
-    s = buf_pos; p = buf_pos;
+def p_init(p of Pipe) { p.head = 0; p.tail = 0; p.count = 0; }
+def p_write(p of Pipe, v of int) of int {
+    if (p.count < 256) { p.arr[p.tail] = v; p.tail = (p.tail + 1) % 256; p.count = p.count + 1; return 0; }
+    return -1;
+}
+def p_read(p of Pipe) of int {
+    if (p.count <= 0) { return -1; }
+    r = p.arr[p.head]; p.head = (p.head + 1) % 256; p.count = p.count - 1; return r;
+}
+def col_drain(p of Pipe) {
+    while (true) { if (p_read(p) == -1) { return; } }
+}
+
+// ============================================================
+// Row buffer — one line at a time (streaming)
+// ============================================================
+global row_buf of string;
+
+def read_line(f of int) of int {
+    pos = 0;
     while (true) {
         c = fgetc(f);
-        if (c == -1) {
-            buf[p] = 0;
-            p = p + 1;
-            buf[p] = 0;  // double-null marks EOF
-            fclose(f);
-            buf_pos = p + 1;
-            return s;
-        }
-        buf[p] = c;
-        p = p + 1;
+        if (c == -1) { if (pos == 0) { return -1; } row_buf[pos] = 0; return 0; }
+        if (c == 10) { row_buf[pos] = 0; return 0; }
+        row_buf[pos] = c; pos = pos + 1;
     }
 }
 
-// === Skip one line, return next line start ===
-// Returns -1 on double-null (EOF marker)
-def next_line(pos of int) of int {
-    if (pos == -1) { return -1; }
-    while (true) {
-        c = buf[pos];
-        if (c == 10) { buf[pos] = 0; return pos + 1; }
-        if (c == 0) {
-            if (buf[pos + 1] == 0) { return -1; }
-            return pos + 1;
-        }
-        pos = pos + 1;
-    }
-}
-
-// === Parse CSV row: split by commas, null-terminate each column ===
-// Writes column start offsets into global tmp[], returns column count
-def split_row(ofs of int) of int {
-    if (ofs == -1 || buf[ofs] == 0) { return 0; }
-    n = 0;
-    tmp[n] = ofs; n = n + 1;
+// Parse current row_buf as CSV. Writes column offsets to pipe, null-terminates columns.
+def parse_csv(col_pipe of Pipe) of int {
+    if (row_buf[0] == 0) { return 0; }
+    p_init(col_pipe);
+    p_write(col_pipe, 0);
     i = 0;
     while (true) {
-        c = buf[ofs + i];
-        if (c == 0 || c == 10) {
-            buf[ofs + i] = 0;
-            break;
-        }
-        if (c == 44) {
-            buf[ofs + i] = 0;
-            tmp[n] = ofs + i + 1; n = n + 1;
-        }
+        c = row_buf[i];
+        if (c == 0) { break; }
+        if (c == 44) { row_buf[i] = 0; p_write(col_pipe, i + 1); }
         i = i + 1;
     }
-    tmp[n] = -1;
-    return n;
+    p_write(col_pipe, -1);
+    return 0;
 }
 
-// === Print string from buffer offset ===
-def puts_ofs(ofs of int) {
-    if (ofs == -1) { return; }
-    i = 0;
+// Print null-terminated string from buffer starting at 'ofs'
+def print_str(buf of string, ofs of int) {
+    i = ofs;
     while (true) {
-        c = buf[ofs + i];
+        c = buf[i];
         if (c == 0) { break; }
         putchar(c);
         i = i + 1;
     }
 }
 
-// === Q1: INNER JOIN types_vedomostei + vedomosti ===
-// Условие: tv.ИД = 3 (Дифзачет) AND v.ЧЛВК_ИД > 153285
-// Вывод: НАИМЕНОВАНИЕ, ДАТА
-
+// ============================================================
+// Type name storage (separate from row_buf)
+// ============================================================
+global type_buf of string;
+global type_pos of int = 0;
 global t_id of int[10];
 global t_nm of int[10];
+global t_n of int;
 
-def query1(ofs_types of int, ofs_ved of int) of int {
+// Copy string from row_buf at 'src_ofs' into type_buf, return offset in type_buf
+def save_type_name(src_ofs of int) of int {
+    dst = type_pos;
+    while (true) {
+        c = row_buf[src_ofs];
+        if (c == 0) { break; }
+        type_buf[dst] = c;
+        src_ofs = src_ofs + 1;
+        dst = dst + 1;
+    }
+    type_buf[dst] = 0;
+    result = type_pos;
+    type_pos = dst + 1;
+    return result;
+}
+
+// ============================================================
+// Q1: INNER JOIN types_vedomostei + vedomosti
+// Условие: tv.ИД = 3 (Дифзачет) AND v.ЧЛВК_ИД > 153285
+// Вывод: НАИМЕНОВАНИЕ, ДАТА
+//
+// Pipeline (streaming):
+//   1. Read types_vedomostei row by row, save names in type_buf
+//   2. Stream vedomosti row by row: parse → filter → output
+// ============================================================
+
+def load_types(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
     t_n = 0;
+    col of Pipe; p_init(col);
 
-    // Load types into lookup arrays
-    row = ofs_types; row = next_line(row);
-    while (row != -1) {
-        if (buf[row] != 0 && buf[row] != 10) {
-            split_row(row);
-            if (tmp[0] != -1 && tmp[1] != -1) {
-                t_id[t_n] = atoi(buf + tmp[0]);
-                t_nm[t_n] = tmp[1];
-                t_n = t_n + 1;
-            }
-        }
-        row = next_line(row);
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_csv(col);
+        p_read(col);           // col 0 (id, skip)
+        nm_s = p_read(col);    // col 1 (name)
+        col_drain(col);
+
+        // Read id again for t_id
+        t_id[t_n] = atoi(row_buf + 0);
+        t_nm[t_n] = save_type_name(nm_s);
+        t_n = t_n + 1;
     }
+    fclose(f);
+    return t_n;
+}
 
-    // Scan vedomosti
-    row = ofs_ved; row = next_line(row);
+def query1_stream(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
+    col of Pipe; p_init(col);
     found = 0;
-    while (row != -1) {
-        if (buf[row] != 0 && buf[row] != 10) {
-            split_row(row);
-            if (tmp[0] != -1 && tmp[1] != -1 && tmp[2] != -1 && tmp[3] != -1) {
-                tid = atoi(buf + tmp[1]);
-                pid = atoi(buf + tmp[2]);
 
-                if (tid == 3 && pid > 153285) {
-                    nm = tmp[3];
-                    ti = 0;
-                    while (ti < t_n) {
-                        if (t_id[ti] == 3) {
-                            puts_ofs(t_nm[ti]);
-                            putchar(44);
-                            putchar(32);
-                            puts_ofs(nm);
-                            putchar(10);
-                            found = found + 1;
-                        }
-                        ti = ti + 1;
-                    }
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_csv(col);
+        p_read(col);         // col 0 (id)
+        tid_s = p_read(col); // col 1 (type_id)
+        pid_s = p_read(col); // col 2 (person_id)
+        dt_s  = p_read(col); // col 3 (date)
+        col_drain(col);
+
+        tid = atoi(row_buf + tid_s);
+        pid = atoi(row_buf + pid_s);
+
+        if (tid == 3 && pid > 153285) {
+            ti = 0;
+            while (ti < t_n) {
+                if (t_id[ti] == 3) {
+                    print_str(type_buf, t_nm[ti]);
+                    putchar(44);
+                    putchar(32);
+                    print_str(row_buf, dt_s);
+                    putchar(10);
+                    found = found + 1;
                 }
+                ti = ti + 1;
             }
         }
-        row = next_line(row);
     }
-
+    fclose(f);
     return found;
 }
 
 def main() of int {
-    buf = malloc(200000);
-    if (buf == 0) { puts("malloc failed"); return 1; }
+    row_buf = malloc(10000);
+    type_buf = malloc(1000);
+    if (row_buf == 0 || type_buf == 0) { puts("malloc failed"); return 1; }
 
-    puts("=== Lab 2: Map-Reduce Pipeline ===");
+    puts("=== Lab 2: Map-Reduce Pipeline (streaming) ===");
 
-    ofs_tv = load_file("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
-    if (ofs_tv == -1) { puts("Failed to load types"); return 1; }
-    ofs_vd = load_file("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
-    if (ofs_vd == -1) { puts("Failed to load vedomosti"); return 1; }
+    n_types = load_types("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
+    printf("Types loaded: %d\n", n_types);
 
     puts("=== Q1: INNER JOIN (Дифзачёты) ===");
-    n = query1(ofs_tv, ofs_vd);
+    n = query1_stream("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
     printf("Found: %d\n", n);
 
-    putchar(10);
-    puts("=== Done ===");
     return 0;
 }
