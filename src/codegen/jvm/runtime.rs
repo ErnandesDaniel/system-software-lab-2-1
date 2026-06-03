@@ -317,6 +317,27 @@ impl JvmGenerator {
             }],
         });
 
+        // === Static initializer: fileStreams = new InputStream[16] ===
+        let clinit_name = self.pool.constant_pool.add_utf8("<clinit>").expect("utf8");
+        let clinit_desc = self.pool.constant_pool.add_utf8("()V").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::STATIC,
+            name_index: clinit_name,
+            descriptor_index: clinit_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 2, max_locals: 0,
+                code: vec![
+                    Instruction::Bipush(16),
+                    Instruction::Anewarray(is_class),
+                    Instruction::Putstatic(file_fds_ref),
+                    Instruction::Return,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
         let mut fields = vec![];
         if count > 0 {
             fields.push(Field {
