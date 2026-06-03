@@ -132,30 +132,85 @@ impl JvmGenerator {
         let str_init_3arg = self.pool.constant_pool.add_method_ref(string_class, "<init>", "([BII)V").expect("mref");
 
         // === fopen([B[B)I ===
+        // byte[] → String (strip null terminator), then open FileInputStream
         let fopen_name = self.pool.constant_pool.add_utf8("fopen").expect("utf8");
         let fopen_desc = self.pool.constant_pool.add_utf8("([B[B)I").expect("utf8");
+        let nullscan_name = self.pool.constant_pool.add_utf8("nullscan").expect("utf8");
+        let nullscan_desc = self.pool.constant_pool.add_utf8("([B)I").expect("utf8");
+        // nullscan helper: scan for null/10/13 in byte[], return position
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: nullscan_name,
+            descriptor_index: nullscan_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 3, max_locals: 3,
+                code: vec![
+                    Instruction::Iconst_0,
+                    Instruction::Istore(1),
+                    Instruction::Goto(4),
+                    // loop body: i++ (index 3)
+                    Instruction::Iinc(1, 1),
+                    // loop check (index 4): if i >= len, exit
+                    Instruction::Iload(1),
+                    Instruction::Aload_0,
+                    Instruction::Arraylength,
+                    Instruction::If_icmpge(21),
+                    // load byte
+                    Instruction::Aload_0,
+                    Instruction::Iload(1),
+                    Instruction::Baload,
+                    Instruction::Istore(2),
+                    // check if byte == 0/10/13
+                    Instruction::Iload(2),
+                    Instruction::Ifeq(21),
+                    Instruction::Iload(2),
+                    Instruction::Bipush(10),
+                    Instruction::If_icmpeq(21),
+                    Instruction::Iload(2),
+                    Instruction::Bipush(13),
+                    Instruction::If_icmpeq(21),
+                    Instruction::Goto(3),
+                    // exit: return i (index 21)
+                    Instruction::Iload(1),
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+        self.pool.nullscan_ref = self.pool.constant_pool.add_method_ref(this_class, "nullscan", "([B)I").expect("mref");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: fopen_name,
             descriptor_index: fopen_desc,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 4, max_locals: 3,
+                max_stack: 5, max_locals: 4,
                 code: vec![
+                    // Call nullscan(path) to get length, then new String(path, 0, len)
+                    Instruction::Aload_0,
+                    Instruction::Invokestatic(self.pool.nullscan_ref),
+                    Instruction::Istore(3),
                     Instruction::New(string_class),
                     Instruction::Dup,
                     Instruction::Aload_0,
-                    Instruction::Invokespecial(str_init),
-                    Instruction::Astore_2,
+                    Instruction::Iconst_0,
+                    Instruction::Iload(3),
+                    Instruction::Invokespecial(str_init_3arg),
+                    Instruction::Astore(2),
+                    // new FileInputStream(str)
                     Instruction::New(fis_class),
                     Instruction::Dup,
                     Instruction::Aload_2,
                     Instruction::Invokespecial(fis_init),
                     Instruction::Astore_2,
+                    // fileStreams[fileNext] = fis
                     Instruction::Getstatic(file_fds_ref),
                     Instruction::Getstatic(file_next_ref),
                     Instruction::Aload_2,
                     Instruction::Aastore,
+                    // return fileNext++
                     Instruction::Getstatic(file_next_ref),
                     Instruction::Dup,
                     Instruction::Iconst_1,
@@ -295,29 +350,91 @@ impl JvmGenerator {
             }],
         });
 
-        // === printf([BI)I ===
-        let printf_name = self.pool.constant_pool.add_utf8("printf").expect("utf8");
-        let printf_desc = self.pool.constant_pool.add_utf8("([BI)I").expect("utf8");
+        // === printf helpers ===
         let print_str_ref = self.pool.constant_pool.add_method_ref(printstream_class, "print", "(Ljava/lang/String;)V").expect("mref");
         let int_to_str = self.pool.constant_pool.add_method_ref(int_class, "toString", "(I)Ljava/lang/String;").expect("mref");
+
+        // Helper: build code to print a byte[] as String (strip null terminator via nullscan)
+        fn emit_print_bytes(code: &mut Vec<Instruction>, system_out_ref: u16, string_class: u16, str_init_3arg: u16, print_str_ref: u16, nullscan_ref: u16, reg: u16) {
+            code.push(Instruction::Getstatic(system_out_ref));
+            code.push(Instruction::New(string_class));
+            code.push(Instruction::Dup);
+            code.push(Instruction::Aload(reg as u8));
+            code.push(Instruction::Iconst_0);
+            code.push(Instruction::Aload(reg as u8));
+            code.push(Instruction::Invokestatic(nullscan_ref));
+            code.push(Instruction::Invokespecial(str_init_3arg));
+            code.push(Instruction::Invokevirtual(print_str_ref));
+        }
+
+        // Helper: build code to print an int (int value must be on stack already, TOS)
+        fn emit_print_int(code: &mut Vec<Instruction>, system_out_ref: u16, int_to_str: u16, print_str_ref: u16) {
+            code.push(Instruction::Getstatic(system_out_ref));
+            code.push(Instruction::Swap);
+            code.push(Instruction::Invokestatic(int_to_str));
+            code.push(Instruction::Invokevirtual(print_str_ref));
+        }
+
+        // === printf([BI)I ===
+        let printf_name = self.pool.constant_pool.add_utf8("printf").expect("utf8");
+        let printf1_desc = self.pool.constant_pool.add_utf8("([BI)I").expect("utf8");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: printf_name,
-            descriptor_index: printf_desc,
+            descriptor_index: printf1_desc,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 4, max_locals: 2,
+                max_stack: 6, max_locals: 2,
                 code: vec![
-                    // print(format)
                     Instruction::Getstatic(system_out_ref),
                     Instruction::New(string_class),
                     Instruction::Dup,
                     Instruction::Aload_0,
-                    Instruction::Invokespecial(str_init),
+                    Instruction::Iconst_0,
+                    Instruction::Aload_0,
+                    Instruction::Invokestatic(self.pool.nullscan_ref),
+                    Instruction::Invokespecial(str_init_3arg),
                     Instruction::Invokevirtual(print_str_ref),
-                    // print(value)
                     Instruction::Getstatic(system_out_ref),
                     Instruction::Iload_1,
+                    Instruction::Invokestatic(int_to_str),
+                    Instruction::Invokevirtual(print_str_ref),
+                    Instruction::Iconst_0,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === printf([BII)I ===
+        let printf2_desc = self.pool.constant_pool.add_utf8("([BII)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: printf_name,
+            descriptor_index: printf2_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 6, max_locals: 3,
+                code: vec![
+                    // print format string
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Iconst_0,
+                    Instruction::Aload_0,
+                    Instruction::Invokestatic(self.pool.nullscan_ref),
+                    Instruction::Invokespecial(str_init_3arg),
+                    Instruction::Invokevirtual(print_str_ref),
+                    // print first int
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::Iload_1,
+                    Instruction::Invokestatic(int_to_str),
+                    Instruction::Invokevirtual(print_str_ref),
+                    // print second int
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::Iload_2,
                     Instruction::Invokestatic(int_to_str),
                     Instruction::Invokevirtual(print_str_ref),
                     Instruction::Iconst_0,

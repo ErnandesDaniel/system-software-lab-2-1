@@ -78,15 +78,18 @@ impl JvmGenerator {
             return;
         }
         let Some(ref target) = inst.jump_target else { return };
-        if self.pool.method_refs.contains_key(target) {
-            return;
-        }
 
         let param_types: Vec<IrType> = inst.operands.iter().map(|o| o.get_type()).collect();
         let return_type = inst.result_type.clone();
 
         let (class_idx, method_name, descriptor) = if Self::is_external_function(target) {
-            (runtime_stub_class, target.clone(), get_method_descriptor(target))
+            if target == "printf" {
+                // printf has variable args — build descriptor from actual params
+                let desc = Self::build_user_method_descriptor(&param_types, return_type.as_ref());
+                (runtime_stub_class, target.clone(), desc)
+            } else {
+                (runtime_stub_class, target.clone(), get_method_descriptor(target))
+            }
         } else {
             let class_name = capitalize_first(target);
             let user_class = self.pool.constant_pool.add_class(&class_name)
@@ -95,9 +98,14 @@ impl JvmGenerator {
             (user_class, "call".to_string(), desc)
         };
 
+        // Use (target, descriptor) as key to support overloaded functions like printf
+        let key = format!("{target}|{descriptor}");
+        if self.pool.method_refs.contains_key(&key) {
+            return;
+        }
         let method_idx = self.pool.constant_pool.add_method_ref(class_idx, &method_name, &descriptor)
             .expect("Failed to add method ref");
-        self.pool.method_refs.insert(target.clone(), method_idx);
+        self.pool.method_refs.insert(key, method_idx);
     }
 
     fn collect_call_closure_ref(&mut self, inst: &crate::ir::IrInstruction) {

@@ -50,6 +50,7 @@ pub struct JvmPoolState {
     pub object_class_idx: u16,
     pub object_array_class_idx: u16,
     pub runtime_stub_class_ref: u16,
+    pub nullscan_ref: u16,
 }
 
 pub struct JvmFuncState {
@@ -119,6 +120,7 @@ impl JvmGenerator {
                 object_class_idx: 0,
                 object_array_class_idx: 0,
                 runtime_stub_class_ref: 0,
+                nullscan_ref: 0,
             },
             func: JvmFuncState {
                 locals: HashMap::new(),

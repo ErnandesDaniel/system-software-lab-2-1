@@ -82,7 +82,7 @@ impl JvmGenerator {
             Constant::Bool(true) => code.push(Instruction::Iconst_1),
             Constant::Bool(false) => code.push(Instruction::Iconst_0),
             Constant::String(s) => {
-                let len = s.len();
+                let len = s.len() + 1; // +1 for null terminator
                 self.emit_load_constant(code, &Constant::Int(len as i64));
                 code.push(Instruction::Newarray(ArrayType::Byte));
                 for (i, byte) in s.bytes().enumerate() {
@@ -91,6 +91,11 @@ impl JvmGenerator {
                     code.push(Instruction::Bipush(byte as i8));
                     code.push(Instruction::Bastore);
                 }
+                // null terminator
+                code.push(Instruction::Dup);
+                self.emit_load_constant(code, &Constant::Int(s.len() as i64));
+                code.push(Instruction::Iconst_0);
+                code.push(Instruction::Bastore);
             }
             Constant::Char(c) => {
                 let val = i32::from(*c);
