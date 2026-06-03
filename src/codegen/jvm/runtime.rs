@@ -84,34 +84,7 @@ impl JvmGenerator {
         let string_byte_init = self.pool.constant_pool.add_method_ref(string_class, "<init>", "([B)V")
             .expect("Failed to add String(byte[]) init");
 
-        let puts_name = self.pool.constant_pool.add_utf8("puts")
-            .expect("Failed to add 'puts' UTF8");
-        let puts_desc = self.pool.constant_pool.add_utf8("([B)I")
-            .expect("Failed to add puts descriptor");
-        methods.push(Method {
-            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
-            name_index: puts_name,
-            descriptor_index: puts_desc,
-            attributes: vec![Attribute::Code {
-                name_index: code_attr,
-                max_stack: 4,
-                max_locals: 1,
-                code: vec![
-                    Instruction::Getstatic(system_out_ref),
-                    Instruction::New(string_class),
-                    Instruction::Dup,
-                    Instruction::Aload_0,
-                    Instruction::Invokespecial(string_byte_init),
-                    Instruction::Invokevirtual(println_string_ref),
-                    Instruction::Iconst_0,
-                    Instruction::Ireturn,
-                ],
-                exception_table: vec![],
-                attributes: vec![],
-            }],
-        });
-
-        // === File I/O static fields ===
+        // === File I/O static fields (moved before puts) ===
         let file_fds_name = self.pool.constant_pool.add_utf8("fileStreams").expect("utf8");
         let file_fds_desc = self.pool.constant_pool.add_utf8("[Ljava/io/InputStream;").expect("utf8");
         let file_next_name = self.pool.constant_pool.add_utf8("fileNext").expect("utf8");
@@ -208,6 +181,34 @@ impl JvmGenerator {
                     Instruction::Putstatic(file_next_ref),
                     Instruction::Iconst_1,
                     Instruction::Iadd,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === puts([B)I ===
+        let puts_name = self.pool.constant_pool.add_utf8("puts").expect("utf8");
+        let puts_desc = self.pool.constant_pool.add_utf8("([B)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: puts_name,
+            descriptor_index: puts_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 6, max_locals: 2,
+                code: vec![
+                    Instruction::Getstatic(system_out_ref),
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Iconst_0,
+                    Instruction::Aload_0,
+                    Instruction::Invokestatic(self.pool.nullscan_ref),
+                    Instruction::Invokespecial(str_init_3arg),
+                    Instruction::Invokevirtual(println_string_ref),
+                    Instruction::Iconst_0,
                     Instruction::Ireturn,
                 ],
                 exception_table: vec![],
