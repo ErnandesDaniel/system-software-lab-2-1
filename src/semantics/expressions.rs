@@ -23,7 +23,7 @@ impl SemanticsAnalyzer {
             }
             Expr::FieldAccess(base, field) => {
                 let _base_type = self.check_expression(scope, base)?;
-                let field_type = self.resolve_field_type(base, &field.name);
+                let field_type = self.resolve_field_type(scope, base, &field.name);
                 Ok(field_type)
             }
             Expr::FuncLiteral(f) => {
@@ -50,7 +50,9 @@ impl SemanticsAnalyzer {
     fn check_binary_expr(&mut self, scope: &mut SymbolTable, bin: &BinaryExpr) -> crate::Result<IrType> {
         if matches!(bin.operator, BinaryOp::Assign) {
             if let Expr::Identifier(id) = &*bin.left {
-                scope.add(id.name.clone(), IrType::Int).ok();
+                if !scope.is_declared(&id.name) {
+                    scope.add(id.name.clone(), IrType::Int)?;
+                }
             }
         }
         let left_type = self.check_expression(scope, &bin.left)?;
@@ -72,22 +74,21 @@ impl SemanticsAnalyzer {
             | BinaryOp::BitOr
             | BinaryOp::BitXor => {
                 if !left_type.is_int_like() || !right_type.is_int_like() {
-                    self.add_error(
-                        if matches!(bin.operator, BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor) {
-                            "Bitwise operations require numeric operands"
-                        } else {
-                            "Arithmetic operations require numeric operands"
-                        }.to_string(),
-                    );
+                    let msg = if matches!(bin.operator, BinaryOp::BitAnd | BinaryOp::BitOr | BinaryOp::BitXor) {
+                        "Bitwise operations require numeric operands"
+                    } else {
+                        "Arithmetic operations require numeric operands"
+                    };
+                    self.add_error(msg.to_string(), bin.span);
                 }
                 Ok(IrType::Int)
             }
             BinaryOp::Equal | BinaryOp::NotEqual => {
                 if !left_type.is_int_like() && !left_type.is_bool() && left_type != IrType::String {
-                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string());
+                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string(), bin.span);
                 }
                 if !right_type.is_int_like() && !right_type.is_bool() && right_type != IrType::String {
-                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string());
+                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string(), bin.span);
                 }
                 Ok(IrType::Bool)
             }
@@ -96,13 +97,13 @@ impl SemanticsAnalyzer {
             | BinaryOp::LessOrEqual
             | BinaryOp::GreaterOrEqual => {
                 if !left_type.is_int_like() || !right_type.is_int_like() {
-                    self.add_error("Comparison requires numeric operands".to_string());
+                    self.add_error("Comparison requires numeric operands".to_string(), bin.span);
                 }
                 Ok(IrType::Bool)
             }
             BinaryOp::And | BinaryOp::Or => {
                 if !left_type.is_bool() || !right_type.is_bool() {
-                    self.add_error("Logical operations require bool operands".to_string());
+                    self.add_error("Logical operations require bool operands".to_string(), bin.span);
                 }
                 Ok(IrType::Bool)
             }
@@ -114,13 +115,13 @@ impl SemanticsAnalyzer {
         match un.operator {
             UnaryOp::Not => {
                 if !operand_type.is_bool() {
-                    self.add_error("Not operator requires bool operand".to_string());
+                    self.add_error("Not operator requires bool operand".to_string(), un.span);
                 }
                 Ok(IrType::Bool)
             }
             UnaryOp::Negate | UnaryOp::BitNot => {
                 if !operand_type.is_int_like() {
-                    self.add_error("Unary arithmetic operators require numeric operand".to_string());
+                    self.add_error("Unary arithmetic operators require numeric operand".to_string(), un.span);
                 }
                 Ok(IrType::Int)
             }
@@ -143,7 +144,21 @@ impl SemanticsAnalyzer {
                     self.add_error(format!(
                         "Function '{}' expected {} arguments, got {}",
                         id.name, expected, actual
-                    ));
+                    ), call.span);
+                }
+                // Check argument types for named function calls
+                for (i, arg) in call.arguments.iter().enumerate() {
+                    if i >= sig.parameters.len() {
+                        break;
+                    }
+                    let arg_type = self.check_expression(scope, arg)?;
+                    let param_type = &sig.parameters[i].1;
+                    if arg_type != *param_type {
+                        self.add_error(format!(
+                            "Argument {} of function '{}': expected type {:?}, got {:?}",
+                            i + 1, id.name, param_type, arg_type
+                        ), call.span);
+                    }
                 }
                 return Ok(sig.return_type);
             }
@@ -155,7 +170,7 @@ impl SemanticsAnalyzer {
             let expected = params.len();
             let actual = call.arguments.len();
             if expected != actual {
-                self.add_error(format!("Function expected {expected} arguments, got {actual}"));
+                self.add_error(format!("Function expected {expected} arguments, got {actual}"), call.span);
             }
             for (i, arg) in call.arguments.iter().enumerate() {
                 if i >= params.len() {
@@ -166,18 +181,18 @@ impl SemanticsAnalyzer {
                     self.add_error(format!(
                         "Argument {} type mismatch: expected {:?}, got {:?}",
                         i, params[i], arg_type
-                    ));
+                    ), call.span);
                 }
             }
             return Ok(*ret.clone());
         }
 
         if let Expr::Identifier(id) = call.function.as_ref() {
-            self.add_error(format!("Call to undefined function '{}'", id.name));
+            self.add_error(format!("Call to undefined function '{}'", id.name), call.span);
             return Ok(IrType::Int);
         }
 
-        self.add_error("Call target is not a function".to_string());
+        self.add_error("Call target is not a function".to_string(), call.span);
         Ok(IrType::Int)
     }
 
@@ -185,12 +200,30 @@ impl SemanticsAnalyzer {
         let array_type = self.check_expression(scope, &slice.array)?;
         if let IrType::Array(elem, _) = array_type {
             if let Some(range) = slice.ranges.first() {
-                if range.end.is_some() {
+                let start_ty = self.check_expression(scope, &range.start)?;
+                if !start_ty.is_int_like() {
+                    self.add_error("Array index must be an integer".to_string(), range.span);
+                }
+                if let Some(ref end) = range.end {
+                    let end_ty = self.check_expression(scope, end)?;
+                    if !end_ty.is_int_like() {
+                        self.add_error("Slice end must be an integer".to_string(), range.span);
+                    }
                     return Ok(IrType::Array(Box::new(*elem.clone()), 0));
                 }
             }
             return Ok(*elem);
         }
+        if array_type == IrType::String {
+            if let Some(range) = slice.ranges.first() {
+                let start_ty = self.check_expression(scope, &range.start)?;
+                if !start_ty.is_int_like() {
+                    self.add_error("String index must be an integer".to_string(), range.span);
+                }
+            }
+            return Ok(IrType::Int);
+        }
+        self.add_error("Cannot index non-array type".to_string(), slice.span);
         Ok(IrType::Int)
     }
 
@@ -201,7 +234,7 @@ impl SemanticsAnalyzer {
         if let Some(symbol) = self.get_global_symbol(&id.name) {
             return symbol.ty.clone();
         }
-        self.add_error(format!("Undeclared identifier '{}'", id.name));
+        self.add_error(format!("Undeclared identifier '{}'", id.name), id.span);
         IrType::Int
     }
 }

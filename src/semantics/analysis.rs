@@ -1,4 +1,4 @@
-use crate::ast::{BuiltinType, Literal, Program, TypeRef};
+use crate::ast::{BuiltinType, Expr, Literal, Program, Span, TypeRef};
 use crate::error::CompilerError;
 use crate::ir::IrType;
 use crate::semantics::types::SymbolTable;
@@ -13,10 +13,11 @@ pub struct FunctionSig {
 pub struct SemanticsAnalyzer {
     pub(crate) global_scope: SymbolTable,
     pub(crate) functions: Vec<FunctionSig>,
-    pub(crate) errors: Vec<String>,
+    pub(crate) errors: Vec<(String, Span)>,
     pub(crate) current_return_type: Option<IrType>,
     pub(crate) loop_depth: usize,
     pub(crate) struct_fields: std::collections::HashMap<String, Vec<(String, IrType)>>,
+    pub(crate) in_coroutine: bool,
 }
 
 impl SemanticsAnalyzer {
@@ -28,6 +29,7 @@ impl SemanticsAnalyzer {
             current_return_type: None,
             loop_depth: 0,
             struct_fields: std::collections::HashMap::new(),
+            in_coroutine: false,
         }
     }
 
@@ -38,7 +40,12 @@ impl SemanticsAnalyzer {
         if self.errors.is_empty() {
             Ok(())
         } else {
-            Err(CompilerError::Semantic(std::mem::take(&mut self.errors).join("; ")))
+            let msgs: Vec<String> = self
+                .errors
+                .iter()
+                .map(|(msg, span)| format!("{} at {}..{}", msg, span.start, span.end))
+                .collect();
+            Err(CompilerError::Semantic(msgs.join("; ")))
         }
     }
 
@@ -46,14 +53,19 @@ impl SemanticsAnalyzer {
         match ty {
             TypeRef::BuiltinType(bt) => match bt {
                 BuiltinType::Bool => IrType::Bool,
+                BuiltinType::Byte => IrType::Byte,
+                BuiltinType::Int => IrType::Int,
+                BuiltinType::Uint => IrType::Uint,
+                BuiltinType::Long => IrType::Long,
+                BuiltinType::Ulong => IrType::Ulong,
+                BuiltinType::Char => IrType::Char,
                 BuiltinType::String => IrType::String,
-                BuiltinType::Byte | BuiltinType::Int
-                | BuiltinType::Uint | BuiltinType::Long
-                | BuiltinType::Ulong | BuiltinType::Char => IrType::Int,
             },
             TypeRef::Custom(id) => {
-                if self.struct_fields.contains_key(&id.name) {
-                    IrType::Int
+                if let Some(fields) = self.struct_fields.get(&id.name) {
+                    let total_size = fields.iter().map(|(_, t)| t.size() as usize).sum();
+                    let typed_fields: Vec<(String, IrType)> = fields.iter().map(|(n, t)| (n.clone(), t.clone())).collect();
+                    IrType::Struct { name: id.name.clone(), fields: typed_fields, size: total_size }
                 } else {
                     IrType::Int
                 }
@@ -72,13 +84,13 @@ impl SemanticsAnalyzer {
         match lit {
             Literal::Bool(_) => IrType::Bool,
             Literal::Dec(_) | Literal::Hex(_) | Literal::Bits(_) => IrType::Int,
-            Literal::Char(_) => IrType::Int,
+            Literal::Char(_) => IrType::Char,
             Literal::Str(_) => IrType::String,
         }
     }
 
-    pub fn add_error(&mut self, msg: String) {
-        self.errors.push(msg);
+    pub fn add_error(&mut self, msg: String, span: Span) {
+        self.errors.push((msg, span));
     }
 
     pub fn get_function_sig(&self, name: &str) -> Option<&FunctionSig> {
@@ -89,30 +101,119 @@ impl SemanticsAnalyzer {
         self.global_scope.lookup(name)
     }
 
-    pub fn resolve_field_type(&self, base_expr: &crate::ast::Expr, field: &str) -> IrType {
-        let base_name = match base_expr {
-            crate::ast::Expr::Identifier(id) => Some(id.name.as_str()),
-            crate::ast::Expr::FieldAccess(inner, _) => {
-                match inner.as_ref() {
-                    crate::ast::Expr::Identifier(id) => Some(id.name.as_str()),
-                    _ => None,
-                }
-            }
-            _ => None,
-        };
-
-        if let Some(name) = base_name {
-            for (sname, fields) in &self.struct_fields {
-                if name == sname || name == sname.as_str() {
-                    for (fname, fty) in fields {
-                        if fname == field {
-                            return fty.clone();
-                        }
+    /// Resolve the type of a field access by looking up the base expression's type
+    /// in the local or global scope, then finding the struct field definition.
+    pub fn resolve_field_type(&self, scope: &SymbolTable, base_expr: &Expr, field: &str) -> IrType {
+        let base_type = self.infer_expr_type(scope, base_expr);
+        let struct_name = self.type_to_struct_name(&base_type);
+        if let Some(name) = struct_name {
+            if let Some(fields) = self.struct_fields.get(&name) {
+                for (fname, fty) in fields {
+                    if fname == field {
+                        return fty.clone();
                     }
                 }
             }
         }
         IrType::Int
+    }
+
+    fn infer_expr_type(&self, scope: &SymbolTable, expr: &Expr) -> IrType {
+        match expr {
+            Expr::Identifier(id) => {
+                if let Some(sym) = scope.lookup(&id.name) {
+                    return sym.ty.clone();
+                }
+                if let Some(sym) = self.get_global_symbol(&id.name) {
+                    return sym.ty.clone();
+                }
+                IrType::Int
+            }
+            Expr::FieldAccess(base, _) => {
+                let base_ty = self.infer_expr_type(scope, base);
+                let struct_name = self.type_to_struct_name(&base_ty);
+                if let Some(name) = struct_name {
+                    if self.struct_fields.contains_key(&name) {
+                        return IrType::Int;
+                    }
+                }
+                IrType::Int
+            }
+            Expr::Binary(bin) => {
+                let _left = self.infer_expr_type(scope, &bin.left);
+                let _right = self.infer_expr_type(scope, &bin.right);
+                match bin.operator {
+                    crate::ast::BinaryOp::Assign => _right,
+                    crate::ast::BinaryOp::Add | crate::ast::BinaryOp::Subtract
+                    | crate::ast::BinaryOp::Multiply | crate::ast::BinaryOp::Divide
+                    | crate::ast::BinaryOp::Modulo | crate::ast::BinaryOp::BitAnd
+                    | crate::ast::BinaryOp::BitOr | crate::ast::BinaryOp::BitXor => IrType::Int,
+                    crate::ast::BinaryOp::Equal | crate::ast::BinaryOp::NotEqual
+                    | crate::ast::BinaryOp::Less | crate::ast::BinaryOp::Greater
+                    | crate::ast::BinaryOp::LessOrEqual | crate::ast::BinaryOp::GreaterOrEqual
+                    | crate::ast::BinaryOp::And | crate::ast::BinaryOp::Or => IrType::Bool,
+                }
+            }
+            Expr::Unary(un) => match un.operator {
+                crate::ast::UnaryOp::Not => IrType::Bool,
+                crate::ast::UnaryOp::Negate | crate::ast::UnaryOp::BitNot => IrType::Int,
+            },
+            Expr::Parenthesized(inner) => self.infer_expr_type(scope, inner),
+            Expr::Call(call) => {
+                if let Expr::Identifier(id) = call.function.as_ref() {
+                    if let Some(sig) = self.get_function_sig(&id.name) {
+                        return sig.return_type.clone();
+                    }
+                }
+                if let Expr::Identifier(id) = call.function.as_ref() {
+                    let builtin = ["println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf"];
+                    if builtin.contains(&id.name.as_str()) {
+                        return IrType::Int;
+                    }
+                }
+                let func_ty = self.infer_expr_type(scope, &call.function);
+                if let IrType::Function(_, ret) = func_ty {
+                    return *ret;
+                }
+                IrType::Int
+            }
+            Expr::Slice(slice) => {
+                let arr_ty = self.infer_expr_type(scope, &slice.array);
+                if let IrType::Array(elem, _) = arr_ty {
+                    if let Some(range) = slice.ranges.first() {
+                        if range.end.is_some() {
+                            return IrType::Array(elem, 0);
+                        }
+                    }
+                    return *elem;
+                }
+                IrType::Int
+            }
+            Expr::Literal(lit, _) => Self::literal_type(lit),
+            Expr::ArrayLiteral(elems, _) => {
+                let elem_ty = elems.first().map_or(IrType::Int, |e| self.infer_expr_type(scope, e));
+                IrType::Array(Box::new(elem_ty), elems.len())
+            }
+            Expr::FuncLiteral(f) => {
+                let params = f.signature.parameters.as_ref().map(|args| {
+                    args.iter().map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t))).collect()
+                }).unwrap_or_default();
+                let ret = f.signature.return_type.as_ref().map_or(IrType::Void, |t| self.convert_type(t));
+                IrType::Function(params, Box::new(ret))
+            }
+        }
+    }
+
+    fn type_to_struct_name(&self, ty: &IrType) -> Option<String> {
+        if let IrType::Array(_elem, size) = ty {
+            for (name, fields) in &self.struct_fields {
+                let struct_slots = fields.last().map(|(_, t)| t.size() as usize).unwrap_or(4) / 4;
+                if struct_slots == *size || struct_slots == 0 {
+                    return Some(name.clone());
+                }
+            }
+        }
+        None
     }
 }
 

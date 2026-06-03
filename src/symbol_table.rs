@@ -1,19 +1,53 @@
 use crate::ir::{IrLocal, IrType};
 use std::collections::{HashMap, HashSet};
 
+/// Represents a single lexical scope with local variable bindings
 #[derive(Debug, Clone)]
 struct Scope {
     locals: HashMap<String, IrLocal>,
     declared: HashSet<String>,
 }
 
+impl Scope {
+    fn new() -> Self {
+        Self { locals: HashMap::new(), declared: HashSet::new() }
+    }
+}
+
+/// Full signature of a function or coroutine
+#[derive(Debug, Clone)]
+pub struct FunctionSignature {
+    pub name: String,
+    pub return_type: IrType,
+    pub param_names: Vec<String>,
+    pub param_types: Vec<IrType>,
+    pub is_coroutine: bool,
+    pub is_extern: bool,
+}
+
+/// Unified symbol table used by:
+/// - Semantic analyser (type checking)
+/// - IR generator (variable resolution, struct layout)
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
     scopes: Vec<Scope>,
+
+    /// Struct field definitions: struct_name -> Vec<(field_name, field_type, byte_offset)>
     pub struct_fields: HashMap<String, Vec<(String, IrType, usize)>>,
+
+    /// Function signatures indexed by name
+    pub function_sigs: HashMap<String, FunctionSignature>,
+
+    /// Return types of functions (convenience access)
     pub function_return_types: HashMap<String, IrType>,
+
+    /// Global variable types
     pub global_types: HashMap<String, IrType>,
+
+    /// Map from global variable name to its struct type name (if any)
     pub global_struct_type_names: HashMap<String, String>,
+
+    /// Map from local variable name to its struct type name (if any)
     pub local_struct_types: HashMap<String, String>,
 }
 
@@ -22,12 +56,15 @@ impl SymbolTable {
         Self {
             scopes: vec![Scope::new()],
             struct_fields: HashMap::new(),
+            function_sigs: HashMap::new(),
             function_return_types: HashMap::new(),
             global_types: HashMap::new(),
             global_struct_type_names: HashMap::new(),
             local_struct_types: HashMap::new(),
         }
     }
+
+    // ── Scope management ──────────────────────────────────────────
 
     pub fn push_scope(&mut self) {
         self.scopes.push(Scope::new());
@@ -38,6 +75,8 @@ impl SymbolTable {
             self.scopes.pop();
         }
     }
+
+    // ── Locals ────────────────────────────────────────────────────
 
     pub fn add(&mut self, name: String, ty: IrType) -> crate::Result<()> {
         let scope = self.scopes.last_mut().expect("no scope");
@@ -102,16 +141,58 @@ impl SymbolTable {
         }
         result
     }
+
+    // ── Function signatures ───────────────────────────────────────
+
+    pub fn register_function(
+        &mut self,
+        name: &str,
+        return_type: IrType,
+        param_names: Vec<String>,
+        param_types: Vec<IrType>,
+        is_coroutine: bool,
+        is_extern: bool,
+    ) {
+        let sig = FunctionSignature {
+            name: name.to_string(),
+            return_type: return_type.clone(),
+            param_names,
+            param_types: param_types.clone(),
+            is_coroutine,
+            is_extern,
+        };
+        self.function_sigs.insert(name.to_string(), sig);
+        self.function_return_types.insert(name.to_string(), return_type);
+    }
+
+    pub fn get_function_sig(&self, name: &str) -> Option<&FunctionSignature> {
+        self.function_sigs.get(name)
+    }
+
+    pub fn is_coroutine(&self, name: &str) -> bool {
+        self.function_sigs.get(name).map_or(false, |s| s.is_coroutine)
+    }
+
+    // ── Struct layout ─────────────────────────────────────────────
+
+    pub fn register_struct(&mut self, name: &str, fields: Vec<(String, IrType)>) {
+        let mut field_data = Vec::new();
+        let mut offset: usize = 0;
+        for (fname, fty) in &fields {
+            let size = fty.size() as usize;
+            field_data.push((fname.clone(), fty.clone(), offset));
+            offset += size;
+        }
+        self.struct_fields.insert(name.to_string(), field_data);
+    }
+
+    pub fn get_struct_fields(&self, name: &str) -> Option<&[(String, IrType, usize)]> {
+        self.struct_fields.get(name).map(|v| v.as_slice())
+    }
 }
 
 impl Default for SymbolTable {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-impl Scope {
-    fn new() -> Self {
-        Self { locals: HashMap::new(), declared: HashSet::new() }
     }
 }

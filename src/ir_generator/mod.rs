@@ -1,5 +1,5 @@
-use crate::ast::{Program, SourceItem, Span, Statement};
-use crate::ir::{IrFunction, IrProgram, IrType};
+use crate::ast::{Program, SourceItem, Span};
+use crate::ir::{IrBlock, IrFunction, IrProgram, IrType};
 use crate::stdlib::StdLib;
 use std::collections::{HashMap, HashSet};
 
@@ -8,6 +8,8 @@ mod functions;
 mod statements;
 mod symbols;
 mod types;
+
+pub(crate) use expressions::literal::unescape_string;
 
 pub struct IrGenerator {
     pub temp_counter: usize,
@@ -23,6 +25,9 @@ pub struct IrGenerator {
     pub lambda_counter: usize,
     pub captured_vars: HashMap<String, usize>,
     pub closure_envs: HashMap<String, String>,
+    /// Block stack for statement and expression CFG construction.
+    /// Contains completed blocks that have been swapped out by control-flow constructs.
+    pub block_stack: Vec<IrBlock>,
 }
 
 impl IrGenerator {
@@ -41,6 +46,7 @@ impl IrGenerator {
             lambda_counter: 0,
             captured_vars: HashMap::new(),
             closure_envs: HashMap::new(),
+            block_stack: Vec::new(),
         }
     }
 
@@ -191,22 +197,5 @@ impl IrGenerator {
 impl Span {
     fn span(&self) -> Span {
         *self
-    }
-}
-
-impl Statement {
-    fn span(&self) -> Span {
-        match self {
-            Statement::Return(s) => s.span,
-            Statement::If(s) => s.span,
-            Statement::Loop(s) => s.span,
-            Statement::Repeat(s) => s.span,
-            Statement::Break(s) => s.span,
-            Statement::Expression(s) => s.span,
-            Statement::Block(s) => s.span,
-            Statement::VarDecl(s) => s.span,
-            Statement::Yield(s) => s.span,
-            Statement::FuncDef(s) => s.span,
-        }
     }
 }

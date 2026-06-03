@@ -18,18 +18,30 @@ pub struct Parser<'source> {
 
 impl<'source> Parser<'source> {
     pub fn new(source: &'source str) -> Self {
-        let mut lexer = Lexer::new(source);
-        let current = lexer
-            .next()
-            .and_then(|r: Result<(Token, Range<usize>), crate::lexer::LexerError>| r.ok());
-        Self { lexer, current, source }
+        let lexer = Lexer::new(source);
+        // We keep the lexer but don't take errors yet — parse() will check.
+        // This allows Parser::new to remain infallible while parse() reports errors.
+        Self { lexer, current: None, source }
     }
 
     pub fn parse(&mut self) -> crate::Result<Program> {
+        // Check for lexer errors first — invalid characters in source
+        let lexer_errors = self.lexer.take_errors();
+        if !lexer_errors.is_empty() {
+            let msgs: Vec<String> = lexer_errors
+                .iter()
+                .map(|(err, pos)| format!("{err} at position {pos}"))
+                .collect();
+            return Err(CompilerError::Parse(msgs.join("; ")));
+        }
+
+        // Prime the first token
+        self.advance();
+
         let mut items = Vec::new();
 
         while self.current_token().is_some() {
-            let token = self.current_token().expect("Token must exist after is_some check");
+            let token = *self.current_token().expect("Token must exist after is_some check");
 
             if !matches!(
                 token,

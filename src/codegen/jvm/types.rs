@@ -27,10 +27,16 @@ fn ir_type_short_descriptor(ty: &IrType) -> &'static str {
     match ty {
         IrType::Void => "V",
         IrType::Bool => "Z",
+        IrType::Byte => "B",
         IrType::Int => "I",
+        IrType::Uint => "U",
+        IrType::Long => "J",
+        IrType::Ulong => "K",
+        IrType::Char => "C",
         IrType::String => "Str",
         IrType::Array(_, _) => "Arr",
         IrType::Function(_, _) => "Fn",
+        IrType::Struct { .. } => "S",
     }
 }
 
@@ -51,13 +57,16 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
     match ty {
         IrType::Void => "V".to_string(),
         IrType::Bool => "Z".to_string(),
-        IrType::Int => "I".to_string(),
+        IrType::Byte => "B".to_string(),
+        IrType::Int | IrType::Uint | IrType::Char => "I".to_string(),
+        IrType::Long | IrType::Ulong => "J".to_string(),
         IrType::String => "[B".to_string(),
         IrType::Array(elem, _) => format!("[{}", ir_type_to_jvm_descriptor(elem)),
         IrType::Function(params, ret) => {
             let iface_name = get_fn_interface_name(params, ret);
             format!("L{iface_name};")
         }
+        IrType::Struct { .. } => "I".to_string(),
     }
 }
 

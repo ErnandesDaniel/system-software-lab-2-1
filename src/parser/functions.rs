@@ -71,17 +71,18 @@ impl Parser<'_> {
             let (_n, n_span) = self.expect(Token::Identifier)?;
             let param_name = self.get_text(&n_span).to_string();
 
-            if self.current_token() == Some(&Token::Of) {
+            let ty = if self.current_token() == Some(&Token::Of) {
                 self.expect(Token::Of)?;
-            }
-
-            let ty = self.parse_type()?;
+                Some(self.parse_type()?)
+            } else {
+                None
+            };
             params.push(Arg {
                 name: Identifier {
                     name: param_name,
                     span: n_span,
                 },
-                ty: Some(ty),
+                ty,
                 span: n_span,
             });
         }

@@ -16,7 +16,9 @@ impl SemanticsAnalyzer {
                 }
                 SourceItem::GlobalDecl(global) => {
                     let ty = self.convert_type(&global.ty);
-                    self.global_scope.add(global.name.name.clone(), ty).ok();
+                    if let Err(e) = self.global_scope.add(global.name.name.clone(), ty) {
+                        self.add_error(e.to_string(), global.span);
+                    }
                 }
                 SourceItem::StructDef(s) => {
                     let mut fields = Vec::new();
@@ -48,15 +50,17 @@ impl SemanticsAnalyzer {
         }
 
         let sem_params: Vec<IrType> = params.iter().map(|(_, t)| t.clone()).collect();
-        self.global_scope
-            .add(
-                def.signature.name.name.clone(),
-                IrType::Function(sem_params, Box::new(return_type.clone())),
-            )
-            .ok();
+        let func_name = def.signature.name.name.clone();
+        if let Err(e) = self.global_scope.add(
+            func_name.clone(),
+            IrType::Function(sem_params, Box::new(return_type.clone())),
+        ) {
+            self.add_error(e.to_string(), def.span);
+            return;
+        }
 
         self.functions.push(FunctionSig {
-            name: def.signature.name.name.clone(),
+            name: func_name,
             return_type,
             parameters: params,
         });
@@ -68,7 +72,7 @@ impl SemanticsAnalyzer {
         if !StdLib::is_stdlib(&func_name) {
             self.add_error(format!(
                 "Error: '{func_name}' is not a standard library function. Only C standard library functions can be declared as extern."
-            ));
+            ), decl.span);
         }
 
         let (return_type, params) = if decl.signature.parameters.is_none() && decl.signature.return_type.is_none() {
@@ -106,18 +110,27 @@ impl SemanticsAnalyzer {
             parameters: params,
         });
 
-        self.global_scope
-            .add(
-                decl.signature.name.name.clone(),
-                IrType::Function(sem_params, Box::new(return_type)),
-            )
-            .ok();
+        if let Err(e) = self.global_scope.add(
+            decl.signature.name.name.clone(),
+            IrType::Function(sem_params, Box::new(return_type)),
+        ) {
+            self.add_error(e.to_string(), decl.span);
+        }
     }
 
     pub fn check_functions(&mut self, program: &Program) -> crate::Result<()> {
         for item in &program.items {
-            if let SourceItem::FuncDefinition(def) = item {
-                self.check_function(def)?;
+            match item {
+                SourceItem::FuncDefinition(def) => {
+                    self.in_coroutine = false;
+                    self.check_function(def)?;
+                }
+                SourceItem::CoroutineDef(coro) => {
+                    self.in_coroutine = true;
+                    self.check_coroutine(coro)?;
+                    self.in_coroutine = false;
+                }
+                _ => {}
             }
         }
         Ok(())
@@ -129,7 +142,7 @@ impl SemanticsAnalyzer {
         if let Some(ref params) = def.signature.parameters {
             for arg in params {
                 let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                local_scope.add(arg.name.name.clone(), param_type).ok();
+                local_scope.add(arg.name.name.clone(), param_type)?;
             }
         }
 
@@ -146,6 +159,31 @@ impl SemanticsAnalyzer {
 
         self.current_return_type = None;
 
+        Ok(())
+    }
+
+    pub fn check_coroutine(&mut self, def: &crate::ast::CoroutineDefinition) -> crate::Result<()> {
+        let mut local_scope = SymbolTable::new();
+
+        if let Some(ref params) = def.signature.parameters {
+            for arg in params {
+                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                local_scope.add(arg.name.name.clone(), param_type)?;
+            }
+        }
+
+        let ret_type = def
+            .signature
+            .return_type
+            .as_ref()
+            .map_or(IrType::Void, |t| self.convert_type(t));
+        self.current_return_type = Some(ret_type);
+
+        for stmt in &def.body {
+            self.check_statement(&mut local_scope, stmt)?;
+        }
+
+        self.current_return_type = None;
         Ok(())
     }
 

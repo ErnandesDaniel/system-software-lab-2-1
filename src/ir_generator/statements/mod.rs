@@ -5,21 +5,23 @@ use crate::ast::{Arg, FuncDefinition, Identifier, Span, Statement};
 use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
-    pub fn visit_statement(&mut self, block: &mut IrBlock, block_stack: &mut Vec<IrBlock>, stmt: &Statement) {
+    pub fn visit_statement(&mut self, block: &mut IrBlock, stmt: &Statement) {
         match stmt {
             Statement::Return(ret) => self.visit_return(block, ret),
-            Statement::If(if_stmt) => self.visit_if_statement(block, block_stack, if_stmt),
-            Statement::Loop(loop_stmt) => self.visit_loop_statement(block, block_stack, loop_stmt),
-            Statement::Repeat(repeat_stmt) => self.visit_repeat_statement(block, block_stack, repeat_stmt),
+            Statement::If(if_stmt) => self.visit_if_statement(block, if_stmt),
+            Statement::Loop(loop_stmt) => self.visit_loop_statement(block, loop_stmt),
+            Statement::Repeat(repeat_stmt) => self.visit_repeat_statement(block, repeat_stmt),
             Statement::Expression(expr_stmt) => { self.visit_expr(block, &expr_stmt.expr); }
             Statement::Block(block_stmt) => {
+                self.symbols.push_scope();
                 for s in &block_stmt.body {
-                    self.visit_statement(block, block_stack, s);
+                    self.visit_statement(block, s);
                 }
+                self.symbols.pop_scope();
             }
             Statement::Break(_) => self.visit_break(block, stmt),
             Statement::VarDecl(vd) => self.visit_var_decl(vd),
-            Statement::Yield(y) => self.handle_yield(block, block_stack, y.span),
+            Statement::Yield(y) => self.handle_yield(block, y.span),
             Statement::FuncDef(fd) => self.handle_func_def(block, fd),
         }
     }
@@ -59,7 +61,7 @@ impl IrGenerator {
         }
     }
 
-    fn handle_yield(&mut self, block: &mut IrBlock, block_stack: &mut Vec<IrBlock>, span: Span) {
+    fn handle_yield(&mut self, block: &mut IrBlock, span: Span) {
         self.current_yield_state += 1;
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CoroYield, result: None,
@@ -72,7 +74,7 @@ impl IrGenerator {
         self.coroutine_state_blocks.push(new_id.clone());
         self.block_counter += 1;
         let old_block = std::mem::replace(block, IrBlock::new(new_id));
-        block_stack.push(old_block);
+        self.block_stack.push(old_block);
     }
 
     fn handle_func_def(&mut self, block: &mut IrBlock, fd: &FuncDefinition) {
@@ -81,7 +83,9 @@ impl IrGenerator {
 
         let saved_symbols = self.symbols.clone();
         let saved_used = self.used_functions.clone();
-        let saved_block = self.block_counter;
+        let saved_block_counter = self.block_counter;
+        let saved_loop_exit = self.loop_exit_stack.clone();
+        let saved_loop_depth = self.loop_depth;
 
         let param_types: Vec<IrType> = fd.signature.parameters.as_ref()
             .map(|args| args.iter().map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t))).collect())
@@ -96,7 +100,9 @@ impl IrGenerator {
 
         self.symbols = saved_symbols;
         self.used_functions = saved_used;
-        self.block_counter = saved_block;
+        self.block_counter = saved_block_counter;
+        self.loop_exit_stack = saved_loop_exit;
+        self.loop_depth = saved_loop_depth;
 
         let func_type = IrType::Function(param_types, Box::new(ret_type));
         if !self.symbols.is_declared(&fd.signature.name.name) {

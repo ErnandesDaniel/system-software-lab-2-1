@@ -47,10 +47,20 @@ pub struct IrLocal {
 pub enum IrType {
     Void,
     Bool,
+    Byte,
     Int,
+    Uint,
+    Long,
+    Ulong,
+    Char,
     String,
     Array(Box<IrType>, usize),
     Function(Vec<IrType>, Box<IrType>),
+    Struct {
+        name: String,
+        fields: Vec<(String, IrType)>,
+        size: usize,
+    },
 }
 
 impl IrType {
@@ -59,9 +69,12 @@ impl IrType {
     pub fn size(&self) -> u32 {
         match self {
             IrType::Void => 0,
-            IrType::Bool | IrType::Int => 4,
+            IrType::Bool | IrType::Byte | IrType::Char => 4,
+            IrType::Int | IrType::Uint => 4,
+            IrType::Long | IrType::Ulong => 8,
             IrType::String | IrType::Function(_, _) => 8,
             IrType::Array(elem, size) => elem.size() * *size as u32,
+            IrType::Struct { size, .. } => *size as u32,
         }
     }
 
@@ -70,14 +83,62 @@ impl IrType {
         matches!(self, IrType::String | IrType::Function(_, _))
     }
 
+    /// Get the name of a struct type, if this is a Struct variant
+    #[must_use]
+    pub fn struct_name(&self) -> Option<&str> {
+        match self {
+            IrType::Struct { name, .. } => Some(name.as_str()),
+            _ => None,
+        }
+    }
+
+    /// Get the fields of a struct type, if this is a Struct variant
+    #[must_use]
+    pub fn struct_fields(&self) -> Option<&[(String, IrType)]> {
+        match self {
+            IrType::Struct { fields, .. } => Some(fields.as_slice()),
+            _ => None,
+        }
+    }
+
     #[must_use]
     pub fn is_int_like(&self) -> bool {
-        matches!(self, IrType::Int)
+        matches!(self, IrType::Byte | IrType::Int | IrType::Uint | IrType::Long | IrType::Ulong | IrType::Char)
     }
 
     #[must_use]
     pub fn is_bool(&self) -> bool {
         matches!(self, IrType::Bool)
+    }
+
+    #[must_use]
+    pub fn is_byte(&self) -> bool {
+        matches!(self, IrType::Byte | IrType::Char)
+    }
+
+    #[must_use]
+    pub fn is_uint(&self) -> bool {
+        matches!(self, IrType::Uint)
+    }
+
+    #[must_use]
+    pub fn is_long(&self) -> bool {
+        matches!(self, IrType::Long | IrType::Ulong)
+    }
+
+    /// JVM descriptor for this type
+    pub fn jvm_descriptor(&self) -> String {
+        match self {
+            IrType::Void => "V".to_string(),
+            IrType::Bool => "Z".to_string(),
+            IrType::Byte => "B".to_string(),
+            IrType::Int | IrType::Uint | IrType::Char => "I".to_string(),
+            IrType::Long | IrType::Ulong => "J".to_string(),
+            IrType::String => "[B".to_string(),
+            IrType::Array(elem, _) => format!("[{}", elem.jvm_descriptor()),
+            IrType::Function(_, _) => "Ljava/lang/Object;".to_string(),
+            IrType::Struct { .. } => "I".to_string(),
+        }
     }
 }
 
@@ -318,7 +379,6 @@ pub enum IrOpcode {
     StrGetByte,
     StrSetByte,
     Neg,
-    Pos,
     Assign,
     Call,
     Jump,
@@ -327,8 +387,6 @@ pub enum IrOpcode {
     Load,
     Store,
     Slice,
-    Alloca,
-    Cast,
     CoroYield,
     CallIndirect,
     MakeClosure,
@@ -354,6 +412,22 @@ pub enum Constant {
     Array(Vec<Constant>),
 }
 
+impl Constant {
+    #[must_use]
+    pub fn get_type(&self) -> IrType {
+        match self {
+            Constant::Int(_) => IrType::Int,
+            Constant::Bool(_) => IrType::Bool,
+            Constant::String(_) => IrType::String,
+            Constant::Char(_) => IrType::Char,
+            Constant::Array(elems) => {
+                let elem_ty = elems.first().map_or(IrType::Int, |e| e.get_type());
+                IrType::Array(Box::new(elem_ty), elems.len())
+            }
+        }
+    }
+}
+
 #[allow(dead_code)]
 impl IrOperand {
     #[must_use]
@@ -363,7 +437,12 @@ impl IrOperand {
             IrOperand::Constant(c) => match c {
                 Constant::Bool(_) => IrType::Bool,
                 Constant::String(_) => IrType::String,
-                Constant::Int(_) | Constant::Char(_) | Constant::Array(_) => IrType::Int,
+                Constant::Int(_) => IrType::Int,
+                Constant::Char(_) => IrType::Char,
+                Constant::Array(elems) => {
+                    let elem_ty = elems.first().map_or(IrType::Int, |e| e.get_type());
+                    IrType::Array(Box::new(elem_ty), elems.len())
+                }
             },
             IrOperand::FuncRef(_) => IrType::Function(Vec::new(), Box::new(IrType::Int)),
         }

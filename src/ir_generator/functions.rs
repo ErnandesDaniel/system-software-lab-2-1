@@ -28,13 +28,13 @@ impl IrGenerator {
             self.symbols.define_local(&param.name, param.ty.clone());
         }
         self.used_functions.clear();
-        let mut block_stack = Vec::new();
+        self.block_stack.clear();
         let entry_id = format!("BB{}", self.block_counter);
         let mut current_block = IrBlock::new(entry_id.clone());
         self.block_counter += 1;
 
         for stmt in &def.body {
-            self.visit_statement(&mut current_block, &mut block_stack, stmt);
+            self.visit_statement(&mut current_block, stmt);
         }
 
         if matches!(return_type, IrType::Void) {
@@ -50,10 +50,7 @@ impl IrGenerator {
             });
         }
 
-        let mut blocks = Vec::new();
-        for block in block_stack.drain(..) {
-            blocks.push(block);
-        }
+        let mut blocks: Vec<IrBlock> = std::mem::take(&mut self.block_stack);
         blocks.push(current_block);
         if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
             if pos != 0 {
@@ -101,7 +98,7 @@ impl IrGenerator {
             self.symbols.define_local(&param.name, param.ty.clone());
         }
         self.used_functions.clear();
-        let mut block_stack = Vec::new();
+        self.block_stack.clear();
         let entry_id = format!("BB{}", self.block_counter);
         let mut current_block = IrBlock::new(entry_id.clone());
         self.block_counter += 1;
@@ -109,13 +106,10 @@ impl IrGenerator {
         self.coroutine_state_blocks = vec![entry_id.clone()];
 
         for stmt in &def.body {
-            self.visit_statement(&mut current_block, &mut block_stack, stmt);
+            self.visit_statement(&mut current_block, stmt);
         }
 
-        let mut blocks = Vec::new();
-        for block in block_stack.drain(..) {
-            blocks.push(block);
-        }
+        let mut blocks: Vec<IrBlock> = std::mem::take(&mut self.block_stack);
         blocks.push(current_block);
         if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
             if pos != 0 {

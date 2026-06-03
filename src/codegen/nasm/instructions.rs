@@ -28,16 +28,13 @@ impl AsmGenerator {
             IrOpcode::CondBr => self.generate_cond_br(inst),
             IrOpcode::Load => self.generate_load(inst),
             IrOpcode::Slice => self.generate_slice(inst),
-            IrOpcode::Alloca => {}
             IrOpcode::BitNot => self.generate_bitnot(inst),
             IrOpcode::BitAnd => self.binary_op(inst, "and"),
             IrOpcode::BitOr => self.binary_op(inst, "or"),
             IrOpcode::BitXor => self.binary_op(inst, "xor"),
-            IrOpcode::Pos => self.generate_pos(inst),
             IrOpcode::StrGetByte => self.generate_str_get_byte(inst),
             IrOpcode::StrSetByte => self.generate_str_set_byte(inst),
             IrOpcode::Store => self.generate_store(inst),
-            IrOpcode::Cast => {}
             IrOpcode::CoroYield => self.generate_yield(inst),
             IrOpcode::CallIndirect => self.generate_call_indirect(inst),
             IrOpcode::MakeClosure => self.generate_make_closure(inst),

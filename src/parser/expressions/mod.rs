@@ -2,7 +2,7 @@ mod infix;
 mod prefix;
 
 use super::Parser;
-use crate::ast::{Expr, Span};
+use crate::ast::Expr;
 use crate::lexer::Token;
 
 impl Parser<'_> {
@@ -77,18 +77,4 @@ impl Parser<'_> {
     }
 }
 
-impl Expr {
-    #[must_use]
-    pub fn span(&self) -> Span {
-        match self {
-            Expr::Binary(e) => e.span,
-            Expr::Unary(e) => e.span,
-            Expr::Parenthesized(e) | Expr::FieldAccess(e, _) => e.span(),
-            Expr::Call(c) => c.span,
-            Expr::Slice(e) => e.span,
-            Expr::Identifier(id) => id.span,
-            Expr::FuncLiteral(f) => f.span,
-            Expr::Literal(_, s) | Expr::ArrayLiteral(_, s) => *s,
-        }
-    }
-}
+

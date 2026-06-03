@@ -17,7 +17,6 @@ impl JvmGenerator {
             IrOpcode::Div => self.generate_binary_op(code, inst, BinaryOp::Div),
             IrOpcode::Mod => self.generate_binary_op(code, inst, BinaryOp::Mod),
             IrOpcode::Neg => self.generate_neg(code, inst),
-            IrOpcode::Pos => self.generate_pos(code, inst),
             IrOpcode::And => self.generate_logical_and(code, inst, global_offset),
             IrOpcode::Or => self.generate_logical_or(code, inst, global_offset),
             IrOpcode::Not => self.generate_logical_not(code, inst, global_offset),
@@ -37,9 +36,7 @@ impl JvmGenerator {
             IrOpcode::CondBr => self.generate_conditional_branch(code, inst),
             IrOpcode::Load => self.generate_array_load(code, inst),
             IrOpcode::Slice => self.generate_slice(code, inst),
-            IrOpcode::Alloca => {}
             IrOpcode::Store => self.generate_store(code, inst),
-            IrOpcode::Cast => {}
             IrOpcode::CoroYield => self.generate_coro_yield(code, inst),
             IrOpcode::CallIndirect => self.generate_call_indirect(code, inst),
             IrOpcode::MakeClosure => self.generate_make_closure(code, inst),

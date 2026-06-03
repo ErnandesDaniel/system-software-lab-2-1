@@ -4,6 +4,11 @@ use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
     pub fn visit_binary_expr(&mut self, block: &mut IrBlock, expr: &BinaryExpr) -> (String, IrType) {
+        // Short-circuit evaluation for && and ||
+        if matches!(expr.operator, BinaryOp::And | BinaryOp::Or) {
+            return self.visit_short_circuit(block, expr);
+        }
+
         let (left_temp, left_type) = self.visit_expr(block, &expr.left);
         let (right_temp, right_type) = self.visit_expr(block, &expr.right);
 
@@ -24,8 +29,6 @@ impl IrGenerator {
             BinaryOp::Greater => (IrOpcode::Gt, IrType::Bool),
             BinaryOp::LessOrEqual => (IrOpcode::Le, IrType::Bool),
             BinaryOp::GreaterOrEqual => (IrOpcode::Ge, IrType::Bool),
-            BinaryOp::And => (IrOpcode::And, IrType::Bool),
-            BinaryOp::Or => (IrOpcode::Or, IrType::Bool),
             BinaryOp::BitAnd => (IrOpcode::BitAnd, IrType::Int),
             BinaryOp::BitOr => (IrOpcode::BitOr, IrType::Int),
             BinaryOp::BitXor => (IrOpcode::BitXor, IrType::Int),
@@ -45,6 +48,85 @@ impl IrGenerator {
         (result_temp, result_type)
     }
 
+    /// Short-circuit evaluation for `&&` and `||`:
+    /// Produces 3 blocks:
+    ///   ┌─ left block (caller's current block): evaluate a, cond_br → eval_right / shortcut
+    ///   ├─ eval_right: evaluate b, result = b, jump continue
+    ///   ├─ shortcut:   result = shortcut_value, jump continue
+    ///   └─ continue:   (caller continues here with result_temp ready)
+    fn visit_short_circuit(&mut self, block: &mut IrBlock, expr: &BinaryExpr) -> (String, IrType) {
+        let is_and = matches!(expr.operator, BinaryOp::And);
+        let result_temp = self.generate_temp();
+        let eval_right_id = self.generate_block_id();
+        let shortcut_id = self.generate_block_id();
+        let continue_id = self.generate_block_id();
+
+        // Evaluate left operand
+        let (left_temp, _) = self.visit_expr(block, &expr.left);
+
+        // For && : if left is false → shortcut (result=false), else eval_right
+        // For || : if left is true  → shortcut (result=true),  else eval_right
+        let shortcut_val = if is_and { 0i64 } else { 1i64 };
+        let (true_target, false_target) = if is_and {
+            (eval_right_id.clone(), shortcut_id.clone())
+        } else {
+            (shortcut_id.clone(), eval_right_id.clone())
+        };
+
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::CondBr,
+            result: None, result_type: None,
+            operands: vec![IrOperand::Variable(left_temp, IrType::Bool)],
+            jump_target: None,
+            true_target: Some(true_target),
+            false_target: Some(false_target),
+            span: expr.span,
+        });
+        block.successors.push(eval_right_id.clone());
+        block.successors.push(shortcut_id.clone());
+
+        // Save current block (left block) to block_stack, switch to eval_right
+        let old_block = std::mem::replace(block, IrBlock::new(eval_right_id));
+        self.block_stack.push(old_block);
+
+        // Evaluate right operand in eval_right block
+        let (right_temp, _) = self.visit_expr(block, &expr.right);
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::Assign,
+            result: Some(result_temp.clone()),
+            result_type: Some(IrType::Bool),
+            operands: vec![IrOperand::Variable(right_temp, IrType::Bool)],
+            jump_target: None, true_target: None, false_target: None,
+            span: expr.span,
+        });
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::Jump, result: None, result_type: None,
+            operands: vec![], jump_target: Some(continue_id.clone()),
+            true_target: None, false_target: None, span: expr.span,
+        });
+        block.successors.push(continue_id.clone());
+        self.block_stack.push(std::mem::replace(block, IrBlock::new(shortcut_id)));
+
+        // Shortcut block: assign shortcut value, then jump to continue
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::Assign,
+            result: Some(result_temp.clone()),
+            result_type: Some(IrType::Bool),
+            operands: vec![IrOperand::Constant(Constant::Int(shortcut_val))],
+            jump_target: None, true_target: None, false_target: None,
+            span: expr.span,
+        });
+        block.instructions.push(IrInstruction {
+            opcode: IrOpcode::Jump, result: None, result_type: None,
+            operands: vec![], jump_target: Some(continue_id.clone()),
+            true_target: None, false_target: None, span: expr.span,
+        });
+        block.successors.push(continue_id.clone());
+        self.block_stack.push(std::mem::replace(block, IrBlock::new(continue_id)));
+
+        (result_temp, IrType::Bool)
+    }
+
     fn visit_assign(
         &mut self, block: &mut IrBlock, expr: &BinaryExpr,
         _left_temp: &str, _left_type: &IrType,
@@ -57,17 +139,17 @@ impl IrGenerator {
             Expr::Slice(slice) => {
                 self.assign_to_slice(block, expr, slice, right_temp, right_type);
             }
-            _ => {
-                let target_name = match expr.left.as_ref() {
-                    Expr::Identifier(id) => id.name.clone(),
-                    _ => String::new(),
-                };
-
-                if !target_name.is_empty() && self.captured_vars.contains_key(&target_name) {
-                    return self.assign_to_captured(block, expr, &target_name, right_temp, right_type);
+            left if matches!(left, Expr::Identifier(id) if self.captured_vars.contains_key(&id.name)) => {
+                if let Expr::Identifier(id) = left {
+                    return self.assign_to_captured(block, expr, &id.name, right_temp, right_type);
                 }
-
-                self.assign_to_identifier(block, expr, &target_name, right_temp, right_type);
+                unreachable!()
+            }
+            Expr::Identifier(id) => {
+                self.assign_to_identifier(block, expr, &id.name, right_temp, right_type);
+            }
+            _ => {
+                self.assign_to_identifier(block, expr, "", right_temp, right_type);
             }
         }
         (right_temp.to_string(), right_type.clone())
@@ -97,11 +179,14 @@ impl IrGenerator {
                 return;
             }
         }
-        let (base_name, total_offset) = self.resolve_field_chain(expr.left.as_ref());
+
+        let (base_name, base_offset) = self.resolve_field_chain(expr.left.as_ref());
+        let (base_type, total_offset, _) = self.resolve_field_info(&base_name, inner_base, field, base_offset);
+
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Store, result: None, result_type: None,
             operands: vec![
-                IrOperand::Variable(base_name, IrType::Int),
+                IrOperand::Variable(base_name, base_type),
                 IrOperand::Constant(Constant::Int(total_offset as i64)),
                 IrOperand::Variable(right_temp.to_string(), right_type.clone()),
             ],
@@ -114,27 +199,16 @@ impl IrGenerator {
         slice: &crate::ast::SliceExpr,
         right_temp: &str, right_type: &IrType,
     ) {
-        if let Expr::FieldAccess(_, _) = slice.array.as_ref() {
-            if let Some(range) = slice.ranges.first() {
-                let (idx, _) = self.visit_expr(block, &range.start);
-                let (base_name, total_offset) = self.resolve_field_chain(slice.array.as_ref());
-                block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Store, result: None, result_type: None,
-                    operands: vec![
-                        IrOperand::Variable(base_name, IrType::Int),
-                        IrOperand::Constant(Constant::Int(total_offset as i64)),
-                        IrOperand::Variable(right_temp.to_string(), right_type.clone()),
-                        IrOperand::Variable(idx, IrType::Int),
-                    ],
-                    jump_target: None, true_target: None, false_target: None, span: expr.span,
-                });
-                return;
-            }
-        }
         if let Some(range) = slice.ranges.first() {
             let (idx, _) = self.visit_expr(block, &range.start);
             let (base_name, base_type) = self.visit_expr(block, &slice.array);
-            let opcode = if base_type == IrType::String { IrOpcode::StrSetByte } else { IrOpcode::Store };
+
+            let opcode = if base_type == IrType::String {
+                IrOpcode::StrSetByte
+            } else {
+                IrOpcode::Store
+            };
+
             let operands = if matches!(base_type, IrType::String) {
                 vec![
                     IrOperand::Variable(base_name, base_type.clone()),
@@ -144,11 +218,11 @@ impl IrGenerator {
             } else {
                 vec![
                     IrOperand::Variable(base_name, base_type.clone()),
-                    IrOperand::Constant(Constant::Int(0)),
-                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                     IrOperand::Variable(idx, IrType::Int),
+                    IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                 ]
             };
+
             block.instructions.push(IrInstruction {
                 opcode, result: None, result_type: None,
                 operands,
@@ -161,7 +235,7 @@ impl IrGenerator {
         &mut self, block: &mut IrBlock, expr: &BinaryExpr,
         target_name: &str, right_temp: &str, right_type: &IrType,
     ) {
-        let name = if target_name.is_empty() { String::new() } else { target_name.to_string() };
+        let name = target_name.to_string();
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Assign, result: Some(name.clone()),
             result_type: Some(right_type.clone()),

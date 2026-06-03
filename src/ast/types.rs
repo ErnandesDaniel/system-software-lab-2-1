@@ -306,3 +306,37 @@ impl From<std::ops::Range<usize>> for Span {
         Span::new(r.start, r.end)
     }
 }
+
+impl Expr {
+    pub fn span(&self) -> Span {
+        match self {
+            Expr::Binary(b) => b.span,
+            Expr::Unary(u) => u.span,
+            Expr::Parenthesized(inner) => inner.span(),
+            Expr::Call(c) => c.span,
+            Expr::Slice(s) => s.span,
+            Expr::ArrayLiteral(_, s) => *s,
+            Expr::FieldAccess(_, id) => id.span,
+            Expr::Identifier(id) => id.span,
+            Expr::Literal(_, s) => *s,
+            Expr::FuncLiteral(f) => f.span,
+        }
+    }
+}
+
+impl Statement {
+    pub fn span(&self) -> Span {
+        match self {
+            Statement::Return(s) => s.span,
+            Statement::If(s) => s.span,
+            Statement::Loop(s) => s.span,
+            Statement::Repeat(s) => s.span,
+            Statement::Break(s) => s.span,
+            Statement::Expression(s) => s.span,
+            Statement::Block(s) => s.span,
+            Statement::VarDecl(s) => s.span,
+            Statement::Yield(s) => s.span,
+            Statement::FuncDef(s) => s.span,
+        }
+    }
+}

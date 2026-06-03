@@ -67,7 +67,7 @@ impl AsmGenerator {
                 if let IrOperand::Variable(name, ty) = &inst.operands[0] {
                     if let Some(local_off) = self.locals.get(name) {
                         self.output.push_str(&format!("    mov {result_reg}, [rbp + {local_off}]\n"));
-                    } else if self.global_names.contains(name) && matches!(ty, IrType::Array(_, _)) {
+                    } else if self.global_names.contains(name) && (matches!(ty, IrType::Array(_, _)) || matches!(ty, IrType::Struct { .. })) {
                         let reg = if result_reg != "rax" { "rax" } else { result_reg };
                         self.output.push_str(&format!("    lea {reg}, [rel {name}]\n"));
                         if reg != result_reg {
@@ -209,8 +209,10 @@ impl AsmGenerator {
 
     pub(crate) fn array_elem_stride(inst: &IrInstruction) -> i64 {
         if let Some(IrOperand::Variable(_, ty)) = inst.operands.first() {
-            if let IrType::Array(elem_type, _) = ty {
-                return elem_type.size() as i64;
+            match ty {
+                IrType::Array(elem_type, _) => return elem_type.size() as i64,
+                IrType::Struct { size, .. } => return *size as i64,
+                _ => {}
             }
         }
         4
