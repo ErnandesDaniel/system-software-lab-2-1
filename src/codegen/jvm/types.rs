@@ -1,5 +1,6 @@
 use crate::ir::types::IrType;
 
+#[derive(Debug, Clone, PartialEq)]
 pub enum BinaryOp {
     Add,
     Sub,

@@ -75,6 +75,19 @@ impl JvmGenerator {
 
     fn generate_binary_op(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, op: BinaryOp) {
         if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+            // string + int → pointer arithmetic: slice from offset to end
+            if op == BinaryOp::Add && left.get_type().is_pointer() {
+                self.emit_load_operand(code, left);
+                self.emit_load_operand(code, right);
+                self.emit_load_operand(code, left);
+                code.push(Instruction::Arraylength);
+                if self.pool.string_slice_ref != 0 {
+                    code.push(Instruction::Invokestatic(self.pool.string_slice_ref));
+                }
+                self.emit_store_result(code, result, &IrType::String);
+                return;
+            }
+
             self.emit_load_operand(code, left);
             self.emit_load_operand(code, right);
 

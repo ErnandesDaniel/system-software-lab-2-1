@@ -88,7 +88,7 @@ impl StdLib {
             ("exit", ("code: int", "")),
             ("memcpy", ("dest: string, src: string, n: int", "string")),
             ("strchr", ("s: string, c: int", "string")),
-            ("fopen", ("filename: string, mode: string", "string")),
+            ("fopen", ("filename: string, mode: string", "int")),
             ("fclose", ("file: string", "int")),
             ("fgets", ("buf: string, maxcount: int, file: string", "string")),
             ("fgetc", ("file: string", "int")),

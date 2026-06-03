@@ -167,7 +167,10 @@ impl JvmGenerator {
 
     fn collect_slice_ref(&mut self, inst: &crate::ir::IrInstruction) {
         if inst.opcode != IrOpcode::Slice {
-            return;
+            // Also collect for pointer Add (string + int) used in JVM codegen
+            if inst.opcode != IrOpcode::Add { return; }
+            let has_ptr = inst.operands.first().is_some_and(|o| o.get_type().is_pointer());
+            if !has_ptr { return; }
         }
         if self.pool.string_slice_ref != 0 {
             return;

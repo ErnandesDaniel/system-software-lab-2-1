@@ -256,6 +256,44 @@ impl JvmGenerator {
             }],
         });
 
+        // === string_slice([BII)[B ===
+        let ss_name = self.pool.constant_pool.add_utf8("string_slice").expect("utf8");
+        let ss_desc = self.pool.constant_pool.add_utf8("([BII)[B").expect("utf8");
+        let system_class = self.pool.constant_pool.add_class("java/lang/System").expect("class");
+        let arraycopy_ref = self.pool.constant_pool.add_method_ref(system_class, "arraycopy", "(Ljava/lang/Object;ILjava/lang/Object;II)V").expect("mref");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: ss_name,
+            descriptor_index: ss_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 5, max_locals: 5,
+                code: vec![
+                    // len = end - start
+                    Instruction::Iload_2,
+                    Instruction::Iload_1,
+                    Instruction::Isub,
+                    Instruction::Dup,
+                    Instruction::Istore(4),
+                    // byte[] result = new byte[len]
+                    Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Byte),
+                    Instruction::Astore(3),
+                    // System.arraycopy(arr, start, result, 0, len)
+                    Instruction::Aload_0,
+                    Instruction::Iload_1,
+                    Instruction::Aload(3),
+                    Instruction::Iconst_0,
+                    Instruction::Iload(4),
+                    Instruction::Invokestatic(arraycopy_ref),
+                    // return result
+                    Instruction::Aload(3),
+                    Instruction::Areturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
         // === atoi([B)I ===
         let atoi_name = self.pool.constant_pool.add_utf8("atoi").expect("utf8");
         let atoi_desc = self.pool.constant_pool.add_utf8("([B)I").expect("utf8");
