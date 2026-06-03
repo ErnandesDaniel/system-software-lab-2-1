@@ -8,7 +8,7 @@ import malloc;
 import putchar;
 
 // ============================================================
-// Pipe: FIFO of ints for streaming data between stages
+// Pipe
 // ============================================================
 struct Pipe { arr of int[256]; head of int; tail of int; count of int; }
 
@@ -26,9 +26,11 @@ def col_drain(p of Pipe) {
 }
 
 // ============================================================
-// Row buffer — one line at a time (streaming)
+// Global buffers
 // ============================================================
 global row_buf of string;
+global col_pipe of Pipe;
+global co of int[20];
 
 def read_line(f of int) of int {
     pos = 0;
@@ -40,142 +42,541 @@ def read_line(f of int) of int {
     }
 }
 
-// Parse current row_buf as CSV. Writes column offsets to pipe, null-terminates columns.
-def parse_csv(col_pipe of Pipe) of int {
+def parse_row() of int {
     if (row_buf[0] == 0) { return 0; }
     p_init(col_pipe);
     p_write(col_pipe, 0);
-    i = 0;
+    i = 0; n = 0;
     while (true) {
         c = row_buf[i];
         if (c == 0) { break; }
-        if (c == 44) { row_buf[i] = 0; p_write(col_pipe, i + 1); }
+        if (c == 44) { row_buf[i] = 0; p_write(col_pipe, i + 1); n = n + 1; }
         i = i + 1;
     }
     p_write(col_pipe, -1);
+    co[0] = p_read(col_pipe);
+    ci = 1;
+    while (ci <= n) {
+        co[ci] = p_read(col_pipe);
+        ci = ci + 1;
+    }
+    col_drain(col_pipe);
+    return n + 1;
+}
+
+// ============================================================
+// String utils
+// ============================================================
+
+def str_save(buf of string, pos of int, src of int) of int {
+    dst = pos;
+    while (true) {
+        c = row_buf[src];
+        buf[dst] = c;
+        if (c == 0) { break; }
+        src = src + 1; dst = dst + 1;
+    }
+    return dst + 1;
+}
+
+def str_eq(buf of string, a of int, b of int) of int {
+    i = 0;
+    while (true) {
+        ca = buf[a + i]; cb = buf[b + i];
+        if (ca != cb) { return 0; }
+        if (ca == 0) { return 1; }
+        i = i + 1;
+    }
+}
+
+def str_eq_lit(buf of string, off of int, lit of string) of int {
+    i = 0;
+    while (true) {
+        bc = buf[off + i]; lc = lit[i];
+        if (bc != lc) { return 0; }
+        if (bc == 0) { return 1; }
+        i = i + 1;
+    }
+}
+
+def str_gt_lit(buf of string, off of int, lit of string) of int {
+    i = 0;
+    while (true) {
+        bc = buf[off + i]; lc = lit[i];
+        if (bc == 0 && lc == 0) { return 0; }
+        if (bc == 0) { return -1; }
+        if (lc == 0) { return 1; }
+        if (bc != lc) { return bc - lc; }
+        i = i + 1;
+    }
+}
+
+def str_empty(buf of string, off of int) of int {
+    if (buf[off] == 0) { return 1; }
     return 0;
 }
 
-// Print null-terminated string from buffer starting at 'ofs'
 def print_str(buf of string, ofs of int) {
     i = ofs;
     while (true) {
         c = buf[i];
         if (c == 0) { break; }
-        putchar(c);
-        i = i + 1;
+        putchar(c); i = i + 1;
     }
 }
 
 // ============================================================
-// Type name storage (separate from row_buf)
+// Data arrays
 // ============================================================
-global type_buf of string;
-global type_pos of int = 0;
-global t_id of int[10];
-global t_nm of int[10];
-global t_n of int;
 
-// Copy string from row_buf at 'src_ofs' into type_buf, return offset in type_buf
-def save_type_name(src_ofs of int) of int {
-    dst = type_pos;
-    while (true) {
-        c = row_buf[src_ofs];
-        if (c == 0) { break; }
-        type_buf[dst] = c;
-        src_ofs = src_ofs + 1;
-        dst = dst + 1;
-    }
-    type_buf[dst] = 0;
-    result = type_pos;
-    type_pos = dst + 1;
-    return result;
-}
+// types_vedomostei
+global tv_buf of string;
+global tv_id of int[10];
+global tv_name of int[10];
+global tv_n of int;
+
+// people
+global pp_buf of string;
+global pp_id of int[100];
+global pp_surname of int[100];
+global pp_name of int[100];
+global pp_patr of int[100];
+global pp_bday of int[100];
+global pp_n of int;
+
+// studies
+global st_buf of string;
+global st_pid of int[100];
+global st_form of int[100];
+global st_fac of int[100];
+global st_course of int[100];
+global st_n of int;
+
+// students
+global sd_buf of string;
+global sd_pid of int[100];
+global sd_group of int[100];
+global sd_start of int[100];
+global sd_n of int;
+
+// vedomosti
+global vv_buf of string;
+global vv_tid of int[100];
+global vv_pid of int[100];
+global vv_mark of int[100];
+global vv_date of int[100];
+global vv_n of int;
+
+// group_plans
+global gp_buf of string;
+global gp_pid of int[50];
+global gp_group of int[50];
+global gp_dept of int[50];
+global gp_n of int;
+
+// helpers
+global w of int[100];
 
 // ============================================================
-// Q1: INNER JOIN types_vedomostei + vedomosti
-// Condition: tv.id = 3 (DiffPass) AND v.person_id > 153285
-// Output: NAME, DATE
-//
-// Pipeline (streaming):
-//   1. Read types_vedomostei row by row, save names in type_buf
-//   2. Stream vedomosti row by row: parse → filter → output
+// Loaders
 // ============================================================
 
 def load_types(fn of string) of int {
     f = fopen(fn, "r");
     if (f == 0) { return -1; }
     read_line(f);
-    t_n = 0;
-    col of Pipe; p_init(col);
-
+    tv_n = 0;
+    tv_buf = malloc(1000);
+    pos = 0;
     while (true) {
         if (read_line(f) == -1) { break; }
-        parse_csv(col);
-        p_read(col);           // col 0 (id, skip)
-        nm_s = p_read(col);    // col 1 (name)
-        col_drain(col);
-
-        // Read id again for t_id
-        t_id[t_n] = atoi(row_buf + 0);
-        t_nm[t_n] = save_type_name(nm_s);
-        t_n = t_n + 1;
+        parse_row();
+        tv_id[tv_n] = atoi(row_buf + co[0]);
+        tv_name[tv_n] = pos;
+        pos = str_save(tv_buf, pos, co[1]);
+        tv_n = tv_n + 1;
     }
     fclose(f);
-    return t_n;
+    return tv_n;
 }
 
-def query1_stream(fn of string) of int {
+def load_people(fn of string) of int {
     f = fopen(fn, "r");
     if (f == 0) { return -1; }
     read_line(f);
-    col of Pipe; p_init(col);
-    found = 0;
-
+    pp_n = 0;
+    pp_buf = malloc(5000);
+    pos = 0;
     while (true) {
         if (read_line(f) == -1) { break; }
-        parse_csv(col);
-        p_read(col);         // col 0 (id)
-        tid_s = p_read(col); // col 1 (type_id)
-        pid_s = p_read(col); // col 2 (person_id)
-        dt_s  = p_read(col); // col 3 (date)
-        col_drain(col);
+        parse_row();
+        pp_id[pp_n] = atoi(row_buf + co[0]);
+        pp_surname[pp_n] = pos; pos = str_save(pp_buf, pos, co[1]);
+        pp_name[pp_n] = pos; pos = str_save(pp_buf, pos, co[2]);
+        pp_patr[pp_n] = pos; pos = str_save(pp_buf, pos, co[3]);
+        pp_bday[pp_n] = pos; pos = str_save(pp_buf, pos, co[4]);
+        pp_n = pp_n + 1;
+    }
+    fclose(f);
+    return pp_n;
+}
 
-        tid = atoi(row_buf + tid_s);
-        pid = atoi(row_buf + pid_s);
+def load_studies(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
+    st_n = 0;
+    st_buf = malloc(5000);
+    pos = 0;
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_row();
+        st_pid[st_n] = atoi(row_buf + co[0]);
+        st_form[st_n] = pos; pos = str_save(st_buf, pos, co[2]);
+        st_fac[st_n] = pos; pos = str_save(st_buf, pos, co[5]);
+        st_course[st_n] = atoi(row_buf + co[6]);
+        st_n = st_n + 1;
+    }
+    fclose(f);
+    return st_n;
+}
 
-        if (tid == 3 && pid > 153285) {
+def load_students(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
+    sd_n = 0;
+    sd_buf = malloc(5000);
+    pos = 0;
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_row();
+        sd_pid[sd_n] = atoi(row_buf + co[0]);
+        sd_group[sd_n] = pos; pos = str_save(sd_buf, pos, co[1]);
+        sd_start[sd_n] = pos; pos = str_save(sd_buf, pos, co[2]);
+        sd_n = sd_n + 1;
+    }
+    fclose(f);
+    return sd_n;
+}
+
+def load_vedomosti(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
+    vv_n = 0;
+    vv_buf = malloc(5000);
+    pos = 0;
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_row();
+        vv_tid[vv_n] = atoi(row_buf + co[1]);
+        vv_pid[vv_n] = atoi(row_buf + co[2]);
+        vv_mark[vv_n] = atoi(row_buf + co[4]);
+        vv_date[vv_n] = pos; pos = str_save(vv_buf, pos, co[3]);
+        vv_n = vv_n + 1;
+    }
+    fclose(f);
+    return vv_n;
+}
+
+def load_group_plans(fn of string) of int {
+    f = fopen(fn, "r");
+    if (f == 0) { return -1; }
+    read_line(f);
+    gp_n = 0;
+    gp_buf = malloc(2000);
+    pos = 0;
+    while (true) {
+        if (read_line(f) == -1) { break; }
+        parse_row();
+        gp_pid[gp_n] = atoi(row_buf + co[0]);
+        gp_dept[gp_n] = pos; pos = str_save(gp_buf, pos, co[2]);
+        gp_n = gp_n + 1;
+    }
+    fclose(f);
+    return gp_n;
+}
+
+// ============================================================
+// Q1
+// ============================================================
+def q1() {
+    puts("=== Q1: INNER JOIN ===");
+    found = 0;
+    i = 0;
+    while (i < vv_n) {
+        if (vv_tid[i] == 3 && vv_pid[i] > 153285) {
             ti = 0;
-            while (ti < t_n) {
-                if (t_id[ti] == 3) {
-                    print_str(type_buf, t_nm[ti]);
-                    putchar(44);
-                    putchar(32);
-                    print_str(row_buf, dt_s);
+            while (ti < tv_n) {
+                if (tv_id[ti] == 3) {
+                    print_str(tv_buf, tv_name[ti]);
+                    putchar(44); putchar(32);
+                    print_str(vv_buf, vv_date[i]);
                     putchar(10);
                     found = found + 1;
                 }
                 ti = ti + 1;
             }
         }
+        i = i + 1;
     }
-    fclose(f);
-    return found;
+    printf("Found: %d\n", found);
 }
 
+// ============================================================
+// Q2
+// ============================================================
+def q2() {
+    puts("=== Q2: LEFT JOIN ===");
+    found = 0;
+    i = 0;
+    while (i < st_n) {
+        if (st_pid[i] == 163276) {
+            di = 0;
+            while (di < sd_n) {
+                if (sd_pid[di] == st_pid[i] && str_eq_lit(sd_buf, sd_start[di], "2008-09-01") != 0) {
+                    printf("%d, OK500, %d", st_pid[i], sd_pid[di]);
+                    putchar(10);
+                    found = found + 1;
+                }
+                di = di + 1;
+            }
+        }
+        i = i + 1;
+    }
+    printf("Found: %d\n", found);
+}
+
+// ============================================================
+// Q3
+// ============================================================
+def q3() {
+    puts("=== Q3: Count FCE without patronymic ===");
+    count = 0;
+    i = 0;
+    while (i < pp_n) {
+        if (str_empty(pp_buf, pp_patr[i]) != 0) {
+            si = 0;
+            while (si < st_n) {
+                if (st_pid[si] == pp_id[i] && str_eq_lit(st_buf, st_fac[si], "FCE") != 0) {
+                    di = 0;
+                    while (di < sd_n) {
+                        if (sd_pid[di] == pp_id[i]) {
+                            count = count + 1;
+                            break;
+                        }
+                        di = di + 1;
+                    }
+                    break;
+                }
+                si = si + 1;
+            }
+        }
+        i = i + 1;
+    }
+    printf("%d\n", count);
+}
+
+// ============================================================
+// Q4
+// ============================================================
+def q4() {
+    puts("=== Q4: Plans >2 groups on CE ===");
+    i = 0; while (i < 50) { w[i] = 0; i = i + 1; }
+    i = 0;
+    while (i < gp_n) {
+        if (w[i] == 0 && str_eq_lit(gp_buf, gp_dept[i], "Department of Computer Engineering") != 0) {
+            pid = gp_pid[i];
+            cnt = 0;
+            j = 0;
+            while (j < gp_n) {
+                if (gp_pid[j] == pid && str_eq_lit(gp_buf, gp_dept[j], "Department of Computer Engineering") != 0) {
+                    cnt = cnt + 1;
+                    w[j] = 1;
+                }
+                j = j + 1;
+            }
+            if (cnt > 2) {
+                printf("%d: %d groups\n", pid, cnt);
+            }
+        }
+        i = i + 1;
+    }
+}
+
+// ============================================================
+// Q5
+// ============================================================
+def group_avg(grp of string) of int {
+    sum = 0; cnt = 0;
+    i = 0;
+    while (i < sd_n) {
+        if (str_eq_lit(sd_buf, sd_group[i], grp) != 0) {
+            pid = sd_pid[i];
+            j = 0;
+            while (j < vv_n) {
+                if (vv_pid[j] == pid && vv_mark[j] >= 3) {
+                    sum = sum + vv_mark[j];
+                    cnt = cnt + 1;
+                }
+                j = j + 1;
+            }
+        }
+        i = i + 1;
+    }
+    if (cnt == 0) { return 0; }
+    return (sum * 10) / cnt;
+}
+
+def q5() {
+    puts("=== Q5: Avg grades 4100 >= 1100 ===");
+    avg1100 = group_avg("1100");
+    printf("Avg 1100 = %d\n", avg1100);
+    found = 0;
+    i = 0;
+    while (i < sd_n) {
+        if (str_eq_lit(sd_buf, sd_group[i], "4100") != 0) {
+            pid = sd_pid[i];
+            sum = 0; cnt = 0;
+            j = 0;
+            while (j < vv_n) {
+                if (vv_pid[j] == pid && vv_mark[j] >= 3) {
+                    sum = sum + vv_mark[j];
+                    cnt = cnt + 1;
+                }
+                j = j + 1;
+            }
+            if (cnt != 0) {
+                pavg = (sum * 10) / cnt;
+                if (pavg >= avg1100) {
+                    pi = 0;
+                    while (pi < pp_n) {
+                        if (pp_id[pi] == pid) {
+                            printf("%d", pid);
+                            putchar(44); putchar(32);
+                            print_str(pp_buf, pp_surname[pi]);
+                            putchar(32);
+                            print_str(pp_buf, pp_name[pi]);
+                            printf(" %d.%d\n", pavg / 10, pavg % 10);
+                            found = found + 1;
+                        }
+                        pi = pi + 1;
+                    }
+                }
+            }
+        }
+        i = i + 1;
+    }
+    printf("Found: %d\n", found);
+}
+
+// ============================================================
+// Q6
+// ============================================================
+def q6() {
+    puts("=== Q6: Enrolled after 2012-09-01, 1 course, part-time ===");
+    count = 0;
+    i = 0;
+    while (i < sd_n) {
+        if (str_gt_lit(sd_buf, sd_start[i], "2012-09-01") > 0) {
+            pid = sd_pid[i];
+            si = 0;
+            while (si < st_n) {
+                if (st_pid[si] == pid && str_eq_lit(st_buf, st_form[si], "part-time") != 0 && st_course[si] == 1) {
+                    count = count + 1;
+                    pi = 0;
+                    while (pi < pp_n) {
+                        if (pp_id[pi] == pid) {
+                            print_str(sd_buf, sd_group[i]);
+                            putchar(44); putchar(32);
+                            printf("%d", pid);
+                            putchar(44); putchar(32);
+                            print_str(pp_buf, pp_surname[pi]);
+                            putchar(32);
+                            print_str(pp_buf, pp_name[pi]);
+                            putchar(10);
+                        }
+                        pi = pi + 1;
+                    }
+                    break;
+                }
+                si = si + 1;
+            }
+        }
+        i = i + 1;
+    }
+    printf("Count: %d\n", count);
+}
+
+// ============================================================
+// Q7
+// ============================================================
+def q7() {
+    puts("=== Q7: Same surname, diff bday ===");
+    i = 0; while (i < 100) { w[i] = 0; i = i + 1; }
+    i = 0;
+    while (i < pp_n) {
+        j = i + 1;
+        while (j < pp_n) {
+            if (str_eq(pp_buf, pp_surname[i], pp_surname[j]) != 0) {
+                if (str_eq(pp_buf, pp_bday[i], pp_bday[j]) == 0) {
+                    w[i] = 1;
+                    w[j] = 1;
+                }
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    count = 0;
+    i = 0;
+    while (i < pp_n) {
+        if (w[i] != 0) {
+            print_str(pp_buf, pp_surname[i]);
+            putchar(44); putchar(32);
+            print_str(pp_buf, pp_name[i]);
+            putchar(44); putchar(32);
+            print_str(pp_buf, pp_bday[i]);
+            putchar(10);
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    printf("Groups: %d\n", count);
+}
+
+// ============================================================
+// Main
+// ============================================================
 def main() of int {
     row_buf = malloc(10000);
-    type_buf = malloc(1000);
-    if (row_buf == 0 || type_buf == 0) { puts("malloc failed"); return 1; }
+    if (row_buf == 0) { puts("malloc failed"); return 1; }
 
-    puts("=== Lab 2: Map-Reduce Pipeline (streaming) ===");
+    puts("=== Lab 2: Map-Reduce Pipeline ===");
 
-    n_types = load_types("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
-    printf("Types loaded: %d\n", n_types);
+    load_types("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv");
+    load_people("labs-examples/system-programms/lab-2/csv-data/people.csv");
+    load_studies("labs-examples/system-programms/lab-2/csv-data/studies.csv");
+    load_students("labs-examples/system-programms/lab-2/csv-data/students.csv");
+    load_vedomosti("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
+    load_group_plans("labs-examples/system-programms/lab-2/csv-data/group_plans.csv");
 
-    puts("=== Q1: INNER JOIN (DiffPass) ===");
-    n = query1_stream("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv");
-    printf("Found: %d\n", n);
+    printf("Types: %d\n", tv_n);
+    printf("People: %d\n", pp_n);
+    printf("Studies: %d\n", st_n);
+    printf("Students: %d\n", sd_n);
+    printf("Vedomosti: %d\n", vv_n);
+    printf("Plans: %d\n", gp_n);
 
+    q1();
+    q2();
+    q3();
+    q4();
+    q5();
+    q6();
+    q7();
+
+    puts("=== Done ===");
     return 0;
 }
