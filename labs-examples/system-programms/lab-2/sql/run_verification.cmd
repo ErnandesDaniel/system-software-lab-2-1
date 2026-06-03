@@ -3,15 +3,15 @@ chcp 65001 >nul
 setlocal enabledelayedexpansion
 
 echo ========================================
-echo  Лабораторная работа #2 — Верификация
+echo  Lab 2 — SQLite Verification
 echo ========================================
 echo.
 
-:: Проверка наличия sqlite3
+:: Check sqlite3 availability
 where sqlite3 >nul 2>nul
 if %errorlevel% neq 0 (
-    echo [ОШИБКА] sqlite3 не найден.
-    echo Установите: winget install SQLite.SQLite
+    echo [ERROR] sqlite3 not found.
+    echo Install: winget install SQLite.SQLite
     pause
     exit /b 1
 )
@@ -19,20 +19,20 @@ if %errorlevel% neq 0 (
 set DB=%~dp0ucheb_test.db
 set INIT=%~dp0init_abs.sql
 
-:: Удаляем старую БД
+:: Delete old DB
 if exist "%DB%" del "%DB%"
 
-:: Импорт данных
-echo [1/2] Импорт CSV-данных...
+:: Import data
+echo [1/2] Importing CSV data...
 sqlite3 "%DB%" < "%INIT%" >nul 2>&1
 
-:: Запросы
-echo [2/2] Выполнение запросов...
+:: Run queries
+echo [2/2] Running queries...
 echo.
 sqlite3 -header -column "%DB%" < "%~dp0queries.sql"
 
 echo.
 echo ========================================
-echo  Готово!
+echo  Done!
 echo ========================================
 pause
