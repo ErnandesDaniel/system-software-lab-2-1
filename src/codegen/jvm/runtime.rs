@@ -111,6 +111,217 @@ impl JvmGenerator {
             }],
         });
 
+        // === File I/O static fields ===
+        let file_fds_name = self.pool.constant_pool.add_utf8("fileStreams").expect("utf8");
+        let file_fds_desc = self.pool.constant_pool.add_utf8("[Ljava/io/InputStream;").expect("utf8");
+        let file_next_name = self.pool.constant_pool.add_utf8("fileNext").expect("utf8");
+        let file_next_desc = self.pool.constant_pool.add_utf8("I").expect("utf8");
+        let file_fds_ref = self.pool.constant_pool.add_field_ref(this_class, "fileStreams", "[Ljava/io/InputStream;").expect("fref");
+        let file_next_ref = self.pool.constant_pool.add_field_ref(this_class, "fileNext", "I").expect("fref");
+
+        // === I/O class refs ===
+        let string_class = self.pool.constant_pool.add_class("java/lang/String").expect("class");
+        let str_init = self.pool.constant_pool.add_method_ref(string_class, "<init>", "([B)V").expect("mref");
+        let fis_class = self.pool.constant_pool.add_class("java/io/FileInputStream").expect("class");
+        let fis_init = self.pool.constant_pool.add_method_ref(fis_class, "<init>", "(Ljava/lang/String;)V").expect("mref");
+        let is_class = self.pool.constant_pool.add_class("java/io/InputStream").expect("class");
+        let is_read = self.pool.constant_pool.add_method_ref(is_class, "read", "()I").expect("mref");
+        let is_close = self.pool.constant_pool.add_method_ref(is_class, "close", "()V").expect("mref");
+        let int_class = self.pool.constant_pool.add_class("java/lang/Integer").expect("class");
+        let int_parse = self.pool.constant_pool.add_method_ref(int_class, "parseInt", "(Ljava/lang/String;)I").expect("mref");
+
+        // === fopen([B[B)I ===
+        let fopen_name = self.pool.constant_pool.add_utf8("fopen").expect("utf8");
+        let fopen_desc = self.pool.constant_pool.add_utf8("([B[B)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: fopen_name,
+            descriptor_index: fopen_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 4, max_locals: 3,
+                code: vec![
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Invokespecial(str_init),
+                    Instruction::Astore_2,
+                    Instruction::New(fis_class),
+                    Instruction::Dup,
+                    Instruction::Aload_2,
+                    Instruction::Invokespecial(fis_init),
+                    Instruction::Astore_2,
+                    Instruction::Getstatic(file_fds_ref),
+                    Instruction::Getstatic(file_next_ref),
+                    Instruction::Aload_2,
+                    Instruction::Aastore,
+                    Instruction::Getstatic(file_next_ref),
+                    Instruction::Dup,
+                    Instruction::Iconst_1,
+                    Instruction::Iadd,
+                    Instruction::Putstatic(file_next_ref),
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === fgetc(I)I ===
+        let fgetc_name = self.pool.constant_pool.add_utf8("fgetc").expect("utf8");
+        let fgetc_desc = self.pool.constant_pool.add_utf8("(I)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: fgetc_name,
+            descriptor_index: fgetc_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 2, max_locals: 1,
+                code: vec![
+                    Instruction::Getstatic(file_fds_ref),
+                    Instruction::Iload_0,
+                    Instruction::Aaload,
+                    Instruction::Checkcast(is_class),
+                    Instruction::Invokevirtual(is_read),
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === fclose(I)I ===
+        let fclose_name = self.pool.constant_pool.add_utf8("fclose").expect("utf8");
+        let fclose_desc = self.pool.constant_pool.add_utf8("(I)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: fclose_name,
+            descriptor_index: fclose_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 3, max_locals: 1,
+                code: vec![
+                    Instruction::Getstatic(file_fds_ref),
+                    Instruction::Iload_0,
+                    Instruction::Aaload,
+                    Instruction::Checkcast(is_class),
+                    Instruction::Invokevirtual(is_close),
+                    Instruction::Getstatic(file_fds_ref),
+                    Instruction::Iload_0,
+                    Instruction::Aconst_null,
+                    Instruction::Aastore,
+                    Instruction::Iconst_0,
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === malloc(I)[B ===
+        let malloc_name = self.pool.constant_pool.add_utf8("malloc").expect("utf8");
+        let malloc_desc = self.pool.constant_pool.add_utf8("(I)[B").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: malloc_name,
+            descriptor_index: malloc_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 1, max_locals: 1,
+                code: vec![
+                    Instruction::Iload_0,
+                    Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Byte),
+                    Instruction::Areturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === free([B)V ===
+        let free_name = self.pool.constant_pool.add_utf8("free").expect("utf8");
+        let free_desc = self.pool.constant_pool.add_utf8("([B)V").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: free_name,
+            descriptor_index: free_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 0, max_locals: 1,
+                code: vec![
+                    Instruction::Return,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        // === atoi([B)I ===
+        let atoi_name = self.pool.constant_pool.add_utf8("atoi").expect("utf8");
+        let atoi_desc = self.pool.constant_pool.add_utf8("([B)I").expect("utf8");
+        methods.push(Method {
+            access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
+            name_index: atoi_name,
+            descriptor_index: atoi_desc,
+            attributes: vec![Attribute::Code {
+                name_index: code_attr,
+                max_stack: 3, max_locals: 1,
+                code: vec![
+                    Instruction::New(string_class),
+                    Instruction::Dup,
+                    Instruction::Aload_0,
+                    Instruction::Invokespecial(str_init),
+                    Instruction::Invokestatic(int_parse),
+                    Instruction::Ireturn,
+                ],
+                exception_table: vec![],
+                attributes: vec![],
+            }],
+        });
+
+        let mut fields = vec![];
+        if count > 0 {
+            fields.push(Field {
+                access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
+                name_index: coro_field_name,
+                descriptor_index: coro_field_desc,
+                field_type: FieldType::parse("[Ljava/lang/Object;")
+                    .expect("Failed to parse coro field type"),
+                attributes: vec![],
+            });
+        }
+        fields.push(Field {
+            access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
+            name_index: file_fds_name,
+            descriptor_index: file_fds_desc,
+            field_type: FieldType::parse("[Ljava/io/InputStream;")
+                .expect("Failed to parse file fds field type"),
+            attributes: vec![],
+        });
+        fields.push(Field {
+            access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
+            name_index: file_next_name,
+            descriptor_index: file_next_desc,
+            field_type: FieldType::parse("I")
+                .expect("Failed to parse file next field type"),
+            attributes: vec![],
+        });
+
+        // === Global variable fields (from user code) ===
+        for (gname, gty) in &self.global.global_vars {
+            let desc = self.global_jvm_descriptor(gname, gty);
+            let name_idx = self.pool.constant_pool.add_utf8(gname).expect("utf8");
+            let desc_idx = self.pool.constant_pool.add_utf8(&desc).expect("utf8");
+            fields.push(Field {
+                access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
+                name_index: name_idx,
+                descriptor_index: desc_idx,
+                field_type: FieldType::parse(&desc)
+                    .expect("Failed to parse global var field type"),
+                attributes: vec![],
+            });
+        }
+
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,
             constant_pool: self.pool.constant_pool.clone(),
@@ -118,16 +329,7 @@ impl JvmGenerator {
             this_class,
             super_class,
             interfaces: vec![],
-            fields: if count > 0 {
-                vec![Field {
-                    access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
-                    name_index: coro_field_name,
-                    descriptor_index: coro_field_desc,
-                    field_type: FieldType::parse("[Ljava/lang/Object;")
-                        .expect("Failed to parse coro field type"),
-                    attributes: vec![],
-                }]
-            } else { vec![] },
+            fields,
             methods,
             attributes: vec![],
             code_source_url: None,

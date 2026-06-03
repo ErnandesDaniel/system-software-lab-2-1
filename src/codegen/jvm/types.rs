@@ -83,6 +83,10 @@ pub fn get_method_descriptor(target: &str) -> String {
         "get_coroutine_state" => "(I)I".to_string(),
         "set_coroutine_param" => "(III)V".to_string(),
         "coro_init" => "()V".to_string(),
+        "fopen" => "([B[B)I".to_string(),
+        "fgetc" => "(I)I".to_string(),
+        "fclose" => "(I)I".to_string(),
+        "atoi" => "([B)I".to_string(),
         _ => "()I".to_string(),
     }
 }
