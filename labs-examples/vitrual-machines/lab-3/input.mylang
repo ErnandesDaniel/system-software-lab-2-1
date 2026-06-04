@@ -144,6 +144,13 @@ def gc_run() {
     before = total_alloc;
     gc_runs = gc_runs + 1;
 
+    // Clear all mark flags before mark phase
+    i = 0;
+    while (i < gc_count) {
+        gc_marked[i] = 0;
+        i = i + 1;
+    }
+
     // Mark phase: маркируем только живые логи из кольцевого буфера
     i = 0;
     while (i < 10) {
