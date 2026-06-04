@@ -126,6 +126,7 @@ impl SemanticsAnalyzer {
                     self.add_error(e.to_string(), fd.span);
                 }
                 let mut inner_scope = scope.clone();
+                inner_scope.push_scope();
                 if let Some(ref args) = fd.signature.parameters {
                     for arg in args {
                         let pty = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));

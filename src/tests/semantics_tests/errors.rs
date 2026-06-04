@@ -106,13 +106,6 @@ fn test_semantics_half_defined_struct() {
 }
 
 #[test]
-fn test_semantics_add_string_to_int() {
-    let source = "def main() of int { x = \"hello\" + 1; return 0; }";
-    let result = analyze(source);
-    assert!(result.is_err(), "Expected error for string + int");
-}
-
-#[test]
 fn test_semantics_sub_bool() {
     let source = "def main() of int { x = true - false; return 0; }";
     let result = analyze(source);

@@ -43,6 +43,7 @@ impl SemanticsAnalyzer {
                     .as_ref()
                     .map_or(IrType::Void, |t| self.convert_type(t));
                 let mut inner_scope = scope.clone();
+                inner_scope.push_scope();
                 if let Some(ref args) = f.signature.parameters {
                     for arg in args {
                         let pty = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
@@ -104,8 +105,19 @@ impl SemanticsAnalyzer {
                 }
                 Ok(right_type)
             }
-            BinaryOp::Add
-            | BinaryOp::Subtract
+            BinaryOp::Add => {
+                if left_type == IrType::String && right_type.is_int_like() {
+                    Ok(IrType::String)
+                } else if left_type.is_int_like() && right_type == IrType::String {
+                    Ok(IrType::String)
+                } else if !left_type.is_int_like() || !right_type.is_int_like() {
+                    self.add_error("Arithmetic operations require numeric operands".to_string(), bin.span);
+                    Ok(IrType::Int)
+                } else {
+                    Ok(IrType::Int)
+                }
+            }
+            BinaryOp::Subtract
             | BinaryOp::Multiply
             | BinaryOp::Divide
             | BinaryOp::Modulo

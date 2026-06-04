@@ -7,14 +7,22 @@ impl IrGenerator {
         let merge_id = self.generate_block_id();
 
         // Generate all else-if chains and else branch
-        let mut else_if_blocks: Vec<(String, String)> = Vec::new();
+        // Each else-if stores (entry_id, condbr_block_id, body_id).
+        // entry_id is the entry point of the condition evaluation (for control flow targeting).
+        // condbr_block_id is the block that contains the else-if's CondBr (for false_target chaining).
+        // For simple conditions they are the same; for short-circuit `&&`/`||` they differ.
+        let mut else_if_blocks: Vec<(String, String, String)> = Vec::new();
         for ei in &stmt.else_ifs {
-            let ei_cond_id = self.generate_block_id();
+            let ei_entry_id = self.generate_block_id();
             let ei_body_id = self.generate_block_id();
-            else_if_blocks.push((ei_cond_id.clone(), ei_body_id.clone()));
 
-            let mut ei_cond_block = IrBlock::new(ei_cond_id);
+            let mut ei_cond_block = IrBlock::new(ei_entry_id.clone());
             let (ei_cond_temp, _) = self.visit_expr(&mut ei_cond_block, &ei.condition);
+            // visit_expr may have swapped ei_cond_block (e.g. short-circuit && generates new blocks);
+            // the current ei_cond_block.id is where the else-if CondBr will live.
+            let ei_condbr_id = ei_cond_block.id.clone();
+            else_if_blocks.push((ei_entry_id, ei_condbr_id, ei_body_id.clone()));
+
             ei_cond_block.instructions.push(IrInstruction {
                 opcode: IrOpcode::CondBr,
                 result: None, result_type: None,
@@ -63,8 +71,9 @@ impl IrGenerator {
         };
 
         // Determine false target of the main if condition
-        let main_false_id = if let Some((ref ei_cond_id, _)) = else_if_blocks.first() {
-            ei_cond_id.clone()
+        // Use the entry_id (first element) of the first else-if to jump to the start of its condition evaluation.
+        let main_false_id = if let Some((ref ei_entry_id, _, _)) = else_if_blocks.first() {
+            ei_entry_id.clone()
         } else if let Some(ref eb_id) = else_body_id {
             eb_id.clone()
         } else {
@@ -103,7 +112,9 @@ impl IrGenerator {
         self.block_stack.push(then_block);
 
         // Chain false targets for else-if blocks
-        for (i, (ei_cond_id, _)) in else_if_blocks.iter().enumerate() {
+        // Use condbr_block_id (.1) to locate the block containing each else-if's CondBr,
+        // and point its false_target to the next else-if's entry_id (.0), else_body, or merge.
+        for (i, (_, ei_condbr_id, _)) in else_if_blocks.iter().enumerate() {
             let next_false = if i + 1 < else_if_blocks.len() {
                 else_if_blocks[i + 1].0.clone()
             } else if let Some(ref eb_id) = else_body_id {
@@ -111,7 +122,7 @@ impl IrGenerator {
             } else {
                 merge_id.clone()
             };
-            if let Some(cond_block) = self.block_stack.iter_mut().find(|b: &&mut IrBlock| b.id == *ei_cond_id) {
+            if let Some(cond_block) = self.block_stack.iter_mut().find(|b: &&mut IrBlock| b.id == *ei_condbr_id) {
                 if let Some(last) = cond_block.instructions.last_mut() {
                     if last.opcode == IrOpcode::CondBr {
                         last.false_target = Some(next_false.clone());

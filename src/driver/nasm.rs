@@ -147,11 +147,13 @@ impl CompilerDriver {
         if !obj_files.is_empty() {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files.iter().map(|p| p.to_string_lossy().to_string()).collect();
-            args.push("-Wl,/subsystem:console".to_string());
+            args.push("-l".to_string());
+            args.push("msvcrt".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
 
-            match Command::new("clang").args(&args).output() {
+            let linker = if cfg!(target_os = "windows") { "gcc" } else { "clang" };
+            match Command::new(linker).args(&args).output() {
                 Ok(out) => {
                     if !out.status.success() {
                         eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));

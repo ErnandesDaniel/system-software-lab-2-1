@@ -51,13 +51,7 @@ fn test_semantics_arithmetic_on_strings() {
         }
     "#;
     let result = analyze(source);
-    assert!(result.is_err(), "Expected error for arithmetic on string");
-    let errors = result.unwrap_err();
-    assert!(
-        errors.to_string().contains("Arithmetic"),
-        "Expected Arithmetic error, got: {:?}",
-        errors
-    );
+    assert!(result.is_ok(), "Expected ok for string + int (pointer arithmetic): {:?}", result);
 }
 
 #[test]

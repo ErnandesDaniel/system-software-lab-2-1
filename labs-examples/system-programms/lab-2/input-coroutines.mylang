@@ -10,10 +10,10 @@ import coro_init;
 import create_coroutine;
 
 global row_buf of string;
-global gf of int;
+global gf of string;
 global gn of int;
 
-def read_line(f of int) of int {
+def read_line(f of string) of int {
     pos = 0;
     while (true) {
         c = fgetc(f);

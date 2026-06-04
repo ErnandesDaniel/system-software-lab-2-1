@@ -216,3 +216,10 @@ fn test_semantics_assignment_from_function_call_ok() {
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok: {:?}", result);
 }
+
+#[test]
+fn test_semantics_string_plus_int_ok() {
+    let source = "def main() of int { s = \"hello\" + 1; return 0; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok for string + int: {:?}", result);
+}
