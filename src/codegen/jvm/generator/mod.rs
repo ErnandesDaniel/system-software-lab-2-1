@@ -99,7 +99,7 @@ impl JvmGenerator {
                     if let Some(ref base_name) = base {
                         let has_struct_offset = inst.operands.get(1).and_then(|o| {
                             if let IrOperand::Constant(Constant::Int(byte_off)) = o {
-                                Some(*byte_off >= 0)
+                                Some(*byte_off > 0)
                             } else { None }
                         }).unwrap_or(false);
                         if has_struct_offset {

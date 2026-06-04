@@ -78,8 +78,20 @@ function sendCmd($stdin, $stdout, string $opcode, string $key = '', string $valu
     fwrite($stdin, $line);
     fflush($stdin);
 
-    $response = rtrim(fgets($stdout));
-    if ($response === false || $response === '') {
+    // Windows pipe buffering: poll for response with timeout
+    $response = '';
+    $start = microtime(true);
+    stream_set_blocking($stdout, false);
+    while (microtime(true) - $start < 3.0) {
+        $chunk = fread($stdout, 4096);
+        if ($chunk !== false && $chunk !== '') {
+            $response .= $chunk;
+            if (str_contains($response, "\n")) { break; }
+        }
+        usleep(50000);
+    }
+    $response = rtrim(explode("\n", trim($response))[0]);
+    if ($response === '') {
         throw new RuntimeException("No response");
     }
 

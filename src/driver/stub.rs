@@ -172,6 +172,11 @@ public class RuntimeStub {{
         try {{ Thread.sleep(ms); }} catch (InterruptedException e) {{}}
     }}
 
+    public static int fflush(int dummy) {{
+        System.out.flush();
+        return 0;
+    }}
+
     // --- Map functions (JVM) ---
 
     public static int map_put_jvm(byte[] name, byte[] value) {{
