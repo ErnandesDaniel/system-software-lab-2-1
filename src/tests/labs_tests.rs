@@ -87,17 +87,22 @@ fn compile_sys(lab: &str, target: &str) -> Option<std::process::Child> {
 }
 
 /// Sys lab-1: infinite coroutine loop, runs forever until killed.
-/// Test: run for 2 seconds, kill, verify "Start" + alternating "12".
-#[test]
-fn test_sys_lab1_nasm() {
-    let mut child = compile_sys("lab-1", "nasm").expect("compile/run failed");
+fn test_sys_lab1(target: &str) {
+    let out = format!("target/tmp-sys-lab1-{target}");
+    let src = "labs-examples/system-programms/lab-1/input.mylang";
+    if !cargo(&[src, "-o", &out, "-t", target]) { panic!("compile failed"); }
+    let exe = if target == "nasm" { format!("{out}/program.exe") } else { "java".to_string() };
+    let args: &[&str] = if target == "nasm" { &[] } else { &["-cp", &out, "Main"] };
+    let mut child = Command::new(&exe).args(args).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().expect("spawn failed");
     std::thread::sleep(std::time::Duration::from_secs(2));
     let _ = child.kill();
     let out = child.wait_with_output().ok().map(|o| clean(&String::from_utf8_lossy(&o.stdout))).unwrap_or_default();
     assert!(out.contains("Start"), "should print Start");
-    assert!(out.contains("1"), "should print 1 from print_once");
-    assert!(out.contains("2"), "should print 2 from print_two");
-    // Check alternating pattern in the first 20 chars after "Start"
+    assert!(out.contains("1"), "should print 1");
+    assert!(out.contains("2"), "should print 2");
     let body = out.trim_start_matches("Start\n");
     assert!(body.starts_with("12") || body.starts_with("21"), "should alternate: {:?}", &body[..10.min(body.len())]);
 }
+
+#[test] fn test_sys_lab1_nasm() { test_sys_lab1("nasm"); }
+#[test] fn test_sys_lab1_jvm() { test_sys_lab1("jvm"); }
