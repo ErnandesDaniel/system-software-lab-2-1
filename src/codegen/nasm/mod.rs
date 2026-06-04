@@ -117,6 +117,12 @@ impl AsmGenerator {
         ty.size() > 4
     }
 
+    fn func_local_label(&mut self) -> String {
+        let n = self.string_counter;
+        self.string_counter += 1;
+        format!(".copy_{}", n)
+    }
+
     pub fn format_block_label(&self, id: &str) -> String {
         if id.starts_with("BB") {
             if let Some(ref func_name) = self.current_function {

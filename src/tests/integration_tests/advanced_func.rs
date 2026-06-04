@@ -225,3 +225,31 @@ fn test_exe_struct_field_chain() {
     let output = compile_and_run(source);
     assert!(output.status.code() != Some(-1), "struct field read/write chain should compile and run");
 }
+
+#[test]
+fn test_exe_function_composition() {
+    let source = r#"
+        def apply_twice(f of def(int) of int, x of int) of int {
+            return f(f(x));
+        }
+        def main() of int {
+            double = def dbl(x of int) of int { return x * 2; }
+            return apply_twice(double, 3);
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(12), "double(double(3)) = 12");
+}
+
+#[test]
+fn test_exe_closure_mutate_counter() {
+    let source = r#"
+        def main() of int {
+            count = 0;
+            def inc() of int { count = count + 1; return count; }
+            return inc() * 100 + inc() * 10 + inc();
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(123), "counter closure: 1*100 + 2*10 + 3 = 123");
+}

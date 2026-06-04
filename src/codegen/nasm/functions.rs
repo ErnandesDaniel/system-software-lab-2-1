@@ -25,6 +25,7 @@ impl AsmGenerator {
         }
 
         self.line("sub rsp, 32");
+        self.line("xor eax, eax");
         self.line(&format!("call {func_name}"));
         self.line("add rsp, 32");
 

@@ -95,10 +95,21 @@ impl AsmGenerator {
         };
 
         let qwords = size / 8;
+        let label = self.func_local_label();
         self.line(&format!("lea rsi, {src_mem}"));
         self.line(&format!("lea rdi, {dst_mem}"));
         self.line(&format!("mov rcx, {qwords}"));
+        self.line("cmp rsi, rdi");
+        self.line(&format!("jae {label}_fwd"));
+        self.line(&format!("lea rsi, [rsi + {qwords}*8 - 8]"));
+        self.line(&format!("lea rdi, [rdi + {qwords}*8 - 8]"));
+        self.line("std");
         self.line("rep movsq");
+        self.line("cld");
+        self.line(&format!("jmp {label}_end"));
+        self.line(&format!("{label}_fwd:"));
+        self.line("rep movsq");
+        self.line(&format!("{label}_end:"));
     }
 
     fn emit_binary(&mut self, inst: &IrInstruction, mnemonic: &str) {
