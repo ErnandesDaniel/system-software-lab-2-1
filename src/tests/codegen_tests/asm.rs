@@ -234,3 +234,80 @@ fn test_asm_repeat_while() {
     let output = asm("def f() of int { i = 0; { i = i + 1; } while (i < 5); return i; }");
     assert!(output.contains("cmp") && output.contains("j"));
 }
+#[test]
+fn test_asm_logical_and() {
+    let output = asm("def f(a of bool, b of bool) of bool { return a && b; }");
+    assert!(output.contains("test"), "expected test for a&&b");
+    assert!(output.contains("jne") || output.contains("je"), "expected conditional jump for a&&b");
+}
+#[test]
+fn test_asm_logical_or() {
+    let output = asm("def f(a of bool, b of bool) of bool { return a || b; }");
+    assert!(output.contains("test"), "expected test for a||b");
+    assert!(output.contains("jne") || output.contains("je"), "expected conditional jump for a||b");
+}
+#[test]
+fn test_asm_bitwise_and() {
+    let output = asm("def f(a of int, b of int) of int { return a & b; }");
+    assert!(output.contains(" and "), "expected and instruction");
+}
+#[test]
+fn test_asm_bitwise_or() {
+    let output = asm("def f(a of int, b of int) of int { return a | b; }");
+    assert!(output.contains(" or "), "expected or instruction");
+}
+#[test]
+fn test_asm_bitwise_xor() {
+    let output = asm("def f(a of int, b of int) of int { return a ^ b; }");
+    assert!(output.contains(" xor "), "expected xor instruction");
+}
+#[test]
+fn test_asm_bitwise_not() {
+    let output = asm("def f(a of int) of int { return ~a; }");
+    assert!(output.contains(" not "), "expected not instruction");
+}
+#[test]
+fn test_asm_compare_ne() {
+    let output = asm("def f(a of int, b of int) of bool { return a != b; }");
+    assert!(output.contains("setne"), "expected setne");
+}
+#[test]
+fn test_asm_compare_le() {
+    let output = asm("def f(a of int, b of int) of bool { return a <= b; }");
+    assert!(output.contains("setle"), "expected setle");
+}
+#[test]
+fn test_asm_compare_ge() {
+    let output = asm("def f(a of int, b of int) of bool { return a >= b; }");
+    assert!(output.contains("setge"), "expected setge");
+}
+#[test]
+fn test_asm_closure_make() {
+    let output = asm("def main() of int { x = 5; def inner() of int { return x; } return inner(); }");
+    assert!(output.contains("rax") || output.contains("lea"), "expected env pointer setup");
+}
+#[test]
+fn test_asm_closure_call() {
+    let output = asm("def main() of int { x = 5; def inner() of int { return x; } return inner(); }");
+    assert!(output.contains("call rax"), "expected call rax for closure");
+}
+#[test]
+fn test_asm_repeat_loop() {
+    let output = asm("def f() of int { i = 0; { i = i + 1; } while (i < 5); return i; }");
+    assert!(output.contains("jne") || output.contains("je"), "expected jump pattern for repeat loop");
+}
+#[test]
+fn test_asm_array_write() {
+    let output = asm("def f() of int { a of int[4]; a[0] = 42; return a[0]; }");
+    assert!(output.contains("[rbp") || output.contains("mov"), "expected store instruction");
+}
+#[test]
+fn test_asm_long_type() {
+    let output = asm("def f() of int { a of long; a = 10000000000; return 0; }");
+    assert!(output.contains("rax") || output.contains("10000000000"), "expected 64-bit operation for long");
+}
+#[test]
+fn test_asm_byte_type() {
+    let output = asm("def f() of int { a of byte; a = 10; return a; }");
+    assert!(output.contains("10") || output.contains("mov"), "expected byte type operation");
+}

@@ -234,3 +234,76 @@ fn test_stmt_var_decl_then_assign() {
     let f = as_func(&program, 0);
     assert_eq!(f.body.len(), 2);
 }
+
+#[test]
+fn test_byte_var_decl() {
+    let program = parse("def f() { x of byte; x = 10; }");
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    assert!(matches!(f.body[0], crate::ast::Statement::VarDecl(_)));
+    if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
+        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Byte)));
+    }
+}
+
+#[test]
+fn test_uint_var_decl() {
+    let program = parse("def f() { y of uint; y = 20; }");
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
+        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Uint)));
+    }
+}
+
+#[test]
+fn test_long_var_decl() {
+    let program = parse("def f() { z of long; z = 30; }");
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
+        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Long)));
+    }
+}
+
+#[test]
+fn test_ulong_var_decl() {
+    let program = parse("def f() { w of ulong; w = 40; }");
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
+        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Ulong)));
+    }
+}
+
+#[test]
+fn test_char_var_decl() {
+    let program = parse("def f() { c of char; c = 'a'; }");
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
+        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Char)));
+    }
+}
+
+#[test]
+fn test_nested_block_statements() {
+    let source = r#"
+        def foo() {
+            x = 1;
+            {
+                y = 2;
+            }
+        }
+    "#;
+    let program = parse(source);
+    assert_eq!(program.items.len(), 1);
+    let f = as_func(&program, 0);
+    assert_eq!(f.body.len(), 2);
+    assert!(matches!(f.body[0], crate::ast::Statement::Expression(_)));
+    assert!(matches!(f.body[1], crate::ast::Statement::Block(_)));
+    if let crate::ast::Statement::Block(b) = &f.body[1] {
+        assert_eq!(b.body.len(), 1);
+        assert!(matches!(b.body[0], crate::ast::Statement::Expression(_)));
+    }
+}

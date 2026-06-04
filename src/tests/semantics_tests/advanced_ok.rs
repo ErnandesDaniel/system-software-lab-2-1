@@ -174,3 +174,45 @@ fn test_semantics_struct_read_ok() {
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok: {:?}", result);
 }
+
+#[test]
+fn test_semantics_break_in_nested_if_inside_while_ok() {
+    let source = "def f() of int { while (true) { if (true) { break; } } return 0; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}
+
+#[test]
+fn test_semantics_closure_capturing_multiple_variables_ok() {
+    let source = "def main() of int { a = 1; b = 2; def inner() of int { return a + b; } return inner(); }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}
+
+#[test]
+fn test_semantics_struct_with_array_field_ok() {
+    let source = "struct Matrix { data of int[9]; } def f(m of Matrix) of int { return m.data[0]; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}
+
+#[test]
+fn test_semantics_chained_field_access_ok() {
+    let source = "struct Point { x of int; y of int; } struct Rect { topleft of Point; } def f(r of Rect) of int { return r.topleft.x; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}
+
+#[test]
+fn test_semantics_until_loop_with_break_ok() {
+    let source = "def f() of int { i = 0; until (i == 5) { if (i == 3) { break; } i = i + 1; } return 0; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}
+
+#[test]
+fn test_semantics_assignment_from_function_call_ok() {
+    let source = "def foo(x of int) of int { return x * 2; } def main() of int { x = foo(42); return x; }";
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok: {:?}", result);
+}

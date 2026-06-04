@@ -9,6 +9,8 @@ mod yield_return;
 mod io;
 mod io_advanced;
 mod stdlib;
+mod types;
+mod jvm;
 
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir_generator::IrGenerator;

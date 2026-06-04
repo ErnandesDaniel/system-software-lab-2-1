@@ -52,3 +52,21 @@ fn test_parse_error_array_no_size() {
     let err = parse_err("def foo() { x of int[]; }");
     assert!(matches!(&err, crate::CompilerError::Parse(msg) if msg.contains("requires a size")));
 }
+
+#[test]
+fn test_parse_error_incomplete_expression() {
+    let err = parse_err("def f() { 1 +; }");
+    assert!(matches!(err, crate::CompilerError::Parse(_)));
+}
+
+#[test]
+fn test_parse_error_missing_block_close() {
+    let err = parse_err("def foo() { x = 1; ");
+    assert!(matches!(&err, crate::CompilerError::Parse(msg) if msg == "Unexpected end of input"));
+}
+
+#[test]
+fn test_parse_error_extra_tokens_after_function() {
+    let err = parse_err("def foo() { } def");
+    assert!(matches!(&err, crate::CompilerError::Parse(msg) if msg == "Unexpected end of input"));
+}

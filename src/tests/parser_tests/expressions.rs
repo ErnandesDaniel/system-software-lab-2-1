@@ -280,3 +280,63 @@ fn test_expr_identifier() {
         assert_eq!(id.name, "my_var");
     }
 }
+
+fn slice_from_assignment(source: &str) -> crate::ast::SliceExpr {
+    let e = first_expr(source);
+    if let crate::ast::Expr::Binary(b) = e {
+        if let crate::ast::Expr::Slice(s) = *b.right {
+            return s;
+        }
+    }
+    panic!("expected assignment with slice on right side");
+}
+
+#[test]
+fn test_slice_constant_range() {
+    let s = slice_from_assignment("def f() { x = arr[0..5]; }");
+    assert_eq!(s.ranges.len(), 1);
+    assert!(s.ranges[0].end.is_some());
+}
+
+#[test]
+fn test_slice_variable_range() {
+    let s = slice_from_assignment("def f() { x = arr[i..j]; }");
+    assert_eq!(s.ranges.len(), 1);
+    assert!(s.ranges[0].end.is_some());
+}
+
+#[test]
+fn test_slice_from_index_to_end() {
+    let s = slice_from_assignment("def f() { x = arr[i..]; }");
+    assert_eq!(s.ranges.len(), 1);
+    assert!(s.ranges[0].end.is_none());
+}
+
+#[test]
+fn test_slice_from_start_to_index() {
+    let s = slice_from_assignment("def f() { x = arr[..j]; }");
+    assert_eq!(s.ranges.len(), 1);
+    assert!(s.ranges[0].end.is_some());
+}
+
+#[test]
+fn test_func_literal() {
+    let e = first_expr("def f() { g = def my_func(a of int) of int { return a+1; }; }");
+    if let crate::ast::Expr::Binary(b) = e {
+        assert!(matches!(b.operator, crate::ast::BinaryOp::Assign));
+        assert!(matches!(*b.right, crate::ast::Expr::FuncLiteral(_)));
+    } else {
+        panic!("expected assignment");
+    }
+}
+
+#[test]
+fn test_func_type_var() {
+    let program = parse("def f() { g of def(int) of int; }");
+    if let crate::ast::SourceItem::FuncDefinition(func) = &program.items[0] {
+        assert!(matches!(func.body[0], crate::ast::Statement::VarDecl(_)));
+        if let crate::ast::Statement::VarDecl(vd) = &func.body[0] {
+            assert!(matches!(vd.ty, crate::ast::TypeRef::Function { .. }));
+        }
+    }
+}

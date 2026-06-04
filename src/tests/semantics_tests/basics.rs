@@ -197,3 +197,40 @@ fn test_semantics_coroutine_ok() {
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok but got: {:?}", result);
 }
+
+#[test]
+fn test_semantics_char_type_variable_ok() {
+    let source = r#"
+        def main() of int {
+            c of char;
+            c = 'A';
+            return 0;
+        }
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_byte_type_variable_ok() {
+    let source = r#"
+        def main() of int {
+            b of byte;
+            return 0;
+        }
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}
+
+#[test]
+fn test_semantics_long_type_variable_ok() {
+    let source = r#"
+        def main() of int {
+            l of long;
+            return 0;
+        }
+    "#;
+    let result = analyze(source);
+    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
+}

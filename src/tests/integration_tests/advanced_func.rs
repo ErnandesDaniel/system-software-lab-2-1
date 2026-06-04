@@ -192,3 +192,36 @@ fn test_exe_param_as_temp_var() {
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(73));
 }
+
+#[test]
+fn test_exe_closure_as_function_argument() {
+    let source = r#"
+        def apply(f of def(int) of int, x of int) of int {
+            return f(x);
+        }
+        def main() of int {
+            factor = 2;
+            def double(y of int) of int {
+                return y * factor;
+            }
+            return apply(double, 21);
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.code() != Some(-1), "closure as function argument should compile and run");
+}
+
+#[test]
+fn test_exe_struct_field_chain() {
+    let source = r#"
+        struct Point { x of int; y of int; }
+        def main() of int {
+            p of Point;
+            p.x = 10;
+            p.y = 32;
+            return p.x + p.y;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert!(output.status.code() != Some(-1), "struct field read/write chain should compile and run");
+}

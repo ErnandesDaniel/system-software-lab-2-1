@@ -247,3 +247,98 @@ def main() of int {
 fn test_jvm_multi_param_call_valid() {
     assert!(jvm_valid(JVM_MULTI_PARAM_CALL));
 }
+
+const NASM_REPEAT_LOOP: &str = r#"
+def main() of int {
+    i = 0;
+    { i = i + 1; } while (i < 5);
+    return i;
+}
+"#;
+
+#[test]
+fn test_nasm_repeat_loop() {
+    let output = compile_and_run_nasm(NASM_REPEAT_LOOP);
+    assert!(output.status.code() != Some(-1));
+}
+
+const NASM_BREAK_LOOP: &str = r#"
+def main() of int {
+    total = 0;
+    i = 0;
+    while (i < 10) {
+        if (i == 5) { break; }
+        total = total + i;
+        i = i + 1;
+    }
+    return total;
+}
+"#;
+
+#[test]
+fn test_nasm_break_loop() {
+    let output = compile_and_run_nasm(NASM_BREAK_LOOP);
+    assert!(output.status.code() != Some(-1));
+}
+
+const JVM_GLOBAL_READ: &str = r#"
+global g of int = 42;
+def main() of int {
+    return g;
+}
+"#;
+
+#[test]
+fn test_jvm_global_read_valid() {
+    assert!(jvm_valid(JVM_GLOBAL_READ));
+}
+
+const JVM_CLOSURE_SIMPLE: &str = r#"
+def main() of int {
+    x = 10;
+    def inner() of int {
+        return x;
+    }
+    return inner();
+}
+"#;
+
+#[test]
+fn test_jvm_closure_simple_valid() {
+    assert!(jvm_valid(JVM_CLOSURE_SIMPLE));
+}
+
+const JVM_REPEAT_LOOP: &str = r#"
+def main() of int {
+    i = 0;
+    { i = i + 1; } while (i < 5);
+    return i;
+}
+"#;
+
+#[test]
+fn test_jvm_repeat_loop_valid() {
+    assert!(jvm_valid(JVM_REPEAT_LOOP));
+}
+
+const JVM_HEX_LITERAL: &str = r#"
+def main() of int {
+    return 0xFF;
+}
+"#;
+
+#[test]
+fn test_jvm_hex_literal_valid() {
+    assert!(jvm_valid(JVM_HEX_LITERAL));
+}
+
+const JVM_BINARY_LITERAL: &str = r#"
+def main() of int {
+    return 0b1010;
+}
+"#;
+
+#[test]
+fn test_jvm_binary_literal_valid() {
+    assert!(jvm_valid(JVM_BINARY_LITERAL));
+}

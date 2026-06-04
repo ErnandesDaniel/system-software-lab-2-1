@@ -258,3 +258,45 @@ fn test_semantics_mod_bool_error() {
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for mod with bool");
 }
+
+#[test]
+fn test_semantics_missing_return_in_int_function() {
+    let source = "def foo() of int { return; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for empty return in int function");
+}
+
+#[test]
+fn test_semantics_duplicate_local_variable() {
+    let source = "def main() { x of int; x of string; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for duplicate local variable declaration");
+}
+
+#[test]
+fn test_semantics_field_type_mismatch_on_assignment() {
+    let source = "struct P { x of int; } def main() { p of P; p = \"hello\"; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for struct variable type mismatch on assignment");
+}
+
+#[test]
+fn test_semantics_uninitialized_variable_usage() {
+    let source = "def main() of int { if (x) { return 1; } return 0; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for undeclared variable usage");
+}
+
+#[test]
+fn test_semantics_array_index_wrong_type() {
+    let source = "def main() { arr of int[5]; x = arr[\"hello\"]; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for array index with wrong type");
+}
+
+#[test]
+fn test_semantics_function_type_compatibility() {
+    let source = "def foo(x of int) of int { return x; } def main() { f of def(string) of int; f = foo; }";
+    let result = analyze(source);
+    assert!(result.is_err(), "Expected error for function type mismatch on assignment");
+}

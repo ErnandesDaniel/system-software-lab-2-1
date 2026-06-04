@@ -53,13 +53,30 @@ impl Parser<'_> {
                 }))
             }
             Token::LBracket => {
-                let index = self.parse_expression(0)?;
-                let idx_span = index.span();
-                let end_expr = if self.current_token() == Some(&Token::Range) {
+                let curr = self.current_token().copied();
+                let (index, idx_span, end_expr) = if curr == Some(Token::Range) {
+                    let range_span = self.current_span();
                     self.advance();
-                    Some(self.parse_expression(0)?)
+                    let start = Expr::Literal(crate::ast::Literal::Dec(0), range_span);
+                    let end = match self.current_token().copied() {
+                        Some(Token::RBracket) => None,
+                        _ => Some(self.parse_expression(0)?),
+                    };
+                    (start, range_span, end)
                 } else {
-                    None
+                    let i = self.parse_expression(0)?;
+                    let i_span = i.span();
+                    let end = match self.current_token().copied() {
+                        Some(Token::Range) => {
+                            self.advance();
+                            match self.current_token().copied() {
+                                Some(Token::RBracket) => None,
+                                _ => Some(self.parse_expression(0)?),
+                            }
+                        }
+                        _ => None,
+                    };
+                    (i, i_span, end)
                 };
                 self.expect(Token::RBracket)?;
                 let span = start.merge(self.current_span());

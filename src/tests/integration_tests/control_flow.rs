@@ -317,3 +317,45 @@ fn test_exe_many_else_if() {
     let output = compile_and_run(source);
     assert_eq!(output.status.code(), Some(4));
 }
+
+#[test]
+fn test_exe_repeat_while_loop() {
+    let source = r#"
+        def main() of int {
+            i = 0;
+            { i = i + 1; } while (i < 5);
+            return i;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(5), "repeat-while should leave i as 5");
+}
+
+#[test]
+fn test_exe_repeat_until_loop() {
+    let source = r#"
+        def main() of int {
+            i = 0;
+            { i = i + 1; } until (i >= 5);
+            return i;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(5), "repeat-until should leave i as 5");
+}
+
+#[test]
+fn test_exe_break_inside_nested_if_inside_while() {
+    let source = r#"
+        def main() of int {
+            x = 0;
+            while (1) {
+                if (x > 5) { break; }
+                x = x + 1;
+            }
+            return x;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(6), "break inside nested if inside while");
+}
