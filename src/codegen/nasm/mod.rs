@@ -94,13 +94,14 @@ impl AsmGenerator {
     }
 
     pub fn alloc_scratch(&mut self, wide: bool) -> &'static str {
+        let other_mask = if wide { self.regs_used_32 } else { self.regs_used_64 };
         let (used, regs) = if wide {
             (&mut self.regs_used_64, REGS_64)
         } else {
             (&mut self.regs_used_32, REGS_32)
         };
         for (i, _) in regs.iter().enumerate() {
-            if *used & (1 << i) == 0 {
+            if *used & (1 << i) == 0 && other_mask & (1 << i) == 0 {
                 *used |= 1 << i;
                 return self.reg_name(i, wide);
             }

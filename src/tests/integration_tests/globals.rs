@@ -241,3 +241,18 @@ fn test_asm_global_array_init() {
     assert!(asm.contains("section .data"), "Expected data section");
     assert!(asm.contains("global main"), "Expected global main");
 }
+
+#[test]
+fn test_exe_global_array_write_read() {
+    let source = r#"
+        global arr of int[5];
+        def main() of int {
+            arr[0] = 42;
+            arr[1] = 13;
+            arr[2] = arr[0] + arr[1];
+            return arr[2];
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(55), "global array write/read: arr[0]=42, arr[1]=13, arr[2]=42+13=55");
+}
