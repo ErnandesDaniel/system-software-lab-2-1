@@ -75,3 +75,29 @@ fn lab4(target: &str) -> Option<String> {
 #[test] fn test_lab_vm3_jvm()  { let out = compile_jvm("lab-3").expect("compile/run failed");  assert!(out.contains("total_freed=2560")); }
 #[test] fn test_lab_vm4_nasm() { let out = lab4("nasm").expect("compile/run failed"); assert!(out.contains("OK Alice")); assert!(out.contains("name")); assert!(out.contains("age")); }
 #[test] fn test_lab_vm4_jvm()  { let out = lab4("jvm").expect("compile/run failed");  assert!(out.contains("OK Alice")); assert!(out.contains("name")); assert!(out.contains("age")); }
+
+// ========== System-programms labs ==========
+
+fn compile_sys(lab: &str, target: &str) -> Option<std::process::Child> {
+    let out = format!("target/tmp-sys-{lab}");
+    let src = format!("labs-examples/system-programms/{lab}/input.mylang");
+    if !cargo(&[&src, "-o", &out, "-t", target]) { return None; }
+    let exe = format!("{out}/program.exe");
+    Command::new(exe).stdout(Stdio::piped()).stderr(Stdio::piped()).spawn().ok()
+}
+
+/// Sys lab-1: infinite coroutine loop, runs forever until killed.
+/// Test: run for 2 seconds, kill, verify "Start" + alternating "12".
+#[test]
+fn test_sys_lab1_nasm() {
+    let mut child = compile_sys("lab-1", "nasm").expect("compile/run failed");
+    std::thread::sleep(std::time::Duration::from_secs(2));
+    let _ = child.kill();
+    let out = child.wait_with_output().ok().map(|o| clean(&String::from_utf8_lossy(&o.stdout))).unwrap_or_default();
+    assert!(out.contains("Start"), "should print Start");
+    assert!(out.contains("1"), "should print 1 from print_once");
+    assert!(out.contains("2"), "should print 2 from print_two");
+    // Check alternating pattern in the first 20 chars after "Start"
+    let body = out.trim_start_matches("Start\n");
+    assert!(body.starts_with("12") || body.starts_with("21"), "should alternate: {:?}", &body[..10.min(body.len())]);
+}
