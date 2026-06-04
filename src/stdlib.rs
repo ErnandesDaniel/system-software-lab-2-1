@@ -46,6 +46,7 @@ impl StdLib {
 
         // Process functions
         funcs.insert("exit");
+        funcs.insert("fflush");
 
         // EntityStore functions (JVM daemon)
         funcs.insert("map_put_jvm");
@@ -86,6 +87,7 @@ impl StdLib {
             ("srand", ("seed: int", "")),
             ("time", ("dummy: int", "int")),
             ("exit", ("code: int", "")),
+            ("fflush", ("dummy: int", "int")),
             ("memcpy", ("dest: string, src: string, n: int", "string")),
             ("strchr", ("s: string, c: int", "string")),
             ("fopen", ("filename: string, mode: string", "string")),

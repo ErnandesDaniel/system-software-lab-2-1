@@ -97,6 +97,7 @@ pub fn get_method_descriptor(target: &str) -> String {
         "fgetc" => "(I)I".to_string(),
         "fclose" => "(I)I".to_string(),
         "atoi" => "([B)I".to_string(),
+        "fflush" => "(I)I".to_string(),
         _ => "()I".to_string(),
     }
 }
