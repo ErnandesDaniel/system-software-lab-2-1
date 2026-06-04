@@ -166,34 +166,25 @@ impl CompilerDriver {
 }
 
 fn coro_state_needed(f: &IrFunction, global_names: &[String]) -> usize {
-    let mut local_counter: i32 = 1;
-    let mut max_end: usize = 56;
+    let mut slot_set: std::collections::HashSet<String> = std::collections::HashSet::new();
 
+    // Same logic as emit_prologue: locals + __co_ctx + temp results + params
     for local in &f.locals {
-        if global_names.contains(&local.name) {
-            continue;
-        }
-        let local_size = local.ty.size().max(8) as i32;
-        let num_slots = (local_size + 7) / 8;
-        let offset = -8 * local_counter - 8 * (num_slots - 1).max(0);
-        local_counter += num_slots;
-
-        let co_off = 56 + (-offset - 8) as usize;
-        let end = co_off + local.ty.size() as usize;
-        max_end = max_end.max(end);
+        if !global_names.contains(&local.name) { slot_set.insert(local.name.clone()); }
     }
-
+    slot_set.insert("__co_ctx".to_string());
+    for block in &f.blocks {
+        for inst in &block.instructions {
+            if let Some(ref result) = inst.result {
+                if result.starts_with('t') && !slot_set.contains(result) && !global_names.iter().any(|g| g == result) {
+                    slot_set.insert(result.clone());
+                }
+            }
+        }
+    }
     for (i, param) in f.parameters.iter().enumerate() {
-        if i >= 4 {
-            break;
-        }
-        let offset = -8 * local_counter;
-        local_counter += 1;
-
-        let co_off = 56 + (-offset - 8) as usize;
-        let end = co_off + param.ty.size() as usize;
-        max_end = max_end.max(end);
+        if i < 4 { slot_set.insert(param.name.clone()); }
     }
 
-    max_end
+    56 + slot_set.len() * 8
 }
