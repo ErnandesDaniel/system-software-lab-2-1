@@ -1,5 +1,6 @@
 mod arithmetic;
 mod basics;
+mod coroutines;
 mod functions;
 mod globals;
 mod io;

@@ -62,8 +62,9 @@ impl SemanticsAnalyzer {
                     self.add_error(format!("Loop condition must be bool, got {cond_type:?}"), loop_stmt.condition.span());
                 }
                 self.loop_depth += 1;
+                let mut inner_scope = scope.clone();
                 for s in &loop_stmt.body {
-                    self.check_statement(scope, s)?;
+                    self.check_statement(&mut inner_scope, s)?;
                 }
                 self.loop_depth -= 1;
             }
@@ -128,7 +129,9 @@ impl SemanticsAnalyzer {
                 if let Some(ref args) = fd.signature.parameters {
                     for arg in args {
                         let pty = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                        inner_scope.add(arg.name.name.clone(), pty)?;
+                        if let Err(e) = inner_scope.add(arg.name.name.clone(), pty) {
+                            self.add_error(e.to_string(), arg.span);
+                        }
                     }
                 }
                 let saved_return_type = self.current_return_type.take();
@@ -138,7 +141,9 @@ impl SemanticsAnalyzer {
                 self.loop_depth = 0;
                 self.in_coroutine = false;
                 for s in &fd.body {
-                    self.check_statement(&mut inner_scope, s)?;
+                    if let Err(e) = self.check_statement(&mut inner_scope, s) {
+                        self.add_error(e.to_string(), s.span());
+                    }
                 }
                 self.in_coroutine = saved_coroutine;
                 self.loop_depth = saved_loop_depth;

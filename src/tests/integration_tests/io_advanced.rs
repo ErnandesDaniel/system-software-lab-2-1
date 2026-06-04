@@ -92,7 +92,8 @@ fn test_exe_pool_cat() {
         }
     "#;
     let output = compile_and_run_with_stdin(source, "Hi!\n");
-    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    assert_eq!(output.status.code(), Some(4), "pool_cat should count 4 chars (H,i,!,\\n)");
+    assert_eq!(normalize_output(&output.stdout), "Hi!\n");
 }
 
 #[test]

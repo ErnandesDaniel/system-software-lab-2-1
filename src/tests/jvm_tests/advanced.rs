@@ -59,9 +59,10 @@ fn test_jvm_generation_import_call_with_string() {
     let ir = ir_gen.generate(&program);
     let mut jvm_gen = JvmGenerator::new();
     let classes = jvm_gen.generate_program(&ir);
-    assert_eq!(classes.len(), 1);
+    assert_eq!(classes.len(), 2);
     assert_eq!(classes[0].0, "Main");
     assert_eq!(classes[0].1[0..4], [0xCA, 0xFE, 0xBA, 0xBE]);
+    assert_eq!(classes[1].0, "RuntimeStub");
 }
 
 #[test]

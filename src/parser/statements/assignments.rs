@@ -53,7 +53,8 @@ impl Parser<'_> {
                             name: self.get_text(&f_span).to_string(),
                             span: f_span,
                         };
-                        left = Expr::FieldAccess(Box::new(left), field);
+                        let fa_span = span.merge(f_span);
+                        left = Expr::FieldAccess(Box::new(left), field, fa_span);
                     }
                     Some(Token::LBracket) => {
                         self.advance();

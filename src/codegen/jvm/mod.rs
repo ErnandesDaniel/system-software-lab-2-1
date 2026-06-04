@@ -96,6 +96,7 @@ pub struct JvmGenerator {
     pub coro: JvmCoroState,
     pub st: JvmStructState,
     pub global: JvmGlobalState,
+    pub stub_needed: bool,
 }
 
 impl JvmGenerator {
@@ -154,6 +155,7 @@ impl JvmGenerator {
                 global_field_refs: HashMap::new(),
                 struct_names: HashSet::new(),
             },
+            stub_needed: false,
         }
     }
 
@@ -244,8 +246,13 @@ impl JvmGenerator {
             classes.push((class_name, class_bytes));
         }
 
-        let stub_bytes = self.generate_runtime_stub(&program.functions);
-        classes.push(("RuntimeStub".to_string(), stub_bytes));
+        let needs_stub = self.stub_needed
+            || program.functions.iter().any(|f| f.is_coroutine)
+            || !self.global.global_vars.is_empty();
+        if needs_stub {
+            let stub_bytes = self.generate_runtime_stub(&program.functions);
+            classes.push(("RuntimeStub".to_string(), stub_bytes));
+        }
 
         classes
     }

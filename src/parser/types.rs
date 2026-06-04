@@ -43,12 +43,9 @@ impl Parser<'_> {
             Some(Token::Char) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Char)) }
             Some(Token::String) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::String)) }
             Some(Token::Array) => {
-                self.advance();
-                self.expect(Token::LBracket)?;
-                let (_, size_span) = self.expect(Token::DecLiteral)?;
-                let size: u64 = self.get_text(&size_span).parse().map_err(|e| CompilerError::Parse(format!("Invalid array size: {e}")))?;
-                self.expect(Token::RBracket)?;
-                Ok(TypeRef::Array { element_type: Box::new(TypeRef::BuiltinType(BuiltinType::Int)), size, span: start.merge(self.current_span()) })
+                return Err(CompilerError::Parse(
+                    "'array' requires a base type before it (e.g. 'int array[5]')".to_string()
+                ));
             }
             Some(Token::Identifier) => {
                 let (_tok, span) = self.expect(Token::Identifier)?;

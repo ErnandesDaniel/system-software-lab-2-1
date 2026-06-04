@@ -21,7 +21,7 @@ impl SemanticsAnalyzer {
                 };
                 Ok(IrType::Array(Box::new(elem_type), elems.len()))
             }
-            Expr::FieldAccess(base, field) => {
+            Expr::FieldAccess(base, field, _) => {
                 let _base_type = self.check_expression(scope, base)?;
                 let field_type = self.resolve_field_type(scope, base, &field.name);
                 Ok(field_type)
@@ -42,16 +42,44 @@ impl SemanticsAnalyzer {
                     .return_type
                     .as_ref()
                     .map_or(IrType::Void, |t| self.convert_type(t));
+                let mut inner_scope = scope.clone();
+                if let Some(ref args) = f.signature.parameters {
+                    for arg in args {
+                        let pty = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
+                        if let Err(e) = inner_scope.add(arg.name.name.clone(), pty) {
+                            self.add_error(e.to_string(), arg.span);
+                        }
+                    }
+                }
+                let saved_return_type = self.current_return_type.take();
+                self.current_return_type = Some(ret.clone());
+                let saved_loop_depth = self.loop_depth;
+                let saved_coroutine = self.in_coroutine;
+                self.loop_depth = 0;
+                self.in_coroutine = false;
+                for s in &f.body {
+                    if let Err(e) = self.check_statement(&mut inner_scope, s) {
+                        self.add_error(e.to_string(), s.span());
+                    }
+                }
+                self.in_coroutine = saved_coroutine;
+                self.loop_depth = saved_loop_depth;
+                self.current_return_type = saved_return_type;
                 Ok(IrType::Function(params, Box::new(ret)))
             }
         }
     }
 
     fn check_binary_expr(&mut self, scope: &mut SymbolTable, bin: &BinaryExpr) -> crate::Result<IrType> {
+        // For assignment, check if the left identifier needs auto-declaration
+        let mut auto_declared = false;
         if matches!(bin.operator, BinaryOp::Assign) {
             if let Expr::Identifier(id) = &*bin.left {
-                if !scope.is_declared(&id.name) {
+                if self.get_global_symbol(&id.name).is_some() {
+                    // Global variable — don't auto-declare locally
+                } else if !scope.is_declared(&id.name) {
                     scope.add(id.name.clone(), IrType::Int)?;
+                    auto_declared = true;
                 }
             }
         }
@@ -61,6 +89,17 @@ impl SemanticsAnalyzer {
         match bin.operator {
             BinaryOp::Assign => {
                 if let Expr::Identifier(id) = &*bin.left {
+                    if !auto_declared {
+                        if let Some(existing) = scope.lookup(&id.name) {
+                            if existing.ty != right_type {
+                                self.add_error(
+                                    format!("Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
+                                        right_type, id.name, existing.ty),
+                                    bin.span,
+                                );
+                            }
+                        }
+                    }
                     scope.upsert(id.name.clone(), right_type.clone());
                 }
                 Ok(right_type)

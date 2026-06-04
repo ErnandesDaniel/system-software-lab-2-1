@@ -23,10 +23,6 @@ impl Parser<'_> {
             ) {
                 break;
             }
-            if matches!(token, Token::LParen) {
-            }
-            if matches!(token, Token::LBracket) {
-            }
             if matches!(
                 token,
                 Token::Semi

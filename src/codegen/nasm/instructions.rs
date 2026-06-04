@@ -1,4 +1,4 @@
-use crate::codegen::nasm::AsmGenerator;
+use crate::codegen::nasm::{AsmGenerator, REGS_64};
 use crate::ir::types::{IrInstruction, IrOpcode, IrOperand};
 
 fn reg_low_byte(reg32: &str) -> &'static str {
@@ -117,15 +117,23 @@ impl AsmGenerator {
 
     fn emit_logical(&mut self, inst: &IrInstruction, mnemonic: &str) {
         if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
-            let r1 = self.alloc_scratch(false);
-            let r2 = self.alloc_scratch(false);
+            let left_ty = left.get_type();
+            let right_ty = right.get_type();
+            let wide = AsmGenerator::is_wide_type(&left_ty) || AsmGenerator::is_wide_type(&right_ty);
+            let r1 = self.alloc_scratch(wide);
+            let r2 = self.alloc_scratch(wide);
             self.load_operand(left, r1);
             self.load_operand(right, r2);
             self.line(&format!("{mnemonic} {r1}, {r2}"));
-            let low = reg_low_byte(r1);
+            let bool_reg = if wide {
+                self.reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
+            } else {
+                r1
+            };
+            let low = reg_low_byte(bool_reg);
             self.line(&format!("setnz {low}"));
-            self.line(&format!("movzx {r1}, {low}"));
-            self.store_result(result, r1, &crate::ir::IrType::Bool);
+            self.line(&format!("movzx {bool_reg}, {low}"));
+            self.store_result(result, bool_reg, &crate::ir::IrType::Bool);
         }
     }
 
@@ -142,15 +150,22 @@ impl AsmGenerator {
 
     fn emit_compare(&mut self, inst: &IrInstruction, setcc: &str) {
         if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
-            let r1 = self.alloc_scratch(false);
-            let r2 = self.alloc_scratch(false);
+            let left_ty = left.get_type();
+            let wide = AsmGenerator::is_wide_type(&left_ty);
+            let r1 = self.alloc_scratch(wide);
+            let r2 = self.alloc_scratch(wide);
             self.load_operand(left, r1);
             self.load_operand(right, r2);
             self.line(&format!("cmp {r1}, {r2}"));
-            let low = reg_low_byte(r1);
+            let cmp_reg = if wide {
+                self.reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
+            } else {
+                r1
+            };
+            let low = reg_low_byte(cmp_reg);
             self.line(&format!("{setcc} {low}"));
-            self.line(&format!("movzx {r1}, {low}"));
-            self.store_result(result, r1, &crate::ir::IrType::Bool);
+            self.line(&format!("movzx {cmp_reg}, {low}"));
+            self.store_result(result, cmp_reg, &crate::ir::IrType::Bool);
         }
     }
 
@@ -167,19 +182,25 @@ impl AsmGenerator {
 
     fn emit_neg(&mut self, inst: &IrInstruction) {
         if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
-            let r = self.alloc_scratch(false);
+            let op_ty = operand.get_type();
+            let result_ty = inst.result_type.as_ref().unwrap_or(&op_ty);
+            let wide = AsmGenerator::is_wide_type(result_ty);
+            let r = self.alloc_scratch(wide);
             self.load_operand(operand, r);
             self.line(&format!("neg {r}"));
-            self.store_result(result, r, &crate::ir::IrType::Int);
+            self.store_result(result, r, result_ty);
         }
     }
 
     fn emit_bitnot(&mut self, inst: &IrInstruction) {
         if let (Some(ref result), Some(operand)) = (&inst.result, inst.operands.first()) {
-            let r = self.alloc_scratch(false);
+            let op_ty = operand.get_type();
+            let result_ty = inst.result_type.as_ref().unwrap_or(&op_ty);
+            let wide = AsmGenerator::is_wide_type(result_ty);
+            let r = self.alloc_scratch(wide);
             self.load_operand(operand, r);
             self.line(&format!("not {r}"));
-            self.store_result(result, r, &crate::ir::IrType::Int);
+            self.store_result(result, r, result_ty);
         }
     }
 }

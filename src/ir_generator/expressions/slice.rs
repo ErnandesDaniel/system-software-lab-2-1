@@ -4,7 +4,7 @@ use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
     pub fn visit_slice_expr(&mut self, block: &mut IrBlock, expr: &SliceExpr) -> (String, IrType) {
-        if let crate::ast::Expr::FieldAccess(_, ref field_ident) = expr.array.as_ref() {
+        if let crate::ast::Expr::FieldAccess(_, ref field_ident, _) = expr.array.as_ref() {
             let (base_name, total_offset) = self.resolve_field_chain(expr.array.as_ref());
             if let Some(range) = expr.ranges.first() {
                 let (index_temp, _) = self.visit_expr(block, &range.start);
@@ -13,15 +13,20 @@ impl IrGenerator {
                     IrType::Array(elem, _) => *elem.clone(),
                     _ => IrType::Int,
                 };
+                let elem_size = element_type.size() as i64;
+                let base_ir_type = self.symbols.global_types.get(&base_name).cloned()
+                    .or_else(|| self.symbols.local_struct_types.get(&base_name).map(|_| IrType::Int))
+                    .unwrap_or(IrType::Int);
                 let result_temp = self.generate_temp();
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Load,
                     result: Some(result_temp.clone()),
                     result_type: Some(element_type.clone()),
                     operands: vec![
-                        IrOperand::Variable(base_name, IrType::Int),
+                        IrOperand::Variable(base_name, base_ir_type),
                         IrOperand::Constant(Constant::Int(total_offset as i64)),
                         IrOperand::Variable(index_temp, IrType::Int),
+                        IrOperand::Constant(Constant::Int(elem_size)),
                     ],
                     jump_target: None,
                     true_target: None,

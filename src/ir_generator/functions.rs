@@ -244,7 +244,7 @@ impl IrGenerator {
                     found.push(id.name.clone());
                 }
             }
-            Expr::FieldAccess(base, _) => {
+            Expr::FieldAccess(base, _, _) => {
                 Self::scan_expr(base, outer_symbols, param_names, found, seen);
             }
             Expr::FuncLiteral(f) => {

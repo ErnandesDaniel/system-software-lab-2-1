@@ -27,8 +27,13 @@ impl AsmGenerator {
             self.load_operand(value, val_reg);
 
             let base_reg = self.alloc_scratch(true);
-            let base_mem = self.mem_for(&base_name);
-            self.line(&format!("lea {base_reg}, {base_mem}"));
+            if let Some(co_off) = self.coro_offset(&base_name) {
+                self.restore_coro_ctx();
+                self.line(&format!("lea {base_reg}, [rcx + {co_off}]"));
+            } else {
+                let base_mem = self.mem_for(&base_name);
+                self.line(&format!("lea {base_reg}, {base_mem}"));
+            }
 
             match index {
                 IrOperand::Constant(Constant::Int(idx_val)) => {
@@ -56,12 +61,22 @@ impl AsmGenerator {
         let val_wide = AsmGenerator::is_wide_type(&value.get_type());
         let val_reg = self.alloc_scratch(val_wide);
         self.load_operand(value, val_reg);
-        let base_mem = self.mem_for(&base_name);
-        if off == 0 {
-            self.line(&format!("mov {base_mem}, {val_reg}"));
+        if let Some(co_off) = self.coro_offset(&base_name) {
+            self.restore_coro_ctx();
+            if off == 0 {
+                self.line(&format!("mov [rcx + {co_off}], {val_reg}"));
+            } else {
+                self.line(&format!("lea rcx, [rcx + {co_off}]"));
+                self.line(&format!("mov [rcx + {off}], {val_reg}"));
+            }
         } else {
-            self.line(&format!("lea rcx, {base_mem}"));
-            self.line(&format!("mov [rcx + {off}], {val_reg}"));
+            let base_mem = self.mem_for(&base_name);
+            if off == 0 {
+                self.line(&format!("mov {base_mem}, {val_reg}"));
+            } else {
+                self.line(&format!("lea rcx, {base_mem}"));
+                self.line(&format!("mov [rcx + {off}], {val_reg}"));
+            }
         }
     }
 
@@ -88,12 +103,22 @@ impl AsmGenerator {
                         _ => return,
                     };
                     let reg = self.alloc_scratch(result_wide);
-                    let mem = self.mem_for(&base_name);
-                    if *off == 0 {
-                        self.line(&format!("mov {reg}, {mem}"));
+                    if let Some(co_off) = self.coro_offset(&base_name) {
+                        self.restore_coro_ctx();
+                        if *off == 0 {
+                            self.line(&format!("mov {reg}, [rcx + {co_off}]"));
+                        } else {
+                            self.line(&format!("lea rcx, [rcx + {co_off}]"));
+                            self.line(&format!("mov {reg}, [rcx + {off}]"));
+                        }
                     } else {
-                        self.line(&format!("lea rcx, {mem}"));
-                        self.line(&format!("mov {reg}, [rcx + {off}]"));
+                        let mem = self.mem_for(&base_name);
+                        if *off == 0 {
+                            self.line(&format!("mov {reg}, {mem}"));
+                        } else {
+                            self.line(&format!("lea rcx, {mem}"));
+                            self.line(&format!("mov {reg}, [rcx + {off}]"));
+                        }
                     }
                     self.store_result(&result, reg, &result_ty);
                 } else {
@@ -106,8 +131,13 @@ impl AsmGenerator {
                     self.load_operand(&inst.operands[1], idx_reg);
                     let res_reg = self.alloc_scratch(result_wide);
                     let base_reg = self.alloc_scratch(true);
-                    let mem = self.mem_for(&array_name);
-                    self.line(&format!("lea {base_reg}, {mem}"));
+                    if let Some(co_off) = self.coro_offset(&array_name) {
+                        self.restore_coro_ctx();
+                        self.line(&format!("lea {base_reg}, [rcx + {co_off}]"));
+                    } else {
+                        let mem = self.mem_for(&array_name);
+                        self.line(&format!("lea {base_reg}, {mem}"));
+                    }
                     if matches!(elem_stride, 1 | 2 | 4 | 8) {
                         self.line(&format!("mov {res_reg}, [{base_reg} + {idx_reg}*{elem_stride}]"));
                     } else {
@@ -132,8 +162,13 @@ impl AsmGenerator {
                 self.load_operand(&inst.operands[2], idx_reg);
                 let res_reg = self.alloc_scratch(result_wide);
                 let base_reg = self.alloc_scratch(true);
-                let mem = self.mem_for(&base_name);
-                self.line(&format!("lea {base_reg}, {mem}"));
+                if let Some(co_off) = self.coro_offset(&base_name) {
+                    self.restore_coro_ctx();
+                    self.line(&format!("lea {base_reg}, [rcx + {co_off}]"));
+                } else {
+                    let mem = self.mem_for(&base_name);
+                    self.line(&format!("lea {base_reg}, {mem}"));
+                }
                 if off != 0 {
                     self.line(&format!("add {base_reg}, {off}"));
                 }

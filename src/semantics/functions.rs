@@ -127,7 +127,10 @@ impl SemanticsAnalyzer {
                 }
                 SourceItem::CoroutineDef(coro) => {
                     self.in_coroutine = true;
-                    self.check_coroutine(coro)?;
+                    if let Err(e) = self.check_coroutine(coro) {
+                        self.in_coroutine = false;
+                        return Err(e);
+                    }
                     self.in_coroutine = false;
                 }
                 _ => {}

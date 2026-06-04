@@ -19,7 +19,7 @@ impl IrGenerator {
             Expr::Literal(lit, s) => self.visit_literal_expr(block, lit, *s),
             Expr::ArrayLiteral(elements, _s) => self.visit_array_literal(block, elements),
             Expr::FuncLiteral(f) => self.visit_func_literal(block, f),
-            Expr::FieldAccess(base, field) => self.visit_field_access(block, base, field),
+            Expr::FieldAccess(base, field, _) => self.visit_field_access(block, base, field),
         }
     }
 
@@ -52,11 +52,12 @@ impl IrGenerator {
 
         // Captured variable → load from closure env
         if let Some(slot) = self.captured_vars.get(name).copied() {
+            let captured_type = self.symbols.get_type(name);
             let tmp = self.generate_temp();
             block.instructions.push(IrInstruction {
                 opcode: IrOpcode::LoadCaptured,
                 result: Some(tmp.clone()),
-                result_type: Some(IrType::Int),
+                result_type: Some(captured_type.clone()),
                 operands: vec![
                     IrOperand::Variable("__env".to_string(), IrType::Int),
                     IrOperand::Constant(Constant::Int(slot as i64)),
@@ -64,7 +65,7 @@ impl IrGenerator {
                 jump_target: None, true_target: None, false_target: None,
                 span: id.span,
             });
-            return (tmp, IrType::Int);
+            return (tmp, captured_type);
         }
 
         // Global variable
@@ -93,8 +94,14 @@ impl IrGenerator {
     fn visit_array_literal(&mut self, block: &mut IrBlock, elements: &[Expr]) -> (String, IrType) {
         if elements.is_empty() {
             let t = self.generate_temp();
-            self.symbols.define_local(&t, IrType::Array(Box::new(IrType::Int), 0));
-            return (t, IrType::Array(Box::new(IrType::Int), 0));
+            let arr_type = IrType::Array(Box::new(IrType::Int), 0);
+            self.symbols.define_local(&t, arr_type.clone());
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::AllocArray, result: Some(t.clone()),
+                result_type: Some(arr_type.clone()), operands: vec![],
+                jump_target: None, true_target: None, false_target: None, span: Span::new(0, 0),
+            });
+            return (t, arr_type);
         }
 
         let arr_tmp = self.generate_temp();

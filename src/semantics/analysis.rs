@@ -49,7 +49,7 @@ impl SemanticsAnalyzer {
         }
     }
 
-    pub fn convert_type(&self, ty: &TypeRef) -> IrType {
+    pub fn convert_type(&mut self, ty: &TypeRef) -> IrType {
         match ty {
             TypeRef::BuiltinType(bt) => match bt {
                 BuiltinType::Bool => IrType::Bool,
@@ -67,6 +67,7 @@ impl SemanticsAnalyzer {
                     let typed_fields: Vec<(String, IrType)> = fields.iter().map(|(n, t)| (n.clone(), t.clone())).collect();
                     IrType::Struct { name: id.name.clone(), fields: typed_fields, size: total_size }
                 } else {
+                    self.add_error(format!("Undeclared type '{}'", id.name), id.span);
                     IrType::Int
                 }
             }
@@ -103,22 +104,24 @@ impl SemanticsAnalyzer {
 
     /// Resolve the type of a field access by looking up the base expression's type
     /// in the local or global scope, then finding the struct field definition.
-    pub fn resolve_field_type(&self, scope: &SymbolTable, base_expr: &Expr, field: &str) -> IrType {
+    pub fn resolve_field_type(&mut self, scope: &SymbolTable, base_expr: &Expr, field: &str) -> IrType {
         let base_type = self.infer_expr_type(scope, base_expr);
-        let struct_name = self.type_to_struct_name(&base_type);
-        if let Some(name) = struct_name {
-            if let Some(fields) = self.struct_fields.get(&name) {
-                for (fname, fty) in fields {
-                    if fname == field {
-                        return fty.clone();
-                    }
+        self.resolve_field_type_by_ir_type(&base_type, field, base_expr.span())
+    }
+
+    pub fn resolve_field_type_by_ir_type(&mut self, base_type: &IrType, field: &str, span: Span) -> IrType {
+        if let IrType::Struct { name: _, fields, .. } = base_type {
+            for (fname, fty) in fields {
+                if fname == field {
+                    return fty.clone();
                 }
             }
         }
+        self.add_error(format!("Field '{}' not found on type {:?}", field, base_type), span);
         IrType::Int
     }
 
-    fn infer_expr_type(&self, scope: &SymbolTable, expr: &Expr) -> IrType {
+    fn infer_expr_type(&mut self, scope: &SymbolTable, expr: &Expr) -> IrType {
         match expr {
             Expr::Identifier(id) => {
                 if let Some(sym) = scope.lookup(&id.name) {
@@ -129,15 +132,9 @@ impl SemanticsAnalyzer {
                 }
                 IrType::Int
             }
-            Expr::FieldAccess(base, _) => {
+            Expr::FieldAccess(base, field, _) => {
                 let base_ty = self.infer_expr_type(scope, base);
-                let struct_name = self.type_to_struct_name(&base_ty);
-                if let Some(name) = struct_name {
-                    if self.struct_fields.contains_key(&name) {
-                        return IrType::Int;
-                    }
-                }
-                IrType::Int
+                return self.resolve_field_type_by_ir_type(&base_ty, &field.name, field.span);
             }
             Expr::Binary(bin) => {
                 let _left = self.infer_expr_type(scope, &bin.left);
@@ -204,17 +201,6 @@ impl SemanticsAnalyzer {
         }
     }
 
-    fn type_to_struct_name(&self, ty: &IrType) -> Option<String> {
-        if let IrType::Array(_elem, size) = ty {
-            for (name, fields) in &self.struct_fields {
-                let struct_slots = fields.last().map(|(_, t)| t.size() as usize).unwrap_or(4) / 4;
-                if struct_slots == *size || struct_slots == 0 {
-                    return Some(name.clone());
-                }
-            }
-        }
-        None
-    }
 }
 
 impl Default for SemanticsAnalyzer {

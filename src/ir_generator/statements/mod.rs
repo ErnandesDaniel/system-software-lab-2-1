@@ -52,12 +52,18 @@ impl IrGenerator {
     }
 
     fn visit_var_decl(&mut self, vd: &crate::ast::VarDeclStatement) {
-        if !self.symbols.is_declared(&vd.name.name) {
-            let ir_ty = self.convert_type(&vd.ty);
-            self.symbols.define_local(&vd.name.name, ir_ty.clone());
-            if let crate::ast::TypeRef::Custom(id) = &vd.ty {
+        let ir_ty = self.convert_type(&vd.ty);
+        self.symbols.define_local(&vd.name.name, ir_ty.clone());
+        match &vd.ty {
+            crate::ast::TypeRef::Custom(id) => {
                 self.symbols.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
             }
+            crate::ast::TypeRef::Array { element_type, .. } => {
+                if let crate::ast::TypeRef::Custom(id) = element_type.as_ref() {
+                    self.symbols.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
+                }
+            }
+            _ => {}
         }
     }
 

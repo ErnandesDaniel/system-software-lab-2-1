@@ -102,6 +102,7 @@ impl JvmGenerator {
         let return_type = inst.result_type.clone();
 
         let (class_idx, method_name, descriptor) = if Self::is_external_function(target) {
+            self.stub_needed = true;
             if target == "printf" {
                 // printf has variable args — build descriptor from actual params
                 let desc = Self::build_user_method_descriptor(&param_types, return_type.as_ref());
@@ -202,6 +203,7 @@ impl JvmGenerator {
         if self.pool.string_slice_ref != 0 {
             return;
         }
+        self.stub_needed = true;
         let stub_class = self.pool.constant_pool.add_class("RuntimeStub")
             .expect("Failed to add RuntimeStub class");
         self.pool.string_slice_ref = self.pool.constant_pool.add_method_ref(stub_class, "string_slice", "([BII)[B")

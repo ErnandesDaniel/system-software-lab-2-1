@@ -72,7 +72,7 @@ import strlen
 def main() of int {
     s = "hello";
     p = strchr(s, 101);
-    if (p == "") { return 99; }
+    if (p == 0) { return 99; }
     return strlen(p);
 }
 "#;
@@ -94,7 +94,7 @@ import malloc
 import free
 def main() of int {
     p = malloc(128);
-    if (p == "") { return 1; }
+    if (p == 0) { return 1; }
     free(p);
     return 0;
 }
@@ -145,8 +145,8 @@ import fclose
 global s of string;
 def main() of int {
     f = fopen("_test_fopen.txt", "w");
-    if (f == "") { puts("FAIL"); } else { puts("OK"); }
-    if (f == "") { return 1; }
+    if (f == 0) { puts("FAIL"); return 1; }
+    puts("OK");
     fclose(f);
     return 0;
 }

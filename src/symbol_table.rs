@@ -92,6 +92,14 @@ impl SymbolTable {
     }
 
     pub fn upsert(&mut self, name: String, ty: IrType) {
+        // Search from innermost to outermost for existing variable
+        for scope in self.scopes.iter_mut().rev() {
+            if scope.declared.contains(&name) {
+                scope.locals.insert(name.clone(), IrLocal { name, ty, stack_offset: None });
+                return;
+            }
+        }
+        // Not found in any scope — add to innermost
         let scope = self.scopes.last_mut().expect("no scope");
         let n = name.clone();
         scope.declared.insert(n);
@@ -132,7 +140,7 @@ impl SymbolTable {
     pub fn all_locals(&self) -> Vec<IrLocal> {
         let mut result = Vec::new();
         let mut seen = HashSet::new();
-        for scope in &self.scopes {
+        for scope in self.scopes.iter().rev() {
             for (name, local) in &scope.locals {
                 if seen.insert(name.clone()) {
                     result.push(local.clone());

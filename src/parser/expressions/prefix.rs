@@ -67,7 +67,7 @@ impl Parser<'_> {
             Some(Token::Minus) => {
                 let start = self.current_span();
                 self.advance();
-                let operand = Box::new(self.parse_expression(90)?);
+                let operand = Box::new(self.parse_expression(79)?);
                 let span = start.merge(self.current_span());
                 Ok(Expr::Unary(UnaryExpr {
                     operator: UnaryOp::Negate,
@@ -78,7 +78,7 @@ impl Parser<'_> {
             Some(Token::Bang) => {
                 let start = self.current_span();
                 self.advance();
-                let operand = Box::new(self.parse_expression(90)?);
+                let operand = Box::new(self.parse_expression(79)?);
                 let span = start.merge(self.current_span());
                 Ok(Expr::Unary(UnaryExpr {
                     operator: UnaryOp::Not,
@@ -89,7 +89,7 @@ impl Parser<'_> {
             Some(Token::Tilde) => {
                 let start = self.current_span();
                 self.advance();
-                let operand = Box::new(self.parse_expression(90)?);
+                let operand = Box::new(self.parse_expression(79)?);
                 let span = start.merge(self.current_span());
                 Ok(Expr::Unary(UnaryExpr {
                     operator: UnaryOp::BitNot,

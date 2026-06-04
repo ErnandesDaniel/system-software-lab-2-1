@@ -48,7 +48,7 @@ impl IrGenerator {
                 crate::ast::Literal::Bits(v) => Some(crate::ir::Constant::Int(*v as i64)),
                 crate::ast::Literal::Str(s) => Some(crate::ir::Constant::String(unescape_string(s))),
                 crate::ast::Literal::Char(c) => Some(crate::ir::Constant::Char(*c as u8)),
-                crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Int(i64::from(*b))),
+                crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Bool(*b)),
             },
             Expr::ArrayLiteral(elements, _) => {
                 let constants: Vec<crate::ir::Constant> = elements
@@ -70,12 +70,18 @@ impl IrGenerator {
             .map_or(0, |(_, _, o)| *o)
     }
 
-    /// Legacy: find field offset by searching ALL structs (used for array-of-structs indexed access).
-    pub fn find_field_offset_for_array(&self, _base: &str, field: &str) -> usize {
-        for fields in self.symbols.struct_fields.values() {
-            for (fname, _, offset) in fields {
-                if fname == field {
-                    return *offset;
+    pub fn find_field_offset_for_array(&self, base: &str, field: &str) -> usize {
+        let struct_name = self
+            .symbols
+            .global_struct_type_names
+            .get(base)
+            .or_else(|| self.symbols.local_struct_types.get(base));
+        if let Some(struct_name) = struct_name {
+            if let Some(fields) = self.symbols.struct_fields.get(struct_name) {
+                for (fname, _, offset) in fields {
+                    if fname == field {
+                        return *offset;
+                    }
                 }
             }
         }
@@ -119,7 +125,7 @@ impl IrGenerator {
     /// to traverse nested struct fields.
     pub fn resolve_field_chain(&self, expr: &Expr) -> (String, usize) {
         match expr {
-            Expr::FieldAccess(base, field) => {
+            Expr::FieldAccess(base, field, _) => {
                 let (base_name, base_offset) = self.resolve_field_chain(base);
                 let struct_name = self
                     .symbols.local_struct_types.get(&base_name)

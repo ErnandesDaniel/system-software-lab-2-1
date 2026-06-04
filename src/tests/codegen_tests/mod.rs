@@ -1,4 +1,5 @@
 mod ir;
+mod ir_more;
 mod asm;
 
 use crate::codegen::nasm::AsmGenerator;

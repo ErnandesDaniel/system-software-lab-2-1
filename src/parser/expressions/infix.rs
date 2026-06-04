@@ -106,8 +106,8 @@ impl Parser<'_> {
                     name: self.get_text(&f_span).to_string(),
                     span: f_span,
                 };
-                let _span = start.merge(self.current_span());
-                Ok(Expr::FieldAccess(Box::new(left), field))
+                let span = start.merge(self.current_span());
+                Ok(Expr::FieldAccess(Box::new(left), field, span))
             }
             _ => Ok(left),
         }

@@ -113,9 +113,16 @@ impl AsmGenerator {
 
         let param_names: Vec<String> = self.param_registers.iter().cloned().collect();
         for (i, param_name) in param_names.iter().enumerate() {
-            let reg = match i {
-                0 => "rcx", 1 => "rdx", 2 => "r8", 3 => "r9",
-                _ => "rax",
+            let reg = if self.is_coroutine {
+                match i {
+                    0 => "rdx", 1 => "r8", 2 => "r9",
+                    _ => "rax",
+                }
+            } else {
+                match i {
+                    0 => "rcx", 1 => "rdx", 2 => "r8", 3 => "r9",
+                    _ => "rax",
+                }
             };
             let mem = self.mem_for(param_name);
             self.line(&format!("mov {mem}, {reg}"));

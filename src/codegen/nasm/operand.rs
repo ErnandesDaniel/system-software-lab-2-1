@@ -28,13 +28,20 @@ impl AsmGenerator {
                 if let Some(co_off) = self.coro_offset(name) {
                     self.restore_coro_ctx();
                     let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
-                    if Self::is_wide_type(ty) {
-                        self.line(&format!("mov {nreg}, [rcx + {co_off}]"));
+                    let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
+                    if use_lea {
+                        let lea_reg = if nreg.starts_with('e') {
+                            self.reg_name(REGS_32.iter().position(|r| *r == nreg).unwrap_or(0), true)
+                        } else { nreg };
+                        self.line(&format!("lea {lea_reg}, [rcx + {co_off}]"));
+                        if lea_reg != reg {
+                            self.line(&format!("mov {reg}, {lea_reg}"));
+                        }
                     } else {
                         self.line(&format!("mov {nreg}, [rcx + {co_off}]"));
-                    }
-                    if nreg != reg {
-                        self.line(&format!("mov {reg}, {nreg}"));
+                        if nreg != reg {
+                            self.line(&format!("mov {reg}, {nreg}"));
+                        }
                     }
                     return;
                 }

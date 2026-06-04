@@ -80,7 +80,7 @@ impl IrType {
 
     #[must_use]
     pub fn is_pointer(&self) -> bool {
-        matches!(self, IrType::String | IrType::Function(_, _))
+        matches!(self, IrType::String | IrType::Function(_, _) | IrType::Array(_, _))
     }
 
     /// Get the name of a struct type, if this is a Struct variant

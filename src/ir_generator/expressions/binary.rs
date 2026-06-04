@@ -133,7 +133,7 @@ impl IrGenerator {
         right_temp: &str, right_type: &IrType,
     ) -> (String, IrType) {
         match expr.left.as_ref() {
-            Expr::FieldAccess(inner_base, field) => {
+            Expr::FieldAccess(inner_base, field, _) => {
                 self.assign_to_field(block, expr, inner_base, field, right_temp, right_type);
             }
             Expr::Slice(slice) => {
@@ -165,6 +165,11 @@ impl IrGenerator {
                 let (arr_name, _) = self.visit_expr(block, &slice.array);
                 let (idx_temp, _) = self.visit_expr(block, &range.start);
                 let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
+                let field_type = self.find_field_type_for_var(&arr_name, &field.name);
+                let elem_size = match &field_type {
+                    IrType::Array(elem, _) => elem.size() as i64,
+                    _ => 4i64,
+                };
                 let arr_type = self.symbols.global_types.get(&arr_name).cloned().unwrap_or(IrType::Int);
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Store, result: None, result_type: None,
@@ -173,6 +178,7 @@ impl IrGenerator {
                         IrOperand::Constant(Constant::Int(field_offset as i64)),
                         IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                         IrOperand::Variable(idx_temp, IrType::Int),
+                        IrOperand::Constant(Constant::Int(elem_size)),
                     ],
                     jump_target: None, true_target: None, false_target: None, span: expr.span,
                 });
