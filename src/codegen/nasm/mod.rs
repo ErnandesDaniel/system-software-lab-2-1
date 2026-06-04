@@ -74,7 +74,7 @@ impl AsmGenerator {
     }
 
     pub fn alloc_slot(&mut self, name: &str, size: u32) -> i32 {
-        let aligned = size.max(8).next_power_of_two().min(8) as i32;
+        let aligned = size.max(8).next_power_of_two() as i32;
         self.next_stack_offset -= aligned;
         let offset = self.next_stack_offset;
         self.slots.insert(name.to_string(), StackSlot { offset, size });
