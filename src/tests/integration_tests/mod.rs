@@ -1,8 +1,11 @@
+mod advanced_func;
 mod arithmetic;
 mod basics;
-mod coroutines;
-mod functions;
+mod call_ops;
+mod control_flow;
+mod coro_state;
 mod globals;
+mod yield_return;
 mod io;
 mod io_advanced;
 mod stdlib;

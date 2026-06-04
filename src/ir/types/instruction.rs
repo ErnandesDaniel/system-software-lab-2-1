@@ -1,170 +1,50 @@
-use crate::ast::Span;
-use crate::struct_layout::LayoutDatabase;
 use serde::{Deserialize, Serialize};
+use crate::ast::Span;
+use super::ir_type::IrType;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrProgram {
-    pub functions: Vec<IrFunction>,
-    pub globals: Vec<IrGlobal>,
-    pub struct_layouts: LayoutDatabase,
+pub struct IrInstruction {
+    pub opcode: IrOpcode,
+    pub result: Option<String>,
+    pub result_type: Option<IrType>,
+    pub operands: Vec<IrOperand>,
+    pub jump_target: Option<String>,
+    pub true_target: Option<String>,
+    pub false_target: Option<String>,
+    pub span: Span,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrGlobal {
-    pub name: String,
-    pub ty: IrType,
-    pub initializer: Option<Constant>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrFunction {
-    pub name: String,
-    pub return_type: IrType,
-    pub parameters: Vec<IrParameter>,
-    pub blocks: Vec<IrBlock>,
-    pub locals: Vec<IrLocal>,
-    pub used_functions: Vec<String>,
-    pub yield_count: usize,
-    pub coroutine_blocks: Vec<String>,
-    pub is_coroutine: bool,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrParameter {
-    pub name: String,
-    pub ty: IrType,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrLocal {
-    pub name: String,
-    pub ty: IrType,
-    pub stack_offset: Option<i32>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[allow(dead_code)]
-pub enum IrType {
-    Void,
-    Bool,
-    Byte,
-    Int,
-    Uint,
-    Long,
-    Ulong,
-    Char,
-    String,
-    Array(Box<IrType>, usize),
-    Function(Vec<IrType>, Box<IrType>),
-    Struct {
-        name: String,
-        fields: Vec<(String, IrType)>,
-        size: usize,
-    },
-}
+impl IrInstruction {
+    #[must_use]
+    pub fn new(opcode: IrOpcode) -> Self {
+        Self {
+            opcode,
+            result: None,
+            result_type: None,
+            operands: Vec::new(),
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: Span::new(0, 0),
+        }
+    }
 
-impl IrType {
     #[allow(dead_code)]
     #[must_use]
-    pub fn size(&self) -> u32 {
-        match self {
-            IrType::Void => 0,
-            IrType::Bool | IrType::Byte | IrType::Char => 4,
-            IrType::Int | IrType::Uint => 4,
-            IrType::Long | IrType::Ulong => 8,
-            IrType::String | IrType::Function(_, _) => 8,
-            IrType::Array(elem, size) => elem.size() * *size as u32,
-            IrType::Struct { size, .. } => *size as u32,
-        }
+    pub fn with_result(mut self, result: String, ty: IrType) -> Self {
+        self.result = Some(result);
+        self.result_type = Some(ty);
+        self
     }
 
+    #[allow(dead_code)]
     #[must_use]
-    pub fn is_pointer(&self) -> bool {
-        matches!(self, IrType::String | IrType::Function(_, _) | IrType::Array(_, _))
+    pub fn with_operand(mut self, operand: IrOperand) -> Self {
+        self.operands.push(operand);
+        self
     }
 
-    /// Get the name of a struct type, if this is a Struct variant
-    #[must_use]
-    pub fn struct_name(&self) -> Option<&str> {
-        match self {
-            IrType::Struct { name, .. } => Some(name.as_str()),
-            _ => None,
-        }
-    }
-
-    /// Get the fields of a struct type, if this is a Struct variant
-    #[must_use]
-    pub fn struct_fields(&self) -> Option<&[(String, IrType)]> {
-        match self {
-            IrType::Struct { fields, .. } => Some(fields.as_slice()),
-            _ => None,
-        }
-    }
-
-    #[must_use]
-    pub fn is_int_like(&self) -> bool {
-        matches!(self, IrType::Byte | IrType::Int | IrType::Uint | IrType::Long | IrType::Ulong | IrType::Char)
-    }
-
-    #[must_use]
-    pub fn is_bool(&self) -> bool {
-        matches!(self, IrType::Bool)
-    }
-
-    #[must_use]
-    pub fn is_byte(&self) -> bool {
-        matches!(self, IrType::Byte | IrType::Char)
-    }
-
-    #[must_use]
-    pub fn is_uint(&self) -> bool {
-        matches!(self, IrType::Uint)
-    }
-
-    #[must_use]
-    pub fn is_long(&self) -> bool {
-        matches!(self, IrType::Long | IrType::Ulong)
-    }
-
-    /// JVM descriptor for this type
-    pub fn jvm_descriptor(&self) -> String {
-        match self {
-            IrType::Void => "V".to_string(),
-            IrType::Bool => "Z".to_string(),
-            IrType::Byte => "B".to_string(),
-            IrType::Int | IrType::Uint | IrType::Char => "I".to_string(),
-            IrType::Long | IrType::Ulong => "J".to_string(),
-            IrType::String => "[B".to_string(),
-            IrType::Array(elem, _) => format!("[{}", elem.jvm_descriptor()),
-            IrType::Function(_, _) => "Ljava/lang/Object;".to_string(),
-            IrType::Struct { .. } => "I".to_string(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrBlock {
-    pub id: String,
-    pub instructions: Vec<IrInstruction>,
-    pub successors: Vec<String>,
-}
-
-impl IrBlock {
-    pub fn new(id: String) -> Self {
-        Self { id, instructions: Vec::new(), successors: Vec::new() }
-    }
-
-    pub fn inst(&mut self, opcode: IrOpcode) -> IrInstBuilder<'_> {
-        IrInstBuilder { block: self, opcode }
-    }
-}
-
-pub struct IrInstBuilder<'a> {
-    block: &'a mut IrBlock,
-    opcode: IrOpcode,
-}
-
-impl IrInstruction {
     pub fn add(result: String, ty: IrType, left: IrOperand, right: IrOperand, span: Span) -> Self {
         Self { opcode: IrOpcode::Add, result: Some(result), result_type: Some(ty), operands: vec![left, right], jump_target: None, true_target: None, false_target: None, span }
     }
@@ -286,114 +166,14 @@ impl IrInstruction {
     }
 }
 
-impl IrInstBuilder<'_> {
-    pub fn with(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, span: Span) {
-        self.block.instructions.push(IrInstruction {
-            opcode: self.opcode,
-            result, result_type, operands,
-            jump_target: None, true_target: None, false_target: None, span,
-        });
-    }
-
-    pub fn jump(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, target: String, span: Span) {
-        self.block.instructions.push(IrInstruction {
-            opcode: self.opcode,
-            result, result_type, operands,
-            jump_target: Some(target), true_target: None, false_target: None, span,
-        });
-    }
-
-    pub fn cond(self, operands: Vec<IrOperand>, true_target: String, false_target: String, span: Span) {
-        self.block.instructions.push(IrInstruction {
-            opcode: self.opcode,
-            result: None, result_type: None, operands,
-            jump_target: None, true_target: Some(true_target), false_target: Some(false_target), span,
-        });
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct IrInstruction {
-    pub opcode: IrOpcode,
-    pub result: Option<String>,
-    pub result_type: Option<IrType>,
-    pub operands: Vec<IrOperand>,
-    pub jump_target: Option<String>,
-    pub true_target: Option<String>,
-    pub false_target: Option<String>,
-    pub span: Span,
-}
-
-#[allow(dead_code)]
-impl IrInstruction {
-    #[must_use]
-    pub fn new(opcode: IrOpcode) -> Self {
-        Self {
-            opcode,
-            result: None,
-            result_type: None,
-            operands: Vec::new(),
-            jump_target: None,
-            true_target: None,
-            false_target: None,
-            span: Span::new(0, 0),
-        }
-    }
-
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn with_result(mut self, result: String, ty: IrType) -> Self {
-        self.result = Some(result);
-        self.result_type = Some(ty);
-        self
-    }
-
-    #[allow(dead_code)]
-    #[must_use]
-    pub fn with_operand(mut self, operand: IrOperand) -> Self {
-        self.operands.push(operand);
-        self
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum IrOpcode {
-    Add,
-    Sub,
-    Mul,
-    Div,
-    Mod,
-    Eq,
-    Ne,
-    Lt,
-    Le,
-    Gt,
-    Ge,
-    And,
-    Or,
-    Not,
-    BitNot,
-    BitAnd,
-    BitOr,
-    BitXor,
-    StrGetByte,
-    StrSetByte,
-    Neg,
-    Assign,
-    Call,
-    Jump,
-    CondBr,
-    Ret,
-    Load,
-    Store,
-    Slice,
-    CoroYield,
-    CallIndirect,
-    MakeClosure,
-    CallClosure,
-    LoadCaptured,
-    StoreCaptured,
-    AllocArray,
+    Add, Sub, Mul, Div, Mod,
+    Eq, Ne, Lt, Le, Gt, Ge,
+    And, Or, Not, BitNot, BitAnd, BitOr, BitXor,
+    StrGetByte, StrSetByte, Neg,
+    Assign, Call, Jump, CondBr, Ret, Load, Store, Slice, CoroYield,
+    CallIndirect, MakeClosure, CallClosure, LoadCaptured, StoreCaptured, AllocArray,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

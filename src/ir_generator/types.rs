@@ -1,14 +1,10 @@
-use crate::ast::{BuiltinType, Expr, Identifier, TypeRef};
+use crate::ast::{BuiltinType, Expr, TypeRef};
 use crate::ir::IrType;
 use crate::ir_generator::unescape_string;
 
 use super::IrGenerator;
 
 impl IrGenerator {
-    pub fn get_ident_type(&self, id: &Identifier) -> IrType {
-        self.symbols.get_type(&id.name)
-    }
-
     pub fn convert_type(&self, ty: &TypeRef) -> IrType {
         match ty {
             TypeRef::BuiltinType(bt) => match bt {
@@ -59,15 +55,6 @@ impl IrGenerator {
             }
             _ => None,
         }
-    }
-
-    /// Find a field offset by struct name and field name (scoped to correct struct).
-    pub fn find_field_offset(&self, struct_name: &str, field: &str) -> usize {
-        self.symbols
-            .struct_fields
-            .get(struct_name)
-            .and_then(|fields| fields.iter().find(|(n, _, _)| n == field))
-            .map_or(0, |(_, _, o)| *o)
     }
 
     pub fn find_field_offset_for_array(&self, base: &str, field: &str) -> usize {

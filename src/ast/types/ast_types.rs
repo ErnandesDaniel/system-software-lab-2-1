@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use super::ast_enums::{BinaryOp, UnaryOp, Literal, BuiltinType, LoopKeyword};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {
@@ -94,18 +95,6 @@ pub enum TypeRef {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BuiltinType {
-    Bool,
-    Byte,
-    Int,
-    Uint,
-    Long,
-    Ulong,
-    Char,
-    String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Statement {
     Return(ReturnStatement),
     If(IfStatement),
@@ -162,12 +151,6 @@ pub struct LoopStatement {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum LoopKeyword {
-    While,
-    Until,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct RepeatStatement {
     pub body: Vec<Statement>,
     pub keyword: LoopKeyword,
@@ -215,38 +198,10 @@ pub struct BinaryExpr {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum BinaryOp {
-    Multiply,
-    Divide,
-    Modulo,
-    Add,
-    Subtract,
-    Less,
-    Greater,
-    Equal,
-    NotEqual,
-    LessOrEqual,
-    GreaterOrEqual,
-    And,
-    Or,
-    BitAnd,
-    BitOr,
-    BitXor,
-    Assign,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UnaryExpr {
     pub operator: UnaryOp,
     pub operand: Box<Expr>,
     pub span: Span,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum UnaryOp {
-    Negate,
-    Not,
-    BitNot,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -268,16 +223,6 @@ pub struct Range {
     pub start: Expr,
     pub end: Option<Expr>,
     pub span: Span,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum Literal {
-    Bool(bool),
-    Str(String),
-    Char(char),
-    Hex(u64),
-    Bits(u64),
-    Dec(u64),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]

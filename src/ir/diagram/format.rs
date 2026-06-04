@@ -135,15 +135,6 @@ fn format_slice(inst: &IrInstruction) -> String {
     format!("{} = {}[{}:]", result_name(inst), arr, start)
 }
 
-fn format_alloca(inst: &IrInstruction) -> String {
-    format!("alloca {}", result_name(inst))
-}
-
-fn format_cast(inst: &IrInstruction) -> String {
-    let a = get_single_operand(inst);
-    format!("{} = cast({})", result_name(inst), a)
-}
-
 fn format_str_get_byte(inst: &IrInstruction) -> String {
     let (str_name, idx_name) = get_operands(inst);
     format!("{} = {}[{}] (str)", result_name(inst), str_name, idx_name)

@@ -1,4 +1,3 @@
-mod block;
 mod closure;
 mod control;
 mod data;
@@ -109,17 +108,6 @@ impl AsmGenerator {
         regs[0]
     }
 
-    pub fn free_scratch(&mut self, reg: &str, wide: bool) {
-        let (used, regs) = if wide {
-            (&mut self.regs_used_64, REGS_64)
-        } else {
-            (&mut self.regs_used_32, REGS_32)
-        };
-        if let Some(i) = regs.iter().position(|r| *r == reg) {
-            *used &= !(1 << i);
-        }
-    }
-
     pub fn free_all_scratch(&mut self) {
         self.regs_used_32 = 0;
         self.regs_used_64 = 0;
@@ -127,10 +115,6 @@ impl AsmGenerator {
 
     pub fn is_wide_type(ty: &crate::ir::IrType) -> bool {
         ty.size() > 4
-    }
-
-    pub fn store_reg_for_type(ty: &crate::ir::IrType) -> &'static str {
-        if Self::is_wide_type(ty) { "rax" } else { "eax" }
     }
 
     pub fn format_block_label(&self, id: &str) -> String {

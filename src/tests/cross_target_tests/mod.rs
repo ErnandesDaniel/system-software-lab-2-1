@@ -1,4 +1,6 @@
-mod advanced;
+mod closures_structs;
+mod coroutine_tests;
+mod nasm_extra;
 
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::nasm::AsmGenerator;
