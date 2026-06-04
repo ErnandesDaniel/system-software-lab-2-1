@@ -78,6 +78,7 @@ impl CompilerDriver {
 
         let stub = format!(r#"import java.io.*;
 import java.util.*;
+import java.nio.charset.StandardCharsets;
 
 public class RuntimeStub {{
     private static HashMap<String, String> store = new HashMap<>();
@@ -107,7 +108,7 @@ public class RuntimeStub {{
     }}
 
     public static int puts(byte[] s) {{
-        System.out.println(new String(s));
+        System.out.println(new String(s, StandardCharsets.UTF_8));
         System.out.flush();
         return s.length;
     }}
@@ -124,7 +125,7 @@ public class RuntimeStub {{
     }}
 
     public static int printf(byte[] format, int value) {{
-        String fmt = new String(format);
+        String fmt = new String(format, StandardCharsets.UTF_8);
         StringBuilder sb = new StringBuilder();
         for (int __i = 0; __i < fmt.length(); __i++) {{
             char c = fmt.charAt(__i);
@@ -174,19 +175,19 @@ public class RuntimeStub {{
     // --- Map functions (JVM) ---
 
     public static int map_put_jvm(byte[] name, byte[] value) {{
-        synchronized (store) {{ store.put(new String(name), new String(value)); return 1; }}
+        synchronized (store) {{ store.put(new String(name, StandardCharsets.UTF_8), new String(value, StandardCharsets.UTF_8)); return 1; }}
     }}
 
     public static byte[] map_get_jvm(byte[] name) {{
-        synchronized (store) {{ String v = store.get(new String(name)); return v != null ? v.getBytes() : new byte[0]; }}
+        synchronized (store) {{ String v = store.get(new String(name, StandardCharsets.UTF_8)); return v != null ? v.getBytes(StandardCharsets.UTF_8) : new byte[0]; }}
     }}
 
     public static int map_has_jvm(byte[] name) {{
-        synchronized (store) {{ return store.containsKey(new String(name)) ? 1 : 0; }}
+        synchronized (store) {{ return store.containsKey(new String(name, StandardCharsets.UTF_8)) ? 1 : 0; }}
     }}
 
     public static int map_remove_jvm(byte[] name) {{
-        synchronized (store) {{ return store.remove(new String(name)) != null ? 1 : 0; }}
+        synchronized (store) {{ return store.remove(new String(name, StandardCharsets.UTF_8)) != null ? 1 : 0; }}
     }}
 
     public static int map_size_jvm() {{
