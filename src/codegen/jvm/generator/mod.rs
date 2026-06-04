@@ -97,12 +97,12 @@ impl JvmGenerator {
                         } else { None }
                     });
                     if let Some(ref base_name) = base {
-                        let is_struct_offset = inst.operands.get(1).and_then(|o| {
+                        let has_struct_offset = inst.operands.get(1).and_then(|o| {
                             if let IrOperand::Constant(Constant::Int(byte_off)) = o {
-                                Some(*byte_off > 0)
+                                Some(*byte_off >= 0)
                             } else { None }
                         }).unwrap_or(false);
-                        if is_struct_offset {
+                        if has_struct_offset {
                             self.global.global_uses_object_array.insert(base_name.clone());
                         }
                         if let Some(IrOperand::Constant(Constant::Int(byte_off))) = inst.operands.get(1) {

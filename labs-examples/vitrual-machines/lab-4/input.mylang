@@ -39,7 +39,7 @@ def strdup(s of string, pos of int) of string {
     return p;
 }
 
-def puts(s of string) {
+def print_str(s of string) {
     i = 0;
     while (true) {
         c = s[i];
@@ -116,7 +116,7 @@ def ok_str(s of string) {
     putchar('O');
     putchar('K');
     putchar(' ');
-    puts(s);
+    print_str(s);
     putchar(NL);
 }
 
@@ -125,7 +125,7 @@ def err(s of string) {
     putchar('R');
     putchar('R');
     putchar(' ');
-    puts(s);
+    print_str(s);
     putchar(NL);
 }
 
@@ -168,7 +168,7 @@ def main() of int {
             i = 0;
             while (i < count) {
                 if (i > 0) { putchar(','); }
-                puts(table[i].key);
+                print_str(table[i].key);
                 i = i + 1;
             }
             putchar(NL);
