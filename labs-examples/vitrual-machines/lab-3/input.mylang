@@ -447,8 +447,8 @@ def main() of int {
 
     puts("================================================");
     puts("  Conclusion:");
-    puts("  GC_ON  → freed>0 live<alloc - GC cleans");
-    puts("  GC_OFF → freed=0 live=alloc - GC does not clean");
+    puts("  GC_ON  - freed>0 live<alloc - GC cleans");
+    puts("  GC_OFF - freed=0 live=alloc - GC does not clean");
     puts("================================================");
     return 0;
 }
