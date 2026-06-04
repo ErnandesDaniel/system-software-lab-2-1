@@ -147,19 +147,19 @@ impl CompilerDriver {
         if !obj_files.is_empty() {
             let exe_path = Path::new(output_dir).join("program.exe");
             let mut args: Vec<String> = obj_files.iter().map(|p| p.to_string_lossy().to_string()).collect();
-            args.push("-l".to_string());
-            args.push("msvcrt".to_string());
+            args.push("-Wl,/subsystem:console".to_string());
             args.push("-o".to_string());
             args.push(exe_path.to_string_lossy().to_string());
 
-            let linker = if cfg!(target_os = "windows") { "gcc" } else { "clang" };
-            match Command::new(linker).args(&args).output() {
+            let link = |linker: &str| Command::new(linker).args(&args).output();
+            let result = link("clang").or_else(|_| link("gcc")).or_else(|_| link("mingw32-gcc"));
+            match result {
                 Ok(out) => {
                     if !out.status.success() {
                         eprintln!("Link failed: {}", String::from_utf8_lossy(&out.stderr));
                     }
                 }
-                Err(e) => eprintln!("Failed to run Clang: {e}"),
+                Err(e) => eprintln!("Failed to run linker: {e}"),
             }
         }
     }

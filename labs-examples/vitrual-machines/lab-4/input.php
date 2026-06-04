@@ -78,29 +78,9 @@ function sendCmd($stdin, $stdout, string $opcode, string $key = '', string $valu
     fwrite($stdin, $line);
     fflush($stdin);
 
-    // Non-blocking read: pipe buffering on Windows may delay output,
-    // so poll until we have a complete line or timeout
-    $response = '';
-    stream_set_blocking($stdout, false);
-    $start = microtime(true);
-    $timeout = 3.0;
-    while (true) {
-        $chunk = fread($stdout, 4096);
-        if ($chunk !== false && $chunk !== '') {
-            $response .= $chunk;
-            if (str_ends_with($response, "\n")) { break; }
-        }
-        if (microtime(true) - $start > $timeout) {
-            stream_set_blocking($stdout, true);
-            throw new RuntimeException("Response timeout (got: " . bin2hex($response) . ")");
-        }
-        usleep(20000);
-    }
-    stream_set_blocking($stdout, true);
-
-    $response = rtrim($response);
-    if ($response === '') {
-        throw new RuntimeException("Empty response");
+    $response = rtrim(fgets($stdout));
+    if ($response === false || $response === '') {
+        throw new RuntimeException("No response");
     }
 
     if (str_starts_with($response, 'ERR ')) {

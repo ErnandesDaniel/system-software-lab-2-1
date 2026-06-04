@@ -2,7 +2,6 @@ import getchar;
 import putchar;
 import malloc;
 import free;
-import fflush;
 
 global NL of int = 10;
 
@@ -111,7 +110,6 @@ def ok() {
     putchar('O');
     putchar('K');
     putchar(NL);
-    fflush(0);
 }
 
 def ok_str(s of string) {
@@ -120,7 +118,6 @@ def ok_str(s of string) {
     putchar(' ');
     puts(s);
     putchar(NL);
-    fflush(0);
 }
 
 def err(s of string) {
@@ -130,7 +127,6 @@ def err(s of string) {
     putchar(' ');
     puts(s);
     putchar(NL);
-    fflush(0);
 }
 
 def read() of int {
