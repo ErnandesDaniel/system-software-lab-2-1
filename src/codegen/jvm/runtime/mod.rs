@@ -317,7 +317,7 @@ impl JvmGenerator {
         _is_class: u16,
     ) {
         let n = self.pool.constant_pool.add_utf8("fopen").unwrap();
-        let d = self.pool.constant_pool.add_utf8("([B[B)I").unwrap();
+        let d = self.pool.constant_pool.add_utf8("([B[B)[B").unwrap();
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: n,
@@ -325,7 +325,7 @@ impl JvmGenerator {
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
                 max_stack: 5,
-                max_locals: 4,
+                max_locals: 6,
                 code: vec![
                     Instruction::Aload_0,
                     Instruction::Invokestatic(self.pool.nullscan_ref),
@@ -353,7 +353,15 @@ impl JvmGenerator {
                     Instruction::Putstatic(file_next_ref),
                     Instruction::Iconst_1,
                     Instruction::Iadd,
-                    Instruction::Ireturn,
+                    Instruction::Istore(4),
+                    Instruction::Iconst_1,
+                    Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Byte),
+                    Instruction::Dup,
+                    Instruction::Iconst_0,
+                    Instruction::Iload(4),
+                    Instruction::I2b,
+                    Instruction::Bastore,
+                    Instruction::Areturn,
                 ],
                 exception_table: vec![],
                 attributes: vec![],
@@ -370,17 +378,21 @@ impl JvmGenerator {
         is_read: u16,
     ) {
         let n = self.pool.constant_pool.add_utf8("fgetc").unwrap();
-        let d = self.pool.constant_pool.add_utf8("(I)I").unwrap();
+        let d = self.pool.constant_pool.add_utf8("([B)I").unwrap();
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: n,
             descriptor_index: d,
             attributes: vec![Attribute::Code {
                 name_index: code_attr,
-                max_stack: 2,
+                max_stack: 3,
                 max_locals: 2,
                 code: vec![
-                    Instruction::Iload_0,
+                    Instruction::Aload_0,
+                    Instruction::Iconst_0,
+                    Instruction::Baload,
+                    Instruction::Sipush(255),
+                    Instruction::Iand,
                     Instruction::Iconst_1,
                     Instruction::Isub,
                     Instruction::Istore(1),
@@ -406,7 +418,7 @@ impl JvmGenerator {
         is_close: u16,
     ) {
         let n = self.pool.constant_pool.add_utf8("fclose").unwrap();
-        let d = self.pool.constant_pool.add_utf8("(I)I").unwrap();
+        let d = self.pool.constant_pool.add_utf8("([B)I").unwrap();
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::STATIC,
             name_index: n,
@@ -416,7 +428,11 @@ impl JvmGenerator {
                 max_stack: 3,
                 max_locals: 2,
                 code: vec![
-                    Instruction::Iload_0,
+                    Instruction::Aload_0,
+                    Instruction::Iconst_0,
+                    Instruction::Baload,
+                    Instruction::Sipush(255),
+                    Instruction::Iand,
                     Instruction::Iconst_1,
                     Instruction::Isub,
                     Instruction::Istore(1),

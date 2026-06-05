@@ -136,12 +136,14 @@ impl JvmGenerator {
             .coro
             .coroutine_field_entries
             .iter()
-            .map(|&(name_idx, desc_idx)| ristretto_classfile::Field {
-                access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
-                name_index: name_idx,
-                descriptor_index: desc_idx,
-                field_type: ristretto_classfile::FieldType::parse("I").expect("Failed to parse field type"),
-                attributes: vec![],
+            .map(|&(name_idx, desc_idx, ref desc_str)| {
+                ristretto_classfile::Field {
+                    access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
+                    name_index: name_idx,
+                    descriptor_index: desc_idx,
+                    field_type: ristretto_classfile::FieldType::parse(desc_str).unwrap_or_else(|_| panic!("Bad field desc: {desc_str}")),
+                    attributes: vec![],
+                }
             })
             .collect();
 

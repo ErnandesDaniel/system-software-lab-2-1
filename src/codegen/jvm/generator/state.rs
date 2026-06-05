@@ -59,7 +59,7 @@ pub struct JvmCoroState {
     pub coroutine_field_refs: HashMap<String, u16>,
     pub coroutine_state_field: u16,
     pub coroutine_result_field: u16,
-    pub coroutine_field_entries: Vec<(u16, u16)>,
+    pub coroutine_field_entries: Vec<(u16, u16, String)>,
     pub coroutine_param_field_refs: Vec<(Option<u16>, Option<u16>)>,
 }
 
