@@ -4,3 +4,8 @@ output
 
 output2/
 hs_err_pid*.log
+
+output3/
+output4/
+output5/
+target/

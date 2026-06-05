@@ -1,0 +1,33 @@
+graph TD
+    BB_0["BB0\nt487 = === Q1: INNER JOIN ===\nt488 = puts(t487)\nt489 = 0\nfound = t489\nt490 = 0\ni = t490\ngoto BB_1"]
+    BB_1["BB1\nt491 = vv_n\[?\]\nt492 = (i < t491)\nif t492 goto BB_2 else BB_3"]
+    BB_2["BB2\nt494 = vv_tid\[i\]\nt495 = 3\nt496 = (t494 == t495)\nif t496 goto BB_5 else BB_6"]
+    BB_5["BB5\nt497 = vv_pid\[i\]\nt498 = 153285\nt499 = (t497 > t498)\nt493 = t499\ngoto BB_7"]
+    BB_6["BB6\nt493 = 0\ngoto BB_7"]
+    BB_9["BB9\nt501 = tv_n\[?\]\nt502 = (ti < t501)\nif t502 goto BB_10 else BB_11"]
+    BB_13["BB13\nt506 = tv_buf\[?\]\nt507 = tv_name\[ti\]\n? = print_str(t506, t507)\nt508 = 44\nt509 = putchar(t508)\nt510 = 32\nt511 = putchar(t510)\nt512 = vv_buf\[?\]\nt513 = vv_date\[i\]\n? = print_str(t512, t513)\nt514 = 10\nt515 = putchar(t514)\nt516 = 1\nt517 = found + t516\nfound = t517\ngoto BB_12"]
+    BB_10["BB10\nt503 = tv_id\[ti\]\nt504 = 3\nt505 = (t503 == t504)\nif t505 goto BB_13 else BB_12"]
+    BB_12["BB12\nt518 = 1\nt519 = ti + t518\nti = t519\ngoto BB_9"]
+    BB_8["BB8\nt500 = 0\nti = t500\ngoto BB_9"]
+    BB_11["BB11\ngoto BB_4"]
+    BB_7["BB7\nif t493 goto BB_8 else BB_4"]
+    BB_4["BB4\nt520 = 1\nt521 = i + t520\ni = t521\ngoto BB_1"]
+    BB_3["BB3\nt522 = Found: %d\\n\nt523 = printf(t522, found)\nreturn"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_2 --> BB_5
+BB_2 --> BB_6
+BB_5 --> BB_7
+BB_6 --> BB_7
+BB_9 --> BB_10
+BB_9 --> BB_11
+BB_13 --> BB_12
+BB_10 --> BB_13
+BB_10 --> BB_12
+BB_12 --> BB_9
+BB_8 --> BB_9
+BB_11 --> BB_4
+BB_7 --> BB_8
+BB_7 --> BB_4
+BB_4 --> BB_1

@@ -1,0 +1,20 @@
+graph TD
+    BB_0["BB0\nt228 = r\nt229 = fopen(fn, t228)\nf = t229\nt230 = 0\nt231 = (f == t230)\nif t231 goto BB_2 else BB_1"]
+    BB_2["BB2\nt232 = 1\nt233 = -t232\nreturn t233"]
+    BB_3["BB3\nt241 = true\nif t241 goto BB_4 else BB_5"]
+    BB_7["BB7\ngoto BB_5"]
+    BB_4["BB4\nt242 = read_line(f)\nt243 = 1\nt244 = -t243\nt245 = (t242 == t244)\nif t245 goto BB_7 else BB_6"]
+    BB_6["BB6\nt246 = parse_row()\nt247 = pp_n\[?\]\nt248 = pp_id\[t247\]\nt249 = row_buf\[?\]\nt250 = 0\nt251 = co\[t250\]\nt252 = t249 + t251\nt253 = atoi(t252)\nt254 = pp_n\[?\]\npp_id\[0\] = ?\nt255 = pp_n\[?\]\nt256 = pp_surname\[t255\]\nt257 = pp_n\[?\]\npp_surname\[0\] = ?\nt258 = pp_buf\[?\]\nt259 = 1\nt260 = co\[t259\]\nt261 = str_save(t258, pos, t260)\npos = t261\nt262 = pp_n\[?\]\nt263 = pp_name\[t262\]\nt264 = pp_n\[?\]\npp_name\[0\] = ?\nt265 = pp_buf\[?\]\nt266 = 2\nt267 = co\[t266\]\nt268 = str_save(t265, pos, t267)\npos = t268\nt269 = pp_n\[?\]\nt270 = pp_patr\[t269\]\nt271 = pp_n\[?\]\npp_patr\[0\] = ?\nt272 = pp_buf\[?\]\nt273 = 3\nt274 = co\[t273\]\nt275 = str_save(t272, pos, t274)\npos = t275\nt276 = pp_n\[?\]\nt277 = pp_bday\[t276\]\nt278 = pp_n\[?\]\npp_bday\[0\] = ?\nt279 = pp_buf\[?\]\nt280 = 4\nt281 = co\[t280\]\nt282 = str_save(t279, pos, t281)\npos = t282\nt283 = pp_n\[?\]\nt284 = pp_n\[?\]\nt285 = 1\nt286 = t284 + t285\npp_n = t286\ngoto BB_3"]
+    BB_1["BB1\nt234 = read_line(f)\nt235 = pp_n\[?\]\nt236 = 0\npp_n = t236\nt237 = pp_buf\[?\]\nt238 = 5000\nt239 = malloc(t238)\npp_buf = t239\nt240 = 0\npos = t240\ngoto BB_3"]
+    BB_5["BB5\nt287 = fclose(f)\nt288 = pp_n\[?\]\nreturn t288"]
+BB_0 --> BB_2
+BB_0 --> BB_1
+BB_2 --> BB_1
+BB_3 --> BB_4
+BB_3 --> BB_5
+BB_7 --> BB_5
+BB_7 --> BB_6
+BB_4 --> BB_7
+BB_4 --> BB_6
+BB_6 --> BB_3
+BB_1 --> BB_3

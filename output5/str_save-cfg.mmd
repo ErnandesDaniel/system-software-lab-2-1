@@ -1,0 +1,15 @@
+graph TD
+    BB_0["BB0\ndst = pos\ngoto BB_1"]
+    BB_1["BB1\nt117 = true\nif t117 goto BB_2 else BB_3"]
+    BB_5["BB5\ngoto BB_3"]
+    BB_2["BB2\nt118 = row_buf\[?\]\nt119 = t118\[src\] (str)\nc = t119\nt120 = buf\[dst\] (str)\nbuf\[dst\] = c (str)\nt121 = 0\nt122 = (c == t121)\nif t122 goto BB_5 else BB_4"]
+    BB_4["BB4\nt123 = 1\nt124 = src + t123\nsrc = t124\nt125 = 1\nt126 = dst + t125\ndst = t126\ngoto BB_1"]
+    BB_3["BB3\nt127 = 1\nt128 = dst + t127\nreturn t128"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_5 --> BB_3
+BB_5 --> BB_4
+BB_2 --> BB_5
+BB_2 --> BB_4
+BB_4 --> BB_1

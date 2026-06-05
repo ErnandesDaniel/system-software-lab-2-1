@@ -1,0 +1,6 @@
+import puts;
+def main() of int {
+    puts("=== Lab 2: Map-Reduce Pipeline ===");
+    puts("AFTER HEADER");
+    return 0;
+}

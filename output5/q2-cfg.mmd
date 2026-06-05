@@ -1,0 +1,33 @@
+graph TD
+    BB_0["BB0\nt524 = === Q2: LEFT JOIN ===\nt525 = puts(t524)\nt526 = 0\nfound = t526\nt527 = 0\ni = t527\ngoto BB_1"]
+    BB_1["BB1\nt528 = st_n\[?\]\nt529 = (i < t528)\nif t529 goto BB_2 else BB_3"]
+    BB_6["BB6\nt534 = sd_n\[?\]\nt535 = (di < t534)\nif t535 goto BB_7 else BB_8"]
+    BB_7["BB7\nt537 = sd_pid\[di\]\nt538 = st_pid\[i\]\nt539 = (t537 == t538)\nif t539 goto BB_10 else BB_11"]
+    BB_10["BB10\nt540 = sd_buf\[?\]\nt541 = sd_start\[di\]\nt542 = 2008-09-01\nt543 = str_eq_lit(t540, t541, t542)\nt544 = 0\nt545 = (t543 != t544)\nt536 = t545\ngoto BB_12"]
+    BB_11["BB11\nt536 = 0\ngoto BB_12"]
+    BB_13["BB13\nt546 = %d, OK500, %d\nt547 = st_pid\[i\]\nt548 = sd_pid\[di\]\nt549 = printf(t546, t547, t548)\nt550 = 10\nt551 = putchar(t550)\nt552 = 1\nt553 = found + t552\nfound = t553\ngoto BB_9"]
+    BB_12["BB12\nif t536 goto BB_13 else BB_9"]
+    BB_9["BB9\nt554 = 1\nt555 = di + t554\ndi = t555\ngoto BB_6"]
+    BB_5["BB5\nt533 = 0\ndi = t533\ngoto BB_6"]
+    BB_8["BB8\ngoto BB_4"]
+    BB_2["BB2\nt530 = st_pid\[i\]\nt531 = 163276\nt532 = (t530 == t531)\nif t532 goto BB_5 else BB_4"]
+    BB_4["BB4\nt556 = 1\nt557 = i + t556\ni = t557\ngoto BB_1"]
+    BB_3["BB3\nt558 = Found: %d\\n\nt559 = printf(t558, found)\nreturn"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_6 --> BB_7
+BB_6 --> BB_8
+BB_7 --> BB_10
+BB_7 --> BB_11
+BB_10 --> BB_12
+BB_11 --> BB_12
+BB_13 --> BB_9
+BB_12 --> BB_13
+BB_12 --> BB_9
+BB_9 --> BB_6
+BB_5 --> BB_6
+BB_8 --> BB_4
+BB_2 --> BB_5
+BB_2 --> BB_4
+BB_4 --> BB_1

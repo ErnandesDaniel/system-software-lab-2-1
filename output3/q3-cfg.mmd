@@ -1,0 +1,47 @@
+graph TD
+    BB_0["BB0\nt560 = === Q3: Count FCE without patronymic ===\nt561 = puts(t560)\nt562 = 0\ncount = t562\nt563 = 0\ni = t563\ngoto BB_1"]
+    BB_1["BB1\nt564 = pp_n\[?\]\nt565 = (i < t564)\nif t565 goto BB_2 else BB_3"]
+    BB_6["BB6\nt572 = st_n\[?\]\nt573 = (si < t572)\nif t573 goto BB_7 else BB_8"]
+    BB_7["BB7\nt575 = st_pid\[si\]\nt576 = pp_id\[i\]\nt577 = (t575 == t576)\nif t577 goto BB_10 else BB_11"]
+    BB_10["BB10\nt578 = st_buf\[?\]\nt579 = st_fac\[si\]\nt580 = FCE\nt581 = str_eq_lit(t578, t579, t580)\nt582 = 0\nt583 = (t581 != t582)\nt574 = t583\ngoto BB_12"]
+    BB_11["BB11\nt574 = 0\ngoto BB_12"]
+    BB_14["BB14\nt585 = sd_n\[?\]\nt586 = (di < t585)\nif t586 goto BB_15 else BB_16"]
+    BB_18["BB18\nt590 = 1\nt591 = count + t590\ncount = t591\ngoto BB_16"]
+    BB_15["BB15\nt587 = sd_pid\[di\]\nt588 = pp_id\[i\]\nt589 = (t587 == t588)\nif t589 goto BB_18 else BB_17"]
+    BB_17["BB17\nt592 = 1\nt593 = di + t592\ndi = t593\ngoto BB_14"]
+    BB_13["BB13\nt584 = 0\ndi = t584\ngoto BB_14"]
+    BB_16["BB16\ngoto BB_8"]
+    BB_12["BB12\nif t574 goto BB_13 else BB_9"]
+    BB_9["BB9\nt594 = 1\nt595 = si + t594\nsi = t595\ngoto BB_6"]
+    BB_5["BB5\nt571 = 0\nsi = t571\ngoto BB_6"]
+    BB_8["BB8\ngoto BB_4"]
+    BB_2["BB2\nt566 = pp_buf\[?\]\nt567 = pp_patr\[i\]\nt568 = str_empty(t566, t567)\nt569 = 0\nt570 = (t568 != t569)\nif t570 goto BB_5 else BB_4"]
+    BB_4["BB4\nt596 = 1\nt597 = i + t596\ni = t597\ngoto BB_1"]
+    BB_3["BB3\nt598 = %d\\n\nt599 = printf(t598, count)\nreturn"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_6 --> BB_7
+BB_6 --> BB_8
+BB_7 --> BB_10
+BB_7 --> BB_11
+BB_10 --> BB_12
+BB_11 --> BB_12
+BB_14 --> BB_15
+BB_14 --> BB_16
+BB_18 --> BB_16
+BB_18 --> BB_17
+BB_15 --> BB_18
+BB_15 --> BB_17
+BB_17 --> BB_14
+BB_13 --> BB_14
+BB_16 --> BB_8
+BB_16 --> BB_9
+BB_12 --> BB_13
+BB_12 --> BB_9
+BB_9 --> BB_6
+BB_5 --> BB_6
+BB_8 --> BB_4
+BB_2 --> BB_5
+BB_2 --> BB_4
+BB_4 --> BB_1

@@ -1,0 +1,7 @@
+graph TD
+    BB_0["BB0\nt25 = p\[1032\]\nt26 = 0\nt27 = (t25 <= t26)\nif t27 goto BB_2 else BB_1"]
+    BB_2["BB2\nt28 = 1\nt29 = -t28\nreturn t29"]
+    BB_1["BB1\nt30 = p\[1024\]\nt31 = p\[0\]\nr = t31\nt32 = p\[1024\]\nt33 = p\[1024\]\nt34 = 1\nt35 = t33 + t34\nt36 = 256\nt37 = t35 % t36\np\[1024\] = ?\nt38 = p\[1032\]\nt39 = p\[1032\]\nt40 = 1\nt41 = t39 - t40\np\[1032\] = ?\nreturn r"]
+BB_0 --> BB_2
+BB_0 --> BB_1
+BB_2 --> BB_1

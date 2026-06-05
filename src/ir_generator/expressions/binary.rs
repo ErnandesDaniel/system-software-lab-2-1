@@ -21,13 +21,7 @@ impl IrGenerator {
             BinaryOp::Multiply => (IrOpcode::Mul, IrType::Int),
             BinaryOp::Divide => (IrOpcode::Div, IrType::Int),
             BinaryOp::Modulo => (IrOpcode::Mod, IrType::Int),
-            BinaryOp::Add => {
-                if left_type.is_pointer() || right_type.is_pointer() {
-                    (IrOpcode::Add, left_type.clone())
-                } else {
-                    (IrOpcode::Add, IrType::Int)
-                }
-            }
+            BinaryOp::Add => (IrOpcode::Add, IrType::Int),
             BinaryOp::Subtract => (IrOpcode::Sub, IrType::Int),
             BinaryOp::Equal => (IrOpcode::Eq, IrType::Bool),
             BinaryOp::NotEqual => (IrOpcode::Ne, IrType::Bool),
