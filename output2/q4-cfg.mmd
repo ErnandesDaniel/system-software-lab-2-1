@@ -1,0 +1,52 @@
+graph TD
+    BB_0["BB0\nt600 = === Q4: Plans >2 groups on CE ===\nt601 = puts(t600)\nt602 = 0\ni = t602\ngoto BB_1"]
+    BB_1["BB1\nt603 = 50\nt604 = (i < t603)\nif t604 goto BB_2 else BB_3"]
+    BB_2["BB2\nt605 = w\[i\]\nt606 = 0\nw\[0\] = ?\nt607 = 1\nt608 = i + t607\ni = t608\ngoto BB_1"]
+    BB_4["BB4\nt610 = gp_n\[?\]\nt611 = (i < t610)\nif t611 goto BB_5 else BB_6"]
+    BB_5["BB5\nt613 = w\[i\]\nt614 = 0\nt615 = (t613 == t614)\nif t615 goto BB_8 else BB_9"]
+    BB_8["BB8\nt616 = gp_buf\[?\]\nt617 = gp_dept\[i\]\nt618 = Department of Computer Engineering\nt619 = str_eq_lit(t616, t617, t618)\nt620 = 0\nt621 = (t619 != t620)\nt612 = t621\ngoto BB_10"]
+    BB_9["BB9\nt612 = 0\ngoto BB_10"]
+    BB_12["BB12\nt625 = gp_n\[?\]\nt626 = (j < t625)\nif t626 goto BB_13 else BB_14"]
+    BB_13["BB13\nt628 = gp_pid\[j\]\nt629 = (t628 == pid)\nif t629 goto BB_16 else BB_17"]
+    BB_16["BB16\nt630 = gp_buf\[?\]\nt631 = gp_dept\[j\]\nt632 = Department of Computer Engineering\nt633 = str_eq_lit(t630, t631, t632)\nt634 = 0\nt635 = (t633 != t634)\nt627 = t635\ngoto BB_18"]
+    BB_17["BB17\nt627 = 0\ngoto BB_18"]
+    BB_19["BB19\nt636 = 1\nt637 = cnt + t636\ncnt = t637\nt638 = w\[j\]\nt639 = 1\nw\[0\] = ?\ngoto BB_15"]
+    BB_18["BB18\nif t627 goto BB_19 else BB_15"]
+    BB_15["BB15\nt640 = 1\nt641 = j + t640\nj = t641\ngoto BB_12"]
+    BB_11["BB11\nt622 = gp_pid\[i\]\npid = t622\nt623 = 0\ncnt = t623\nt624 = 0\nj = t624\ngoto BB_12"]
+    BB_21["BB21\nt644 = %d: %d groups\\n\nt645 = printf(t644, pid, cnt)\ngoto BB_20"]
+    BB_14["BB14\nt642 = 2\nt643 = (cnt > t642)\nif t643 goto BB_21 else BB_20"]
+    BB_20["BB20\ngoto BB_7"]
+    BB_10["BB10\nif t612 goto BB_11 else BB_7"]
+    BB_7["BB7\nt646 = 1\nt647 = i + t646\ni = t647\ngoto BB_4"]
+    BB_3["BB3\nt609 = 0\ni = t609\ngoto BB_4"]
+    BB_6["BB6\nreturn"]
+BB_0 --> BB_1
+BB_1 --> BB_2
+BB_1 --> BB_3
+BB_2 --> BB_1
+BB_4 --> BB_5
+BB_4 --> BB_6
+BB_5 --> BB_8
+BB_5 --> BB_9
+BB_8 --> BB_10
+BB_9 --> BB_10
+BB_12 --> BB_13
+BB_12 --> BB_14
+BB_13 --> BB_16
+BB_13 --> BB_17
+BB_16 --> BB_18
+BB_17 --> BB_18
+BB_19 --> BB_15
+BB_18 --> BB_19
+BB_18 --> BB_15
+BB_15 --> BB_12
+BB_11 --> BB_12
+BB_21 --> BB_20
+BB_14 --> BB_21
+BB_14 --> BB_20
+BB_20 --> BB_7
+BB_10 --> BB_11
+BB_10 --> BB_7
+BB_7 --> BB_4
+BB_3 --> BB_4

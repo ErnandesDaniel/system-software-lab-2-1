@@ -1,5 +1,5 @@
 use crate::codegen::jvm::types::{
-    capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor,
+    capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor, is_external_function,
 };
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{Constant, IrFunction, IrOpcode, IrOperand, IrType};
@@ -117,7 +117,7 @@ impl JvmGenerator {
         let param_types: Vec<IrType> = inst.operands.iter().map(|o| o.get_type()).collect();
         let return_type = inst.result_type.clone();
 
-        let (class_idx, method_name, descriptor) = if Self::is_external_function(target) {
+        let (class_idx, method_name, descriptor) = if is_external_function(target) {
             self.stub_needed = true;
             if target == "printf" {
                 // printf has variable args — build descriptor from actual params
@@ -268,38 +268,6 @@ impl JvmGenerator {
             .constant_pool
             .add_method_ref(stub_class, "string_slice", "([BII)[B")
             .expect("Failed to add string_slice method ref");
-    }
-
-    fn is_external_function(name: &str) -> bool {
-        matches!(
-            name,
-            "puts"
-                | "putchar"
-                | "getchar"
-                | "printf"
-                | "rand"
-                | "srand"
-                | "time"
-                | "Sleep"
-                | "malloc"
-                | "free"
-                | "map_put_jvm"
-                | "map_get_jvm"
-                | "map_remove_jvm"
-                | "map_has_jvm"
-                | "map_size_jvm"
-                | "map_key_jvm"
-                | "map_list_jvm"
-                | "resume_coroutine"
-                | "get_coroutine_state"
-                | "set_coroutine_param"
-                | "coro_init"
-                | "fopen"
-                | "fgetc"
-                | "fclose"
-                | "atoi"
-                | "fflush"
-        )
     }
 
     fn build_user_method_descriptor(param_types: &[IrType], return_type: Option<&IrType>) -> String {

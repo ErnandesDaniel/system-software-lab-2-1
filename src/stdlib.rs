@@ -92,7 +92,6 @@ impl StdLib {
             ("strchr", ("s: string, c: int", "string")),
             ("fopen", ("filename: string, mode: string", "string")),
             ("fclose", ("file: string", "int")),
-            ("fgets", ("buf: string, maxcount: int, file: string", "string")),
             ("fgetc", ("file: string", "int")),
             ("feof", ("file: string", "int")),
             ("atoi", ("str: string", "int")),

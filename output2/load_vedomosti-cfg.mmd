@@ -1,0 +1,20 @@
+graph TD
+    BB_0["BB0\nt391 = r\nt392 = fopen(fn, t391)\nf = t392\nt393 = 0\nt394 = (f == t393)\nif t394 goto BB_2 else BB_1"]
+    BB_2["BB2\nt395 = 1\nt396 = -t395\nreturn t396"]
+    BB_3["BB3\nt404 = true\nif t404 goto BB_4 else BB_5"]
+    BB_7["BB7\ngoto BB_5"]
+    BB_4["BB4\nt405 = read_line(f)\nt406 = 1\nt407 = -t406\nt408 = (t405 == t407)\nif t408 goto BB_7 else BB_6"]
+    BB_6["BB6\nt409 = parse_row()\nt410 = vv_n\[?\]\nt411 = vv_tid\[t410\]\nt412 = row_buf\[?\]\nt413 = 1\nt414 = co\[t413\]\nt415 = t412 + t414\nt416 = atoi(t415)\nt417 = vv_n\[?\]\nvv_tid\[0\] = ?\nt418 = vv_n\[?\]\nt419 = vv_pid\[t418\]\nt420 = row_buf\[?\]\nt421 = 2\nt422 = co\[t421\]\nt423 = t420 + t422\nt424 = atoi(t423)\nt425 = vv_n\[?\]\nvv_pid\[0\] = ?\nt426 = vv_n\[?\]\nt427 = vv_mark\[t426\]\nt428 = row_buf\[?\]\nt429 = 4\nt430 = co\[t429\]\nt431 = t428 + t430\nt432 = atoi(t431)\nt433 = vv_n\[?\]\nvv_mark\[0\] = ?\nt434 = vv_n\[?\]\nt435 = vv_date\[t434\]\nt436 = vv_n\[?\]\nvv_date\[0\] = ?\nt437 = vv_buf\[?\]\nt438 = 3\nt439 = co\[t438\]\nt440 = str_save(t437, pos, t439)\npos = t440\nt441 = vv_n\[?\]\nt442 = vv_n\[?\]\nt443 = 1\nt444 = t442 + t443\nvv_n = t444\ngoto BB_3"]
+    BB_1["BB1\nt397 = read_line(f)\nt398 = vv_n\[?\]\nt399 = 0\nvv_n = t399\nt400 = vv_buf\[?\]\nt401 = 5000\nt402 = malloc(t401)\nvv_buf = t402\nt403 = 0\npos = t403\ngoto BB_3"]
+    BB_5["BB5\nt445 = fclose(f)\nt446 = vv_n\[?\]\nreturn t446"]
+BB_0 --> BB_2
+BB_0 --> BB_1
+BB_2 --> BB_1
+BB_3 --> BB_4
+BB_3 --> BB_5
+BB_7 --> BB_5
+BB_7 --> BB_6
+BB_4 --> BB_7
+BB_4 --> BB_6
+BB_6 --> BB_3
+BB_1 --> BB_3

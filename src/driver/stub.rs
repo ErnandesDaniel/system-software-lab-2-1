@@ -92,6 +92,8 @@ public class RuntimeStub {{
     private static HashMap<String, String> store = new HashMap<>();
     private static Random random = new Random();
     private static ArrayList<byte[]> gc_data = new ArrayList<>();
+    private static InputStream[] fileStreams = new InputStream[16];
+    private static int fileNext = 0;
 
     // --- Global static fields ---
 {static_fields}
@@ -162,6 +164,74 @@ public class RuntimeStub {{
         System.out.print(sb.toString().replace("\\n", "\n").replace("\\t", "\t"));
         System.out.flush();
         return value;
+    }}
+
+    // --- File I/O ---
+
+    private static int nullscan(byte[] s) {{
+        int i = 0;
+        while (i < s.length && s[i] != 0) i++;
+        return i;
+    }}
+
+    public static byte[] fopen(byte[] filename, byte[] mode) {{
+        try {{
+            int nlen = nullscan(filename);
+            String fn = new String(filename, 0, nlen, StandardCharsets.UTF_8);
+            if (fileNext >= 16) return new byte[] {{ 0 }};
+            FileInputStream fis = new FileInputStream(fn);
+            fileStreams[fileNext] = fis;
+            fileNext++;
+            return new byte[] {{ (byte) fileNext }};
+        }} catch (Exception e) {{
+            return new byte[] {{ 0 }};
+        }}
+    }}
+
+    public static int fgetc(byte[] fd) {{
+        try {{
+            int idx = (fd[0] & 0xFF) - 1;
+            if (idx < 0 || idx >= 16) return -1;
+            InputStream is = fileStreams[idx];
+            if (is == null) return -1;
+            return is.read();
+        }} catch (Exception e) {{
+            return -1;
+        }}
+    }}
+
+    public static int fclose(byte[] fd) {{
+        try {{
+            int idx = (fd[0] & 0xFF) - 1;
+            if (idx < 0 || idx >= 16) return -1;
+            InputStream is = fileStreams[idx];
+            if (is == null) return -1;
+            is.close();
+            fileStreams[idx] = null;
+            return 0;
+        }} catch (Exception e) {{
+            return -1;
+        }}
+    }}
+
+    public static int atoi(byte[] s) {{
+        int len = nullscan(s);
+        try {{
+            return Integer.parseInt(new String(s, 0, len, StandardCharsets.UTF_8).trim());
+        }} catch (Exception e) {{
+            return 0;
+        }}
+    }}
+
+    public static byte[] string_slice(byte[] s, int start, int end) {{
+        int slen = nullscan(s);
+        if (end < 0 || end > slen) end = slen;
+        if (start < 0) start = 0;
+        int len = end - start;
+        byte[] res = new byte[len + 1];
+        System.arraycopy(s, start, res, 0, len);
+        res[len] = 0;
+        return res;
     }}
 
     public static int rand() {{

@@ -70,6 +70,38 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
     }
 }
 
+pub fn is_external_function(name: &str) -> bool {
+    matches!(
+        name,
+        "puts"
+            | "putchar"
+            | "getchar"
+            | "printf"
+            | "rand"
+            | "srand"
+            | "time"
+            | "Sleep"
+            | "malloc"
+            | "free"
+            | "map_put_jvm"
+            | "map_get_jvm"
+            | "map_remove_jvm"
+            | "map_has_jvm"
+            | "map_size_jvm"
+            | "map_key_jvm"
+            | "map_list_jvm"
+            | "resume_coroutine"
+            | "get_coroutine_state"
+            | "set_coroutine_param"
+            | "coro_init"
+            | "fopen"
+            | "fgetc"
+            | "fclose"
+            | "atoi"
+            | "fflush"
+    )
+}
+
 pub fn get_method_descriptor(target: &str) -> String {
     match target {
         "puts" => "([B)I".to_string(),
@@ -93,9 +125,9 @@ pub fn get_method_descriptor(target: &str) -> String {
         "get_coroutine_state" => "(I)I".to_string(),
         "set_coroutine_param" => "(III)V".to_string(),
         "coro_init" => "()V".to_string(),
-        "fopen" => "([B[B)I".to_string(),
-        "fgetc" => "(I)I".to_string(),
-        "fclose" => "(I)I".to_string(),
+        "fopen" => "([B[B)[B".to_string(),
+        "fgetc" => "([B)I".to_string(),
+        "fclose" => "([B)I".to_string(),
         "atoi" => "([B)I".to_string(),
         "fflush" => "(I)I".to_string(),
         _ => "()I".to_string(),

@@ -1,3 +1,4 @@
+use crate::codegen::jvm::types;
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{Constant, IrInstruction, IrOperand, IrType};
 use ristretto_classfile::attributes::Instruction;
@@ -9,16 +10,21 @@ impl JvmGenerator {
                 self.emit_load_operand(code, operand);
             }
 
-            let param_types: String = inst
-                .operands
-                .iter()
-                .map(|o| crate::codegen::jvm::types::ir_type_to_jvm_descriptor(&o.get_type()))
-                .collect();
-            let ret_desc = inst
-                .result_type
-                .as_ref()
-                .map_or("V".to_string(), crate::codegen::jvm::types::ir_type_to_jvm_descriptor);
-            let key = format!("{target}|({param_types}){ret_desc}");
+            let key = if types::is_external_function(target) {
+                let desc = types::get_method_descriptor(target);
+                format!("{target}|{desc}")
+            } else {
+                let param_types: String = inst
+                    .operands
+                    .iter()
+                    .map(|o| types::ir_type_to_jvm_descriptor(&o.get_type()))
+                    .collect();
+                let ret_desc = inst
+                    .result_type
+                    .as_ref()
+                    .map_or("V".to_string(), |t| types::ir_type_to_jvm_descriptor(t));
+                format!("{target}|({param_types}){ret_desc}")
+            };
             let method_idx = self
                 .pool
                 .method_refs
