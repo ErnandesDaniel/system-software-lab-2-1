@@ -3,6 +3,55 @@ use crate::ir::types::{IrOperand, IrType};
 use ristretto_classfile::attributes::{ArrayType, Instruction};
 
 impl JvmGenerator {
+    /// Load an operand with the given JVM descriptor type,
+    /// overriding the IR type for the load instruction width.
+    pub fn emit_load_operand_as(&self, code: &mut Vec<Instruction>, operand: &IrOperand, jvm_desc: &str) {
+        match operand {
+            IrOperand::Variable(name, _ty) => {
+                if let Some(&field_ref) = self.global.global_field_refs.get(name) {
+                    code.push(Instruction::Getstatic(field_ref));
+                    return;
+                }
+                if self.coro.is_coroutine {
+                    if let Some(&field_ref) = self.coro.coroutine_field_refs.get(name) {
+                        code.push(Instruction::Aload_0);
+                        code.push(Instruction::Getfield(field_ref));
+                        return;
+                    }
+                }
+                let slot = self.get_local_slot(name);
+                let is_ref = jvm_desc.starts_with('[') || jvm_desc.starts_with('L');
+                if is_ref {
+                    match slot {
+                        0 => code.push(Instruction::Aload_0),
+                        1 => code.push(Instruction::Aload_1),
+                        2 => code.push(Instruction::Aload_2),
+                        3 => code.push(Instruction::Aload_3),
+                        _ => code.push(Instruction::Aload(slot as u8)),
+                    }
+                } else {
+                    match slot {
+                        0 => code.push(Instruction::Iload_0),
+                        1 => code.push(Instruction::Iload_1),
+                        2 => code.push(Instruction::Iload_2),
+                        3 => code.push(Instruction::Iload_3),
+                        _ => code.push(Instruction::Iload(slot as u8)),
+                    }
+                }
+            }
+            IrOperand::Constant(c) => self.emit_load_constant(code, c),
+            IrOperand::FuncRef(func_name) => {
+                if let Some(&(class_idx, init_ref)) = self.pool.func_ref_init_refs.get(func_name) {
+                    code.push(Instruction::New(class_idx));
+                    code.push(Instruction::Dup);
+                    code.push(Instruction::Invokespecial(init_ref));
+                } else {
+                    code.push(Instruction::Iconst_0);
+                }
+            }
+        }
+    }
+
     pub fn emit_load_operand(&self, code: &mut Vec<Instruction>, operand: &IrOperand) {
         match operand {
             IrOperand::Variable(name, ty) => {

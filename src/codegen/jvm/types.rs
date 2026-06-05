@@ -134,6 +134,62 @@ pub fn get_method_descriptor(target: &str) -> String {
     }
 }
 
+/// Parse param types from a JVM method descriptor like "([BII)[B"
+/// Returns a vec of individual param descriptors: ["[B", "I", "I"]
+pub fn parse_method_descriptor_params(desc: &str) -> Vec<String> {
+    let mut params = Vec::new();
+    let s = desc.trim_start_matches('(');
+    let s = s.split(')').next().unwrap_or("");
+    let mut chars = s.chars();
+    while let Some(c) = chars.next() {
+        match c {
+            'L' => {
+                let mut cls = String::from("L");
+                for ch in chars.by_ref() {
+                    cls.push(ch);
+                    if ch == ';' { break; }
+                }
+                params.push(cls);
+            }
+            '[' => {
+                let mut arr = String::from("[");
+                // Count additional array dimensions
+                loop {
+                    match chars.clone().next() {
+                        Some('[') => { arr.push('['); chars.next(); }
+                        _ => break,
+                    }
+                }
+                // Read base type
+                match chars.next() {
+                    Some('L') => {
+                        arr.push('L');
+                        for ch in chars.by_ref() {
+                            arr.push(ch);
+                            if ch == ';' { break; }
+                        }
+                    }
+                    Some(b) => arr.push(b),
+                    None => break,
+                }
+                params.push(arr);
+            }
+            'B' | 'C' | 'D' | 'F' | 'I' | 'J' | 'S' | 'Z' => params.push(c.to_string()),
+            _ => {}
+        }
+    }
+    params
+}
+
+/// Parse the return type from a JVM method descriptor like "([BII)[B" -> "[B"
+pub fn parse_method_descriptor_return(desc: &str) -> String {
+    if let Some(paren_close) = desc.rfind(')') {
+        desc[paren_close + 1..].to_string()
+    } else {
+        "V".to_string()
+    }
+}
+
 pub fn capitalize_first(s: &str) -> String {
     if s.is_empty() {
         return s.to_string();
