@@ -11,19 +11,22 @@ impl JvmGenerator {
         code_attr: u16,
         coro_field_ref: u16,
     ) {
-        let init_name = self.pool.constant_pool.add_utf8("coro_init")
-            .expect("init utf8");
-        let init_desc = self.pool.constant_pool.add_utf8("()V")
-            .expect("init desc");
+        let init_name = self.pool.constant_pool.add_utf8("coro_init").expect("init utf8");
+        let init_desc = self.pool.constant_pool.add_utf8("()V").expect("init desc");
         let mut c = Vec::new();
         push_iconst(&mut c, count);
         c.push(Instruction::Anewarray(
-            self.pool.constant_pool.add_class("java/lang/Object")
-                .expect("obj class")
+            self.pool
+                .constant_pool
+                .add_class("java/lang/Object")
+                .expect("obj class"),
         ));
         c.push(Instruction::Putstatic(coro_field_ref));
         for (i, (_, ci)) in coro_info.iter().enumerate() {
-            let ir = self.pool.constant_pool.add_method_ref(*ci, "<init>", "()V")
+            let ir = self
+                .pool
+                .constant_pool
+                .add_method_ref(*ci, "<init>", "()V")
                 .expect("init ref");
             c.push(Instruction::Getstatic(coro_field_ref));
             push_iconst(&mut c, i);
@@ -57,10 +60,12 @@ impl JvmGenerator {
         code_attr: u16,
         coro_field_ref: u16,
     ) {
-        let resume_name = self.pool.constant_pool.add_utf8("resume_coroutine")
+        let resume_name = self
+            .pool
+            .constant_pool
+            .add_utf8("resume_coroutine")
             .expect("resume utf8");
-        let resume_desc = self.pool.constant_pool.add_utf8("(I)I")
-            .expect("resume desc");
+        let resume_desc = self.pool.constant_pool.add_utf8("(I)I").expect("resume desc");
         let mut code = Vec::new();
         for (i, (_, ci)) in coro_info.iter().enumerate() {
             code.push(Instruction::Iload_0);
@@ -71,7 +76,10 @@ impl JvmGenerator {
             push_iconst(&mut code, i);
             code.push(Instruction::Aaload);
             code.push(Instruction::Checkcast(*ci));
-            let rm = self.pool.constant_pool.add_method_ref(*ci, "resume", "()I")
+            let rm = self
+                .pool
+                .constant_pool
+                .add_method_ref(*ci, "resume", "()I")
                 .expect("resume ref");
             code.push(Instruction::Invokevirtual(rm));
             code.push(Instruction::Ireturn);
@@ -102,10 +110,12 @@ impl JvmGenerator {
         code_attr: u16,
         coro_field_ref: u16,
     ) {
-        let state_name = self.pool.constant_pool.add_utf8("get_coroutine_state")
+        let state_name = self
+            .pool
+            .constant_pool
+            .add_utf8("get_coroutine_state")
             .expect("state utf8");
-        let state_desc = self.pool.constant_pool.add_utf8("(I)I")
-            .expect("state desc");
+        let state_desc = self.pool.constant_pool.add_utf8("(I)I").expect("state desc");
         let mut sc = Vec::new();
         for (i, (_, ci)) in coro_info.iter().enumerate() {
             sc.push(Instruction::Iload_0);
@@ -116,7 +126,10 @@ impl JvmGenerator {
             push_iconst(&mut sc, i);
             sc.push(Instruction::Aaload);
             sc.push(Instruction::Checkcast(*ci));
-            let sm = self.pool.constant_pool.add_method_ref(*ci, "getState", "()I")
+            let sm = self
+                .pool
+                .constant_pool
+                .add_method_ref(*ci, "getState", "()I")
                 .expect("getState ref");
             sc.push(Instruction::Invokevirtual(sm));
             sc.push(Instruction::Ireturn);
@@ -147,10 +160,12 @@ impl JvmGenerator {
         code_attr: u16,
         coro_field_ref: u16,
     ) {
-        let set_name = self.pool.constant_pool.add_utf8("set_coroutine_param")
+        let set_name = self
+            .pool
+            .constant_pool
+            .add_utf8("set_coroutine_param")
             .expect("set utf8");
-        let set_desc = self.pool.constant_pool.add_utf8("(III)V")
-            .expect("set desc");
+        let set_desc = self.pool.constant_pool.add_utf8("(III)V").expect("set desc");
         let mut set_code = Vec::new();
         for (i, (_, ci)) in coro_info.iter().enumerate() {
             set_code.push(Instruction::Iload_0);

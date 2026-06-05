@@ -21,7 +21,11 @@ impl<'source> Parser<'source> {
         let lexer = Lexer::new(source);
         // We keep the lexer but don't take errors yet — parse() will check.
         // This allows Parser::new to remain infallible while parse() reports errors.
-        Self { lexer, current: None, source }
+        Self {
+            lexer,
+            current: None,
+            source,
+        }
     }
 
     pub fn parse(&mut self) -> crate::Result<Program> {
@@ -67,7 +71,9 @@ impl<'source> Parser<'source> {
                     items.push(SourceItem::CoroutineDef(self.parse_coroutine()?));
                 }
                 _ => {
-                    return Err(CompilerError::Parse(format!("Expected function definition or declaration, got {token:?}")));
+                    return Err(CompilerError::Parse(format!(
+                        "Expected function definition or declaration, got {token:?}"
+                    )));
                 }
             }
 
@@ -114,7 +120,9 @@ impl<'source> Parser<'source> {
             self.advance();
             Ok((tok_clone, span))
         } else {
-            Err(CompilerError::Parse(format!("Expected {token:?} but got {tok_clone:?}")))
+            Err(CompilerError::Parse(format!(
+                "Expected {token:?} but got {tok_clone:?}"
+            )))
         }
     }
 }

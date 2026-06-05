@@ -1,8 +1,8 @@
+use super::compile_and_run;
+use super::compile_only;
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir_generator::IrGenerator;
 use crate::parser::Parser;
-use super::compile_and_run;
-use super::compile_only;
 
 #[test]
 fn test_exe_global_read() {
@@ -254,5 +254,9 @@ fn test_exe_global_array_write_read() {
         }
     "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(55), "global array write/read: arr[0]=42, arr[1]=13, arr[2]=42+13=55");
+    assert_eq!(
+        output.status.code(),
+        Some(55),
+        "global array write/read: arr[0]=42, arr[1]=13, arr[2]=42+13=55"
+    );
 }

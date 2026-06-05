@@ -37,7 +37,8 @@ fn test_semantics_many_locals_ok() {
 
 #[test]
 fn test_semantics_deeply_nested_ifs_ok() {
-    let source = "def f(a of bool, b of bool, c of bool) of int { if (a) { if (b) { if (c) { return 1; } } } return 0; }";
+    let source =
+        "def f(a of bool, b of bool, c of bool) of int { if (a) { if (b) { if (c) { return 1; } } } return 0; }";
     let result = analyze(source);
     assert!(result.is_ok(), "Expected ok: {:?}", result);
 }

@@ -25,7 +25,8 @@ impl IrGenerator {
 
             ei_cond_block.instructions.push(IrInstruction {
                 opcode: IrOpcode::CondBr,
-                result: None, result_type: None,
+                result: None,
+                result_type: None,
                 operands: vec![IrOperand::Variable(ei_cond_temp, IrType::Bool)],
                 jump_target: None,
                 true_target: Some(ei_body_id.clone()),
@@ -41,9 +42,14 @@ impl IrGenerator {
             }
             if !ends_with_control_flow(&ei_body_block) {
                 ei_body_block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Jump, result: None, result_type: None,
-                    operands: vec![], jump_target: Some(merge_id.clone()),
-                    true_target: None, false_target: None, span: ei.span,
+                    opcode: IrOpcode::Jump,
+                    result: None,
+                    result_type: None,
+                    operands: vec![],
+                    jump_target: Some(merge_id.clone()),
+                    true_target: None,
+                    false_target: None,
+                    span: ei.span,
                 });
             }
             ei_body_block.successors.push(merge_id.clone());
@@ -58,9 +64,14 @@ impl IrGenerator {
             }
             if !ends_with_control_flow(&else_block) {
                 else_block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Jump, result: None, result_type: None,
-                    operands: vec![], jump_target: Some(merge_id.clone()),
-                    true_target: None, false_target: None, span: stmt.span,
+                    opcode: IrOpcode::Jump,
+                    result: None,
+                    result_type: None,
+                    operands: vec![],
+                    jump_target: Some(merge_id.clone()),
+                    true_target: None,
+                    false_target: None,
+                    span: stmt.span,
                 });
             }
             else_block.successors.push(merge_id.clone());
@@ -86,7 +97,8 @@ impl IrGenerator {
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CondBr,
-            result: None, result_type: None,
+            result: None,
+            result_type: None,
             operands: vec![IrOperand::Variable(cond_temp, IrType::Bool)],
             jump_target: None,
             true_target: Some(then_id.clone()),
@@ -103,9 +115,14 @@ impl IrGenerator {
         }
         if !ends_with_control_flow(&then_block) {
             then_block.instructions.push(IrInstruction {
-                opcode: IrOpcode::Jump, result: None, result_type: None,
-                operands: vec![], jump_target: Some(merge_id.clone()),
-                true_target: None, false_target: None, span: stmt.span,
+                opcode: IrOpcode::Jump,
+                result: None,
+                result_type: None,
+                operands: vec![],
+                jump_target: Some(merge_id.clone()),
+                true_target: None,
+                false_target: None,
+                span: stmt.span,
             });
         }
         then_block.successors.push(merge_id.clone());
@@ -122,7 +139,11 @@ impl IrGenerator {
             } else {
                 merge_id.clone()
             };
-            if let Some(cond_block) = self.block_stack.iter_mut().find(|b: &&mut IrBlock| b.id == *ei_condbr_id) {
+            if let Some(cond_block) = self
+                .block_stack
+                .iter_mut()
+                .find(|b: &&mut IrBlock| b.id == *ei_condbr_id)
+            {
                 if let Some(last) = cond_block.instructions.last_mut() {
                     if last.opcode == IrOpcode::CondBr {
                         last.false_target = Some(next_false.clone());
@@ -146,9 +167,14 @@ impl IrGenerator {
         self.loop_exit_stack.push(exit_id.clone());
 
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(header_id.clone()),
-            true_target: None, false_target: None, span: stmt.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(header_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: stmt.span,
         });
         block.successors.push(header_id.clone());
 
@@ -163,7 +189,9 @@ impl IrGenerator {
         };
 
         header_block.instructions.push(IrInstruction {
-            opcode: IrOpcode::CondBr, result: None, result_type: None,
+            opcode: IrOpcode::CondBr,
+            result: None,
+            result_type: None,
             operands: vec![IrOperand::Variable(cond_temp, IrType::Bool)],
             jump_target: None,
             true_target: Some(true_target.clone()),
@@ -179,9 +207,14 @@ impl IrGenerator {
             self.visit_statement(&mut body_block, s);
         }
         body_block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(header_id.clone()),
-            true_target: None, false_target: None, span: stmt.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(header_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: stmt.span,
         });
         body_block.successors.push(header_id.clone());
         self.block_stack.push(body_block);
@@ -203,9 +236,14 @@ impl IrGenerator {
         self.loop_exit_stack.push(exit_id.clone());
 
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(body_id.clone()),
-            true_target: None, false_target: None, span: stmt.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(body_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: stmt.span,
         });
         block.successors.push(body_id.clone());
 
@@ -214,9 +252,14 @@ impl IrGenerator {
             self.visit_statement(&mut body_block, s);
         }
         body_block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(header_id.clone()),
-            true_target: None, false_target: None, span: stmt.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(header_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: stmt.span,
         });
         body_block.successors.push(header_id.clone());
         self.block_stack.push(body_block);
@@ -232,7 +275,9 @@ impl IrGenerator {
         };
 
         header_block.instructions.push(IrInstruction {
-            opcode: IrOpcode::CondBr, result: None, result_type: None,
+            opcode: IrOpcode::CondBr,
+            result: None,
+            result_type: None,
             operands: vec![IrOperand::Variable(cond_temp, IrType::Bool)],
             jump_target: None,
             true_target: Some(true_target.clone()),

@@ -25,13 +25,12 @@ impl IrGenerator {
                 .get(&func_name)
                 .cloned()
                 .or_else(|| {
-                    crate::stdlib::StdLib::get_signature(&func_name)
-                        .and_then(|(_, ret)| match ret {
-                            "string" => Some(IrType::String),
-                            "int" => Some(IrType::Int),
-                            "" => Some(IrType::Void),
-                            _ => None,
-                        })
+                    crate::stdlib::StdLib::get_signature(&func_name).and_then(|(_, ret)| match ret {
+                        "string" => Some(IrType::String),
+                        "int" => Some(IrType::Int),
+                        "" => Some(IrType::Void),
+                        _ => None,
+                    })
                 })
                 .unwrap_or(IrType::Int);
 

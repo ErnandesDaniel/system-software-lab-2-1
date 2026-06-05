@@ -1,5 +1,5 @@
-use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
+use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::traits;
 use crate::ir::types::{Constant, IrFunction, IrOpcode, IrOperand, IrType};
 use std::collections::{HashMap, HashSet};
@@ -39,23 +39,47 @@ impl JvmGenerator {
     }
 
     pub fn setup_coroutine_fields(&mut self, func: &IrFunction, class_name: &str) {
-        let this_class = self.pool.constant_pool.add_class(class_name).expect("Failed to add to constant pool");
+        let this_class = self
+            .pool
+            .constant_pool
+            .add_class(class_name)
+            .expect("Failed to add to constant pool");
 
-        let state_name_idx = self.pool.constant_pool.add_utf8("state").expect("Failed to add to constant pool");
-        let state_desc_idx = self.pool.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
+        let state_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("state")
+            .expect("Failed to add to constant pool");
+        let state_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("I")
+            .expect("Failed to add to constant pool");
         self.coro.coroutine_state_field = self
-            .pool.constant_pool
+            .pool
+            .constant_pool
             .add_field_ref(this_class, "state", "I")
             .expect("Failed to add to constant pool");
         self.coro.coroutine_field_entries.push((state_name_idx, state_desc_idx));
 
-        let result_name_idx = self.pool.constant_pool.add_utf8("result").expect("Failed to add to constant pool");
-        let result_desc_idx = self.pool.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
+        let result_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("result")
+            .expect("Failed to add to constant pool");
+        let result_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("I")
+            .expect("Failed to add to constant pool");
         self.coro.coroutine_result_field = self
-            .pool.constant_pool
+            .pool
+            .constant_pool
             .add_field_ref(this_class, "result", "I")
             .expect("Failed to add to constant pool");
-        self.coro.coroutine_field_entries.push((result_name_idx, result_desc_idx));
+        self.coro
+            .coroutine_field_entries
+            .push((result_name_idx, result_desc_idx));
 
         let mut field_names: Vec<String> = Vec::new();
         let mut seen_names: HashSet<String> = HashSet::new();
@@ -87,21 +111,33 @@ impl JvmGenerator {
             if self.coro.coroutine_field_refs.contains_key(name) {
                 continue;
             }
-            let field_name_idx = self.pool.constant_pool.add_utf8(&format!("var_{name}")).expect("Failed to add to constant pool");
-            let field_desc_idx = self.pool.constant_pool.add_utf8("I").expect("Failed to add to constant pool");
+            let field_name_idx = self
+                .pool
+                .constant_pool
+                .add_utf8(&format!("var_{name}"))
+                .expect("Failed to add to constant pool");
+            let field_desc_idx = self
+                .pool
+                .constant_pool
+                .add_utf8("I")
+                .expect("Failed to add to constant pool");
             let fname = format!("var_{name}");
             let fdesc = "I".to_string();
             let field_ref = self
-                .pool.constant_pool
+                .pool
+                .constant_pool
                 .add_field_ref(this_class, &fname, &fdesc)
                 .expect("Failed to add to constant pool");
             self.coro.coroutine_field_refs.insert(name.clone(), field_ref);
             self.coro.coroutine_field_entries.push((field_name_idx, field_desc_idx));
         }
 
-        let param_refs: Vec<Option<u16>> = func.parameters.iter().filter(|p| p.name != "__env").map(|p| {
-            self.coro.coroutine_field_refs.get(&p.name).copied()
-        }).collect();
+        let param_refs: Vec<Option<u16>> = func
+            .parameters
+            .iter()
+            .filter(|p| p.name != "__env")
+            .map(|p| self.coro.coroutine_field_refs.get(&p.name).copied())
+            .collect();
         let p1 = param_refs.first().copied().flatten();
         let p2 = param_refs.get(1).copied().flatten();
         self.coro.coroutine_param_field_refs.push((p1, p2));
@@ -185,13 +221,27 @@ impl JvmGenerator {
             for inst in &block.instructions {
                 let base = inst.operands.first().and_then(|o| {
                     if let IrOperand::Variable(n, ty) = o {
-                        if matches!(ty, IrType::Array(_, _)) { Some(n.clone()) } else { None }
-                    } else { None }
+                        if matches!(ty, IrType::Array(_, _)) {
+                            Some(n.clone())
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    }
                 });
                 let Some(ref base_name) = base else { continue };
-                let byte_off = inst.operands.get(1).and_then(|o| {
-                    if let IrOperand::Constant(Constant::Int(n)) = o { Some(*n as usize) } else { None }
-                }).unwrap_or(0);
+                let byte_off = inst
+                    .operands
+                    .get(1)
+                    .and_then(|o| {
+                        if let IrOperand::Constant(Constant::Int(n)) = o {
+                            Some(*n as usize)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap_or(0);
                 let field_ty = if inst.opcode == IrOpcode::Store {
                     inst.operands.get(2).map(|o| o.get_type()).unwrap_or(IrType::Int)
                 } else {
@@ -206,7 +256,10 @@ impl JvmGenerator {
                 }
             }
         }
-        let to_remove: Vec<String> = self.st.struct_field_types.iter()
+        let to_remove: Vec<String> = self
+            .st
+            .struct_field_types
+            .iter()
             .filter(|(_, fields)| fields.iter().all(|(off, _)| *off == 0))
             .map(|(name, _)| name.clone())
             .collect();
@@ -223,5 +276,4 @@ impl JvmGenerator {
             ir_type_to_jvm_descriptor(ir_type)
         }
     }
-
 }

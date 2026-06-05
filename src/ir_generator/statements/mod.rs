@@ -11,7 +11,9 @@ impl IrGenerator {
             Statement::If(if_stmt) => self.visit_if_statement(block, if_stmt),
             Statement::Loop(loop_stmt) => self.visit_loop_statement(block, loop_stmt),
             Statement::Repeat(repeat_stmt) => self.visit_repeat_statement(block, repeat_stmt),
-            Statement::Expression(expr_stmt) => { self.visit_expr(block, &expr_stmt.expr); }
+            Statement::Expression(expr_stmt) => {
+                self.visit_expr(block, &expr_stmt.expr);
+            }
             Statement::Block(block_stmt) => {
                 self.symbols.push_scope();
                 for s in &block_stmt.body {
@@ -34,8 +36,13 @@ impl IrGenerator {
             (vec![], None)
         };
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Ret, result: None, result_type,
-            operands, jump_target: None, true_target: None, false_target: None,
+            opcode: IrOpcode::Ret,
+            result: None,
+            result_type,
+            operands,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span: ret.span,
         });
     }
@@ -43,9 +50,14 @@ impl IrGenerator {
     fn visit_break(&mut self, block: &mut IrBlock, stmt: &Statement) {
         if let Some(exit_id) = self.loop_exit_stack.last() {
             block.instructions.push(IrInstruction {
-                opcode: IrOpcode::Jump, result: None, result_type: None,
-                operands: vec![], jump_target: Some(exit_id.clone()),
-                true_target: None, false_target: None, span: stmt.span(),
+                opcode: IrOpcode::Jump,
+                result: None,
+                result_type: None,
+                operands: vec![],
+                jump_target: Some(exit_id.clone()),
+                true_target: None,
+                false_target: None,
+                span: stmt.span(),
             });
             block.successors.push(exit_id.clone());
         }
@@ -56,11 +68,15 @@ impl IrGenerator {
         self.symbols.define_local(&vd.name.name, ir_ty.clone());
         match &vd.ty {
             crate::ast::TypeRef::Custom(id) => {
-                self.symbols.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
+                self.symbols
+                    .local_struct_types
+                    .insert(vd.name.name.clone(), id.name.clone());
             }
             crate::ast::TypeRef::Array { element_type, .. } => {
                 if let crate::ast::TypeRef::Custom(id) = element_type.as_ref() {
-                    self.symbols.local_struct_types.insert(vd.name.name.clone(), id.name.clone());
+                    self.symbols
+                        .local_struct_types
+                        .insert(vd.name.name.clone(), id.name.clone());
                 }
             }
             _ => {}
@@ -70,10 +86,13 @@ impl IrGenerator {
     fn handle_yield(&mut self, block: &mut IrBlock, span: Span) {
         self.current_yield_state += 1;
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::CoroYield, result: None,
+            opcode: IrOpcode::CoroYield,
+            result: None,
             result_type: Some(IrType::Int),
             operands: vec![IrOperand::Constant(Constant::Int(self.current_yield_state as i64))],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span,
         });
         let new_id = format!("BB{}", self.block_counter);
@@ -93,10 +112,21 @@ impl IrGenerator {
         let saved_loop_exit = self.loop_exit_stack.clone();
         let saved_loop_depth = self.loop_depth;
 
-        let param_types: Vec<IrType> = fd.signature.parameters.as_ref()
-            .map(|args| args.iter().map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t))).collect())
+        let param_types: Vec<IrType> = fd
+            .signature
+            .parameters
+            .as_ref()
+            .map(|args| {
+                args.iter()
+                    .map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t)))
+                    .collect()
+            })
             .unwrap_or_default();
-        let ret_type = fd.signature.return_type.as_ref().map_or(IrType::Void, |t| self.convert_type(t));
+        let ret_type = fd
+            .signature
+            .return_type
+            .as_ref()
+            .map_or(IrType::Void, |t| self.convert_type(t));
 
         let captures = Self::scan_captures(&fd.body, &fd.signature.parameters, &saved_symbols);
         let has_captures = !captures.is_empty();
@@ -117,10 +147,14 @@ impl IrGenerator {
 
         let tmp = self.generate_temp();
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Assign, result: Some(tmp.clone()),
+            opcode: IrOpcode::Assign,
+            result: Some(tmp.clone()),
             result_type: Some(func_type.clone()),
             operands: vec![IrOperand::FuncRef(mangled.clone())],
-            jump_target: None, true_target: None, false_target: None, span: fd.span,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: fd.span,
         });
 
         if has_captures {
@@ -128,22 +162,35 @@ impl IrGenerator {
         }
 
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Assign, result: Some(fd.signature.name.name.clone()),
+            opcode: IrOpcode::Assign,
+            result: Some(fd.signature.name.name.clone()),
             result_type: Some(func_type.clone()),
             operands: vec![IrOperand::Variable(tmp, func_type)],
-            jump_target: None, true_target: None, false_target: None, span: fd.span,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: fd.span,
         });
     }
 
-    fn generate_nested_func(&mut self, fd: &FuncDefinition, mangled: &str, captures: &[(String, usize)]) -> crate::ir::IrFunction {
+    fn generate_nested_func(
+        &mut self,
+        fd: &FuncDefinition,
+        mangled: &str,
+        captures: &[(String, usize)],
+    ) -> crate::ir::IrFunction {
         self.captured_vars = captures.iter().cloned().collect();
         let mut inner_def = fd.clone();
         inner_def.signature.name.name = mangled.to_string();
 
         if !captures.is_empty() {
             let env_param = Arg {
-                name: Identifier { name: "__env".to_string(), span: fd.span },
-                ty: None, span: fd.span,
+                name: Identifier {
+                    name: "__env".to_string(),
+                    span: fd.span,
+                },
+                ty: None,
+                span: fd.span,
             };
             let mut new_params = vec![env_param];
             if let Some(ref args) = inner_def.signature.parameters {
@@ -158,12 +205,17 @@ impl IrGenerator {
     }
 
     fn emit_make_closure(
-        &mut self, block: &mut IrBlock, fd: &FuncDefinition,
-        mangled: &str, captures: &[(String, usize)],
-        tmp: &str, _func_type: &IrType,
+        &mut self,
+        block: &mut IrBlock,
+        fd: &FuncDefinition,
+        mangled: &str,
+        captures: &[(String, usize)],
+        tmp: &str,
+        _func_type: &IrType,
     ) {
         let env_tmp = self.generate_temp();
-        let mut env_operands: Vec<IrOperand> = captures.iter()
+        let mut env_operands: Vec<IrOperand> = captures
+            .iter()
             .map(|(name, _)| IrOperand::Variable(name.clone(), IrType::Int))
             .collect();
         env_operands.insert(0, IrOperand::FuncRef(mangled.to_string()));
@@ -171,10 +223,14 @@ impl IrGenerator {
             self.symbols.define_local(&format!("__env_slot_{i}"), IrType::Int);
         }
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::MakeClosure, result: Some(env_tmp.clone()),
+            opcode: IrOpcode::MakeClosure,
+            result: Some(env_tmp.clone()),
             result_type: Some(IrType::Int),
-            operands: env_operands, jump_target: Some(mangled.to_string()),
-            true_target: None, false_target: None, span: fd.span,
+            operands: env_operands,
+            jump_target: Some(mangled.to_string()),
+            true_target: None,
+            false_target: None,
+            span: fd.span,
         });
         self.closure_envs.insert(tmp.to_string(), env_tmp.clone());
         self.closure_envs.insert(fd.signature.name.name.clone(), env_tmp);

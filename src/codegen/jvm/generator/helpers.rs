@@ -55,9 +55,15 @@ impl JvmGenerator {
             if let IrType::Array(inner, _) = ty {
                 if let IrType::Array(_, int_slots) = inner.as_ref() {
                     (int_slots * 4) / 8
-                } else { 1 }
-            } else { 1 }
-        } else { 1 }
+                } else {
+                    1
+                }
+            } else {
+                1
+            }
+        } else {
+            1
+        }
     }
 
     pub fn is_struct_var(&self, operand: &IrOperand) -> bool {
@@ -70,16 +76,32 @@ impl JvmGenerator {
 
     pub fn ensure_int_value_ref(&mut self) -> u16 {
         if self.pool.integer_int_value_ref == 0 {
-            let int_class = self.pool.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
-            self.pool.integer_int_value_ref = self.pool.constant_pool.add_method_ref(int_class, "intValue", "()I").expect("Failed to add to constant pool");
+            let int_class = self
+                .pool
+                .constant_pool
+                .add_class("java/lang/Integer")
+                .expect("Failed to add to constant pool");
+            self.pool.integer_int_value_ref = self
+                .pool
+                .constant_pool
+                .add_method_ref(int_class, "intValue", "()I")
+                .expect("Failed to add to constant pool");
         }
         self.pool.integer_int_value_ref
     }
 
     pub fn ensure_value_of_ref(&mut self) -> u16 {
         if self.pool.integer_value_of_ref == 0 {
-            let int_class = self.pool.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
-            self.pool.integer_value_of_ref = self.pool.constant_pool.add_method_ref(int_class, "valueOf", "(I)Ljava/lang/Integer;").expect("Failed to add to constant pool");
+            let int_class = self
+                .pool
+                .constant_pool
+                .add_class("java/lang/Integer")
+                .expect("Failed to add to constant pool");
+            self.pool.integer_value_of_ref = self
+                .pool
+                .constant_pool
+                .add_method_ref(int_class, "valueOf", "(I)Ljava/lang/Integer;")
+                .expect("Failed to add to constant pool");
         }
         self.pool.integer_value_of_ref
     }
@@ -88,13 +110,23 @@ impl JvmGenerator {
         let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
         match field_ty {
             IrType::String => code.push(Instruction::Checkcast(self.pool.byte_array_class_idx)),
-            _ => { code.push(Instruction::Checkcast(self.pool.integer_class_idx)); code.push(Instruction::Invokevirtual(self.pool.integer_int_value_ref)); }
+            _ => {
+                code.push(Instruction::Checkcast(self.pool.integer_class_idx));
+                code.push(Instruction::Invokevirtual(self.pool.integer_int_value_ref));
+            }
         }
     }
 
     pub fn emit_boxed_field_store(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, _byte_off: usize) {
-        let is_string = inst.operands.get(2).is_some_and(|o| matches!(o.get_type(), IrType::String));
-        if is_string { code.push(Instruction::Aastore); }
-        else { code.push(Instruction::Invokestatic(self.pool.integer_value_of_ref)); code.push(Instruction::Aastore); }
+        let is_string = inst
+            .operands
+            .get(2)
+            .is_some_and(|o| matches!(o.get_type(), IrType::String));
+        if is_string {
+            code.push(Instruction::Aastore);
+        } else {
+            code.push(Instruction::Invokestatic(self.pool.integer_value_of_ref));
+            code.push(Instruction::Aastore);
+        }
     }
 }

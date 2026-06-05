@@ -5,7 +5,10 @@ use super::compile_and_run_with_files;
 fn test_exe_puts() {
     let output = compile_and_run("import puts def main() { puts(\"hello\"); return 0; }");
     assert!(output.status.success(), "puts should succeed");
-    assert!(String::from_utf8_lossy(&output.stdout).contains("hello"), "should print hello");
+    assert!(
+        String::from_utf8_lossy(&output.stdout).contains("hello"),
+        "should print hello"
+    );
 }
 
 #[test]

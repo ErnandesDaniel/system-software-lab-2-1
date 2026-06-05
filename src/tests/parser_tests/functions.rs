@@ -132,9 +132,7 @@ fn test_decl_mixed_order() {
 
 #[test]
 fn test_decl_many_functions() {
-    let program = parse(
-        "def a() { } def b() { } def c() { } def d() { } def e() { }",
-    );
+    let program = parse("def a() { } def b() { } def c() { } def d() { } def e() { }");
     assert_eq!(program.items.len(), 5);
 }
 

@@ -21,8 +21,14 @@ fn test_nasm_coroutine_simple() {
 
 #[test]
 fn test_jvm_coroutine_valid() {
-    assert!(jvm_valid(COROUTINE_SIMPLE), "jvm coroutine should produce valid class file");
-    assert!(jvm_class_count(COROUTINE_SIMPLE) >= 2, "jvm coroutine should produce coroutine class + Main");
+    assert!(
+        jvm_valid(COROUTINE_SIMPLE),
+        "jvm coroutine should produce valid class file"
+    );
+    assert!(
+        jvm_class_count(COROUTINE_SIMPLE) >= 2,
+        "jvm coroutine should produce coroutine class + Main"
+    );
 }
 
 const COROUTINE_WITH_PARAMS: &str = r#"
@@ -44,7 +50,10 @@ fn test_nasm_coroutine_with_params() {
 
 #[test]
 fn test_jvm_coroutine_with_params_valid() {
-    assert!(jvm_valid(COROUTINE_WITH_PARAMS), "jvm coroutine with params should produce valid class file");
+    assert!(
+        jvm_valid(COROUTINE_WITH_PARAMS),
+        "jvm coroutine with params should produce valid class file"
+    );
 }
 
 const COROUTINE_MULTI_YIELD: &str = r#"
@@ -71,7 +80,10 @@ fn test_nasm_coroutine_multi_yield() {
 
 #[test]
 fn test_jvm_coroutine_multi_yield_valid() {
-    assert!(jvm_valid(COROUTINE_MULTI_YIELD), "jvm coroutine with multi yields should produce valid class file");
+    assert!(
+        jvm_valid(COROUTINE_MULTI_YIELD),
+        "jvm coroutine with multi yields should produce valid class file"
+    );
 }
 
 const COROUTINE_WITH_PARAMS_NASM: &str = r#"
@@ -104,7 +116,10 @@ def main() of int {
 
 #[test]
 fn test_jvm_coroutine_multi_param_valid() {
-    assert!(jvm_valid(COROUTINE_MULTI_PARAM), "jvm coroutine with multiple params should be valid");
+    assert!(
+        jvm_valid(COROUTINE_MULTI_PARAM),
+        "jvm coroutine with multiple params should be valid"
+    );
 }
 
 const COROUTINE_YIELD_WITH_PARAM: &str = r#"
@@ -126,7 +141,10 @@ fn test_nasm_coroutine_yield_with_param() {
 
 #[test]
 fn test_jvm_coroutine_yield_with_param_valid() {
-    assert!(jvm_valid(COROUTINE_YIELD_WITH_PARAM), "jvm coroutine yield with param should be valid");
+    assert!(
+        jvm_valid(COROUTINE_YIELD_WITH_PARAM),
+        "jvm coroutine yield with param should be valid"
+    );
 }
 
 const NASM_EXE_COROUTINE_PUTCHAR: &str = r#"
@@ -178,7 +196,10 @@ fn test_nasm_coroutine_param_runtime() {
     let mut asm_gen = crate::codegen::nasm::AsmGenerator::new();
     let asm = asm_gen.generate(&ir);
     assert!(asm.contains("global calc"), "calc should be global");
-    assert!(asm.contains("extern set_coroutine_param"), "set_coroutine_param should be extern");
+    assert!(
+        asm.contains("extern set_coroutine_param"),
+        "set_coroutine_param should be extern"
+    );
 }
 
 const JVM_COROUTINE_BASIC: &str = r#"

@@ -41,14 +41,12 @@ pub struct LayoutDatabase {
 
 impl LayoutDatabase {
     pub fn new() -> Self {
-        Self { structs: HashMap::new() }
+        Self {
+            structs: HashMap::new(),
+        }
     }
 
-    pub fn register_struct(
-        &mut self,
-        name: &str,
-        fields: &[(String, IrType)],
-    ) {
+    pub fn register_struct(&mut self, name: &str, fields: &[(String, IrType)]) {
         let mut struct_fields = Vec::new();
         let mut offset: usize = 0;
         for (fname, fty) in fields {

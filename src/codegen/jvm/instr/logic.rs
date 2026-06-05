@@ -109,8 +109,14 @@ impl JvmGenerator {
     ) {
         if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
         {
-            let left_is_ref = matches!(left.get_type(), IrType::String | IrType::Function(_, _) | IrType::Array(..));
-            let right_is_ref = matches!(right.get_type(), IrType::String | IrType::Function(_, _) | IrType::Array(..));
+            let left_is_ref = matches!(
+                left.get_type(),
+                IrType::String | IrType::Function(_, _) | IrType::Array(..)
+            );
+            let right_is_ref = matches!(
+                right.get_type(),
+                IrType::String | IrType::Function(_, _) | IrType::Array(..)
+            );
             let both_int = !left_is_ref && !right_is_ref;
 
             if both_int {

@@ -36,13 +36,16 @@ impl IrGenerator {
         };
 
         block.instructions.push(IrInstruction {
-            opcode, result: Some(result_temp.clone()),
+            opcode,
+            result: Some(result_temp.clone()),
             result_type: Some(result_type.clone()),
             operands: vec![
                 IrOperand::Variable(left_temp, left_type),
                 IrOperand::Variable(right_temp, right_type),
             ],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span: expr.span,
         });
         (result_temp, result_type)
@@ -75,7 +78,8 @@ impl IrGenerator {
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::CondBr,
-            result: None, result_type: None,
+            result: None,
+            result_type: None,
             operands: vec![IrOperand::Variable(left_temp, IrType::Bool)],
             jump_target: None,
             true_target: Some(true_target),
@@ -96,16 +100,24 @@ impl IrGenerator {
             result: Some(result_temp.clone()),
             result_type: Some(IrType::Bool),
             operands: vec![IrOperand::Variable(right_temp, IrType::Bool)],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span: expr.span,
         });
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(continue_id.clone()),
-            true_target: None, false_target: None, span: expr.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(continue_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: expr.span,
         });
         block.successors.push(continue_id.clone());
-        self.block_stack.push(std::mem::replace(block, IrBlock::new(shortcut_id)));
+        self.block_stack
+            .push(std::mem::replace(block, IrBlock::new(shortcut_id)));
 
         // Shortcut block: assign shortcut value, then jump to continue
         block.instructions.push(IrInstruction {
@@ -113,24 +125,36 @@ impl IrGenerator {
             result: Some(result_temp.clone()),
             result_type: Some(IrType::Bool),
             operands: vec![IrOperand::Constant(Constant::Int(shortcut_val))],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span: expr.span,
         });
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Jump, result: None, result_type: None,
-            operands: vec![], jump_target: Some(continue_id.clone()),
-            true_target: None, false_target: None, span: expr.span,
+            opcode: IrOpcode::Jump,
+            result: None,
+            result_type: None,
+            operands: vec![],
+            jump_target: Some(continue_id.clone()),
+            true_target: None,
+            false_target: None,
+            span: expr.span,
         });
         block.successors.push(continue_id.clone());
-        self.block_stack.push(std::mem::replace(block, IrBlock::new(continue_id)));
+        self.block_stack
+            .push(std::mem::replace(block, IrBlock::new(continue_id)));
 
         (result_temp, IrType::Bool)
     }
 
     fn visit_assign(
-        &mut self, block: &mut IrBlock, expr: &BinaryExpr,
-        _left_temp: &str, _left_type: &IrType,
-        right_temp: &str, right_type: &IrType,
+        &mut self,
+        block: &mut IrBlock,
+        expr: &BinaryExpr,
+        _left_temp: &str,
+        _left_type: &IrType,
+        right_temp: &str,
+        right_type: &IrType,
     ) -> (String, IrType) {
         match expr.left.as_ref() {
             Expr::FieldAccess(inner_base, field, _) => {
@@ -156,23 +180,28 @@ impl IrGenerator {
     }
 
     fn assign_to_field(
-        &mut self, block: &mut IrBlock, expr: &BinaryExpr,
-        inner_base: &Expr, field: &crate::ast::Identifier,
-        right_temp: &str, right_type: &IrType,
+        &mut self,
+        block: &mut IrBlock,
+        expr: &BinaryExpr,
+        inner_base: &Expr,
+        field: &crate::ast::Identifier,
+        right_temp: &str,
+        right_type: &IrType,
     ) {
         if let Expr::Slice(slice) = inner_base {
             if let Some(range) = slice.ranges.first() {
                 let (arr_name, _) = self.visit_expr(block, &slice.array);
                 let (idx_temp, _) = self.visit_expr(block, &range.start);
                 let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                let field_type = self.find_field_type_for_var(&arr_name, &field.name);
-                let elem_size = match &field_type {
+                let arr_type = self.symbols.global_types.get(&arr_name).cloned().unwrap_or(IrType::Int);
+                let elem_size = match &arr_type {
                     IrType::Array(elem, _) => elem.size() as i64,
                     _ => 4i64,
                 };
-                let arr_type = self.symbols.global_types.get(&arr_name).cloned().unwrap_or(IrType::Int);
                 block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Store, result: None, result_type: None,
+                    opcode: IrOpcode::Store,
+                    result: None,
+                    result_type: None,
                     operands: vec![
                         IrOperand::Variable(arr_name, arr_type),
                         IrOperand::Constant(Constant::Int(field_offset as i64)),
@@ -180,7 +209,10 @@ impl IrGenerator {
                         IrOperand::Variable(idx_temp, IrType::Int),
                         IrOperand::Constant(Constant::Int(elem_size)),
                     ],
-                    jump_target: None, true_target: None, false_target: None, span: expr.span,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
                 });
                 return;
             }
@@ -190,20 +222,28 @@ impl IrGenerator {
         let (base_type, total_offset, _) = self.resolve_field_info(&base_name, inner_base, field, base_offset);
 
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Store, result: None, result_type: None,
+            opcode: IrOpcode::Store,
+            result: None,
+            result_type: None,
             operands: vec![
                 IrOperand::Variable(base_name, base_type),
                 IrOperand::Constant(Constant::Int(total_offset as i64)),
                 IrOperand::Variable(right_temp.to_string(), right_type.clone()),
             ],
-            jump_target: None, true_target: None, false_target: None, span: expr.span,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: expr.span,
         });
     }
 
     fn assign_to_slice(
-        &mut self, block: &mut IrBlock, expr: &BinaryExpr,
+        &mut self,
+        block: &mut IrBlock,
+        expr: &BinaryExpr,
         slice: &crate::ast::SliceExpr,
-        right_temp: &str, right_type: &IrType,
+        right_temp: &str,
+        right_type: &IrType,
     ) {
         if let Some(range) = slice.ranges.first() {
             let (idx, _) = self.visit_expr(block, &range.start);
@@ -211,39 +251,57 @@ impl IrGenerator {
 
             if base_type == IrType::String {
                 block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::StrSetByte, result: None, result_type: None,
+                    opcode: IrOpcode::StrSetByte,
+                    result: None,
+                    result_type: None,
                     operands: vec![
                         IrOperand::Variable(base_name, base_type),
                         IrOperand::Variable(idx, IrType::Int),
                         IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                     ],
-                    jump_target: None, true_target: None, false_target: None, span: expr.span,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
                 });
             } else {
                 block.instructions.push(IrInstruction {
-                    opcode: IrOpcode::Store, result: None, result_type: None,
+                    opcode: IrOpcode::Store,
+                    result: None,
+                    result_type: None,
                     operands: vec![
                         IrOperand::Variable(base_name, base_type),
                         IrOperand::Constant(Constant::Int(0)),
                         IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                         IrOperand::Variable(idx, IrType::Int),
                     ],
-                    jump_target: None, true_target: None, false_target: None, span: expr.span,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
                 });
             }
         }
     }
 
     fn assign_to_identifier(
-        &mut self, block: &mut IrBlock, expr: &BinaryExpr,
-        target_name: &str, right_temp: &str, right_type: &IrType,
+        &mut self,
+        block: &mut IrBlock,
+        expr: &BinaryExpr,
+        target_name: &str,
+        right_temp: &str,
+        right_type: &IrType,
     ) {
         let name = target_name.to_string();
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Assign, result: Some(name.clone()),
+            opcode: IrOpcode::Assign,
+            result: Some(name.clone()),
             result_type: Some(right_type.clone()),
             operands: vec![IrOperand::Variable(right_temp.to_string(), right_type.clone())],
-            jump_target: None, true_target: None, false_target: None, span: expr.span,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: expr.span,
         });
         if !name.is_empty() && !self.symbols.is_declared(&name) {
             self.symbols.define_local(&name, right_type.clone());
@@ -255,18 +313,27 @@ impl IrGenerator {
     }
 
     fn assign_to_captured(
-        &mut self, block: &mut IrBlock, expr: &BinaryExpr,
-        target_name: &str, right_temp: &str, right_type: &IrType,
+        &mut self,
+        block: &mut IrBlock,
+        expr: &BinaryExpr,
+        target_name: &str,
+        right_temp: &str,
+        right_type: &IrType,
     ) -> (String, IrType) {
         let slot = self.captured_vars[target_name];
         block.instructions.push(IrInstruction {
-            opcode: IrOpcode::StoreCaptured, result: None, result_type: None,
+            opcode: IrOpcode::StoreCaptured,
+            result: None,
+            result_type: None,
             operands: vec![
                 IrOperand::Variable("__env".to_string(), IrType::Int),
                 IrOperand::Constant(Constant::Int(slot as i64)),
                 IrOperand::Variable(right_temp.to_string(), right_type.clone()),
             ],
-            jump_target: None, true_target: None, false_target: None, span: expr.span,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span: expr.span,
         });
         (right_temp.to_string(), right_type.clone())
     }

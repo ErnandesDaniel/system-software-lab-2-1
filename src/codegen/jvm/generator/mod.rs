@@ -1,10 +1,9 @@
 mod helpers;
 mod state;
 
-pub(crate) use state::{JvmInst, JumpPlaceholder};
+pub(crate) use state::{JumpPlaceholder, JvmInst};
 pub use state::{
-    JvmClosureState, JvmCoroState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState,
-    JvmStructState,
+    JvmClosureState, JvmCoroState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState, JvmStructState,
 };
 
 use crate::ir::types::{Constant, IrFunction, IrOperand, IrProgram, IrType};
@@ -93,20 +92,34 @@ impl JvmGenerator {
                         if let IrOperand::Variable(n, ty) = o {
                             if self.global.global_vars.contains_key(n) && matches!(ty, IrType::Array(_, _)) {
                                 Some(n.clone())
-                            } else { None }
-                        } else { None }
+                            } else {
+                                None
+                            }
+                        } else {
+                            None
+                        }
                     });
                     if let Some(ref base_name) = base {
-                        let has_struct_offset = inst.operands.get(1).and_then(|o| {
-                            if let IrOperand::Constant(Constant::Int(byte_off)) = o {
-                                Some(*byte_off > 0)
-                            } else { None }
-                        }).unwrap_or(false);
+                        let has_struct_offset = inst
+                            .operands
+                            .get(1)
+                            .and_then(|o| {
+                                if let IrOperand::Constant(Constant::Int(byte_off)) = o {
+                                    Some(*byte_off > 0)
+                                } else {
+                                    None
+                                }
+                            })
+                            .unwrap_or(false);
                         if has_struct_offset {
                             self.global.global_uses_object_array.insert(base_name.clone());
                         }
                         if let Some(IrOperand::Constant(Constant::Int(byte_off))) = inst.operands.get(1) {
-                            let offsets = self.global.global_struct_offset_sets.entry(base_name.clone()).or_default();
+                            let offsets = self
+                                .global
+                                .global_struct_offset_sets
+                                .entry(base_name.clone())
+                                .or_default();
                             if !offsets.contains(&(*byte_off as usize)) {
                                 offsets.push(*byte_off as usize);
                                 offsets.sort_unstable();
@@ -158,9 +171,8 @@ impl JvmGenerator {
             classes.push((class_name, class_bytes));
         }
 
-        let needs_stub = self.stub_needed
-            || program.functions.iter().any(|f| f.is_coroutine)
-            || !self.global.global_vars.is_empty();
+        let needs_stub =
+            self.stub_needed || program.functions.iter().any(|f| f.is_coroutine) || !self.global.global_vars.is_empty();
         if needs_stub {
             let stub_bytes = self.generate_runtime_stub(&program.functions);
             classes.push(("RuntimeStub".to_string(), stub_bytes));
@@ -183,10 +195,26 @@ impl JvmGenerator {
         self.scan_struct_field_types(func);
 
         if !self.st.struct_uses_object_array.is_empty() || !self.global.global_uses_object_array.is_empty() {
-            self.pool.integer_class_idx = self.pool.constant_pool.add_class("java/lang/Integer").expect("Failed to add to constant pool");
-            self.pool.byte_array_class_idx = self.pool.constant_pool.add_class("[B").expect("Failed to add to constant pool");
-            self.pool.object_class_idx = self.pool.constant_pool.add_class("java/lang/Object").expect("Failed to add to constant pool");
-            self.pool.object_array_class_idx = self.pool.constant_pool.add_class("[Ljava/lang/Object;").expect("Failed to add to constant pool");
+            self.pool.integer_class_idx = self
+                .pool
+                .constant_pool
+                .add_class("java/lang/Integer")
+                .expect("Failed to add to constant pool");
+            self.pool.byte_array_class_idx = self
+                .pool
+                .constant_pool
+                .add_class("[B")
+                .expect("Failed to add to constant pool");
+            self.pool.object_class_idx = self
+                .pool
+                .constant_pool
+                .add_class("java/lang/Object")
+                .expect("Failed to add to constant pool");
+            self.pool.object_array_class_idx = self
+                .pool
+                .constant_pool
+                .add_class("[Ljava/lang/Object;")
+                .expect("Failed to add to constant pool");
             self.ensure_int_value_ref();
             self.ensure_value_of_ref();
         }

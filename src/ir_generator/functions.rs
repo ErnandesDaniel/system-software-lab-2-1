@@ -1,7 +1,7 @@
 use super::IrGenerator;
 use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Statement, TypeRef};
-use crate::ir_generator::symbols::SymbolTable;
 use crate::ir::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrParameter, IrType};
+use crate::ir_generator::symbols::SymbolTable;
 use std::collections::HashSet;
 
 impl IrGenerator {
@@ -15,7 +15,9 @@ impl IrGenerator {
             for arg in args {
                 let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                 if let Some(TypeRef::Custom(id)) = &arg.ty {
-                    self.symbols.local_struct_types.insert(arg.name.name.clone(), id.name.clone());
+                    self.symbols
+                        .local_struct_types
+                        .insert(arg.name.name.clone(), id.name.clone());
                 }
                 params.push(IrParameter {
                     name: arg.name.name.clone(),
@@ -85,7 +87,9 @@ impl IrGenerator {
             for arg in args {
                 let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
                 if let Some(TypeRef::Custom(id)) = &arg.ty {
-                    self.symbols.local_struct_types.insert(arg.name.name.clone(), id.name.clone());
+                    self.symbols
+                        .local_struct_types
+                        .insert(arg.name.name.clone(), id.name.clone());
                 }
                 params.push(IrParameter {
                     name: arg.name.name.clone(),
@@ -239,7 +243,10 @@ impl IrGenerator {
                 }
             }
             Expr::Identifier(id) => {
-                if outer_symbols.lookup(&id.name).is_some() && !param_names.contains(&id.name) && !seen.contains(&id.name) {
+                if outer_symbols.lookup(&id.name).is_some()
+                    && !param_names.contains(&id.name)
+                    && !seen.contains(&id.name)
+                {
                     seen.insert(id.name.clone());
                     found.push(id.name.clone());
                 }

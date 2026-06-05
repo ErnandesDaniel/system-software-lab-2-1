@@ -8,21 +8,29 @@ const MAIN_MAX_STACK: u16 = 2;
 const INSTANCE_METHOD_MAX_STACK: u16 = 4;
 
 impl JvmGenerator {
-    pub(super) fn build_class_file(
-        &mut self,
-        class_name: &str,
-        func: &IrFunction,
-        code: Vec<Instruction>,
-    ) -> Vec<u8> {
+    pub(super) fn build_class_file(&mut self, class_name: &str, func: &IrFunction, code: Vec<Instruction>) -> Vec<u8> {
         let func_name = &func.name;
-        let this_class = self.pool.constant_pool.add_class(class_name)
+        let this_class = self
+            .pool
+            .constant_pool
+            .add_class(class_name)
             .expect("Failed to add class to constant pool");
-        let super_class = self.pool.constant_pool.add_class("java/lang/Object")
+        let super_class = self
+            .pool
+            .constant_pool
+            .add_class("java/lang/Object")
             .expect("Failed to add Object class to constant pool");
 
-        let code_attr_name_idx = self.pool.constant_pool.add_utf8("Code")
+        let code_attr_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("Code")
             .expect("Failed to add UTF8 'Code'");
-        let max_locals = if self.coro.is_coroutine { 1 } else { self.func.next_local_slot };
+        let max_locals = if self.coro.is_coroutine {
+            1
+        } else {
+            self.func.next_local_slot
+        };
         let max_stack = self.estimate_max_stack(&code);
 
         let code_size: u32 = code.iter().map(|i| self.instr_size(i) as u32).sum();
@@ -31,7 +39,15 @@ impl JvmGenerator {
         );
 
         if self.coro.is_coroutine {
-            return self.build_coroutine_class(class_name, func, code, this_class, super_class, code_attr_name_idx, max_stack);
+            return self.build_coroutine_class(
+                class_name,
+                func,
+                code,
+                this_class,
+                super_class,
+                code_attr_name_idx,
+                max_stack,
+            );
         }
 
         let mut methods = Vec::new();
@@ -54,11 +70,36 @@ impl JvmGenerator {
         let call_desc = format!("({param_types}){return_type}");
 
         if func.name == "main" {
-            self.build_main_method(&mut methods, &code, &call_desc, &call_desc, code_attr_name_idx, max_stack, max_locals, this_class);
+            self.build_main_method(
+                &mut methods,
+                &code,
+                &call_desc,
+                &call_desc,
+                code_attr_name_idx,
+                max_stack,
+                max_locals,
+                this_class,
+            );
         } else {
-            self.build_user_method(&mut methods, &code, &call_desc, code_attr_name_idx, max_stack, max_locals);
+            self.build_user_method(
+                &mut methods,
+                &code,
+                &call_desc,
+                code_attr_name_idx,
+                max_stack,
+                max_locals,
+            );
             if is_func_ref_target {
-                self.build_func_ref_methods(&mut methods, func, &call_desc, code_attr_name_idx, max_stack, max_locals, has_env_param, this_class);
+                self.build_func_ref_methods(
+                    &mut methods,
+                    func,
+                    &call_desc,
+                    code_attr_name_idx,
+                    max_stack,
+                    max_locals,
+                    has_env_param,
+                    this_class,
+                );
             }
         }
 
@@ -78,11 +119,12 @@ impl JvmGenerator {
                     access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
                     name_index: env_field_name_idx,
                     descriptor_index: env_field_desc_idx,
-                    field_type: ristretto_classfile::FieldType::parse("[[I")
-                        .expect("Failed to parse field type"),
+                    field_type: ristretto_classfile::FieldType::parse("[[I").expect("Failed to parse field type"),
                     attributes: vec![],
                 }]
-            } else { vec![] },
+            } else {
+                vec![]
+            },
             methods,
             attributes: vec![],
             code_source_url: None,
@@ -108,9 +150,15 @@ impl JvmGenerator {
         max_locals: u16,
         this_class: u16,
     ) {
-        let call_name_idx = self.pool.constant_pool.add_utf8("call")
+        let call_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("call")
             .expect("Failed to add UTF8 'call'");
-        let call_desc_idx = self.pool.constant_pool.add_utf8(call_desc)
+        let call_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8(call_desc)
             .expect("Failed to add call descriptor");
 
         methods.push(Method {
@@ -127,16 +175,31 @@ impl JvmGenerator {
             }],
         });
 
-        let main_name_idx = self.pool.constant_pool.add_utf8("main")
+        let main_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("main")
             .expect("Failed to add UTF8 'main'");
-        let main_desc_idx = self.pool.constant_pool.add_utf8("([Ljava/lang/String;)V")
+        let main_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("([Ljava/lang/String;)V")
             .expect("Failed to add main descriptor");
 
-        let call_ref_idx = self.pool.constant_pool.add_method_ref(this_class, "call", call_desc)
+        let call_ref_idx = self
+            .pool
+            .constant_pool
+            .add_method_ref(this_class, "call", call_desc)
             .expect("Failed to add method ref for call");
-        let system_class = self.pool.constant_pool.add_class("java/lang/System")
+        let system_class = self
+            .pool
+            .constant_pool
+            .add_class("java/lang/System")
             .expect("Failed to add System class");
-        let exit_ref_idx = self.pool.constant_pool.add_method_ref(system_class, "exit", "(I)V")
+        let exit_ref_idx = self
+            .pool
+            .constant_pool
+            .add_method_ref(system_class, "exit", "(I)V")
             .expect("Failed to add exit method ref");
 
         let main_code = vec![
@@ -169,9 +232,15 @@ impl JvmGenerator {
         max_stack: u16,
         max_locals: u16,
     ) {
-        let call_name_idx = self.pool.constant_pool.add_utf8("call")
+        let call_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("call")
             .expect("Failed to add UTF8 'call'");
-        let call_desc_idx = self.pool.constant_pool.add_utf8(call_desc)
+        let call_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8(call_desc)
             .expect("Failed to add call descriptor");
 
         methods.push(Method {
@@ -200,13 +269,25 @@ impl JvmGenerator {
         has_env_param: bool,
         this_class: u16,
     ) {
-        let init_name_idx = self.pool.constant_pool.add_utf8("<init>")
+        let init_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("<init>")
             .expect("Failed to add UTF8 '<init>'");
-        let init_desc_idx = self.pool.constant_pool.add_utf8("()V")
+        let init_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("()V")
             .expect("Failed to add init descriptor");
-        let obj_class = self.pool.constant_pool.add_class("java/lang/Object")
+        let obj_class = self
+            .pool
+            .constant_pool
+            .add_class("java/lang/Object")
             .expect("Failed to add Object class");
-        let obj_init_ref = self.pool.constant_pool.add_method_ref(obj_class, "<init>", "()V")
+        let obj_init_ref = self
+            .pool
+            .constant_pool
+            .add_method_ref(obj_class, "<init>", "()V")
             .expect("Failed to add Object init ref");
         let init_code = vec![
             Instruction::Aload_0,
@@ -227,7 +308,10 @@ impl JvmGenerator {
             }],
         });
 
-        let apply_name_idx = self.pool.constant_pool.add_utf8("apply")
+        let apply_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("apply")
             .expect("Failed to add UTF8 'apply'");
         let user_param_types: Vec<IrType> = func
             .parameters
@@ -237,32 +321,70 @@ impl JvmGenerator {
             .collect();
         let instance_call_desc = format!(
             "({}){}",
-            user_param_types.iter().map(ir_type_to_jvm_descriptor).collect::<String>(),
+            user_param_types
+                .iter()
+                .map(ir_type_to_jvm_descriptor)
+                .collect::<String>(),
             ir_type_to_jvm_descriptor(&func.return_type)
         );
-        let instance_call_desc_idx = self.pool.constant_pool.add_utf8(&instance_call_desc)
+        let instance_call_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8(&instance_call_desc)
             .expect("Failed to add instance call descriptor");
-        let static_call_ref = self.pool.constant_pool.add_method_ref(this_class, "call", call_desc)
+        let static_call_ref = self
+            .pool
+            .constant_pool
+            .add_method_ref(this_class, "call", call_desc)
             .expect("Failed to add static call ref for func ref");
 
         let mut instance_call_code = Vec::new();
 
         if has_env_param {
             instance_call_code.push(Instruction::Aload_0);
-            let env_field_ref = self.pool.constant_pool.add_field_ref(this_class, "__env", "[[I")
+            let env_field_ref = self
+                .pool
+                .constant_pool
+                .add_field_ref(this_class, "__env", "[[I")
                 .expect("Failed to add env field ref");
             instance_call_code.push(Instruction::Getfield(env_field_ref));
         }
 
         let mut slot = 1;
         for param in &func.parameters {
-            if param.name == "__env" { continue; }
+            if param.name == "__env" {
+                continue;
+            }
             let use_aload = param.ty == IrType::String || matches!(param.ty, IrType::Function(_, _));
             match slot {
-                1 => { if use_aload { instance_call_code.push(Instruction::Aload_1); } else { instance_call_code.push(Instruction::Iload_1); } }
-                2 => { if use_aload { instance_call_code.push(Instruction::Aload_2); } else { instance_call_code.push(Instruction::Iload_2); } }
-                3 => { if use_aload { instance_call_code.push(Instruction::Aload_3); } else { instance_call_code.push(Instruction::Iload_3); } }
-                _ => { if use_aload { instance_call_code.push(Instruction::Aload(slot as u8)); } else { instance_call_code.push(Instruction::Iload(slot as u8)); } }
+                1 => {
+                    if use_aload {
+                        instance_call_code.push(Instruction::Aload_1);
+                    } else {
+                        instance_call_code.push(Instruction::Iload_1);
+                    }
+                }
+                2 => {
+                    if use_aload {
+                        instance_call_code.push(Instruction::Aload_2);
+                    } else {
+                        instance_call_code.push(Instruction::Iload_2);
+                    }
+                }
+                3 => {
+                    if use_aload {
+                        instance_call_code.push(Instruction::Aload_3);
+                    } else {
+                        instance_call_code.push(Instruction::Iload_3);
+                    }
+                }
+                _ => {
+                    if use_aload {
+                        instance_call_code.push(Instruction::Aload(slot as u8));
+                    } else {
+                        instance_call_code.push(Instruction::Iload(slot as u8));
+                    }
+                }
             }
             slot += 1;
         }
@@ -292,12 +414,17 @@ impl JvmGenerator {
         if !is_func_ref_target {
             return vec![];
         }
-        let user_params: Vec<IrType> = func.parameters.iter()
+        let user_params: Vec<IrType> = func
+            .parameters
+            .iter()
             .filter(|p| p.name != "__env")
             .map(|p| p.ty.clone())
             .collect();
         let iface_name = get_fn_interface_name(&user_params, &func.return_type);
-        vec![self.pool.constant_pool.add_class(&iface_name)
+        vec![self
+            .pool
+            .constant_pool
+            .add_class(&iface_name)
             .expect("Failed to add interface class")]
     }
 
@@ -305,9 +432,15 @@ impl JvmGenerator {
         if !has_env {
             return (0, 0);
         }
-        let name_idx = self.pool.constant_pool.add_utf8("__env")
+        let name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("__env")
             .expect("Failed to add UTF8 '__env'");
-        let desc_idx = self.pool.constant_pool.add_utf8("[[I")
+        let desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("[[I")
             .expect("Failed to add env descriptor");
         (name_idx, desc_idx)
     }

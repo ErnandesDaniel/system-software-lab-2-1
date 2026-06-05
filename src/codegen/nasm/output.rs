@@ -96,7 +96,10 @@ impl AsmGenerator {
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
-                    if result.starts_with('t') && !self.slots.contains_key(result) && !self.global_names.contains(result.as_str()) {
+                    if result.starts_with('t')
+                        && !self.slots.contains_key(result)
+                        && !self.global_names.contains(result.as_str())
+                    {
                         self.alloc_slot(result, 8);
                         stack_size += 8;
                     }
@@ -115,12 +118,17 @@ impl AsmGenerator {
         for (i, param_name) in param_names.iter().enumerate() {
             let reg = if self.is_coroutine {
                 match i {
-                    0 => "rdx", 1 => "r8", 2 => "r9",
+                    0 => "rdx",
+                    1 => "r8",
+                    2 => "r9",
                     _ => "rax",
                 }
             } else {
                 match i {
-                    0 => "rcx", 1 => "rdx", 2 => "r8", 3 => "r9",
+                    0 => "rcx",
+                    1 => "rdx",
+                    2 => "r8",
+                    3 => "r9",
                     _ => "rax",
                 }
             };
@@ -141,7 +149,9 @@ impl AsmGenerator {
 
     fn emit_body(&mut self, func: &IrFunction) {
         if self.is_coroutine {
-            let resume_map: HashMap<&str, usize> = func.coroutine_blocks.iter()
+            let resume_map: HashMap<&str, usize> = func
+                .coroutine_blocks
+                .iter()
                 .enumerate()
                 .map(|(i, id)| (id.as_str(), i))
                 .collect();

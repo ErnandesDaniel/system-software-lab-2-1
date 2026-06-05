@@ -53,7 +53,10 @@ fn test_ir_global_type_string() {
 
 #[test]
 fn test_ir_many_globals() {
-    let src = (0..10).map(|i| format!("global g{i} of int = {i};")).collect::<Vec<_>>().join("\n");
+    let src = (0..10)
+        .map(|i| format!("global g{i} of int = {i};"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let ir = ir(&format!("{src} def f() {{ }}"));
     assert_eq!(ir.globals.len(), 10);
 }
@@ -62,14 +65,17 @@ fn test_ir_many_globals() {
 fn test_ir_control_flow_has_branching() {
     let ir = ir("def f() of int { if (true) { return 1; } return 0; }");
     let has_branch = ir.functions[0].blocks.len() >= 3;
-    assert!(has_branch, "Expected >=3 blocks for if-else, got {}", ir.functions[0].blocks.len());
+    assert!(
+        has_branch,
+        "Expected >=3 blocks for if-else, got {}",
+        ir.functions[0].blocks.len()
+    );
 }
 
 #[test]
 fn test_ir_block_successors_simple() {
     let ir = ir("def f() of int { if (true) { return 1; } return 0; }");
-    let has_successors = ir.functions[0].blocks.iter()
-        .any(|b| !b.successors.is_empty());
+    let has_successors = ir.functions[0].blocks.iter().any(|b| !b.successors.is_empty());
     assert!(has_successors, "Expected at least one block with successors");
 }
 

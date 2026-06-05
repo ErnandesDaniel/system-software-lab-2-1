@@ -32,7 +32,9 @@ impl AsmGenerator {
                     if use_lea {
                         let lea_reg = if nreg.starts_with('e') {
                             self.reg_name(REGS_32.iter().position(|r| *r == nreg).unwrap_or(0), true)
-                        } else { nreg };
+                        } else {
+                            nreg
+                        };
                         self.line(&format!("lea {lea_reg}, [rcx + {co_off}]"));
                         if lea_reg != reg {
                             self.line(&format!("mov {reg}, {lea_reg}"));
@@ -48,9 +50,11 @@ impl AsmGenerator {
                 let mem = self.mem_for(name);
                 let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
                 if use_lea {
-                    let lea_reg = if reg.starts_with('e') { 
+                    let lea_reg = if reg.starts_with('e') {
                         self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
-                    } else { reg };
+                    } else {
+                        reg
+                    };
                     self.line(&format!("lea {lea_reg}, {mem}"));
                 } else if Self::is_wide_type(ty) {
                     let reg64 = if reg.starts_with('e') {
@@ -131,5 +135,4 @@ impl AsmGenerator {
             }
         }
     }
-
 }

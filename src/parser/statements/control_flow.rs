@@ -1,8 +1,5 @@
 use super::Parser;
-use crate::ast::{
-    BreakStatement, ElseIfBranch, IfStatement, LoopKeyword, LoopStatement,
-    ReturnStatement, Statement,
-};
+use crate::ast::{BreakStatement, ElseIfBranch, IfStatement, LoopKeyword, LoopStatement, ReturnStatement, Statement};
 use crate::error::CompilerError;
 use crate::lexer::Token;
 

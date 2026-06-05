@@ -64,8 +64,13 @@ impl SemanticsAnalyzer {
             TypeRef::Custom(id) => {
                 if let Some(fields) = self.struct_fields.get(&id.name) {
                     let total_size = fields.iter().map(|(_, t)| t.size() as usize).sum();
-                    let typed_fields: Vec<(String, IrType)> = fields.iter().map(|(n, t)| (n.clone(), t.clone())).collect();
-                    IrType::Struct { name: id.name.clone(), fields: typed_fields, size: total_size }
+                    let typed_fields: Vec<(String, IrType)> =
+                        fields.iter().map(|(n, t)| (n.clone(), t.clone())).collect();
+                    IrType::Struct {
+                        name: id.name.clone(),
+                        fields: typed_fields,
+                        size: total_size,
+                    }
                 } else {
                     self.add_error(format!("Undeclared type '{}'", id.name), id.span);
                     IrType::Int
@@ -74,7 +79,9 @@ impl SemanticsAnalyzer {
             TypeRef::Array { element_type, size, .. } => {
                 IrType::Array(Box::new(self.convert_type(element_type)), *size as usize)
             }
-            TypeRef::Function { params, return_type, .. } => {
+            TypeRef::Function {
+                params, return_type, ..
+            } => {
                 let p: Vec<IrType> = params.iter().map(|t| self.convert_type(t)).collect();
                 IrType::Function(p, Box::new(self.convert_type(return_type)))
             }
@@ -141,14 +148,22 @@ impl SemanticsAnalyzer {
                 let _right = self.infer_expr_type(scope, &bin.right);
                 match bin.operator {
                     crate::ast::BinaryOp::Assign => _right,
-                    crate::ast::BinaryOp::Add | crate::ast::BinaryOp::Subtract
-                    | crate::ast::BinaryOp::Multiply | crate::ast::BinaryOp::Divide
-                    | crate::ast::BinaryOp::Modulo | crate::ast::BinaryOp::BitAnd
-                    | crate::ast::BinaryOp::BitOr | crate::ast::BinaryOp::BitXor => IrType::Int,
-                    crate::ast::BinaryOp::Equal | crate::ast::BinaryOp::NotEqual
-                    | crate::ast::BinaryOp::Less | crate::ast::BinaryOp::Greater
-                    | crate::ast::BinaryOp::LessOrEqual | crate::ast::BinaryOp::GreaterOrEqual
-                    | crate::ast::BinaryOp::And | crate::ast::BinaryOp::Or => IrType::Bool,
+                    crate::ast::BinaryOp::Add
+                    | crate::ast::BinaryOp::Subtract
+                    | crate::ast::BinaryOp::Multiply
+                    | crate::ast::BinaryOp::Divide
+                    | crate::ast::BinaryOp::Modulo
+                    | crate::ast::BinaryOp::BitAnd
+                    | crate::ast::BinaryOp::BitOr
+                    | crate::ast::BinaryOp::BitXor => IrType::Int,
+                    crate::ast::BinaryOp::Equal
+                    | crate::ast::BinaryOp::NotEqual
+                    | crate::ast::BinaryOp::Less
+                    | crate::ast::BinaryOp::Greater
+                    | crate::ast::BinaryOp::LessOrEqual
+                    | crate::ast::BinaryOp::GreaterOrEqual
+                    | crate::ast::BinaryOp::And
+                    | crate::ast::BinaryOp::Or => IrType::Bool,
                 }
             }
             Expr::Unary(un) => match un.operator {
@@ -163,7 +178,9 @@ impl SemanticsAnalyzer {
                     }
                 }
                 if let Expr::Identifier(id) = call.function.as_ref() {
-                    let builtin = ["println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf"];
+                    let builtin = [
+                        "println", "putchar", "getchar", "rand", "time", "srand", "puts", "printf",
+                    ];
                     if builtin.contains(&id.name.as_str()) {
                         return IrType::Int;
                     }
@@ -192,15 +209,25 @@ impl SemanticsAnalyzer {
                 IrType::Array(Box::new(elem_ty), elems.len())
             }
             Expr::FuncLiteral(f) => {
-                let params = f.signature.parameters.as_ref().map(|args| {
-                    args.iter().map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t))).collect()
-                }).unwrap_or_default();
-                let ret = f.signature.return_type.as_ref().map_or(IrType::Void, |t| self.convert_type(t));
+                let params = f
+                    .signature
+                    .parameters
+                    .as_ref()
+                    .map(|args| {
+                        args.iter()
+                            .map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t)))
+                            .collect()
+                    })
+                    .unwrap_or_default();
+                let ret = f
+                    .signature
+                    .return_type
+                    .as_ref()
+                    .map_or(IrType::Void, |t| self.convert_type(t));
                 IrType::Function(params, Box::new(ret))
             }
         }
     }
-
 }
 
 impl Default for SemanticsAnalyzer {

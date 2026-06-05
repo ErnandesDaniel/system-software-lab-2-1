@@ -46,10 +46,8 @@ impl CfgMermaidGenerator {
     fn generate_block(&mut self, block: &IrBlock) {
         let formatted_id = format::format_block_id(&block.id);
         let instructions = self.format_block_instructions(block);
-        self.output.push_str(&format!(
-            "    {}[\"{}\\n{}\"]\n",
-            formatted_id, block.id, instructions
-        ));
+        self.output
+            .push_str(&format!("    {}[\"{}\\n{}\"]\n", formatted_id, block.id, instructions));
     }
 
     fn format_block_instructions(&self, block: &IrBlock) -> String {

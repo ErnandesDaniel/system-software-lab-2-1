@@ -77,7 +77,11 @@ fn test_ir_function_no_params() {
 #[test]
 fn test_ir_block_count() {
     let ir = ir("def f() of int { if (true) { return 1; } return 0; }");
-    assert!(ir.functions[0].blocks.len() >= 3, "expected >=3 blocks, got {}", ir.functions[0].blocks.len());
+    assert!(
+        ir.functions[0].blocks.len() >= 3,
+        "expected >=3 blocks, got {}",
+        ir.functions[0].blocks.len()
+    );
 }
 
 #[test]
@@ -102,7 +106,11 @@ fn test_ir_used_functions_contains_called() {
 fn test_ir_used_functions_imported() {
     let ir = ir("import puts def main() { puts(\"hi\"); }");
     let func = &ir.functions[0];
-    assert!(func.used_functions.contains(&"puts".to_string()), "expected puts in used_functions, got {:?}", func.used_functions);
+    assert!(
+        func.used_functions.contains(&"puts".to_string()),
+        "expected puts in used_functions, got {:?}",
+        func.used_functions
+    );
 }
 
 #[test]
@@ -120,7 +128,9 @@ fn test_ir_is_coroutine() {
 #[test]
 fn test_ir_coroutine_yield_instructions() {
     let ir = ir("coroutine f() of int { yield; return 0; }");
-    let has_yield = ir.functions[0].blocks.iter()
+    let has_yield = ir.functions[0]
+        .blocks
+        .iter()
         .flat_map(|b| &b.instructions)
         .any(|i| i.opcode == crate::ir::IrOpcode::CoroYield);
     assert!(has_yield, "Expected CoroYield instruction");
@@ -141,7 +151,10 @@ fn test_ir_no_yield_in_regular_func() {
 #[test]
 fn test_ir_struct_layout_present() {
     let ir = ir("struct P { x of int; } def f() { }");
-    assert!(ir.struct_layouts.structs.contains_key("P"), "Expected struct layout for P");
+    assert!(
+        ir.struct_layouts.structs.contains_key("P"),
+        "Expected struct layout for P"
+    );
 }
 
 #[test]

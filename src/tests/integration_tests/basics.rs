@@ -1,9 +1,9 @@
+use super::compile_and_run;
+use super::compile_only;
 use crate::ir_generator::IrGenerator;
 use crate::parser::Parser;
 use crate::semantics::analysis::SemanticsAnalyzer;
 use crate::tests::parse;
-use super::compile_and_run;
-use super::compile_only;
 
 #[test]
 fn test_import_short_form_semantics() {
@@ -43,7 +43,11 @@ fn test_while_loop_block_order() {
     let ir_program = ir_gen.generate(&ast);
 
     let func = &ir_program.functions[0];
-    assert!(func.blocks.len() >= 4, "Expected at least 4 blocks, got {}", func.blocks.len());
+    assert!(
+        func.blocks.len() >= 4,
+        "Expected at least 4 blocks, got {}",
+        func.blocks.len()
+    );
 }
 
 #[test]

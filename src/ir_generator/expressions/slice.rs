@@ -14,7 +14,11 @@ impl IrGenerator {
                     _ => IrType::Int,
                 };
                 let elem_size = element_type.size() as i64;
-                let base_ir_type = self.symbols.global_types.get(&base_name).cloned()
+                let base_ir_type = self
+                    .symbols
+                    .global_types
+                    .get(&base_name)
+                    .cloned()
                     .or_else(|| self.symbols.local_struct_types.get(&base_name).map(|_| IrType::Int))
                     .unwrap_or(IrType::Int);
                 let result_temp = self.generate_temp();

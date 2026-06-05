@@ -208,7 +208,10 @@ fn test_exe_closure_as_function_argument() {
         }
     "#;
     let output = compile_and_run(source);
-    assert!(output.status.code() != Some(-1), "closure as function argument should compile and run");
+    assert!(
+        output.status.code() != Some(-1),
+        "closure as function argument should compile and run"
+    );
 }
 
 #[test]
@@ -223,7 +226,10 @@ fn test_exe_struct_field_chain() {
         }
     "#;
     let output = compile_and_run(source);
-    assert!(output.status.code() != Some(-1), "struct field read/write chain should compile and run");
+    assert!(
+        output.status.code() != Some(-1),
+        "struct field read/write chain should compile and run"
+    );
 }
 
 #[test]
@@ -251,5 +257,9 @@ fn test_exe_closure_mutate_counter() {
         }
     "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(123), "counter closure: 1*100 + 2*10 + 3 = 123");
+    assert_eq!(
+        output.status.code(),
+        Some(123),
+        "counter closure: 1*100 + 2*10 + 3 = 123"
+    );
 }

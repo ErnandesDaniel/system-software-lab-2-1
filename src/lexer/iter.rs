@@ -26,7 +26,11 @@ impl Lexer {
             }
         }
 
-        Self { tokens, index: 0, errors }
+        Self {
+            tokens,
+            index: 0,
+            errors,
+        }
     }
 
     /// Collect any lexer errors that were accumulated during tokenisation

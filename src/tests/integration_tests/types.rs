@@ -11,7 +11,10 @@ fn test_exe_byte_decl_and_return() {
 fn test_exe_byte_arithmetic() {
     let source = "def main() of int { a of byte; b of byte; a = 10; b = 20; return a + b; }";
     let output = compile_and_run(source);
-    assert!(output.status.code() != Some(-1), "byte arithmetic should compile and run");
+    assert!(
+        output.status.code() != Some(-1),
+        "byte arithmetic should compile and run"
+    );
 }
 
 #[test]

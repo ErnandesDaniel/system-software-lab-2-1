@@ -20,8 +20,13 @@ impl IrGenerator {
             TypeRef::Custom(id) => {
                 if let Some(fields) = self.symbols.struct_fields.get(&id.name) {
                     let total_size: usize = fields.iter().map(|(_, ty, _)| ty.size() as usize).sum();
-                    let typed_fields: Vec<(String, IrType)> = fields.iter().map(|(n, ty, _)| (n.clone(), ty.clone())).collect();
-                    IrType::Struct { name: id.name.clone(), fields: typed_fields, size: total_size }
+                    let typed_fields: Vec<(String, IrType)> =
+                        fields.iter().map(|(n, ty, _)| (n.clone(), ty.clone())).collect();
+                    IrType::Struct {
+                        name: id.name.clone(),
+                        fields: typed_fields,
+                        size: total_size,
+                    }
                 } else {
                     IrType::Int
                 }
@@ -29,7 +34,9 @@ impl IrGenerator {
             TypeRef::Array { element_type, size, .. } => {
                 IrType::Array(Box::new(self.convert_type(element_type)), *size as usize)
             }
-            TypeRef::Function { params, return_type, .. } => {
+            TypeRef::Function {
+                params, return_type, ..
+            } => {
                 let p: Vec<IrType> = params.iter().map(|t| self.convert_type(t)).collect();
                 IrType::Function(p, Box::new(self.convert_type(return_type)))
             }
@@ -115,13 +122,22 @@ impl IrGenerator {
             Expr::FieldAccess(base, field, _) => {
                 let (base_name, base_offset) = self.resolve_field_chain(base);
                 let struct_name = self
-                    .symbols.local_struct_types.get(&base_name)
+                    .symbols
+                    .local_struct_types
+                    .get(&base_name)
                     .map(String::as_str)
-                    .or_else(|| self.symbols.global_struct_type_names.get(&base_name).map(String::as_str))
+                    .or_else(|| {
+                        self.symbols
+                            .global_struct_type_names
+                            .get(&base_name)
+                            .map(String::as_str)
+                    })
                     .unwrap_or(&base_name);
 
                 let field_offset = self
-                    .symbols.struct_fields.get(struct_name)
+                    .symbols
+                    .struct_fields
+                    .get(struct_name)
                     .and_then(|fields| fields.iter().find(|(n, _, _)| n == &field.name))
                     .map_or(0, |(_, _, o)| *o);
 
@@ -142,27 +158,43 @@ impl IrGenerator {
         base_offset: usize,
     ) -> (IrType, usize, IrType) {
         let struct_name = self
-            .symbols.local_struct_types.get(base_name)
+            .symbols
+            .local_struct_types
+            .get(base_name)
             .map(String::as_str)
             .or_else(|| self.symbols.global_struct_type_names.get(base_name).map(String::as_str))
             .unwrap_or(base_name);
 
         let (field_offset, field_type) = self
-            .symbols.struct_fields.get(struct_name)
+            .symbols
+            .struct_fields
+            .get(struct_name)
             .and_then(|fields| fields.iter().find(|(n, _, _)| n == &field.name))
             .map(|(_, ty, o)| (*o, ty.clone()))
             .unwrap_or((0, IrType::Int));
 
         let struct_size = self
-            .symbols.struct_fields.get(struct_name)
+            .symbols
+            .struct_fields
+            .get(struct_name)
             .map(|fields| fields.iter().map(|(_, ty, _)| ty.size() as usize).sum::<usize>())
             .unwrap_or(4);
 
         let typed_fields: Vec<(String, IrType)> = self
-            .symbols.struct_fields.get(struct_name)
+            .symbols
+            .struct_fields
+            .get(struct_name)
             .map(|fields| fields.iter().map(|(n, ty, _)| (n.clone(), ty.clone())).collect())
             .unwrap_or_default();
 
-        (IrType::Struct { name: struct_name.to_string(), fields: typed_fields, size: struct_size }, base_offset + field_offset, field_type)
+        (
+            IrType::Struct {
+                name: struct_name.to_string(),
+                fields: typed_fields,
+                size: struct_size,
+            },
+            base_offset + field_offset,
+            field_type,
+        )
     }
 }

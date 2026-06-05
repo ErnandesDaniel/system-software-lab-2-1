@@ -1,5 +1,5 @@
-use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::jvm::types::get_fn_interface_name;
+use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{IrFunction, IrType};
 use ristretto_classfile::attributes::{Attribute, Instruction};
 use ristretto_classfile::{ClassAccessFlags, ClassFile, Method, MethodAccessFlags};
@@ -18,9 +18,21 @@ impl JvmGenerator {
         let code_len = code.len();
         let mut methods = Vec::new();
 
-        let init_name_idx = self.pool.constant_pool.add_utf8("<init>").expect("Failed to add to constant pool");
-        let init_desc_idx = self.pool.constant_pool.add_utf8("()V").expect("Failed to add to constant pool");
-        let obj_init_ref = self.pool.constant_pool.add_method_ref(super_class, "<init>", "()V").expect("Failed to add to constant pool");
+        let init_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("<init>")
+            .expect("Failed to add to constant pool");
+        let init_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("()V")
+            .expect("Failed to add to constant pool");
+        let obj_init_ref = self
+            .pool
+            .constant_pool
+            .add_method_ref(super_class, "<init>", "()V")
+            .expect("Failed to add to constant pool");
         let init_code = vec![
             Instruction::Aload_0,
             Instruction::Invokespecial(obj_init_ref),
@@ -40,8 +52,16 @@ impl JvmGenerator {
             }],
         });
 
-        let resume_name_idx = self.pool.constant_pool.add_utf8("resume").expect("Failed to add to constant pool");
-        let resume_desc_idx = self.pool.constant_pool.add_utf8("()I").expect("Failed to add to constant pool");
+        let resume_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("resume")
+            .expect("Failed to add to constant pool");
+        let resume_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("()I")
+            .expect("Failed to add to constant pool");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC,
             name_index: resume_name_idx,
@@ -56,8 +76,16 @@ impl JvmGenerator {
             }],
         });
 
-        let get_state_name_idx = self.pool.constant_pool.add_utf8("getState").expect("Failed to add to constant pool");
-        let get_state_desc_idx = self.pool.constant_pool.add_utf8("()I").expect("Failed to add to constant pool");
+        let get_state_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("getState")
+            .expect("Failed to add to constant pool");
+        let get_state_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("()I")
+            .expect("Failed to add to constant pool");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC,
             name_index: get_state_name_idx,
@@ -76,8 +104,16 @@ impl JvmGenerator {
             }],
         });
 
-        let get_result_name_idx = self.pool.constant_pool.add_utf8("getResult").expect("Failed to add to constant pool");
-        let get_result_desc_idx = self.pool.constant_pool.add_utf8("()I").expect("Failed to add to constant pool");
+        let get_result_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("getResult")
+            .expect("Failed to add to constant pool");
+        let get_result_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("()I")
+            .expect("Failed to add to constant pool");
         methods.push(Method {
             access_flags: MethodAccessFlags::PUBLIC,
             name_index: get_result_name_idx,
@@ -97,7 +133,8 @@ impl JvmGenerator {
         });
 
         let fields: Vec<ristretto_classfile::Field> = self
-            .coro.coroutine_field_entries
+            .coro
+            .coroutine_field_entries
             .iter()
             .map(|&(name_idx, desc_idx)| ristretto_classfile::Field {
                 access_flags: ristretto_classfile::FieldAccessFlags::PUBLIC,
@@ -130,16 +167,35 @@ impl JvmGenerator {
 
     pub fn generate_fn_interface(&mut self, params: &[IrType], ret: &IrType) -> Vec<u8> {
         let iface_name = get_fn_interface_name(params, ret);
-        let this_class = self.pool.constant_pool.add_class(&iface_name).expect("Failed to add to constant pool");
-        let super_class = self.pool.constant_pool.add_class("java/lang/Object").expect("Failed to add to constant pool");
+        let this_class = self
+            .pool
+            .constant_pool
+            .add_class(&iface_name)
+            .expect("Failed to add to constant pool");
+        let super_class = self
+            .pool
+            .constant_pool
+            .add_class("java/lang/Object")
+            .expect("Failed to add to constant pool");
 
         let method_desc = format!(
             "({}){}",
-            params.iter().map(crate::codegen::jvm::types::ir_type_to_jvm_descriptor).collect::<String>(),
+            params
+                .iter()
+                .map(crate::codegen::jvm::types::ir_type_to_jvm_descriptor)
+                .collect::<String>(),
             crate::codegen::jvm::types::ir_type_to_jvm_descriptor(ret)
         );
-        let method_name_idx = self.pool.constant_pool.add_utf8("apply").expect("Failed to add to constant pool");
-        let method_desc_idx = self.pool.constant_pool.add_utf8(&method_desc).expect("Failed to add to constant pool");
+        let method_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("apply")
+            .expect("Failed to add to constant pool");
+        let method_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8(&method_desc)
+            .expect("Failed to add to constant pool");
 
         let class_file = ClassFile {
             version: ristretto_classfile::JAVA_5,

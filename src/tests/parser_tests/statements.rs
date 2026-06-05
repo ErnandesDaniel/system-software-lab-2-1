@@ -242,7 +242,10 @@ fn test_byte_var_decl() {
     assert_eq!(f.body.len(), 2);
     assert!(matches!(f.body[0], crate::ast::Statement::VarDecl(_)));
     if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
-        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Byte)));
+        assert!(matches!(
+            vd.ty,
+            crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Byte)
+        ));
     }
 }
 
@@ -252,7 +255,10 @@ fn test_uint_var_decl() {
     let f = as_func(&program, 0);
     assert_eq!(f.body.len(), 2);
     if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
-        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Uint)));
+        assert!(matches!(
+            vd.ty,
+            crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Uint)
+        ));
     }
 }
 
@@ -262,7 +268,10 @@ fn test_long_var_decl() {
     let f = as_func(&program, 0);
     assert_eq!(f.body.len(), 2);
     if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
-        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Long)));
+        assert!(matches!(
+            vd.ty,
+            crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Long)
+        ));
     }
 }
 
@@ -272,7 +281,10 @@ fn test_ulong_var_decl() {
     let f = as_func(&program, 0);
     assert_eq!(f.body.len(), 2);
     if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
-        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Ulong)));
+        assert!(matches!(
+            vd.ty,
+            crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Ulong)
+        ));
     }
 }
 
@@ -282,7 +294,10 @@ fn test_char_var_decl() {
     let f = as_func(&program, 0);
     assert_eq!(f.body.len(), 2);
     if let crate::ast::Statement::VarDecl(vd) = &f.body[0] {
-        assert!(matches!(vd.ty, crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Char)));
+        assert!(matches!(
+            vd.ty,
+            crate::ast::TypeRef::BuiltinType(crate::ast::BuiltinType::Char)
+        ));
     }
 }
 

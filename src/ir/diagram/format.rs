@@ -75,12 +75,7 @@ fn format_assign(inst: &IrInstruction) -> String {
 
 fn format_call(inst: &IrInstruction) -> String {
     let target = inst.jump_target.as_deref().unwrap_or("?");
-    let args = inst
-        .operands
-        .iter()
-        .map(format_operand)
-        .collect::<Vec<_>>()
-        .join(", ");
+    let args = inst.operands.iter().map(format_operand).collect::<Vec<_>>().join(", ");
     format!("{} = {}({})", result_name(inst), target, args)
 }
 
@@ -160,12 +155,7 @@ fn format_make_closure(inst: &IrInstruction) -> String {
 
 fn format_call_closure(inst: &IrInstruction) -> String {
     let target = get_single_operand(inst);
-    let args: Vec<String> = inst
-        .operands
-        .iter()
-        .skip(2)
-        .map(format_operand)
-        .collect();
+    let args: Vec<String> = inst.operands.iter().skip(2).map(format_operand).collect();
     format!("{} = {}({}) (closure)", result_name(inst), target, args.join(", "))
 }
 

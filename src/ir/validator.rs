@@ -53,32 +53,22 @@ impl IrValidator {
                 errors.push(format!("Function '{}': block with empty ID", func.name));
             }
             if !block_ids.insert(&block.id) {
-                errors.push(format!(
-                    "Function '{}': duplicate block ID '{}'",
-                    func.name, block.id
-                ));
+                errors.push(format!("Function '{}': duplicate block ID '{}'", func.name, block.id));
             }
         }
     }
 
     fn validate_jump_targets(func: &IrFunction, errors: &mut Vec<String>) {
-        let block_ids: std::collections::HashSet<&String> =
-            func.blocks.iter().map(|b| &b.id).collect();
+        let block_ids: std::collections::HashSet<&String> = func.blocks.iter().map(|b| &b.id).collect();
 
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref target) = inst.jump_target {
-                    if matches!(
-                        inst.opcode,
-                        IrOpcode::Call | IrOpcode::MakeClosure
-                    ) {
+                    if matches!(inst.opcode, IrOpcode::Call | IrOpcode::MakeClosure) {
                         continue;
                     }
                     if !block_ids.contains(target) && !target.starts_with("bb_") {
-                        errors.push(format!(
-                            "Function '{}': jump to unknown block '{}'",
-                            func.name, target
-                        ));
+                        errors.push(format!("Function '{}': jump to unknown block '{}'", func.name, target));
                     }
                 }
             }
@@ -106,10 +96,7 @@ impl IrValidator {
                     continue;
                 }
                 for inst in &block.instructions {
-                    if matches!(
-                        inst.opcode,
-                        IrOpcode::Call | IrOpcode::MakeClosure
-                    ) {
+                    if matches!(inst.opcode, IrOpcode::Call | IrOpcode::MakeClosure) {
                         continue;
                     }
                     if let Some(ref target) = inst.jump_target {
@@ -133,10 +120,7 @@ impl IrValidator {
 
         for block in &func.blocks {
             if !reachable.contains(&block.id) {
-                errors.push(format!(
-                    "Function '{}': unreachable block '{}'",
-                    func.name, block.id
-                ));
+                errors.push(format!("Function '{}': unreachable block '{}'", func.name, block.id));
             }
         }
     }
@@ -147,18 +131,13 @@ impl IrValidator {
                 match last.opcode {
                     IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr | IrOpcode::CoroYield => {}
                     _ => {
-                        if func.return_type == crate::ir::IrType::Void
-                            || block.successors.is_empty()
-                        {
-                            if block.id == *func.blocks.last().map(|b| &b.id).unwrap_or(&String::new())
-                            {
+                        if func.return_type == crate::ir::IrType::Void || block.successors.is_empty() {
+                            if block.id == *func.blocks.last().map(|b| &b.id).unwrap_or(&String::new()) {
                                 continue;
                             }
                             errors.push(format!(
                                 "Function '{}', block '{}': last instruction {:?} is not a terminator",
-                                func.name,
-                                block.id,
-                                last.opcode
+                                func.name, block.id, last.opcode
                             ));
                         }
                     }
@@ -187,11 +166,10 @@ impl IrValidator {
             ));
         }
 
-        let has_yield = func.blocks.iter().any(|b| {
-            b.instructions
-                .iter()
-                .any(|i| matches!(i.opcode, IrOpcode::CoroYield))
-        });
+        let has_yield = func
+            .blocks
+            .iter()
+            .any(|b| b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::CoroYield)));
 
         if !has_yield {
             errors.push(format!(

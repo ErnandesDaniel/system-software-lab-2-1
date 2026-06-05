@@ -25,12 +25,24 @@ impl JvmGenerator {
             IrOpcode::BitOr => self.generate_binary_op(code, inst, BinaryOp::BitOr),
             IrOpcode::BitXor => self.generate_binary_op(code, inst, BinaryOp::BitXor),
             IrOpcode::BitNot => self.generate_bit_not(code, inst),
-            IrOpcode::Eq => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset),
-            IrOpcode::Ne => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne, global_offset),
-            IrOpcode::Lt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt, global_offset),
-            IrOpcode::Le => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le, global_offset),
-            IrOpcode::Gt => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt, global_offset),
-            IrOpcode::Ge => self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge, global_offset),
+            IrOpcode::Eq => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Eq, global_offset)
+            }
+            IrOpcode::Ne => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ne, global_offset)
+            }
+            IrOpcode::Lt => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Lt, global_offset)
+            }
+            IrOpcode::Le => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Le, global_offset)
+            }
+            IrOpcode::Gt => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Gt, global_offset)
+            }
+            IrOpcode::Ge => {
+                self.generate_comparison(code, inst, crate::codegen::jvm::types::ComparisonOp::Ge, global_offset)
+            }
             IrOpcode::Call => self.generate_call(code, inst),
             IrOpcode::Ret => self.generate_return(code, inst),
             IrOpcode::Jump => self.generate_jump(code, inst),
@@ -72,7 +84,8 @@ impl JvmGenerator {
     }
 
     fn generate_binary_op(&self, code: &mut Vec<Instruction>, inst: &IrInstruction, op: BinaryOp) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             if op == BinaryOp::Add && left.get_type().is_pointer() {
                 self.emit_load_operand(code, left);
                 self.emit_load_operand(code, right);

@@ -217,8 +217,10 @@ fn test_semantics_implicit_int_not_exported_for_custom() {
     match &result {
         Err(msg) => {
             let s = msg.to_string();
-            assert!(s.contains("undeclared") || s.contains("undefined") || s.contains("Undeclared"),
-                "Expected undeclared/undefined error, got: {msg}");
+            assert!(
+                s.contains("undeclared") || s.contains("undefined") || s.contains("Undeclared"),
+                "Expected undeclared/undefined error, got: {msg}"
+            );
         }
         Ok(_) => panic!("Expected error for undefined type Point"),
     }
@@ -263,14 +265,20 @@ fn test_semantics_missing_return_in_int_function() {
 fn test_semantics_duplicate_local_variable() {
     let source = "def main() { x of int; x of string; }";
     let result = analyze(source);
-    assert!(result.is_err(), "Expected error for duplicate local variable declaration");
+    assert!(
+        result.is_err(),
+        "Expected error for duplicate local variable declaration"
+    );
 }
 
 #[test]
 fn test_semantics_field_type_mismatch_on_assignment() {
     let source = "struct P { x of int; } def main() { p of P; p = \"hello\"; }";
     let result = analyze(source);
-    assert!(result.is_err(), "Expected error for struct variable type mismatch on assignment");
+    assert!(
+        result.is_err(),
+        "Expected error for struct variable type mismatch on assignment"
+    );
 }
 
 #[test]
@@ -291,5 +299,8 @@ fn test_semantics_array_index_wrong_type() {
 fn test_semantics_function_type_compatibility() {
     let source = "def foo(x of int) of int { return x; } def main() { f of def(string) of int; f = foo; }";
     let result = analyze(source);
-    assert!(result.is_err(), "Expected error for function type mismatch on assignment");
+    assert!(
+        result.is_err(),
+        "Expected error for function type mismatch on assignment"
+    );
 }

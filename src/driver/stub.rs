@@ -76,7 +76,8 @@ impl CompilerDriver {
             }
         }
 
-        let stub = format!(r#"import java.io.*;
+        let stub = format!(
+            r#"import java.io.*;
 import java.util.*;
 import java.nio.charset.StandardCharsets;
 

@@ -22,11 +22,21 @@ impl AsmGenerator {
         let mut result = Vec::new();
         for c in s.chars() {
             match c {
-                '\n' => { result.push(10); }
-                '\r' => { result.push(13); }
-                '\t' => { result.push(9); }
-                '\\' => { result.push(92); }
-                '"' => { result.push(34); }
+                '\n' => {
+                    result.push(10);
+                }
+                '\r' => {
+                    result.push(13);
+                }
+                '\t' => {
+                    result.push(9);
+                }
+                '\\' => {
+                    result.push(92);
+                }
+                '"' => {
+                    result.push(34);
+                }
                 _ => {
                     let mut buf = [0u8; 4];
                     let encoded = c.encode_utf8(&mut buf);

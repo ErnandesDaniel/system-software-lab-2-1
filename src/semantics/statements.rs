@@ -19,21 +19,26 @@ impl SemanticsAnalyzer {
                         }
                     } else if let Some(ref actual) = expr_type {
                         if actual != expected {
-                            self.add_error(format!(
-                                "Return type mismatch: expected {expected:?}, got {actual:?}"
-                            ), ret.span);
+                            self.add_error(
+                                format!("Return type mismatch: expected {expected:?}, got {actual:?}"),
+                                ret.span,
+                            );
                         }
                     } else {
-                        self.add_error(format!(
-                            "Function expected return value of type {expected:?}, got none"
-                        ), ret.span);
+                        self.add_error(
+                            format!("Function expected return value of type {expected:?}, got none"),
+                            ret.span,
+                        );
                     }
                 }
             }
             Statement::If(if_stmt) => {
                 let cond_type = self.check_expression(scope, &if_stmt.condition)?;
                 if !cond_type.is_bool() {
-                    self.add_error(format!("If condition must be bool, got {cond_type:?}"), if_stmt.condition.span());
+                    self.add_error(
+                        format!("If condition must be bool, got {cond_type:?}"),
+                        if_stmt.condition.span(),
+                    );
                 }
                 let mut inner_scope = scope.clone();
                 for s in &if_stmt.body {
@@ -42,7 +47,10 @@ impl SemanticsAnalyzer {
                 for ei in &if_stmt.else_ifs {
                     let ei_cond_type = self.check_expression(scope, &ei.condition)?;
                     if !ei_cond_type.is_bool() {
-                        self.add_error(format!("Else-if condition must be bool, got {ei_cond_type:?}"), ei.condition.span());
+                        self.add_error(
+                            format!("Else-if condition must be bool, got {ei_cond_type:?}"),
+                            ei.condition.span(),
+                        );
                     }
                     let mut ei_scope = scope.clone();
                     for s in &ei.body {
@@ -59,7 +67,10 @@ impl SemanticsAnalyzer {
             Statement::Loop(loop_stmt) => {
                 let cond_type = self.check_expression(scope, &loop_stmt.condition)?;
                 if !cond_type.is_bool() {
-                    self.add_error(format!("Loop condition must be bool, got {cond_type:?}"), loop_stmt.condition.span());
+                    self.add_error(
+                        format!("Loop condition must be bool, got {cond_type:?}"),
+                        loop_stmt.condition.span(),
+                    );
                 }
                 self.loop_depth += 1;
                 let mut inner_scope = scope.clone();
@@ -71,7 +82,10 @@ impl SemanticsAnalyzer {
             Statement::Repeat(repeat_stmt) => {
                 let cond_type = self.check_expression(scope, &repeat_stmt.condition)?;
                 if !cond_type.is_bool() {
-                    self.add_error(format!("Repeat condition must be bool, got {cond_type:?}"), repeat_stmt.condition.span());
+                    self.add_error(
+                        format!("Repeat condition must be bool, got {cond_type:?}"),
+                        repeat_stmt.condition.span(),
+                    );
                 }
                 self.loop_depth += 1;
                 let mut inner_scope = scope.clone();

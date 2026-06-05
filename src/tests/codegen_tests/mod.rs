@@ -1,8 +1,8 @@
+mod asm;
 mod ir;
 mod ir_functions;
 mod ir_globals;
 mod ir_instructions;
-mod asm;
 
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir_generator::IrGenerator;

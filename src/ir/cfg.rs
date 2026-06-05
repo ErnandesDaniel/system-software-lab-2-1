@@ -69,9 +69,7 @@ impl ControlFlowGraph {
         succs
     }
 
-    fn compute_predecessors(
-        successors: &HashMap<String, Vec<String>>,
-    ) -> HashMap<String, Vec<String>> {
+    fn compute_predecessors(successors: &HashMap<String, Vec<String>>) -> HashMap<String, Vec<String>> {
         let mut preds: HashMap<String, Vec<String>> = HashMap::new();
         for (from, targets) in successors {
             for to in targets {

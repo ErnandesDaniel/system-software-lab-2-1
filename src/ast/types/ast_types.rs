@@ -1,5 +1,5 @@
+use super::ast_enums::{BinaryOp, BuiltinType, Literal, LoopKeyword, UnaryOp};
 use serde::{Deserialize, Serialize};
-use super::ast_enums::{BinaryOp, UnaryOp, Literal, BuiltinType, LoopKeyword};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Program {

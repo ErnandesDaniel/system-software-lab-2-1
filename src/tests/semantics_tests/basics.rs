@@ -51,7 +51,11 @@ fn test_semantics_arithmetic_on_strings() {
         }
     "#;
     let result = analyze(source);
-    assert!(result.is_ok(), "Expected ok for string + int (pointer arithmetic): {:?}", result);
+    assert!(
+        result.is_ok(),
+        "Expected ok for string + int (pointer arithmetic): {:?}",
+        result
+    );
 }
 
 #[test]

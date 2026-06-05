@@ -26,7 +26,9 @@ impl AsmGenerator {
                             output.push('0');
                         } else {
                             for (j, b) in bytes.iter().enumerate() {
-                                if j > 0 { output.push_str(", "); }
+                                if j > 0 {
+                                    output.push_str(", ");
+                                }
                                 output.push_str(&format!("{b}"));
                             }
                         }
@@ -43,18 +45,26 @@ impl AsmGenerator {
                             output.push_str(&format!("{label} dd "));
                             if let Some(crate::ir::Constant::Array(elems)) = &global.initializer {
                                 for (i, elem) in elems.iter().enumerate() {
-                                    if i > 0 { output.push_str(", "); }
+                                    if i > 0 {
+                                        output.push_str(", ");
+                                    }
                                     if let crate::ir::Constant::Int(v) = elem {
                                         output.push_str(&format!("{v}"));
-                                    } else { output.push('0'); }
+                                    } else {
+                                        output.push('0');
+                                    }
                                 }
                                 for i in elems.len()..*size {
-                                    if i > 0 || !elems.is_empty() { output.push_str(", "); }
+                                    if i > 0 || !elems.is_empty() {
+                                        output.push_str(", ");
+                                    }
                                     output.push('0');
                                 }
                             } else {
                                 for i in 0..*size {
-                                    if i > 0 { output.push_str(", "); }
+                                    if i > 0 {
+                                        output.push_str(", ");
+                                    }
                                     output.push('0');
                                 }
                             }
@@ -67,15 +77,25 @@ impl AsmGenerator {
                             };
                             for i in 0..*size {
                                 let slabel = format!("{}_{}", global.name, i);
-                                let s = init_elems.get(i).and_then(|e| {
-                                    if let crate::ir::Constant::String(s) = e { Some(s.as_str()) } else { None }
-                                }).unwrap_or("");
+                                let s = init_elems
+                                    .get(i)
+                                    .and_then(|e| {
+                                        if let crate::ir::Constant::String(s) = e {
+                                            Some(s.as_str())
+                                        } else {
+                                            None
+                                        }
+                                    })
+                                    .unwrap_or("");
                                 output.push_str(&format!("{slabel} db "));
                                 let bytes: Vec<u8> = s.bytes().collect();
-                                if bytes.is_empty() { output.push('0'); }
-                                else {
+                                if bytes.is_empty() {
+                                    output.push('0');
+                                } else {
                                     for (j, b) in bytes.iter().enumerate() {
-                                        if j > 0 { output.push_str(", "); }
+                                        if j > 0 {
+                                            output.push_str(", ");
+                                        }
                                         output.push_str(&format!("{b}"));
                                     }
                                     output.push_str(", 0");
@@ -84,7 +104,9 @@ impl AsmGenerator {
                             }
                             output.push_str(&format!("{label} dq "));
                             for i in 0..*size {
-                                if i > 0 { output.push_str(", "); }
+                                if i > 0 {
+                                    output.push_str(", ");
+                                }
                                 output.push_str(&format!("{}_{}", global.name, i));
                             }
                             output.push('\n');

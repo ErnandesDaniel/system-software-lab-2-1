@@ -86,13 +86,12 @@ impl IrGenerator {
                         .as_ref()
                         .map(|t| self.convert_type(t))
                         .or_else(|| {
-                            crate::stdlib::StdLib::get_signature(&func_name)
-                                .and_then(|(_, ret)| match ret {
-                                    "string" => Some(IrType::String),
-                                    "int" => Some(IrType::Int),
-                                    "" => Some(IrType::Void),
-                                    _ => None,
-                                })
+                            crate::stdlib::StdLib::get_signature(&func_name).and_then(|(_, ret)| match ret {
+                                "string" => Some(IrType::String),
+                                "int" => Some(IrType::Int),
+                                "" => Some(IrType::Void),
+                                _ => None,
+                            })
                         })
                         .unwrap_or(IrType::Int);
                     self.symbols.function_return_types.insert(func_name, ret_type);
@@ -180,17 +179,17 @@ impl IrGenerator {
 
         let mut layout_db = crate::struct_layout::LayoutDatabase::new();
         for (struct_name, fields) in &self.symbols.struct_fields {
-            let ir_fields: Vec<(String, crate::ir::IrType)> = fields
-                .iter()
-                .map(|(name, ty, _)| (name.clone(), ty.clone()))
-                .collect();
+            let ir_fields: Vec<(String, crate::ir::IrType)> =
+                fields.iter().map(|(name, ty, _)| (name.clone(), ty.clone())).collect();
             layout_db.register_struct(struct_name, &ir_fields);
         }
 
-        Ok(IrProgram { functions, globals, struct_layouts: layout_db })
+        Ok(IrProgram {
+            functions,
+            globals,
+            struct_layouts: layout_db,
+        })
     }
-
-
 }
 
 #[allow(dead_code)]

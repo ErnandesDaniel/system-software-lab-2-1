@@ -105,7 +105,10 @@ fn test_exe_while_loop_sum() {
         }
     "#;
     let output = compile_and_run(source);
-    assert!(output.status.code() != Some(-1), "while loop sum should compile and run");
+    assert!(
+        output.status.code() != Some(-1),
+        "while loop sum should compile and run"
+    );
 }
 
 #[test]

@@ -34,22 +34,49 @@ impl Parser<'_> {
     fn parse_type_base(&mut self) -> crate::Result<TypeRef> {
         let start = self.current_span();
         match self.current_token() {
-            Some(Token::Int) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Int)) }
-            Some(Token::Uint) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Uint)) }
-            Some(Token::Long) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Long)) }
-            Some(Token::Ulong) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Ulong)) }
-            Some(Token::Byte) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Byte)) }
-            Some(Token::Bool) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Bool)) }
-            Some(Token::Char) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::Char)) }
-            Some(Token::String) => { self.advance(); Ok(TypeRef::BuiltinType(BuiltinType::String)) }
+            Some(Token::Int) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Int))
+            }
+            Some(Token::Uint) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Uint))
+            }
+            Some(Token::Long) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Long))
+            }
+            Some(Token::Ulong) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Ulong))
+            }
+            Some(Token::Byte) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Byte))
+            }
+            Some(Token::Bool) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Bool))
+            }
+            Some(Token::Char) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::Char))
+            }
+            Some(Token::String) => {
+                self.advance();
+                Ok(TypeRef::BuiltinType(BuiltinType::String))
+            }
             Some(Token::Array) => {
                 return Err(CompilerError::Parse(
-                    "'array' requires a base type before it (e.g. 'int array[5]')".to_string()
+                    "'array' requires a base type before it (e.g. 'int array[5]')".to_string(),
                 ));
             }
             Some(Token::Identifier) => {
                 let (_tok, span) = self.expect(Token::Identifier)?;
-                Ok(TypeRef::Custom(Identifier { name: self.get_text(&span).to_string(), span }))
+                Ok(TypeRef::Custom(Identifier {
+                    name: self.get_text(&span).to_string(),
+                    span,
+                }))
             }
             Some(Token::Def) => self.parse_func_type(start),
             _ => Err(CompilerError::Parse("Expected type".to_string())),
@@ -61,7 +88,9 @@ impl Parser<'_> {
         self.expect(Token::LParen)?;
         let mut params = Vec::new();
         while self.current_token() != Some(&Token::RParen) {
-            if !params.is_empty() { self.expect(Token::Comma)?; }
+            if !params.is_empty() {
+                self.expect(Token::Comma)?;
+            }
             params.push(self.parse_type()?);
         }
         self.expect(Token::RParen)?;
@@ -71,7 +100,11 @@ impl Parser<'_> {
         } else {
             TypeRef::BuiltinType(BuiltinType::Int)
         };
-        Ok(TypeRef::Function { params, return_type: Box::new(return_type), span: start.merge(self.current_span()) })
+        Ok(TypeRef::Function {
+            params,
+            return_type: Box::new(return_type),
+            span: start.merge(self.current_span()),
+        })
     }
 
     pub(crate) fn parse_array_suffix(&mut self, base: TypeRef, start: Span) -> crate::Result<TypeRef> {
@@ -80,9 +113,9 @@ impl Parser<'_> {
             self.expect(Token::LBracket)?;
             let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().map_err(|e| {
-                    CompilerError::Parse(format!("Invalid array size: {e}"))
-                })?
+                self.get_text(&span)
+                    .parse()
+                    .map_err(|e| CompilerError::Parse(format!("Invalid array size: {e}")))?
             } else {
                 return Err(CompilerError::Parse("Array type requires a size".to_string()));
             };
@@ -98,9 +131,9 @@ impl Parser<'_> {
             self.advance();
             let size: u64 = if let Some(Token::DecLiteral) = self.current_token() {
                 let (_tok, span) = self.expect(Token::DecLiteral)?;
-                self.get_text(&span).parse().map_err(|e| {
-                    CompilerError::Parse(format!("Invalid array size: {e}"))
-                })?
+                self.get_text(&span)
+                    .parse()
+                    .map_err(|e| CompilerError::Parse(format!("Invalid array size: {e}")))?
             } else {
                 return Err(CompilerError::Parse("Array type requires a size".to_string()));
             };

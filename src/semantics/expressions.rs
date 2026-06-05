@@ -94,8 +94,10 @@ impl SemanticsAnalyzer {
                         if let Some(existing) = scope.lookup(&id.name) {
                             if existing.ty != right_type {
                                 self.add_error(
-                                    format!("Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
-                                        right_type, id.name, existing.ty),
+                                    format!(
+                                        "Type mismatch: cannot assign {:?} to variable '{}' of type {:?}",
+                                        right_type, id.name, existing.ty
+                                    ),
                                     bin.span,
                                 );
                             }
@@ -136,17 +138,20 @@ impl SemanticsAnalyzer {
             }
             BinaryOp::Equal | BinaryOp::NotEqual => {
                 if !left_type.is_int_like() && !left_type.is_bool() && left_type != IrType::String {
-                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string(), bin.span);
+                    self.add_error(
+                        "Equality comparison requires numeric, bool, or string operands".to_string(),
+                        bin.span,
+                    );
                 }
                 if !right_type.is_int_like() && !right_type.is_bool() && right_type != IrType::String {
-                    self.add_error("Equality comparison requires numeric, bool, or string operands".to_string(), bin.span);
+                    self.add_error(
+                        "Equality comparison requires numeric, bool, or string operands".to_string(),
+                        bin.span,
+                    );
                 }
                 Ok(IrType::Bool)
             }
-            BinaryOp::Less
-            | BinaryOp::Greater
-            | BinaryOp::LessOrEqual
-            | BinaryOp::GreaterOrEqual => {
+            BinaryOp::Less | BinaryOp::Greater | BinaryOp::LessOrEqual | BinaryOp::GreaterOrEqual => {
                 if !left_type.is_int_like() || !right_type.is_int_like() {
                     self.add_error("Comparison requires numeric operands".to_string(), bin.span);
                 }
@@ -172,7 +177,10 @@ impl SemanticsAnalyzer {
             }
             UnaryOp::Negate | UnaryOp::BitNot => {
                 if !operand_type.is_int_like() {
-                    self.add_error("Unary arithmetic operators require numeric operand".to_string(), un.span);
+                    self.add_error(
+                        "Unary arithmetic operators require numeric operand".to_string(),
+                        un.span,
+                    );
                 }
                 Ok(IrType::Int)
             }
@@ -192,10 +200,10 @@ impl SemanticsAnalyzer {
                 let expected = sig.parameters.len();
                 let actual = call.arguments.len();
                 if expected != actual {
-                    self.add_error(format!(
-                        "Function '{}' expected {} arguments, got {}",
-                        id.name, expected, actual
-                    ), call.span);
+                    self.add_error(
+                        format!("Function '{}' expected {} arguments, got {}", id.name, expected, actual),
+                        call.span,
+                    );
                 }
                 // Check argument types for named function calls
                 for (i, arg) in call.arguments.iter().enumerate() {
@@ -205,10 +213,16 @@ impl SemanticsAnalyzer {
                     let arg_type = self.check_expression(scope, arg)?;
                     let param_type = &sig.parameters[i].1;
                     if arg_type != *param_type {
-                        self.add_error(format!(
-                            "Argument {} of function '{}': expected type {:?}, got {:?}",
-                            i + 1, id.name, param_type, arg_type
-                        ), call.span);
+                        self.add_error(
+                            format!(
+                                "Argument {} of function '{}': expected type {:?}, got {:?}",
+                                i + 1,
+                                id.name,
+                                param_type,
+                                arg_type
+                            ),
+                            call.span,
+                        );
                     }
                 }
                 return Ok(sig.return_type);
@@ -221,7 +235,10 @@ impl SemanticsAnalyzer {
             let expected = params.len();
             let actual = call.arguments.len();
             if expected != actual {
-                self.add_error(format!("Function expected {expected} arguments, got {actual}"), call.span);
+                self.add_error(
+                    format!("Function expected {expected} arguments, got {actual}"),
+                    call.span,
+                );
             }
             for (i, arg) in call.arguments.iter().enumerate() {
                 if i >= params.len() {
@@ -229,10 +246,13 @@ impl SemanticsAnalyzer {
                 }
                 let arg_type = self.check_expression(scope, arg)?;
                 if arg_type != params[i] {
-                    self.add_error(format!(
-                        "Argument {} type mismatch: expected {:?}, got {:?}",
-                        i, params[i], arg_type
-                    ), call.span);
+                    self.add_error(
+                        format!(
+                            "Argument {} type mismatch: expected {:?}, got {:?}",
+                            i, params[i], arg_type
+                        ),
+                        call.span,
+                    );
                 }
             }
             return Ok(*ret.clone());

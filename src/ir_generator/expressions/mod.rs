@@ -62,7 +62,9 @@ impl IrGenerator {
                     IrOperand::Variable("__env".to_string(), IrType::Int),
                     IrOperand::Constant(Constant::Int(slot as i64)),
                 ],
-                jump_target: None, true_target: None, false_target: None,
+                jump_target: None,
+                true_target: None,
+                false_target: None,
                 span: id.span,
             });
             return (tmp, captured_type);
@@ -97,9 +99,14 @@ impl IrGenerator {
             let arr_type = IrType::Array(Box::new(IrType::Int), 0);
             self.symbols.define_local(&t, arr_type.clone());
             block.instructions.push(IrInstruction {
-                opcode: IrOpcode::AllocArray, result: Some(t.clone()),
-                result_type: Some(arr_type.clone()), operands: vec![],
-                jump_target: None, true_target: None, false_target: None, span: Span::new(0, 0),
+                opcode: IrOpcode::AllocArray,
+                result: Some(t.clone()),
+                result_type: Some(arr_type.clone()),
+                operands: vec![],
+                jump_target: None,
+                true_target: None,
+                false_target: None,
+                span: Span::new(0, 0),
             });
             return (t, arr_type);
         }
@@ -121,7 +128,9 @@ impl IrGenerator {
             result: Some(arr_tmp.clone()),
             result_type: Some(arr_type.clone()),
             operands: vec![],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span,
         });
 
@@ -137,7 +146,9 @@ impl IrGenerator {
                     IrOperand::Variable(elem_temp.clone(), ty.clone()),
                     IrOperand::Constant(Constant::Int(i as i64)),
                 ],
-                jump_target: None, true_target: None, false_target: None,
+                jump_target: None,
+                true_target: None,
+                false_target: None,
                 span: store_span,
             });
         }
@@ -156,11 +167,19 @@ impl IrGenerator {
         let saved_loop_depth = self.loop_depth;
 
         let param_types: Vec<IrType> = f
-            .signature.parameters.as_ref()
-            .map(|args| args.iter().map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t))).collect())
+            .signature
+            .parameters
+            .as_ref()
+            .map(|args| {
+                args.iter()
+                    .map(|a| a.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t)))
+                    .collect()
+            })
             .unwrap_or_default();
         let ret_type = f
-            .signature.return_type.as_ref()
+            .signature
+            .return_type
+            .as_ref()
             .map_or(IrType::Void, |t| self.convert_type(t));
 
         let captures = Self::scan_captures(&f.body, &f.signature.parameters, &saved_symbols);
@@ -171,7 +190,10 @@ impl IrGenerator {
 
         if has_captures {
             let env_param = crate::ast::Arg {
-                name: Identifier { name: "__env".to_string(), span: f.span },
+                name: Identifier {
+                    name: "__env".to_string(),
+                    span: f.span,
+                },
                 ty: None,
                 span: f.span,
             };
@@ -204,7 +226,9 @@ impl IrGenerator {
                 result: Some(func_tmp.clone()),
                 result_type: Some(func_type.clone()),
                 operands: vec![IrOperand::FuncRef(mangled.clone())],
-                jump_target: None, true_target: None, false_target: None,
+                jump_target: None,
+                true_target: None,
+                false_target: None,
                 span: f.span,
             });
 
@@ -220,7 +244,8 @@ impl IrGenerator {
                 result_type: Some(IrType::Int),
                 operands: env_operands,
                 jump_target: Some(mangled.clone()),
-                true_target: None, false_target: None,
+                true_target: None,
+                false_target: None,
                 span: f.span,
             });
 
@@ -233,7 +258,9 @@ impl IrGenerator {
                 result: Some(tmp.clone()),
                 result_type: Some(func_type.clone()),
                 operands: vec![IrOperand::FuncRef(mangled)],
-                jump_target: None, true_target: None, false_target: None,
+                jump_target: None,
+                true_target: None,
+                false_target: None,
                 span: f.span,
             });
             (tmp, func_type)
@@ -260,7 +287,9 @@ impl IrGenerator {
                         IrOperand::Variable(idx_temp, IrType::Int),
                         IrOperand::Constant(Constant::Int(elem_size as i64)),
                     ],
-                    jump_target: None, true_target: None, false_target: None,
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
                     span: field.span,
                 });
                 return (tmp, field_type);
@@ -280,10 +309,11 @@ impl IrGenerator {
                 IrOperand::Variable(base_name, base_type),
                 IrOperand::Constant(Constant::Int(total_offset as i64)),
             ],
-            jump_target: None, true_target: None, false_target: None,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
             span: field.span,
         });
         (tmp, field_type)
     }
-
 }

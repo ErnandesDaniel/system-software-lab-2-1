@@ -183,7 +183,10 @@ fn test_asm_underscore_function_name() {
 }
 #[test]
 fn test_asm_many_globals() {
-    let src = (0..5).map(|i| format!("global g{i} of int = {i};")).collect::<Vec<_>>().join("\n");
+    let src = (0..5)
+        .map(|i| format!("global g{i} of int = {i};"))
+        .collect::<Vec<_>>()
+        .join("\n");
     let src = format!("{src} def main() of int {{ return g0; }}");
     let output = asm(&src);
     assert!(output.contains("section .data") || output.contains("g0"));
@@ -238,13 +241,19 @@ fn test_asm_repeat_while() {
 fn test_asm_logical_and() {
     let output = asm("def f(a of bool, b of bool) of bool { return a && b; }");
     assert!(output.contains("test"), "expected test for a&&b");
-    assert!(output.contains("jne") || output.contains("je"), "expected conditional jump for a&&b");
+    assert!(
+        output.contains("jne") || output.contains("je"),
+        "expected conditional jump for a&&b"
+    );
 }
 #[test]
 fn test_asm_logical_or() {
     let output = asm("def f(a of bool, b of bool) of bool { return a || b; }");
     assert!(output.contains("test"), "expected test for a||b");
-    assert!(output.contains("jne") || output.contains("je"), "expected conditional jump for a||b");
+    assert!(
+        output.contains("jne") || output.contains("je"),
+        "expected conditional jump for a||b"
+    );
 }
 #[test]
 fn test_asm_bitwise_and() {
@@ -284,7 +293,10 @@ fn test_asm_compare_ge() {
 #[test]
 fn test_asm_closure_make() {
     let output = asm("def main() of int { x = 5; def inner() of int { return x; } return inner(); }");
-    assert!(output.contains("rax") || output.contains("lea"), "expected env pointer setup");
+    assert!(
+        output.contains("rax") || output.contains("lea"),
+        "expected env pointer setup"
+    );
 }
 #[test]
 fn test_asm_closure_call() {
@@ -294,20 +306,32 @@ fn test_asm_closure_call() {
 #[test]
 fn test_asm_repeat_loop() {
     let output = asm("def f() of int { i = 0; { i = i + 1; } while (i < 5); return i; }");
-    assert!(output.contains("jne") || output.contains("je"), "expected jump pattern for repeat loop");
+    assert!(
+        output.contains("jne") || output.contains("je"),
+        "expected jump pattern for repeat loop"
+    );
 }
 #[test]
 fn test_asm_array_write() {
     let output = asm("def f() of int { a of int[4]; a[0] = 42; return a[0]; }");
-    assert!(output.contains("[rbp") || output.contains("mov"), "expected store instruction");
+    assert!(
+        output.contains("[rbp") || output.contains("mov"),
+        "expected store instruction"
+    );
 }
 #[test]
 fn test_asm_long_type() {
     let output = asm("def f() of int { a of long; a = 10000000000; return 0; }");
-    assert!(output.contains("rax") || output.contains("10000000000"), "expected 64-bit operation for long");
+    assert!(
+        output.contains("rax") || output.contains("10000000000"),
+        "expected 64-bit operation for long"
+    );
 }
 #[test]
 fn test_asm_byte_type() {
     let output = asm("def f() of int { a of byte; a = 10; return a; }");
-    assert!(output.contains("10") || output.contains("mov"), "expected byte type operation");
+    assert!(
+        output.contains("10") || output.contains("mov"),
+        "expected byte type operation"
+    );
 }

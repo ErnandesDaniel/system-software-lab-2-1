@@ -88,7 +88,7 @@ impl JvmGenerator {
                     } else {
                         code.push(Instruction::Iconst_0);
                     }
-                },
+                }
             },
             Constant::Bool(true) => code.push(Instruction::Iconst_1),
             Constant::Bool(false) => code.push(Instruction::Iconst_0),

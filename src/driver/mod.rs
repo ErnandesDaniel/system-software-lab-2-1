@@ -41,12 +41,15 @@ impl CompilerDriver {
 
     fn parse(source: &str) -> crate::Result<ast::Program> {
         let mut parser = Parser::new(source);
-        parser.parse().map_err(|e| CompilerError::Parse(format!("Parse error: {e}")))
+        parser
+            .parse()
+            .map_err(|e| CompilerError::Parse(format!("Parse error: {e}")))
     }
 
     fn create_output_dir(path: &str) -> crate::Result<()> {
         let _ = fs::remove_dir_all(path);
-        fs::create_dir_all(path).map_err(|e| CompilerError::Io(format!("Failed to create output directory '{path}': {e}")))
+        fs::create_dir_all(path)
+            .map_err(|e| CompilerError::Io(format!("Failed to create output directory '{path}': {e}")))
     }
 
     fn generate_ast_diagrams(ast: &ast::Program, output_dir: &str) {
@@ -87,19 +90,26 @@ impl CompilerDriver {
     }
 
     fn generate_jvm(ir: &crate::ir::IrProgram, output_dir: &str) -> crate::Result<()> {
-        use std::process::Command;
         use crate::ir::types::IrType;
+        use std::process::Command;
 
         let mut gen = codegen::JvmGenerator::new();
         let classes = gen.generate_program(ir);
 
         // Write function class files first (needed for javac compilation)
-        let _stub_bytes = classes.iter().find(|(name, _)| name == "RuntimeStub").map(|(_, bytes)| bytes.clone());
+        let _stub_bytes = classes
+            .iter()
+            .find(|(name, _)| name == "RuntimeStub")
+            .map(|(_, bytes)| bytes.clone());
         for (class_name, class_bytes) in &classes {
-            if class_name == "RuntimeStub" { continue; }
+            if class_name == "RuntimeStub" {
+                continue;
+            }
             let path = Path::new(output_dir).join(format!("{class_name}.class"));
             if let Err(e) = fs::write(&path, class_bytes) {
-                return Err(CompilerError::Io(format!("Failed to write class file '{class_name}': {e}")));
+                return Err(CompilerError::Io(format!(
+                    "Failed to write class file '{class_name}': {e}"
+                )));
             }
         }
 
@@ -178,10 +188,14 @@ impl CompilerDriver {
         }
 
         for (class_name, class_bytes) in classes {
-            if class_name == "RuntimeStub" { continue; }
+            if class_name == "RuntimeStub" {
+                continue;
+            }
             let path = Path::new(output_dir).join(format!("{class_name}.class"));
             if let Err(e) = fs::write(&path, &class_bytes) {
-                return Err(CompilerError::Io(format!("Failed to write class file '{class_name}': {e}")));
+                return Err(CompilerError::Io(format!(
+                    "Failed to write class file '{class_name}': {e}"
+                )));
             }
         }
 

@@ -10,5 +10,5 @@ mod runtime;
 mod stacks;
 mod types;
 
-pub(crate) use generator::{JvmInst, JumpPlaceholder};
 pub use generator::JvmGenerator;
+pub(crate) use generator::{JumpPlaceholder, JvmInst};

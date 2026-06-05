@@ -14,8 +14,8 @@ impl AsmGenerator {
             IrOperand::Constant(Constant::Int(v)) => *v as i64,
             _ => 0,
         };
-        let (base_name, _base_type) = match base {
-            IrOperand::Variable(n, _ty) => (n.clone(), ()),
+        let (base_name, base_ir_type) = match base {
+            IrOperand::Variable(n, ty) => (n.clone(), ty.clone()),
             _ => return,
         };
 
@@ -113,11 +113,20 @@ impl AsmGenerator {
                         }
                     } else {
                         let mem = self.mem_for(&base_name);
+                        let is_ptr_type = matches!(result_ty, IrType::Array(_, _) | IrType::Struct { .. });
                         if *off == 0 {
-                            self.line(&format!("mov {reg}, {mem}"));
+                            if is_ptr_type {
+                                self.line(&format!("lea {reg}, {mem}"));
+                            } else {
+                                self.line(&format!("mov {reg}, {mem}"));
+                            }
                         } else {
                             self.line(&format!("lea rcx, {mem}"));
-                            self.line(&format!("mov {reg}, [rcx + {off}]"));
+                            if is_ptr_type {
+                                self.line(&format!("lea {reg}, [rcx + {off}]"));
+                            } else {
+                                self.line(&format!("mov {reg}, [rcx + {off}]"));
+                            }
                         }
                     }
                     self.store_result(&result, reg, &result_ty);
@@ -183,7 +192,8 @@ impl AsmGenerator {
     }
 
     pub fn emit_slice(&mut self, inst: &IrInstruction) {
-        if let (Some(ref result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             match base.get_type() {
                 IrType::String => {
                     self.load_operand(base, "rcx");
@@ -205,7 +215,9 @@ impl AsmGenerator {
     }
 
     pub fn emit_str_get_byte(&mut self, inst: &IrInstruction) {
-        if let (Some(ref result), Some(str_op), Some(idx_op)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(str_op), Some(idx_op)) =
+            (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.load_operand(str_op, "rcx");
             self.load_operand(idx_op, "edx");
             self.line("movzx eax, byte [rcx + rdx]");
@@ -214,7 +226,9 @@ impl AsmGenerator {
     }
 
     pub fn emit_str_set_byte(&mut self, inst: &IrInstruction) {
-        if let (Some(str_op), Some(idx_op), Some(val_op)) = (inst.operands.first(), inst.operands.get(1), inst.operands.get(2)) {
+        if let (Some(str_op), Some(idx_op), Some(val_op)) =
+            (inst.operands.first(), inst.operands.get(1), inst.operands.get(2))
+        {
             self.load_operand(str_op, "rcx");
             self.load_operand(idx_op, "edx");
             self.load_operand(val_op, "r8d");
@@ -223,9 +237,15 @@ impl AsmGenerator {
     }
 
     fn elem_stride_for(inst: &IrInstruction) -> i64 {
+        // If 5th operand present (from assign_to_field arr[i].field), use it
+        if let Some(IrOperand::Constant(Constant::Int(stride))) = inst.operands.get(4) {
+            return *stride;
+        }
         if let Some(IrOperand::Variable(_, ty)) = inst.operands.first() {
             match ty {
                 IrType::Array(elem, _) => return elem.size() as i64,
+                // For struct.field[index] with 4 operands, use struct size as stride
+                IrType::Struct { size, .. } if inst.operands.len() >= 4 => return *size as i64,
                 IrType::Struct { size, .. } => return *size as i64,
                 _ => {}
             }

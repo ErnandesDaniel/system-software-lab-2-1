@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
-    BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, LoopKeyword, Range,
-    RepeatStatement, SliceExpr, Span, Statement, VarDeclStatement,
+    BinaryExpr, BinaryOp, BlockStatement, Expr, ExpressionStatement, Identifier, LoopKeyword, Range, RepeatStatement,
+    SliceExpr, Span, Statement, VarDeclStatement,
 };
 use crate::lexer::Token;
 
@@ -95,11 +95,7 @@ impl Parser<'_> {
             while let Some(token) = self.current_token() {
                 if matches!(
                     token,
-                    Token::Semi
-                        | Token::Comma
-                        | Token::RParen
-                        | Token::RBracket
-                        | Token::RBrace
+                    Token::Semi | Token::Comma | Token::RParen | Token::RBracket | Token::RBrace
                 ) {
                     break;
                 }
@@ -146,11 +142,7 @@ impl Parser<'_> {
             while let Some(token) = self.current_token() {
                 if matches!(
                     token,
-                    Token::Semi
-                        | Token::Comma
-                        | Token::RParen
-                        | Token::RBracket
-                        | Token::RBrace
+                    Token::Semi | Token::Comma | Token::RParen | Token::RBracket | Token::RBrace
                 ) {
                     break;
                 }

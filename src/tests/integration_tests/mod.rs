@@ -5,12 +5,12 @@ mod call_ops;
 mod control_flow;
 mod coro_state;
 mod globals;
-mod yield_return;
 mod io;
 mod io_advanced;
+mod jvm;
 mod stdlib;
 mod types;
-mod jvm;
+mod yield_return;
 
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir_generator::IrGenerator;
@@ -116,7 +116,8 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
         helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 40\n");
         helper.push_str("    mov [rbp + 32], rbx\n");
-        helper.push_str("    mov rcx, rbx\n    mov rdx, [rbx + 32]\n    mov r8,  [rbx + 40]\n    mov r9,  [rbx + 48]\n");
+        helper
+            .push_str("    mov rcx, rbx\n    mov rdx, [rbx + 32]\n    mov r8,  [rbx + 40]\n    mov r9,  [rbx + 48]\n");
         helper.push_str("    call [rbx + 8]\n");
         helper.push_str("    mov rbx, [rbp + 32]\n    mov eax, [rbx + 16]\n    leave\n    ret\n");
         helper.push_str(".empty:\n    mov eax, 1\n    ret\n\n");
@@ -126,12 +127,14 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         helper.push_str("    mov [rcx + 24], r8\n    mov [rcx + 32], r9\n    ret\n\n");
 
         helper.push_str("global get_coroutine_state\nget_coroutine_state:\n");
-        helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+        helper
+            .push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
         helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
 
         helper.push_str("global set_coroutine_param\nset_coroutine_param:\n");
         helper.push_str("    ; rcx = index, rdx = p1, r8 = p2\n");
-        helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+        helper
+            .push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
         helper.push_str("    mov [rax + 24], edx\n    mov [rax + 32], r8d\n.empty:\n    ret\n\n");
         helper.push_str("global coro_init\n");
         for f in ir.functions.iter().filter(|f| f.is_coroutine) {

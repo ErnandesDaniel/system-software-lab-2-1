@@ -1,7 +1,7 @@
-use serde::{Deserialize, Serialize};
+use super::instruction::{Constant, IrInstruction, IrOpcode, IrOperand};
 use crate::ast::Span;
 use crate::struct_layout::LayoutDatabase;
-use super::instruction::{IrInstruction, IrOperand, IrOpcode, Constant};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct IrProgram {
@@ -102,7 +102,10 @@ impl IrType {
 
     #[must_use]
     pub fn is_int_like(&self) -> bool {
-        matches!(self, IrType::Byte | IrType::Int | IrType::Uint | IrType::Long | IrType::Ulong | IrType::Char)
+        matches!(
+            self,
+            IrType::Byte | IrType::Int | IrType::Uint | IrType::Long | IrType::Ulong | IrType::Char
+        )
     }
 
     #[must_use]
@@ -149,7 +152,11 @@ pub struct IrBlock {
 
 impl IrBlock {
     pub fn new(id: String) -> Self {
-        Self { id, instructions: Vec::new(), successors: Vec::new() }
+        Self {
+            id,
+            instructions: Vec::new(),
+            successors: Vec::new(),
+        }
     }
 
     pub fn inst(&mut self, opcode: IrOpcode) -> IrInstBuilder<'_> {
@@ -166,24 +173,46 @@ impl IrInstBuilder<'_> {
     pub fn with(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, span: Span) {
         self.block.instructions.push(IrInstruction {
             opcode: self.opcode,
-            result, result_type, operands,
-            jump_target: None, true_target: None, false_target: None, span,
+            result,
+            result_type,
+            operands,
+            jump_target: None,
+            true_target: None,
+            false_target: None,
+            span,
         });
     }
 
-    pub fn jump(self, result: Option<String>, result_type: Option<IrType>, operands: Vec<IrOperand>, target: String, span: Span) {
+    pub fn jump(
+        self,
+        result: Option<String>,
+        result_type: Option<IrType>,
+        operands: Vec<IrOperand>,
+        target: String,
+        span: Span,
+    ) {
         self.block.instructions.push(IrInstruction {
             opcode: self.opcode,
-            result, result_type, operands,
-            jump_target: Some(target), true_target: None, false_target: None, span,
+            result,
+            result_type,
+            operands,
+            jump_target: Some(target),
+            true_target: None,
+            false_target: None,
+            span,
         });
     }
 
     pub fn cond(self, operands: Vec<IrOperand>, true_target: String, false_target: String, span: Span) {
         self.block.instructions.push(IrInstruction {
             opcode: self.opcode,
-            result: None, result_type: None, operands,
-            jump_target: None, true_target: Some(true_target), false_target: Some(false_target), span,
+            result: None,
+            result_type: None,
+            operands,
+            jump_target: None,
+            true_target: Some(true_target),
+            false_target: Some(false_target),
+            span,
         });
     }
 }

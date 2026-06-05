@@ -81,7 +81,10 @@ fn test_nasm_struct_global() {
 
 #[test]
 fn test_jvm_struct_global_valid() {
-    assert!(jvm_valid(STRUCT_GLOBAL), "jvm global struct should produce valid class file");
+    assert!(
+        jvm_valid(STRUCT_GLOBAL),
+        "jvm global struct should produce valid class file"
+    );
 }
 
 const STRUCT_NESTED_FIELD: &str = r#"
@@ -102,7 +105,10 @@ fn test_nasm_struct_nested_field() {
 
 #[test]
 fn test_jvm_struct_nested_field_valid() {
-    assert!(jvm_valid(STRUCT_NESTED_FIELD), "jvm nested struct should produce valid class file");
+    assert!(
+        jvm_valid(STRUCT_NESTED_FIELD),
+        "jvm nested struct should produce valid class file"
+    );
 }
 
 const NASM_ARRAY_OF_FUNCTIONS: &str = r#"
@@ -180,7 +186,10 @@ fn test_nasm_array_of_functions() {
 
 #[test]
 fn test_jvm_array_of_functions_valid() {
-    assert!(jvm_valid(JVM_ARRAY_OF_FUNCTIONS), "jvm array of functions should produce valid class files");
+    assert!(
+        jvm_valid(JVM_ARRAY_OF_FUNCTIONS),
+        "jvm array of functions should produce valid class files"
+    );
 }
 
 #[test]

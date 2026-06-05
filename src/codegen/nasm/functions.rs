@@ -31,13 +31,20 @@ impl AsmGenerator {
 
         if let Some(ref result) = inst.result {
             let ret_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-            let r = if AsmGenerator::is_wide_type(ret_ty) { "rax" } else { "eax" };
+            let r = if AsmGenerator::is_wide_type(ret_ty) {
+                "rax"
+            } else {
+                "eax"
+            };
             self.store_result(result, r, ret_ty);
         }
     }
 
     pub fn emit_ret(&mut self, inst: &IrInstruction) {
-        let has_wide_ret = inst.operands.first().map_or(false, |op| AsmGenerator::is_wide_type(&op.get_type()));
+        let has_wide_ret = inst
+            .operands
+            .first()
+            .map_or(false, |op| AsmGenerator::is_wide_type(&op.get_type()));
         let ret_reg = if has_wide_ret { "rax" } else { "eax" };
 
         if let Some(operand) = inst.operands.first() {
@@ -86,7 +93,11 @@ impl AsmGenerator {
             self.line("add rsp, 32");
             if let Some(ref result) = inst.result {
                 let ret_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-                let r = if AsmGenerator::is_wide_type(ret_ty) { "rax" } else { "eax" };
+                let r = if AsmGenerator::is_wide_type(ret_ty) {
+                    "rax"
+                } else {
+                    "eax"
+                };
                 self.store_result(result, r, ret_ty);
             }
         }
@@ -94,11 +105,41 @@ impl AsmGenerator {
 
     fn param_register_name(&self, i: usize, wide: bool) -> String {
         match i {
-            0 => { if wide { "rcx".to_string() } else { "ecx".to_string() } }
-            1 => { if wide { "rdx".to_string() } else { "edx".to_string() } }
-            2 => { if wide { "r8".to_string() } else { "r8d".to_string() } }
-            3 => { if wide { "r9".to_string() } else { "r9d".to_string() } }
-            _ => { if wide { "rax".to_string() } else { "eax".to_string() } }
+            0 => {
+                if wide {
+                    "rcx".to_string()
+                } else {
+                    "ecx".to_string()
+                }
+            }
+            1 => {
+                if wide {
+                    "rdx".to_string()
+                } else {
+                    "edx".to_string()
+                }
+            }
+            2 => {
+                if wide {
+                    "r8".to_string()
+                } else {
+                    "r8d".to_string()
+                }
+            }
+            3 => {
+                if wide {
+                    "r9".to_string()
+                } else {
+                    "r9d".to_string()
+                }
+            }
+            _ => {
+                if wide {
+                    "rax".to_string()
+                } else {
+                    "eax".to_string()
+                }
+            }
         }
     }
 }

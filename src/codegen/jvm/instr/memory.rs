@@ -5,12 +5,23 @@ use ristretto_classfile::attributes::{ArrayType, Instruction};
 impl JvmGenerator {
     pub(super) fn generate_store(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
         if inst.operands.len() >= 4 {
-            if let (Some(base), Some(field_off), Some(value), Some(index)) =
-                (inst.operands.first(), inst.operands.get(1), inst.operands.get(2), inst.operands.get(3))
-            {
+            if let (Some(base), Some(field_off), Some(value), Some(index)) = (
+                inst.operands.first(),
+                inst.operands.get(1),
+                inst.operands.get(2),
+                inst.operands.get(3),
+            ) {
                 if self.is_struct_var(base) {
-                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
-                    let var_name = if let IrOperand::Variable(n, _) = base { n.clone() } else { String::new() };
+                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off {
+                        *b as usize
+                    } else {
+                        0
+                    };
+                    let var_name = if let IrOperand::Variable(n, _) = base {
+                        n.clone()
+                    } else {
+                        String::new()
+                    };
                     let field_slot = self.get_field_slot_for_offset(&var_name, byte_off);
                     self.emit_load_operand(code, base);
                     self.emit_load_operand(code, index);
@@ -27,7 +38,11 @@ impl JvmGenerator {
                     }
                 } else {
                     let vt = value.get_type();
-                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off { *b as usize } else { 0 };
+                    let byte_off = if let IrOperand::Constant(Constant::Int(b)) = field_off {
+                        *b as usize
+                    } else {
+                        0
+                    };
                     if matches!(vt, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
                         self.emit_load_operand(code, base);
                         if byte_off > 0 {
@@ -108,7 +123,11 @@ impl JvmGenerator {
                     if let IrOperand::Constant(Constant::Int(byte_off)) = field_off {
                         if let Some(idx_op) = inst.operands.get(2) {
                             if self.is_struct_var(array) {
-                                let var_name = if let IrOperand::Variable(n, _) = array { n.clone() } else { String::new() };
+                                let var_name = if let IrOperand::Variable(n, _) = array {
+                                    n.clone()
+                                } else {
+                                    String::new()
+                                };
                                 let field_slot = self.get_field_slot_for_offset(&var_name, *byte_off as usize);
                                 self.emit_load_operand(code, array);
                                 self.emit_load_operand(code, idx_op);
@@ -187,7 +206,8 @@ impl JvmGenerator {
     }
 
     pub(super) fn generate_slice(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let (Some(ref result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(base), Some(start)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             if matches!(base.get_type(), IrType::String) {
                 self.emit_load_operand(code, base);
                 self.emit_load_operand(code, start);
@@ -205,7 +225,9 @@ impl JvmGenerator {
     }
 
     pub(super) fn generate_str_get_byte(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let (Some(ref result), Some(str_op), Some(idx_op)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(str_op), Some(idx_op)) =
+            (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.emit_load_operand(code, str_op);
             self.emit_load_operand(code, idx_op);
             code.push(Instruction::Baload);
@@ -214,7 +236,9 @@ impl JvmGenerator {
     }
 
     pub(super) fn generate_str_set_byte(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
-        if let (Some(str_op), Some(idx_op), Some(val_op)) = (inst.operands.first(), inst.operands.get(1), inst.operands.get(2)) {
+        if let (Some(str_op), Some(idx_op), Some(val_op)) =
+            (inst.operands.first(), inst.operands.get(1), inst.operands.get(2))
+        {
             self.emit_load_operand(code, str_op);
             self.emit_load_operand(code, idx_op);
             self.emit_load_operand(code, val_op);
@@ -228,13 +252,20 @@ impl JvmGenerator {
                 self.emit_load_constant(code, &Constant::Int(*size as i64));
                 match elem_type.as_ref() {
                     IrType::Int | IrType::Bool => {
-                        let at = if matches!(elem_type.as_ref(), IrType::Bool) { ArrayType::Boolean } else { ArrayType::Int };
+                        let at = if matches!(elem_type.as_ref(), IrType::Bool) {
+                            ArrayType::Boolean
+                        } else {
+                            ArrayType::Int
+                        };
                         code.push(Instruction::Newarray(at));
                     }
                     IrType::Function(_, _) | IrType::String | IrType::Array(..) => {
                         let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem_type);
                         let class_name = desc.trim_start_matches('L').trim_end_matches(';');
-                        let class_idx = self.pool.constant_pool.add_class(class_name)
+                        let class_idx = self
+                            .pool
+                            .constant_pool
+                            .add_class(class_name)
                             .expect("Failed to add class for anewarray");
                         code.push(Instruction::Anewarray(class_idx));
                     }

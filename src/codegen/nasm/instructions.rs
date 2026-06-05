@@ -3,10 +3,20 @@ use crate::ir::types::{IrInstruction, IrOpcode, IrOperand};
 
 fn reg_low_byte(reg32: &str) -> &'static str {
     match reg32 {
-        "eax" => "al", "ecx" => "cl", "edx" => "dl", "ebx" => "bl",
-        "esi" => "sil", "edi" => "dil",
-        "r8d" => "r8b", "r9d" => "r9b", "r10d" => "r10b", "r11d" => "r11b",
-        "r12d" => "r12b", "r13d" => "r13b", "r14d" => "r14b", "r15d" => "r15b",
+        "eax" => "al",
+        "ecx" => "cl",
+        "edx" => "dl",
+        "ebx" => "bl",
+        "esi" => "sil",
+        "edi" => "dil",
+        "r8d" => "r8b",
+        "r9d" => "r9b",
+        "r10d" => "r10b",
+        "r11d" => "r11b",
+        "r12d" => "r12b",
+        "r13d" => "r13b",
+        "r14d" => "r14b",
+        "r15d" => "r15b",
         _ => "al", // fallback (never reached with our register pool)
     }
 }
@@ -113,7 +123,8 @@ impl AsmGenerator {
     }
 
     fn emit_binary(&mut self, inst: &IrInstruction, mnemonic: &str) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             let left_ty = left.get_type();
             let result_ty = inst.result_type.as_ref().unwrap_or(&left_ty);
             let wide = AsmGenerator::is_wide_type(result_ty);
@@ -127,7 +138,8 @@ impl AsmGenerator {
     }
 
     fn emit_logical(&mut self, inst: &IrInstruction, mnemonic: &str) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             let left_ty = left.get_type();
             let right_ty = right.get_type();
             let wide = AsmGenerator::is_wide_type(&left_ty) || AsmGenerator::is_wide_type(&right_ty);
@@ -149,7 +161,8 @@ impl AsmGenerator {
     }
 
     fn emit_div_mod(&mut self, inst: &IrInstruction, is_mod: bool) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             self.load_operand(left, "eax");
             self.load_operand(right, "ebx");
             self.line("cdq");
@@ -160,7 +173,8 @@ impl AsmGenerator {
     }
 
     fn emit_compare(&mut self, inst: &IrInstruction, setcc: &str) {
-        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1)) {
+        if let (Some(ref result), Some(left), Some(right)) = (&inst.result, inst.operands.first(), inst.operands.get(1))
+        {
             let left_ty = left.get_type();
             let wide = AsmGenerator::is_wide_type(&left_ty);
             let r1 = self.alloc_scratch(wide);

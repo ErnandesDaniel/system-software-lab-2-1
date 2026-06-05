@@ -51,7 +51,9 @@ impl JvmGenerator {
                 None
             };
 
-            let is_closure = lambda_name.as_ref().is_some_and(|n| self.pool.func_ref_env_field_refs.contains_key(n));
+            let is_closure = lambda_name
+                .as_ref()
+                .is_some_and(|n| self.pool.func_ref_env_field_refs.contains_key(n));
 
             if is_closure {
                 let name = lambda_name.expect("Lambda name must exist for closure");

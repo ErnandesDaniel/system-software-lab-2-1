@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
-    Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl,
-    Identifier, StructDefinition, StructField, TypeRef,
+    Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
+    StructDefinition, StructField, TypeRef,
 };
 use crate::lexer::Token;
 
@@ -112,16 +112,16 @@ impl Parser<'_> {
         let (_n, n_span) = self.expect(Token::Identifier)?;
         let name = self.get_text(&n_span).to_string();
 
-            let has_of = self.current_token() == Some(&Token::Of);
-            if has_of {
-                self.expect(Token::Of)?;
-            }
+        let has_of = self.current_token() == Some(&Token::Of);
+        if has_of {
+            self.expect(Token::Of)?;
+        }
 
-            let ty = if has_of || self.is_type_start() {
-                self.parse_type()?
-            } else {
-                TypeRef::BuiltinType(BuiltinType::Int)
-            };
+        let ty = if has_of || self.is_type_start() {
+            self.parse_type()?
+        } else {
+            TypeRef::BuiltinType(BuiltinType::Int)
+        };
 
         let initializer = if self.current_token() == Some(&Token::Assign) {
             self.expect(Token::Assign)?;
@@ -199,4 +199,3 @@ impl Parser<'_> {
         })
     }
 }
-

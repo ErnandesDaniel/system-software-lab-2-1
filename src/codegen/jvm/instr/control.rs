@@ -9,10 +9,21 @@ impl JvmGenerator {
                 self.emit_load_operand(code, operand);
             }
 
-            let param_types: String = inst.operands.iter().map(|o| crate::codegen::jvm::types::ir_type_to_jvm_descriptor(&o.get_type())).collect();
-            let ret_desc = inst.result_type.as_ref().map_or("V".to_string(), crate::codegen::jvm::types::ir_type_to_jvm_descriptor);
+            let param_types: String = inst
+                .operands
+                .iter()
+                .map(|o| crate::codegen::jvm::types::ir_type_to_jvm_descriptor(&o.get_type()))
+                .collect();
+            let ret_desc = inst
+                .result_type
+                .as_ref()
+                .map_or("V".to_string(), crate::codegen::jvm::types::ir_type_to_jvm_descriptor);
             let key = format!("{target}|({param_types}){ret_desc}");
-            let method_idx = self.pool.method_refs.get(&key).copied()
+            let method_idx = self
+                .pool
+                .method_refs
+                .get(&key)
+                .copied()
                 .or_else(|| self.pool.method_refs.get(target).copied())
                 .unwrap_or(1);
             code.push(Instruction::Invokestatic(method_idx));

@@ -10,7 +10,10 @@ struct Scope {
 
 impl Scope {
     fn new() -> Self {
-        Self { locals: HashMap::new(), declared: HashSet::new() }
+        Self {
+            locals: HashMap::new(),
+            declared: HashSet::new(),
+        }
     }
 }
 
@@ -81,13 +84,20 @@ impl SymbolTable {
     pub fn add(&mut self, name: String, ty: IrType) -> crate::Result<()> {
         let scope = self.scopes.last_mut().expect("no scope");
         if scope.declared.contains(&name) {
-            return Err(crate::error::CompilerError::Semantic(
-                format!("Symbol '{name}' already exists in this scope"),
-            ));
+            return Err(crate::error::CompilerError::Semantic(format!(
+                "Symbol '{name}' already exists in this scope"
+            )));
         }
         let n = name.clone();
         scope.declared.insert(n);
-        scope.locals.insert(name.clone(), IrLocal { name, ty, stack_offset: None });
+        scope.locals.insert(
+            name.clone(),
+            IrLocal {
+                name,
+                ty,
+                stack_offset: None,
+            },
+        );
         Ok(())
     }
 
@@ -95,7 +105,14 @@ impl SymbolTable {
         // Search from innermost to outermost for existing variable
         for scope in self.scopes.iter_mut().rev() {
             if scope.declared.contains(&name) {
-                scope.locals.insert(name.clone(), IrLocal { name, ty, stack_offset: None });
+                scope.locals.insert(
+                    name.clone(),
+                    IrLocal {
+                        name,
+                        ty,
+                        stack_offset: None,
+                    },
+                );
                 return;
             }
         }
@@ -103,7 +120,14 @@ impl SymbolTable {
         let scope = self.scopes.last_mut().expect("no scope");
         let n = name.clone();
         scope.declared.insert(n);
-        scope.locals.insert(name.clone(), IrLocal { name, ty, stack_offset: None });
+        scope.locals.insert(
+            name.clone(),
+            IrLocal {
+                name,
+                ty,
+                stack_offset: None,
+            },
+        );
     }
 
     pub fn define_local(&mut self, name: &str, ty: IrType) {
@@ -111,7 +135,11 @@ impl SymbolTable {
         scope.declared.insert(name.to_string());
         scope.locals.insert(
             name.to_string(),
-            IrLocal { name: name.to_string(), ty, stack_offset: None },
+            IrLocal {
+                name: name.to_string(),
+                ty,
+                stack_offset: None,
+            },
         );
     }
 

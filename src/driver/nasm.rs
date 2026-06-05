@@ -60,11 +60,11 @@ impl CompilerDriver {
             helper.push_str("    mov rbx, rax\n");
             helper.push_str("    mov eax, [rbx]\n    cmp eax, -1\n    jne .go\n    mov eax, 1\n    ret\n.go:\n");
             helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 40\n");
-    helper.push_str("    mov [rbp + 32], rbx\n");
-    helper.push_str("    mov rcx, rbx\n");
-    helper.push_str("    mov rdx, [rbx + 32]\n");
-    helper.push_str("    mov r8,  [rbx + 40]\n");
-    helper.push_str("    mov r9,  [rbx + 48]\n");
+            helper.push_str("    mov [rbp + 32], rbx\n");
+            helper.push_str("    mov rcx, rbx\n");
+            helper.push_str("    mov rdx, [rbx + 32]\n");
+            helper.push_str("    mov r8,  [rbx + 40]\n");
+            helper.push_str("    mov r9,  [rbx + 48]\n");
             helper.push_str("    call [rbx + 8]\n");
             helper.push_str("    mov rbx, [rbp + 32]\n");
             helper.push_str("    mov eax, [rbx + 16]\n    leave\n    ret\n");
@@ -75,11 +75,15 @@ impl CompilerDriver {
             helper.push_str("    mov [rcx + 24], r8\n    mov [rcx + 32], r9\n    ret\n\n");
 
             helper.push_str("global get_coroutine_state\nget_coroutine_state:\n");
-            helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+            helper.push_str(
+                "    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n",
+            );
             helper.push_str("    mov eax, [rax]\n    ret\n.empty:\n    mov eax, -1\n    ret\n\n");
 
             helper.push_str("global set_coroutine_param\nset_coroutine_param:\n");
-            helper.push_str("    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n");
+            helper.push_str(
+                "    lea rax, [rel co_states]\n    mov rax, [rax + rcx * 8]\n    test rax, rax\n    jz .empty\n",
+            );
             helper.push_str("    mov [rax + 24], edx\n    mov [rax + 32], r8d\n.empty:\n    ret\n\n");
 
             helper.push_str("global coro_init\n");
@@ -102,7 +106,14 @@ impl CompilerDriver {
 
             let obj = Path::new(output_dir).join("coro_helpers.obj");
             let output = Command::new("nasm")
-                .args(["-f", "win64", "-O0", "-o", obj.to_str().expect("Path must be valid UTF-8"), coro_path.to_str().expect("Path must be valid UTF-8")])
+                .args([
+                    "-f",
+                    "win64",
+                    "-O0",
+                    "-o",
+                    obj.to_str().expect("Path must be valid UTF-8"),
+                    coro_path.to_str().expect("Path must be valid UTF-8"),
+                ])
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {
@@ -116,7 +127,14 @@ impl CompilerDriver {
             let obj_path = Path::new(output_dir).join(format!("{}.obj", func.name));
 
             let output = Command::new("nasm")
-                .args(["-f", "win64", "-O0", "-o", obj_path.to_str().expect("Path must be valid UTF-8"), asm_path.to_str().expect("Path must be valid UTF-8")])
+                .args([
+                    "-f",
+                    "win64",
+                    "-O0",
+                    "-o",
+                    obj_path.to_str().expect("Path must be valid UTF-8"),
+                    asm_path.to_str().expect("Path must be valid UTF-8"),
+                ])
                 .output();
 
             match output {
@@ -135,7 +153,14 @@ impl CompilerDriver {
         if globals_asm.exists() {
             let globals_obj = Path::new(output_dir).join("globals.obj");
             let output = Command::new("nasm")
-                .args(["-f", "win64", "-O0", "-o", globals_obj.to_str().expect("Path must be valid UTF-8"), globals_asm.to_str().expect("Path must be valid UTF-8")])
+                .args([
+                    "-f",
+                    "win64",
+                    "-O0",
+                    "-o",
+                    globals_obj.to_str().expect("Path must be valid UTF-8"),
+                    globals_asm.to_str().expect("Path must be valid UTF-8"),
+                ])
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {
@@ -170,7 +195,9 @@ fn coro_state_needed(f: &IrFunction, global_names: &[String]) -> usize {
 
     // Same logic as emit_prologue: locals + __co_ctx + temp results + params
     for local in &f.locals {
-        if !global_names.contains(&local.name) { slot_set.insert(local.name.clone()); }
+        if !global_names.contains(&local.name) {
+            slot_set.insert(local.name.clone());
+        }
     }
     slot_set.insert("__co_ctx".to_string());
     for block in &f.blocks {
@@ -183,7 +210,9 @@ fn coro_state_needed(f: &IrFunction, global_names: &[String]) -> usize {
         }
     }
     for (i, param) in f.parameters.iter().enumerate() {
-        if i < 4 { slot_set.insert(param.name.clone()); }
+        if i < 4 {
+            slot_set.insert(param.name.clone());
+        }
     }
 
     56 + slot_set.len() * 8

@@ -1,5 +1,7 @@
+use crate::codegen::jvm::types::{
+    capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor,
+};
 use crate::codegen::jvm::JvmGenerator;
-use crate::codegen::jvm::types::{capitalize_first, get_fn_interface_name, get_method_descriptor, ir_type_to_jvm_descriptor};
 use crate::ir::types::{Constant, IrFunction, IrOpcode, IrOperand, IrType};
 
 impl JvmGenerator {
@@ -10,7 +12,10 @@ impl JvmGenerator {
     }
 
     fn collect_global_field_refs(&mut self) {
-        let runtime_stub_class = self.pool.constant_pool.add_class("RuntimeStub")
+        let runtime_stub_class = self
+            .pool
+            .constant_pool
+            .add_class("RuntimeStub")
             .expect("Failed to add RuntimeStub class");
         self.pool.runtime_stub_class_ref = runtime_stub_class;
 
@@ -34,11 +39,19 @@ impl JvmGenerator {
                             continue;
                         }
                         let class_name = capitalize_first(func_name);
-                        let class_idx = self.pool.constant_pool.add_class(&class_name)
+                        let class_idx = self
+                            .pool
+                            .constant_pool
+                            .add_class(&class_name)
                             .expect("Failed to add func ref class");
-                        let init_ref = self.pool.constant_pool.add_method_ref(class_idx, "<init>", "()V")
+                        let init_ref = self
+                            .pool
+                            .constant_pool
+                            .add_method_ref(class_idx, "<init>", "()V")
                             .expect("Failed to add func ref init method");
-                        self.pool.func_ref_init_refs.insert(func_name.clone(), (class_idx, init_ref));
+                        self.pool
+                            .func_ref_init_refs
+                            .insert(func_name.clone(), (class_idx, init_ref));
                     }
                 }
             }
@@ -46,7 +59,10 @@ impl JvmGenerator {
     }
 
     fn collect_instruction_refs(&mut self, func: &IrFunction) {
-        let runtime_stub_class = self.pool.constant_pool.add_class("RuntimeStub")
+        let runtime_stub_class = self
+            .pool
+            .constant_pool
+            .add_class("RuntimeStub")
             .expect("Failed to add RuntimeStub class");
 
         for block in &func.blocks {
@@ -112,7 +128,10 @@ impl JvmGenerator {
             }
         } else {
             let class_name = capitalize_first(target);
-            let user_class = self.pool.constant_pool.add_class(&class_name)
+            let user_class = self
+                .pool
+                .constant_pool
+                .add_class(&class_name)
                 .expect("Failed to add user class");
             let desc = Self::build_user_method_descriptor(&param_types, return_type.as_ref());
             (user_class, "call".to_string(), desc)
@@ -123,7 +142,10 @@ impl JvmGenerator {
         if self.pool.method_refs.contains_key(&key) {
             return;
         }
-        let method_idx = self.pool.constant_pool.add_method_ref(class_idx, &method_name, &descriptor)
+        let method_idx = self
+            .pool
+            .constant_pool
+            .add_method_ref(class_idx, &method_name, &descriptor)
             .expect("Failed to add method ref");
         self.pool.method_refs.insert(key, method_idx);
     }
@@ -132,25 +154,37 @@ impl JvmGenerator {
         if inst.opcode != IrOpcode::CallClosure {
             return;
         }
-        let Some(IrOperand::Variable(env_name, _)) = inst.operands.get(1) else { return };
-        let Some(lambda_name) = self.closure.closure_targets.get(env_name) else { return };
+        let Some(IrOperand::Variable(env_name, _)) = inst.operands.get(1) else {
+            return;
+        };
+        let Some(lambda_name) = self.closure.closure_targets.get(env_name) else {
+            return;
+        };
         if self.pool.method_refs.contains_key(lambda_name) {
             return;
         }
 
         let class_name = capitalize_first(lambda_name);
-        let user_class = self.pool.constant_pool.add_class(&class_name)
+        let user_class = self
+            .pool
+            .constant_pool
+            .add_class(&class_name)
             .expect("Failed to add closure class");
 
         let mut param_desc = "[[I".to_string();
         for arg in inst.operands.iter().skip(2) {
             param_desc.push_str(&ir_type_to_jvm_descriptor(&arg.get_type()));
         }
-        let ret_desc = inst.result_type.as_ref()
+        let ret_desc = inst
+            .result_type
+            .as_ref()
             .map_or_else(|| "V".to_string(), ir_type_to_jvm_descriptor);
         let desc = format!("({param_desc}){ret_desc}");
 
-        let method_idx = self.pool.constant_pool.add_method_ref(user_class, "call", &desc)
+        let method_idx = self
+            .pool
+            .constant_pool
+            .add_method_ref(user_class, "call", &desc)
             .expect("Failed to add call closure method ref");
         self.pool.method_refs.insert(lambda_name.clone(), method_idx);
     }
@@ -160,17 +194,25 @@ impl JvmGenerator {
             return;
         }
         if self.pool.anewarray_int_class_idx.is_none() {
-            self.pool.anewarray_int_class_idx = Some(self.pool.constant_pool.add_class("[I")
-                .expect("Failed to add [I class"));
+            self.pool.anewarray_int_class_idx =
+                Some(self.pool.constant_pool.add_class("[I").expect("Failed to add [I class"));
         }
-        let Some(IrOperand::FuncRef(func_name)) = inst.operands.first() else { return };
+        let Some(IrOperand::FuncRef(func_name)) = inst.operands.first() else {
+            return;
+        };
         if self.pool.func_ref_env_field_refs.contains_key(func_name) {
             return;
         }
         let class_name = capitalize_first(func_name);
-        let class_idx = self.pool.constant_pool.add_class(&class_name)
+        let class_idx = self
+            .pool
+            .constant_pool
+            .add_class(&class_name)
             .expect("Failed to add func class for closure env");
-        let field_ref = self.pool.constant_pool.add_field_ref(class_idx, "__env", "[[I")
+        let field_ref = self
+            .pool
+            .constant_pool
+            .add_field_ref(class_idx, "__env", "[[I")
             .expect("Failed to add env field ref");
         self.pool.func_ref_env_field_refs.insert(func_name.clone(), field_ref);
     }
@@ -180,15 +222,23 @@ impl JvmGenerator {
             return;
         }
         let Some(func_op) = inst.operands.first() else { return };
-        let IrType::Function(params, ret) = func_op.get_type() else { return };
+        let IrType::Function(params, ret) = func_op.get_type() else {
+            return;
+        };
         let iface_name = get_fn_interface_name(&params, &ret);
         if self.pool.interface_method_refs.contains_key(&iface_name) {
             return;
         }
-        let iface_class = self.pool.constant_pool.add_class(&iface_name)
+        let iface_class = self
+            .pool
+            .constant_pool
+            .add_class(&iface_name)
             .expect("Failed to add interface class");
         let method_desc = Self::build_user_method_descriptor(&params, Some(&ret));
-        let method_idx = self.pool.constant_pool.add_interface_method_ref(iface_class, "apply", &method_desc)
+        let method_idx = self
+            .pool
+            .constant_pool
+            .add_interface_method_ref(iface_class, "apply", &method_desc)
             .expect("Failed to add interface method ref");
         self.pool.interface_method_refs.insert(iface_name, method_idx);
     }
@@ -196,30 +246,59 @@ impl JvmGenerator {
     fn collect_slice_ref(&mut self, inst: &crate::ir::IrInstruction) {
         if inst.opcode != IrOpcode::Slice {
             // Also collect for pointer Add (string + int) used in JVM codegen
-            if inst.opcode != IrOpcode::Add { return; }
+            if inst.opcode != IrOpcode::Add {
+                return;
+            }
             let has_ptr = inst.operands.first().is_some_and(|o| o.get_type().is_pointer());
-            if !has_ptr { return; }
+            if !has_ptr {
+                return;
+            }
         }
         if self.pool.string_slice_ref != 0 {
             return;
         }
         self.stub_needed = true;
-        let stub_class = self.pool.constant_pool.add_class("RuntimeStub")
+        let stub_class = self
+            .pool
+            .constant_pool
+            .add_class("RuntimeStub")
             .expect("Failed to add RuntimeStub class");
-        self.pool.string_slice_ref = self.pool.constant_pool.add_method_ref(stub_class, "string_slice", "([BII)[B")
+        self.pool.string_slice_ref = self
+            .pool
+            .constant_pool
+            .add_method_ref(stub_class, "string_slice", "([BII)[B")
             .expect("Failed to add string_slice method ref");
     }
 
     fn is_external_function(name: &str) -> bool {
         matches!(
             name,
-            "puts" | "putchar" | "getchar" | "printf"
-                | "rand" | "srand" | "time" | "Sleep"
-                | "malloc" | "free"
-                | "map_put_jvm" | "map_get_jvm" | "map_remove_jvm" | "map_has_jvm"
-                | "map_size_jvm" | "map_key_jvm" | "map_list_jvm"
-                | "resume_coroutine" | "get_coroutine_state" | "set_coroutine_param" | "coro_init"
-                | "fopen" | "fgetc" | "fclose" | "atoi" | "fflush"
+            "puts"
+                | "putchar"
+                | "getchar"
+                | "printf"
+                | "rand"
+                | "srand"
+                | "time"
+                | "Sleep"
+                | "malloc"
+                | "free"
+                | "map_put_jvm"
+                | "map_get_jvm"
+                | "map_remove_jvm"
+                | "map_has_jvm"
+                | "map_size_jvm"
+                | "map_key_jvm"
+                | "map_list_jvm"
+                | "resume_coroutine"
+                | "get_coroutine_state"
+                | "set_coroutine_param"
+                | "coro_init"
+                | "fopen"
+                | "fgetc"
+                | "fclose"
+                | "atoi"
+                | "fflush"
         )
     }
 
