@@ -193,7 +193,13 @@ impl IrGenerator {
                 let (arr_name, _) = self.visit_expr(block, &slice.array);
                 let (idx_temp, _) = self.visit_expr(block, &range.start);
                 let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                let arr_type = self.symbols.global_types.get(&arr_name).cloned().unwrap_or(IrType::Int);
+                let arr_type = self
+                    .symbols
+                    .global_types
+                    .get(&arr_name)
+                    .cloned()
+                    .or_else(|| self.symbols.lookup(&arr_name).map(|l| l.ty.clone()))
+                    .unwrap_or(IrType::Int);
                 let elem_size = match &arr_type {
                     IrType::Array(elem, _) => elem.size() as i64,
                     _ => 4i64,
@@ -246,6 +252,42 @@ impl IrGenerator {
         right_type: &IrType,
     ) {
         if let Some(range) = slice.ranges.first() {
+            // s.field[i] = value  → use base struct + field offset directly
+            if let crate::ast::Expr::FieldAccess(ref base_expr, ref field_ident, _) = &*slice.array {
+                let (base_name, _) = self.visit_expr(block, base_expr);
+                let (idx_temp, _) = self.visit_expr(block, &range.start);
+                let field_offset = self.find_field_offset_for_array(&base_name, &field_ident.name);
+                let base_type = self
+                    .symbols
+                    .global_types
+                    .get(&base_name)
+                    .cloned()
+                    .or_else(|| self.symbols.lookup(&base_name).map(|l| l.ty.clone()))
+                    .unwrap_or(IrType::Int);
+                let field_type = self.find_field_type_for_var(&base_name, &field_ident.name);
+                let elem_size = match &field_type {
+                    IrType::Array(elem, _) => elem.size() as i64,
+                    _ => 4i64,
+                };
+                block.instructions.push(IrInstruction {
+                    opcode: IrOpcode::Store,
+                    result: None,
+                    result_type: None,
+                    operands: vec![
+                        IrOperand::Variable(base_name, base_type),
+                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(right_temp.to_string(), right_type.clone()),
+                        IrOperand::Variable(idx_temp, IrType::Int),
+                        IrOperand::Constant(Constant::Int(elem_size)),
+                    ],
+                    jump_target: None,
+                    true_target: None,
+                    false_target: None,
+                    span: expr.span,
+                });
+                return;
+            }
+
             let (idx, _) = self.visit_expr(block, &range.start);
             let (base_name, base_type) = self.visit_expr(block, &slice.array);
 

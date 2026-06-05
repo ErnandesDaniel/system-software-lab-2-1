@@ -1,5 +1,6 @@
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir::types::{Constant, IrInstruction, IrOperand, IrType};
+use crate::ir::IrOpcode;
 
 impl AsmGenerator {
     pub fn emit_store(&mut self, inst: &IrInstruction) {
@@ -14,7 +15,7 @@ impl AsmGenerator {
             IrOperand::Constant(Constant::Int(v)) => *v as i64,
             _ => 0,
         };
-        let (base_name, base_ir_type) = match base {
+        let (base_name, _base_type) = match base {
             IrOperand::Variable(n, ty) => (n.clone(), ty.clone()),
             _ => return,
         };
@@ -237,14 +238,20 @@ impl AsmGenerator {
     }
 
     fn elem_stride_for(inst: &IrInstruction) -> i64 {
-        // If 5th operand present (from assign_to_field arr[i].field), use it
+        // 5th operand (arr[i].field = v or s.f[i] = v): element size
         if let Some(IrOperand::Constant(Constant::Int(stride))) = inst.operands.get(4) {
             return *stride;
+        }
+        // 4th operand (s.f[i] or arr[i].f): element size for Load
+        // NOTE: only check for Load — for Store the 4th operand is the index, not elem_size
+        if inst.opcode == IrOpcode::Load {
+            if let Some(IrOperand::Constant(Constant::Int(stride))) = inst.operands.get(3) {
+                return *stride;
+            }
         }
         if let Some(IrOperand::Variable(_, ty)) = inst.operands.first() {
             match ty {
                 IrType::Array(elem, _) => return elem.size() as i64,
-                // For struct.field[index] with 4 operands, use struct size as stride
                 IrType::Struct { size, .. } if inst.operands.len() >= 4 => return *size as i64,
                 IrType::Struct { size, .. } => return *size as i64,
                 _ => {}

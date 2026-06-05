@@ -109,6 +109,53 @@ fn test_exe_local_struct() {
 }
 
 #[test]
+fn test_exe_array_of_structs_field_write() {
+    let source = r#"
+        struct Entry { key of int; val of int; }
+        global arr of Entry[3];
+        def main() of int {
+            arr[1].key = 10;
+            arr[1].val = 20;
+            return arr[1].key + arr[1].val;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(30));
+}
+
+#[test]
+fn test_exe_array_of_structs_field_read() {
+    let source = r#"
+        struct Entry { key of int; val of int; }
+        global arr of Entry[3];
+        def main() of int {
+            arr[0].key = 100;
+            arr[0].val = 200;
+            arr[1].key = 10;
+            arr[1].val = 20;
+            return arr[0].key + arr[0].val;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(300));
+}
+
+#[test]
+fn test_exe_local_array_of_structs() {
+    let source = r#"
+        struct Entry { key of int; val of int; }
+        def main() of int {
+            arr of Entry[3];
+            arr[2].key = 7;
+            arr[2].val = 3;
+            return arr[2].key * 10 + arr[2].val;
+        }
+    "#;
+    let output = compile_and_run(source);
+    assert_eq!(output.status.code(), Some(73));
+}
+
+#[test]
 fn test_asm_coroutine_state_machine() {
     let source = r#"
         import putchar
