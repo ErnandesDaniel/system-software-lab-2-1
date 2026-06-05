@@ -212,3 +212,41 @@ fn test_sys_lab1_nasm() {
 fn test_sys_lab1_jvm() {
     test_sys_lab1("jvm");
 }
+
+/// Sys lab-1 metrics: scheduling simulator with struct globals.
+fn test_sys_lab1_metrics(target: &str) {
+    let out = format!("target/tmp-sys-lab1-metrics-{target}");
+    let src = "labs-examples/system-programms/lab-1/metrics.mylang";
+    if !cargo(&[src, "-o", &out, "-t", target]) {
+        panic!("compile failed");
+    }
+    let exe = if target == "nasm" {
+        format!("{out}/program.exe")
+    } else {
+        "java".to_string()
+    };
+    let args: &[&str] = if target == "nasm" { &[] } else { &["-cp", &out, "Main"] };
+    let output = Command::new(&exe)
+        .args(args)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn failed");
+    assert!(output.status.success(), "exit code: {:?}", output.status.code());
+    let stdout = clean(&String::from_utf8_lossy(&output.stdout));
+    assert!(stdout.contains("Scheduling (Var 19) ==="));
+    assert!(stdout.contains("=== Done ==="));
+    assert!(stdout.contains("RR(2):"));
+    assert!(stdout.contains("SRT:"));
+    assert!(stdout.contains("Avg turn:"));
+    assert!(stdout.contains("Avg wait:"));
+}
+
+#[test]
+fn test_sys_lab1_metrics_nasm() {
+    test_sys_lab1_metrics("nasm");
+}
+#[test]
+fn test_sys_lab1_metrics_jvm() {
+    test_sys_lab1_metrics("jvm");
+}
