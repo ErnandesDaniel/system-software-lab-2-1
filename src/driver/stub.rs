@@ -26,7 +26,14 @@ fn jvm_desc_to_java_type(desc: &str) -> String {
 }
 
 /// Build Java field declaration + initializer for a global with JVM descriptor.
-fn jvm_field_decl_init(name: &str, desc: &str, outer_size: usize, inner_size: usize) -> (String, String) {
+fn jvm_field_decl_init(name: &str, desc: &str, outer_size: usize, inner_size: usize, struct_byte_size: usize) -> (String, String) {
+    if struct_byte_size > 0 {
+        let elem_count = struct_byte_size / 4;
+        let full_type = jvm_desc_to_java_type(desc);
+        let decl = format!("    static {} {} = new int[{}];", full_type, name, elem_count);
+        return (decl, String::new());
+    }
+
     if outer_size > 0 && inner_size > 0 {
         // 2D object array (struct-backed)
         let decl = format!("    static Object[] {} = new Object[{}];", name, outer_size);
@@ -64,11 +71,11 @@ fn jvm_field_decl_init(name: &str, desc: &str, outer_size: usize, inner_size: us
 }
 
 impl CompilerDriver {
-    pub fn generate_jvm_stub(output_dir: &str, global_info: &[(String, String, usize, usize)], scalar_inits: &str) {
+    pub fn generate_jvm_stub(output_dir: &str, global_info: &[(String, String, usize, usize, usize)], scalar_inits: &str) {
         let mut static_fields = String::new();
         let mut static_init = String::new();
-        for (name, desc, outer_size, inner_size) in global_info {
-            let (decl, init) = jvm_field_decl_init(name, desc, *outer_size, *inner_size);
+        for (name, desc, outer_size, inner_size, struct_byte_size) in global_info {
+            let (decl, init) = jvm_field_decl_init(name, desc, *outer_size, *inner_size, *struct_byte_size);
             static_fields.push_str(&decl);
             static_fields.push('\n');
             if !init.is_empty() {

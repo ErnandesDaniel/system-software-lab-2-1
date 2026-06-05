@@ -190,27 +190,16 @@ impl IrGenerator {
     ) {
         if let Expr::Slice(slice) = inner_base {
             if let Some(range) = slice.ranges.first() {
-                let (arr_name, _) = self.visit_expr(block, &slice.array);
                 let (idx_temp, _) = self.visit_expr(block, &range.start);
-                let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                let arr_type = self
-                    .symbols
-                    .global_types
-                    .get(&arr_name)
-                    .cloned()
-                    .or_else(|| self.symbols.lookup(&arr_name).map(|l| l.ty.clone()))
-                    .unwrap_or(IrType::Int);
-                let elem_size = match &arr_type {
-                    IrType::Array(elem, _) => elem.size() as i64,
-                    _ => 4i64,
-                };
+                let (base_name, base_type, total_offset, _, elem_size) =
+                    self.resolve_indexed_field(&slice.array, &field.name);
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Store,
                     result: None,
                     result_type: None,
                     operands: vec![
-                        IrOperand::Variable(arr_name, arr_type),
-                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(base_name, base_type),
+                        IrOperand::Constant(Constant::Int(total_offset as i64)),
                         IrOperand::Variable(right_temp.to_string(), right_type.clone()),
                         IrOperand::Variable(idx_temp, IrType::Int),
                         IrOperand::Constant(Constant::Int(elem_size)),
@@ -224,8 +213,14 @@ impl IrGenerator {
             }
         }
 
-        let (base_name, base_offset) = self.resolve_field_chain(expr.left.as_ref());
-        let (base_type, total_offset, _) = self.resolve_field_info(&base_name, inner_base, field, base_offset);
+        let (base_name, total_offset) = self.resolve_field_chain(expr.left.as_ref());
+        let base_type = self
+            .symbols
+            .global_types
+            .get(&base_name)
+            .cloned()
+            .or_else(|| self.symbols.lookup(&base_name).map(|l| l.ty.clone()))
+            .unwrap_or(IrType::Int);
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Store,

@@ -74,6 +74,15 @@ impl JvmGenerator {
         }
     }
 
+    pub fn is_struct_global_base(&self, operand: &IrOperand) -> bool {
+        if let IrOperand::Variable(name, _) = operand {
+            if let Some(ty) = self.global.global_vars.get(name) {
+                return matches!(ty, IrType::Struct { .. });
+            }
+        }
+        false
+    }
+
     pub fn ensure_int_value_ref(&mut self) -> u16 {
         if self.pool.integer_int_value_ref == 0 {
             let int_class = self

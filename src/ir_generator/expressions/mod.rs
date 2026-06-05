@@ -270,22 +270,20 @@ impl IrGenerator {
     fn visit_field_access(&mut self, block: &mut IrBlock, base: &Expr, field: &Identifier) -> (String, IrType) {
         // Array-of-structs indexed access: arr[i].field
         if let Expr::Slice(slice) = base {
-            let (arr_name, arr_type) = self.visit_expr(block, &slice.array);
             if let Some(range) = slice.ranges.first() {
                 let (idx_temp, _) = self.visit_expr(block, &range.start);
-                let field_offset = self.find_field_offset_for_array(&arr_name, &field.name);
-                let field_type = self.find_field_type_for_var(&arr_name, &field.name);
-                let elem_size = self.struct_size_for_var(&arr_name);
+                let (base_name, base_type, total_offset, field_type, elem_size) =
+                    self.resolve_indexed_field(&slice.array, &field.name);
                 let tmp = self.generate_temp();
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::Load,
                     result: Some(tmp.clone()),
                     result_type: Some(field_type.clone()),
                     operands: vec![
-                        IrOperand::Variable(arr_name, arr_type),
-                        IrOperand::Constant(Constant::Int(field_offset as i64)),
+                        IrOperand::Variable(base_name, base_type),
+                        IrOperand::Constant(Constant::Int(total_offset as i64)),
                         IrOperand::Variable(idx_temp, IrType::Int),
-                        IrOperand::Constant(Constant::Int(elem_size as i64)),
+                        IrOperand::Constant(Constant::Int(elem_size)),
                     ],
                     jump_target: None,
                     true_target: None,

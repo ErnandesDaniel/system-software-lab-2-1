@@ -96,11 +96,6 @@ impl CompilerDriver {
         let mut gen = codegen::JvmGenerator::new();
         let classes = gen.generate_program(ir);
 
-        // Write function class files first (needed for javac compilation)
-        let _stub_bytes = classes
-            .iter()
-            .find(|(name, _)| name == "RuntimeStub")
-            .map(|(_, bytes)| bytes.clone());
         for (class_name, class_bytes) in &classes {
             if class_name == "RuntimeStub" {
                 continue;
@@ -113,7 +108,7 @@ impl CompilerDriver {
             }
         }
 
-        let mut global_info: Vec<(String, String, usize, usize)> = Vec::new();
+        let mut global_info: Vec<(String, String, usize, usize, usize)> = Vec::new();
         let mut scalar_inits = String::new();
         for g in &ir.globals {
             let desc = match &g.ty {
@@ -133,8 +128,9 @@ impl CompilerDriver {
             } else {
                 0
             };
-            global_info.push((g.name.clone(), desc, outer, inner));
-            if outer == 0 {
+            let struct_byte_size = if let IrType::Struct { size, .. } = &g.ty { *size } else { 0 };
+            global_info.push((g.name.clone(), desc, outer, inner, struct_byte_size));
+            if outer == 0 && struct_byte_size == 0 {
                 if let Some(ref init_val) = g.initializer {
                     let val_str = match init_val {
                         crate::ir::types::Constant::Int(n) => n.to_string(),
@@ -146,9 +142,9 @@ impl CompilerDriver {
                 }
             }
         }
-        let has_coroutines = ir.functions.iter().any(|f| f.is_coroutine);
-
         Self::generate_jvm_stub(output_dir, &global_info, &scalar_inits);
+
+        let has_coroutines = ir.functions.iter().any(|f| f.is_coroutine);
 
         if has_coroutines {
             // Use internal RuntimeStub.class (has coroutine methods)

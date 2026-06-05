@@ -102,6 +102,7 @@ impl JvmGenerator {
     }
 
     pub(super) fn generate_array_load(&self, code: &mut Vec<Instruction>, inst: &IrInstruction) {
+        // Handle single-operand global get (no index)
         if let (Some(ref result), Some(op)) = (&inst.result, inst.operands.first()) {
             if inst.operands.len() == 1 {
                 if let IrOperand::Variable(name, _) = op {
@@ -138,6 +139,16 @@ impl JvmGenerator {
                                 self.emit_boxed_field_load(code, inst, *byte_off as usize);
                                 let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                                 self.emit_store_result(code, result, field_ty);
+                            } else if self.is_struct_global_base(array) {
+                                let base_idx = byte_off / 4;
+                                self.emit_load_operand(code, array);
+                                self.emit_load_operand(code, idx_op);
+                                if base_idx > 0 {
+                                    self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                    code.push(Instruction::Iadd);
+                                }
+                                code.push(Instruction::Iaload);
+                                self.emit_store_result(code, result, &IrType::Int);
                             } else {
                                 let base_idx = byte_off / 4;
                                 self.emit_load_operand(code, array);

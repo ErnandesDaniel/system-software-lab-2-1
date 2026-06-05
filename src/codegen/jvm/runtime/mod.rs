@@ -153,8 +153,10 @@ impl JvmGenerator {
             Instruction::Putstatic(file_fds_ref),
         ];
         for (gname, gty) in &self.global.global_vars {
-            if let Some(&fr) = self.global.global_field_refs.get(gname) {
-                if self.global.global_uses_object_array.contains(gname) {
+            let desc = self.global_jvm_descriptor(gname, gty);
+            let fr = self.pool.constant_pool.add_field_ref(this_class, gname, &desc)
+                .unwrap_or_else(|_| panic!("Failed to add field ref for {gname} (desc={desc})"));
+            if self.global.global_uses_object_array.contains(gname) {
                     let size = self.get_global_object_array_inner_size(gname) as i8;
                     if self.pool.object_class_idx == 0 {
                         self.pool.object_class_idx = self.pool.constant_pool.add_class("java/lang/Object").unwrap();
@@ -173,6 +175,15 @@ impl JvmGenerator {
                         clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
                         clinit_code.push(Instruction::Putstatic(fr));
                     }
+                } else if let IrType::Struct { size, .. } = gty {
+                    let sz = (size / 4) as i16;
+                    clinit_code.push(if sz <= 127 {
+                        Instruction::Bipush(sz as i8)
+                    } else {
+                        Instruction::Sipush(sz)
+                    });
+                    clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+                    clinit_code.push(Instruction::Putstatic(fr));
                 } else if self.global.global_struct_offset_sets.contains_key(gname) {
                     let offsets = self.global.global_struct_offset_sets.get(gname).unwrap();
                     let size = (offsets.iter().max().unwrap_or(&0) / 4 + 1) as i16;
@@ -184,7 +195,6 @@ impl JvmGenerator {
                     clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
                     clinit_code.push(Instruction::Putstatic(fr));
                 }
-            }
         }
         clinit_code.push(Instruction::Return);
         methods.push(Method {

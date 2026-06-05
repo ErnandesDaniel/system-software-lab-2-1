@@ -82,20 +82,6 @@ impl IrGenerator {
         0
     }
 
-    pub fn struct_size_for_var(&self, base: &str) -> usize {
-        let struct_name = self
-            .symbols
-            .global_struct_type_names
-            .get(base)
-            .or_else(|| self.symbols.local_struct_types.get(base));
-        if let Some(struct_name) = struct_name {
-            if let Some(fields) = self.symbols.struct_fields.get(struct_name) {
-                return fields.iter().map(|(_, ty, _)| ty.size() as usize).sum();
-            }
-        }
-        4
-    }
-
     pub fn find_field_type_for_var(&self, base: &str, field: &str) -> IrType {
         let struct_name = self
             .symbols
@@ -112,6 +98,107 @@ impl IrGenerator {
             }
         }
         IrType::Int
+    }
+
+    pub fn find_field_offset_in_struct_type(&self, type_name: &str, field: &str) -> usize {
+        if let Some(fields) = self.symbols.struct_fields.get(type_name) {
+            for (fname, _, offset) in fields {
+                if fname == field {
+                    return *offset;
+                }
+            }
+        }
+        0
+    }
+
+    /// Resolve an `arr[i].field` or `struct.field[i].subfield` access.
+    /// Returns (base_name, base_type, field_offset, field_type, elem_size).
+    pub fn resolve_indexed_field(
+        &self,
+        slice_array: &Expr,
+        field_name: &str,
+    ) -> (String, IrType, usize, IrType, i64) {
+        if let Expr::FieldAccess(ref base_expr, ref array_field, _) = slice_array {
+            let base_name = match base_expr.as_ref() {
+                Expr::Identifier(id) => id.name.clone(),
+                _ => {
+                    let (name, _) = self.resolve_field_chain(base_expr);
+                    name
+                }
+            };
+            let base_type = self
+                .symbols
+                .global_types
+                .get(&base_name)
+                .cloned()
+                .or_else(|| self.symbols.lookup(&base_name).map(|l| l.ty.clone()))
+                .unwrap_or(IrType::Int);
+            let array_field_offset = self.find_field_offset_for_array(&base_name, &array_field.name);
+            let array_field_type = self.find_field_type_for_var(&base_name, &array_field.name);
+            let (sub_field_offset, field_type) = match &array_field_type {
+                IrType::Array(elem, _) => {
+                    if let Some(elem_struct_name) = elem.struct_name() {
+                        let off = self.find_field_offset_in_struct_type(elem_struct_name, field_name);
+                        let ft = self
+                            .symbols
+                            .struct_fields
+                            .get(elem_struct_name)
+                            .and_then(|fields| {
+                                fields.iter().find(|(n, _, _)| n == field_name).map(|(_, ty, _)| ty.clone())
+                            })
+                            .unwrap_or(IrType::Int);
+                        (off, ft)
+                    } else {
+                        (0, IrType::Int)
+                    }
+                }
+                _ => (0, IrType::Int),
+            };
+            let elem_size = match &array_field_type {
+                IrType::Array(elem, _) => elem.size() as i64,
+                _ => 4i64,
+            };
+            (base_name, base_type, array_field_offset + sub_field_offset, field_type, elem_size)
+        } else {
+            let (arr_name, arr_type) = self.resolve_identifier_or_expr(slice_array);
+            let field_type = self.find_field_type_for_var(&arr_name, field_name);
+            let field_offset = self.find_field_offset_for_var_type(&arr_name, field_name);
+            let elem_size = match &arr_type {
+                IrType::Array(elem, _) => elem.size() as i64,
+                _ => 4i64,
+            };
+            (arr_name, arr_type, field_offset, field_type, elem_size)
+        }
+    }
+
+    fn resolve_identifier_or_expr(&self, expr: &Expr) -> (String, IrType) {
+        match expr {
+            Expr::Identifier(id) => {
+                let ty = self
+                    .symbols
+                    .global_types
+                    .get(&id.name)
+                    .cloned()
+                    .or_else(|| self.symbols.lookup(&id.name).map(|l| l.ty.clone()))
+                    .unwrap_or(IrType::Int);
+                (id.name.clone(), ty)
+            }
+            _ => (String::new(), IrType::Int),
+        }
+    }
+
+    fn find_field_offset_for_var_type(&self, var_name: &str, field: &str) -> usize {
+        let ty = self
+            .symbols
+            .global_types
+            .get(var_name)
+            .or_else(|| self.symbols.lookup(var_name).map(|l| &l.ty));
+        if let Some(IrType::Array(elem, _)) = ty {
+            if let Some(struct_name) = elem.struct_name() {
+                return self.find_field_offset_in_struct_type(struct_name, field);
+            }
+        }
+        0
     }
 
     /// Resolve a chain of field accesses like a.b.c → (base_name, total_byte_offset).
