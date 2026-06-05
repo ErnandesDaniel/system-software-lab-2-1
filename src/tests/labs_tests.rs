@@ -1,13 +1,14 @@
 /// Integration tests for VM labs.
 /// Runs the exact commands from each lab's README.md,
 /// then verifies expected output.
-///
-/// Note: these tests call `cargo run` which holds a lock on the build dir.
-/// Run with: `cargo test test_lab_vm -- --test-threads=1`
 use std::io::Write;
 use std::process::{Command, Stdio};
+use std::sync::Mutex;
+
+static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
 fn cargo(args: &[&str]) -> bool {
+    let _lock = CARGO_LOCK.lock().unwrap();
     Command::new("cargo")
         .args(["run", "--quiet", "--"])
         .args(args)
