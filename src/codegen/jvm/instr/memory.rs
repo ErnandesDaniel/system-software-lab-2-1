@@ -139,7 +139,7 @@ impl JvmGenerator {
                                 self.emit_boxed_field_load(code, inst, *byte_off as usize);
                                 let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                                 self.emit_store_result(code, result, field_ty);
-                            } else if self.is_struct_global_base(array) {
+                            } else if self.is_struct_global_base(array) || matches!(array.get_type(), IrType::Struct { .. }) {
                                 let base_idx = byte_off / 4;
                                 self.emit_load_operand(code, array);
                                 self.emit_load_operand(code, idx_op);
