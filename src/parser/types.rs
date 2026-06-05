@@ -66,11 +66,9 @@ impl Parser<'_> {
                 self.advance();
                 Ok(TypeRef::BuiltinType(BuiltinType::String))
             }
-            Some(Token::Array) => {
-                return Err(CompilerError::Parse(
-                    "'array' requires a base type before it (e.g. 'int array[5]')".to_string(),
-                ));
-            }
+            Some(Token::Array) => Err(CompilerError::Parse(
+                "'array' requires a base type before it (e.g. 'int array[5]')".to_string(),
+            )),
             Some(Token::Identifier) => {
                 let (_tok, span) = self.expect(Token::Identifier)?;
                 Ok(TypeRef::Custom(Identifier {

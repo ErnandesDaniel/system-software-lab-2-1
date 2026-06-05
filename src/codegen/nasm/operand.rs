@@ -31,7 +31,7 @@ impl AsmGenerator {
                     let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
                     if use_lea {
                         let lea_reg = if nreg.starts_with('e') {
-                            self.reg_name(REGS_32.iter().position(|r| *r == nreg).unwrap_or(0), true)
+                            Self::reg_name(REGS_32.iter().position(|r| *r == nreg).unwrap_or(0), true)
                         } else {
                             nreg
                         };
@@ -51,14 +51,14 @@ impl AsmGenerator {
                 let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
                 if use_lea {
                     let lea_reg = if reg.starts_with('e') {
-                        self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
                     } else {
                         reg
                     };
                     self.line(&format!("lea {lea_reg}, {mem}"));
                 } else if Self::is_wide_type(ty) {
                     let reg64 = if reg.starts_with('e') {
-                        self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
                     } else {
                         reg
                     };
@@ -94,11 +94,15 @@ impl AsmGenerator {
         }
 
         let slot_size = self.ensure_slot(name, ty);
-        let mem = format!("[rbp + {}]", self.get_slot(name).unwrap().offset);
+        let mem = if let Some(slot) = self.get_slot(name) {
+            format!("[rbp + {}]", slot.offset)
+        } else {
+            format!("[rel {name}]")
+        };
 
         if slot_size > 4 {
             let reg64 = if reg.starts_with('e') {
-                self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
             } else {
                 reg
             };

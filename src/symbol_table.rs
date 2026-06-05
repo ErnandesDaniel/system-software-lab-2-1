@@ -82,7 +82,9 @@ impl SymbolTable {
     // ── Locals ────────────────────────────────────────────────────
 
     pub fn add(&mut self, name: String, ty: IrType) -> crate::Result<()> {
-        let scope = self.scopes.last_mut().expect("no scope");
+        let scope = self.scopes.last_mut().ok_or_else(|| {
+            crate::error::CompilerError::Semantic("No active scope".to_string())
+        })?;
         if scope.declared.contains(&name) {
             return Err(crate::error::CompilerError::Semantic(format!(
                 "Symbol '{name}' already exists in this scope"
@@ -117,30 +119,32 @@ impl SymbolTable {
             }
         }
         // Not found in any scope — add to innermost
-        let scope = self.scopes.last_mut().expect("no scope");
-        let n = name.clone();
-        scope.declared.insert(n);
-        scope.locals.insert(
-            name.clone(),
-            IrLocal {
-                name,
-                ty,
-                stack_offset: None,
-            },
-        );
+        if let Some(scope) = self.scopes.last_mut() {
+            let n = name.clone();
+            scope.declared.insert(n);
+            scope.locals.insert(
+                name.clone(),
+                IrLocal {
+                    name,
+                    ty,
+                    stack_offset: None,
+                },
+            );
+        }
     }
 
     pub fn define_local(&mut self, name: &str, ty: IrType) {
-        let scope = self.scopes.last_mut().expect("no scope");
-        scope.declared.insert(name.to_string());
-        scope.locals.insert(
-            name.to_string(),
-            IrLocal {
-                name: name.to_string(),
-                ty,
-                stack_offset: None,
-            },
-        );
+        if let Some(scope) = self.scopes.last_mut() {
+            scope.declared.insert(name.to_string());
+            scope.locals.insert(
+                name.to_string(),
+                IrLocal {
+                    name: name.to_string(),
+                    ty,
+                    stack_offset: None,
+                },
+            );
+        }
     }
 
     pub fn lookup(&self, name: &str) -> Option<&IrLocal> {
@@ -206,7 +210,7 @@ impl SymbolTable {
     }
 
     pub fn is_coroutine(&self, name: &str) -> bool {
-        self.function_sigs.get(name).map_or(false, |s| s.is_coroutine)
+        self.function_sigs.get(name).is_some_and(|s| s.is_coroutine)
     }
 
     // ── Struct layout ─────────────────────────────────────────────

@@ -44,8 +44,8 @@ impl<'source> Parser<'source> {
 
         let mut items = Vec::new();
 
-        while self.current_token().is_some() {
-            let token = *self.current_token().expect("Token must exist after is_some check");
+        while let Some(current_token) = self.current_token().copied() {
+            let token = current_token;
 
             if !matches!(
                 token,

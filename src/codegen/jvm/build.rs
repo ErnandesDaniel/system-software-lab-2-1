@@ -1,3 +1,5 @@
+#![allow(clippy::expect_used, clippy::panic, clippy::too_many_arguments)]
+
 use crate::codegen::jvm::types::{get_fn_interface_name, ir_type_to_jvm_descriptor};
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{IrFunction, IrType};
@@ -31,9 +33,9 @@ impl JvmGenerator {
         } else {
             self.func.next_local_slot
         };
-        let max_stack = self.estimate_max_stack(&code);
+        let max_stack = JvmGenerator::estimate_max_stack(&code);
 
-        let code_size: u32 = code.iter().map(|i| self.instr_size(i) as u32).sum();
+        let code_size: u32 = code.iter().map(|i| JvmGenerator::instr_size(i) as u32).sum();
         assert!(code_size <= 65535,
             "Function {func_name}: Generated code size ({code_size}) exceeds JVM limit of 65535 bytes. max_stack={max_stack}, max_locals={max_locals}"
         );

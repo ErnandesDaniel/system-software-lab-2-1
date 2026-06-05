@@ -70,10 +70,8 @@ impl IrType {
     pub fn size(&self) -> u32 {
         match self {
             IrType::Void => 0,
-            IrType::Bool | IrType::Byte | IrType::Char => 4,
-            IrType::Int | IrType::Uint => 4,
-            IrType::Long | IrType::Ulong => 8,
-            IrType::String | IrType::Function(_, _) => 8,
+            IrType::Bool | IrType::Byte | IrType::Char | IrType::Int | IrType::Uint => 4,
+            IrType::Long | IrType::Ulong | IrType::String | IrType::Function(_, _) => 8,
             IrType::Array(elem, size) => elem.size() * *size as u32,
             IrType::Struct { size, .. } => *size as u32,
         }
@@ -133,12 +131,11 @@ impl IrType {
             IrType::Void => "V".to_string(),
             IrType::Bool => "Z".to_string(),
             IrType::Byte => "B".to_string(),
-            IrType::Int | IrType::Uint | IrType::Char => "I".to_string(),
+            IrType::Int | IrType::Uint | IrType::Char | IrType::Struct { .. } => "I".to_string(),
             IrType::Long | IrType::Ulong => "J".to_string(),
             IrType::String => "[B".to_string(),
             IrType::Array(elem, _) => format!("[{}", elem.jvm_descriptor()),
             IrType::Function(_, _) => "Ljava/lang/Object;".to_string(),
-            IrType::Struct { .. } => "I".to_string(),
         }
     }
 }

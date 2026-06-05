@@ -204,8 +204,7 @@ impl IrGenerator {
                 Self::scan_expr(&r.condition, outer_symbols, param_names, found, seen);
                 Self::scan_exprs_in_stmts(&r.body, outer_symbols, param_names, found, seen);
             }
-            Statement::VarDecl(_) => {}
-            Statement::Break(_) | Statement::Yield(_) => {}
+            Statement::VarDecl(_) | Statement::Break(_) | Statement::Yield(_) => {}
             Statement::FuncDef(fd) => {
                 Self::scan_exprs_in_stmts(&fd.body, outer_symbols, param_names, found, seen);
             }

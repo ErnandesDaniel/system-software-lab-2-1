@@ -45,7 +45,6 @@ impl IrGenerator {
 
         let element_type = match &array_type {
             IrType::Array(ref elem, _) => *elem.clone(),
-            IrType::String => IrType::Int,
             _ => IrType::Int,
         };
 

@@ -3,7 +3,6 @@ use crate::ir::types::{IrInstruction, IrOpcode, IrOperand};
 
 fn reg_low_byte(reg32: &str) -> &'static str {
     match reg32 {
-        "eax" => "al",
         "ecx" => "cl",
         "edx" => "dl",
         "ebx" => "bl",
@@ -149,7 +148,7 @@ impl AsmGenerator {
             self.load_operand(right, r2);
             self.line(&format!("{mnemonic} {r1}, {r2}"));
             let bool_reg = if wide {
-                self.reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
+                Self::reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
             } else {
                 r1
             };
@@ -183,7 +182,7 @@ impl AsmGenerator {
             self.load_operand(right, r2);
             self.line(&format!("cmp {r1}, {r2}"));
             let cmp_reg = if wide {
-                self.reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
+                Self::reg_name(REGS_64.iter().position(|r| *r == r1).unwrap_or(0), false)
             } else {
                 r1
             };

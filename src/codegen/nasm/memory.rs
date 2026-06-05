@@ -12,7 +12,7 @@ impl AsmGenerator {
         let value = &inst.operands[2];
 
         let off = match offset {
-            IrOperand::Constant(Constant::Int(v)) => *v as i64,
+            IrOperand::Constant(Constant::Int(v)) => *v,
             _ => 0,
         };
         let (base_name, _base_type) = match base {

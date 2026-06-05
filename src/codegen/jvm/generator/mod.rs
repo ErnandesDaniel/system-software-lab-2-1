@@ -80,7 +80,7 @@ impl JvmGenerator {
         for g in &program.globals {
             self.global.global_vars.insert(g.name.clone(), g.ty.clone());
         }
-        for (sname, _) in &program.struct_layouts.structs {
+        for sname in program.struct_layouts.structs.keys() {
             self.global.struct_names.insert(sname.clone());
         }
 

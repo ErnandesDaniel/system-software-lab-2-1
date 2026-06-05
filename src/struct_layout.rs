@@ -30,7 +30,7 @@ impl StructLayout {
     }
 
     pub fn size_in_slots(&self) -> usize {
-        (self.total_size + 3) / 4
+        self.total_size.div_ceil(4)
     }
 }
 

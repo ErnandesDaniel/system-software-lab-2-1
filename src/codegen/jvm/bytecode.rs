@@ -326,7 +326,7 @@ impl JvmGenerator {
         }
     }
 
-    fn reorder<'a>(blocks: &'a [IrBlock]) -> Vec<&'a IrBlock> {
+    fn reorder(blocks: &[IrBlock]) -> Vec<&IrBlock> {
         if blocks.is_empty() {
             return vec![];
         }

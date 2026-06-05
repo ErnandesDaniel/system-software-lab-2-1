@@ -19,7 +19,7 @@ impl AsmGenerator {
             if i < 4 {
                 let arg_ty = arg.get_type();
                 let wide = AsmGenerator::is_wide_type(&arg_ty) || arg_ty.size() > 8;
-                let param_reg = self.param_register_name(i, wide);
+                let param_reg = Self::param_register_name(i, wide);
                 self.load_operand(arg, &param_reg);
             }
         }
@@ -44,7 +44,7 @@ impl AsmGenerator {
         let has_wide_ret = inst
             .operands
             .first()
-            .map_or(false, |op| AsmGenerator::is_wide_type(&op.get_type()));
+            .is_some_and(|op| AsmGenerator::is_wide_type(&op.get_type()));
         let ret_reg = if has_wide_ret { "rax" } else { "eax" };
 
         if let Some(operand) = inst.operands.first() {
@@ -66,14 +66,12 @@ impl AsmGenerator {
     }
 
     pub fn emit_yield(&mut self, inst: &IrInstruction) {
-        if let Some(operand) = inst.operands.first() {
-            if let IrOperand::Constant(c) = operand {
-                self.load_constant(c, "eax");
-                self.restore_coro_ctx();
-                self.line("mov [rcx], eax");
-                self.line("leave");
-                self.line("ret");
-            }
+        if let Some(IrOperand::Constant(c)) = inst.operands.first() {
+            self.load_constant(c, "eax");
+            self.restore_coro_ctx();
+            self.line("mov [rcx], eax");
+            self.line("leave");
+            self.line("ret");
         }
     }
 
@@ -84,7 +82,7 @@ impl AsmGenerator {
                 if i < 4 {
                     let arg_ty = arg.get_type();
                     let wide = AsmGenerator::is_wide_type(&arg_ty);
-                    let param_reg = self.param_register_name(i - 1, wide);
+                    let param_reg = Self::param_register_name(i - 1, wide);
                     self.load_operand(arg, &param_reg);
                 }
             }
@@ -103,7 +101,7 @@ impl AsmGenerator {
         }
     }
 
-    fn param_register_name(&self, i: usize, wide: bool) -> String {
+    fn param_register_name(i: usize, wide: bool) -> String {
         match i {
             0 => {
                 if wide {

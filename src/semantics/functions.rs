@@ -5,7 +5,7 @@ use crate::semantics::types::SymbolTable;
 use crate::stdlib::StdLib;
 
 impl SemanticsAnalyzer {
-    pub fn collect_functions(&mut self, program: &Program) -> crate::Result<()> {
+    pub fn collect_functions(&mut self, program: &Program) {
         for item in &program.items {
             match item {
                 SourceItem::FuncDefinition(def) => {
@@ -31,7 +31,6 @@ impl SemanticsAnalyzer {
                 SourceItem::CoroutineDef(_) => {}
             }
         }
-        Ok(())
     }
 
     fn collect_func_definition(&mut self, def: &FuncDefinition) {

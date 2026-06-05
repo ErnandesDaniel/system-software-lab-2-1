@@ -7,8 +7,6 @@ fn jvm_desc_to_java_type(desc: &str) -> String {
     let dims = desc.chars().filter(|&c| c == '[').count();
     let base = &desc[dims..];
     let base_type = match base {
-        "I" => "int",
-        "Z" => "int",
         "B" => "byte",
         "C" => "char",
         "S" => "short",
@@ -44,16 +42,15 @@ fn jvm_field_decl_init(name: &str, desc: &str, outer_size: usize, inner_size: us
         // N-D array — declare & allocate outer dimension
         let decl = format!("    static {} {};", full_type, name);
         // Strip one dimension from the base type for the allocation
-        let alloc;
-        if dims <= 1 {
-            alloc = format!("new {}[{}]", full_type.trim_end_matches("[]"), outer_size);
+        let alloc = if dims <= 1 {
+            format!("new {}[{}]", full_type.trim_end_matches("[]"), outer_size)
         } else {
             // For multi-dimensional, keep inner dimensions as trailing brackets
             // e.g., byte[][] -> new byte[outer][]
             let inner_suffix = "[]".repeat(dims - 1);
             let base = full_type.trim_end_matches("[]");
-            alloc = format!("new {}[{}]{}", base, outer_size, inner_suffix);
-        }
+            format!("new {}[{}]{}", base, outer_size, inner_suffix)
+        };
         let init = format!("        {} = {};\n", name, alloc);
         (decl, init)
     } else {

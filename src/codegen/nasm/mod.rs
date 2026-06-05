@@ -85,7 +85,7 @@ impl AsmGenerator {
         self.slots.get(name).copied()
     }
 
-    pub fn reg_name(&self, index: usize, wide: bool) -> &'static str {
+    pub fn reg_name(index: usize, wide: bool) -> &'static str {
         if wide {
             REGS_64.get(index).unwrap_or(&"rax")
         } else {
@@ -103,7 +103,7 @@ impl AsmGenerator {
         for (i, _) in regs.iter().enumerate() {
             if *used & (1 << i) == 0 && other_mask & (1 << i) == 0 {
                 *used |= 1 << i;
-                return self.reg_name(i, wide);
+                return Self::reg_name(i, wide);
             }
         }
         regs[0]

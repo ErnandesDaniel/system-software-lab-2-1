@@ -34,7 +34,7 @@ impl SemanticsAnalyzer {
     }
 
     pub fn analyze(&mut self, program: &Program) -> crate::Result<()> {
-        self.collect_functions(program)?;
+        self.collect_functions(program);
         self.check_functions(program)?;
 
         if self.errors.is_empty() {
@@ -141,7 +141,7 @@ impl SemanticsAnalyzer {
             }
             Expr::FieldAccess(base, field, _) => {
                 let base_ty = self.infer_expr_type(scope, base);
-                return self.resolve_field_type_by_ir_type(&base_ty, &field.name, field.span);
+                self.resolve_field_type_by_ir_type(&base_ty, &field.name, field.span)
             }
             Expr::Binary(bin) => {
                 let _left = self.infer_expr_type(scope, &bin.left);

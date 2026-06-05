@@ -144,7 +144,7 @@ impl JvmGenerator {
                                 self.emit_load_operand(code, idx_op);
                                 code.push(Instruction::Aaload);
                                 if base_idx > 0 {
-                                    self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                    self.emit_load_constant(code, &Constant::Int(base_idx));
                                     code.push(Instruction::Iadd);
                                 }
                                 code.push(Instruction::Iaload);
@@ -165,7 +165,7 @@ impl JvmGenerator {
                             if has_runtime_idx {
                                 self.emit_load_operand(code, inst.operands.get(2).unwrap());
                             } else {
-                                self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                self.emit_load_constant(code, &Constant::Int(base_idx));
                             }
                             code.push(Instruction::Aaload);
                             self.emit_boxed_field_load(code, inst, *byte_off as usize);
@@ -173,14 +173,14 @@ impl JvmGenerator {
                             if let Some(runtime_idx) = inst.operands.get(2) {
                                 self.emit_load_operand(code, runtime_idx);
                                 if base_idx > 0 {
-                                    self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                                    self.emit_load_constant(code, &Constant::Int(base_idx));
                                     code.push(Instruction::Iadd);
                                 }
                                 code.push(Instruction::Iaload);
                             }
                         } else {
                             let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-                            self.emit_load_constant(code, &Constant::Int(base_idx as i64));
+                            self.emit_load_constant(code, &Constant::Int(base_idx));
                             if matches!(elem_type, IrType::Function(_, _) | IrType::String | IrType::Array(..)) {
                                 code.push(Instruction::Aaload);
                             } else {
@@ -188,7 +188,7 @@ impl JvmGenerator {
                             }
                         }
                         let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-                        self.emit_store_result(code, result, &elem_type);
+                        self.emit_store_result(code, result, elem_type);
                         return;
                     }
                 }
@@ -201,7 +201,7 @@ impl JvmGenerator {
             } else {
                 code.push(Instruction::Iaload);
             }
-            self.emit_store_result(code, result, &elem_type);
+            self.emit_store_result(code, result, elem_type);
         }
     }
 
@@ -262,12 +262,13 @@ impl JvmGenerator {
                     IrType::Function(_, _) | IrType::String | IrType::Array(..) => {
                         let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem_type);
                         let class_name = desc.trim_start_matches('L').trim_end_matches(';');
-                        let class_idx = self
+                        if let Ok(class_idx) = self
                             .pool
                             .constant_pool
                             .add_class(class_name)
-                            .expect("Failed to add class for anewarray");
-                        code.push(Instruction::Anewarray(class_idx));
+                        {
+                            code.push(Instruction::Anewarray(class_idx));
+                        }
                     }
                     _ => {
                         code.push(Instruction::Newarray(ArrayType::Int));

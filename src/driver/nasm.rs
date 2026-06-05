@@ -48,7 +48,7 @@ impl CompilerDriver {
             let coro_count = ir.functions.iter().filter(|f| f.is_coroutine).count().max(8);
             helper.push_str(&format!("co_states times {coro_count} dq 0\n"));
             for f in ir.functions.iter().filter(|f| f.is_coroutine) {
-                let ctx_dwords = (coro_state_needed(f, &global_names) + 3) / 4;
+                let ctx_dwords = coro_state_needed(f, &global_names).div_ceil(4);
                 helper.push_str(&format!("state_{} times {} dd 0\n", f.name, ctx_dwords));
             }
 
@@ -105,15 +105,10 @@ impl CompilerDriver {
             fs::write(&coro_path, &helper).ok();
 
             let obj = Path::new(output_dir).join("coro_helpers.obj");
+            let obj_s = obj.to_string_lossy().to_string();
+            let coro_s = coro_path.to_string_lossy().to_string();
             let output = Command::new("nasm")
-                .args([
-                    "-f",
-                    "win64",
-                    "-O0",
-                    "-o",
-                    obj.to_str().expect("Path must be valid UTF-8"),
-                    coro_path.to_str().expect("Path must be valid UTF-8"),
-                ])
+                .args(["-f", "win64", "-O0", "-o", &obj_s, &coro_s])
                 .output();
             if let Ok(out) = output {
                 if out.status.success() {
@@ -132,8 +127,8 @@ impl CompilerDriver {
                     "win64",
                     "-O0",
                     "-o",
-                    obj_path.to_str().expect("Path must be valid UTF-8"),
-                    asm_path.to_str().expect("Path must be valid UTF-8"),
+                    obj_path.to_string_lossy().as_ref(),
+                    asm_path.to_string_lossy().as_ref(),
                 ])
                 .output();
 
@@ -158,8 +153,8 @@ impl CompilerDriver {
                     "win64",
                     "-O0",
                     "-o",
-                    globals_obj.to_str().expect("Path must be valid UTF-8"),
-                    globals_asm.to_str().expect("Path must be valid UTF-8"),
+                    globals_obj.to_string_lossy().as_ref(),
+                    globals_asm.to_string_lossy().as_ref(),
                 ])
                 .output();
             if let Ok(out) = output {

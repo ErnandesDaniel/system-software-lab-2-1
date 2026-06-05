@@ -94,8 +94,8 @@ impl JvmGenerator {
         for operand in &inst.operands {
             if let IrOperand::Constant(Constant::Int(n)) = operand {
                 let val = *n;
-                if val > 32767 || val < -32768 {
-                    if !self.pool.large_int_refs.contains_key(&val) {
+                if (!(-32768..=32767).contains(&val))
+                    && !self.pool.large_int_refs.contains_key(&val) {
                         if let Ok(idx) = self.pool.constant_pool.add_integer(val as i32) {
                             // add_integer returns 1-based index; 0 is invalid
                             if idx > 0 {
@@ -103,7 +103,6 @@ impl JvmGenerator {
                             }
                         }
                     }
-                }
             }
         }
     }

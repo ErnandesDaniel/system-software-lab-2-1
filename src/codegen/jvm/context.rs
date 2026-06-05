@@ -114,7 +114,7 @@ impl JvmGenerator {
             let field_name_idx = self
                 .pool
                 .constant_pool
-                .add_utf8(&format!("var_{name}"))
+                .add_utf8(format!("var_{name}"))
                 .expect("Failed to add to constant pool");
             let field_desc_idx = self
                 .pool

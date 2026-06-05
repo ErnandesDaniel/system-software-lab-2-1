@@ -2,7 +2,7 @@ use crate::codegen::nasm::AsmGenerator;
 
 impl AsmGenerator {
     pub(crate) fn emit_string_data(&mut self, label: &str, s: &str) {
-        let bytes = self.escape_string(s);
+        let bytes = Self::escape_string(s);
         self.data_section.push_str(&format!("{label} db "));
 
         if bytes.is_empty() {
@@ -18,7 +18,7 @@ impl AsmGenerator {
         self.data_section.push_str(", 0\n");
     }
 
-    fn escape_string(&self, s: &str) -> Vec<u8> {
+    fn escape_string(s: &str) -> Vec<u8> {
         let mut result = Vec::new();
         for c in s.chars() {
             match c {

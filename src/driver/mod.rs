@@ -24,7 +24,7 @@ impl CompilerDriver {
         Self::create_output_dir(&args.output_dir)?;
         Self::generate_ast_diagrams(&ast, &args.output_dir);
         Self::run_semantic_analysis(&ast)?;
-        let ir_program = Self::generate_ir(&ast)?;
+        let ir_program = Self::generate_ir(&ast);
         IrValidator::validate(&ir_program)?;
         Self::generate_cfg_diagrams(&ir_program, &args.output_dir);
 
@@ -73,9 +73,9 @@ impl CompilerDriver {
         })
     }
 
-    fn generate_ir(ast: &ast::Program) -> crate::Result<crate::ir::IrProgram> {
+    fn generate_ir(ast: &ast::Program) -> crate::ir::IrProgram {
         let mut ir_gen = IrGenerator::new();
-        Ok(ir_gen.generate(ast))
+        ir_gen.generate(ast)
     }
 
     fn generate_cfg_diagrams(ir: &crate::ir::IrProgram, output_dir: &str) {

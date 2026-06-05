@@ -153,20 +153,6 @@ fn test_lab_vm4_jvm() {
 
 // ========== System-programms labs ==========
 
-fn compile_sys(lab: &str, target: &str) -> Option<std::process::Child> {
-    let out = format!("target/tmp-sys-{lab}");
-    let src = format!("labs-examples/system-programms/{lab}/input.mylang");
-    if !cargo(&[&src, "-o", &out, "-t", target]) {
-        return None;
-    }
-    let exe = format!("{out}/program.exe");
-    Command::new(exe)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .ok()
-}
-
 /// Sys lab-1: infinite coroutine loop, runs forever until killed.
 fn test_sys_lab1(target: &str) {
     let out = format!("target/tmp-sys-lab1-{target}");

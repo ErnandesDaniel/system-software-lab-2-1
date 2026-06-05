@@ -1,3 +1,14 @@
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::too_many_arguments,
+    clippy::unused_self,
+    clippy::needless_lifetimes,
+    clippy::collapsible_match,
+    clippy::vec_init_then_push
+)]
+
 mod build;
 mod bytecode;
 mod collect;

@@ -68,10 +68,10 @@ impl IrGenerator {
     }
 
     pub fn generate(&mut self, program: &Program) -> crate::ir::IrProgram {
-        self.try_generate(program).expect("IR generation failed")
+        self.try_generate(program)
     }
 
-    pub fn try_generate(&mut self, program: &Program) -> crate::Result<crate::ir::IrProgram> {
+    pub fn try_generate(&mut self, program: &Program) -> crate::ir::IrProgram {
         let mut functions = Vec::new();
 
         // First pass: collect all function signatures (extern + user-defined)
@@ -184,11 +184,11 @@ impl IrGenerator {
             layout_db.register_struct(struct_name, &ir_fields);
         }
 
-        Ok(IrProgram {
+        IrProgram {
             functions,
             globals,
             struct_layouts: layout_db,
-        })
+        }
     }
 }
 

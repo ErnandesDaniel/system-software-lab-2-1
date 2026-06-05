@@ -56,10 +56,10 @@ impl IrGenerator {
             self.block_stack.push(ei_body_block);
         }
 
-        let else_body_id = if stmt.else_body.is_some() {
+        let else_body_id = if let Some(ref else_body) = stmt.else_body {
             let eb_id = self.generate_block_id();
             let mut else_block = IrBlock::new(eb_id.clone());
-            for s in stmt.else_body.as_ref().unwrap() {
+            for s in else_body {
                 self.visit_statement(&mut else_block, s);
             }
             if !ends_with_control_flow(&else_block) {

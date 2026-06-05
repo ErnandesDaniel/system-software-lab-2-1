@@ -108,9 +108,9 @@ impl SemanticsAnalyzer {
                 Ok(right_type)
             }
             BinaryOp::Add => {
-                if left_type == IrType::String && right_type.is_int_like() {
-                    Ok(IrType::String)
-                } else if left_type.is_int_like() && right_type == IrType::String {
+                if (left_type == IrType::String && right_type.is_int_like())
+                    || (left_type.is_int_like() && right_type == IrType::String)
+                {
                     Ok(IrType::String)
                 } else if !left_type.is_int_like() || !right_type.is_int_like() {
                     self.add_error("Arithmetic operations require numeric operands".to_string(), bin.span);

@@ -260,10 +260,9 @@ impl Expr {
             Expr::Parenthesized(inner) => inner.span(),
             Expr::Call(c) => c.span,
             Expr::Slice(s) => s.span,
-            Expr::ArrayLiteral(_, s) => *s,
+            Expr::ArrayLiteral(_, s) | Expr::Literal(_, s) => *s,
             Expr::FieldAccess(_, _, span) => *span,
             Expr::Identifier(id) => id.span,
-            Expr::Literal(_, s) => *s,
             Expr::FuncLiteral(f) => f.span,
         }
     }

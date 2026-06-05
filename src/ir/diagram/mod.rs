@@ -1,6 +1,6 @@
 pub mod format;
 
-use crate::ir::*;
+use crate::ir::{IrProgram, IrFunction, IrBlock};
 use format::format_instruction;
 
 pub struct CfgMermaidGenerator {
@@ -45,12 +45,12 @@ impl CfgMermaidGenerator {
 
     fn generate_block(&mut self, block: &IrBlock) {
         let formatted_id = format::format_block_id(&block.id);
-        let instructions = self.format_block_instructions(block);
+        let instructions = Self::format_block_instructions(block);
         self.output
             .push_str(&format!("    {}[\"{}\\n{}\"]\n", formatted_id, block.id, instructions));
     }
 
-    fn format_block_instructions(&self, block: &IrBlock) -> String {
+    fn format_block_instructions(block: &IrBlock) -> String {
         let raw = block
             .instructions
             .iter()

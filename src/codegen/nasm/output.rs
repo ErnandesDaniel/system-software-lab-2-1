@@ -114,7 +114,7 @@ impl AsmGenerator {
         let aligned = ((stack_size as i64 + 15) / 16 * 16).max(16);
         self.line(&format!("sub rsp, {aligned}"));
 
-        let param_names: Vec<String> = self.param_registers.iter().cloned().collect();
+        let param_names: Vec<String> = self.param_registers.to_vec();
         for (i, param_name) in param_names.iter().enumerate() {
             let reg = if self.is_coroutine {
                 match i {
