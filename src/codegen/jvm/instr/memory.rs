@@ -138,6 +138,20 @@ impl JvmGenerator {
                                 self.emit_boxed_field_load(code, inst, *byte_off as usize);
                                 let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                                 self.emit_store_result(code, result, field_ty);
+                            } else if matches!(array, IrOperand::Variable(_, IrType::Struct { .. })) {
+                                // Flat int[] struct: field_offset + idx
+                                let base_idx = byte_off / 4;
+                                self.emit_load_operand(code, array);
+                                if base_idx > 0 {
+                                    self.emit_load_constant(code, &Constant::Int(base_idx));
+                                    self.emit_load_operand(code, idx_op);
+                                    code.push(Instruction::Iadd);
+                                } else {
+                                    self.emit_load_operand(code, idx_op);
+                                }
+                                code.push(Instruction::Iaload);
+                                let field_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                                self.emit_store_result(code, result, field_ty);
                             } else {
                                 let base_idx = byte_off / 4;
                                 self.emit_load_operand(code, array);

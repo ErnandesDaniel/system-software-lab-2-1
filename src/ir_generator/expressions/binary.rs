@@ -225,7 +225,8 @@ impl IrGenerator {
         }
 
         let (base_name, base_offset) = self.resolve_field_chain(expr.left.as_ref());
-        let (base_type, total_offset, _) = self.resolve_field_info(&base_name, inner_base, field, base_offset);
+        let (base_type, _, _field_type) = self.resolve_field_info(&base_name, inner_base, field, 0);
+        let total_offset = base_offset;
 
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::Store,

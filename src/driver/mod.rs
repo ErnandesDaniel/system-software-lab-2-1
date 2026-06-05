@@ -116,18 +116,21 @@ impl CompilerDriver {
         let mut global_info: Vec<(String, String, usize, usize)> = Vec::new();
         let mut scalar_inits = String::new();
         for g in &ir.globals {
-            let desc = match &g.ty {
-                IrType::String => "[B".to_string(),
-                IrType::Array(_, _n) => {
+            let (desc, outer) = match &g.ty {
+                IrType::Struct { size, .. } => {
+                    let num_ints = size / 4;
+                    ("[I".to_string(), num_ints)
+                }
+                IrType::String => ("[B".to_string(), 0),
+                IrType::Array(_, n) => {
                     if gen.is_global_uses_object_array(&g.name) {
-                        "[Ljava/lang/Object;".to_string()
+                        ("[Ljava/lang/Object;".to_string(), *n)
                     } else {
-                        gen.get_global_jvm_descriptor(&g.name, &g.ty)
+                        (gen.get_global_jvm_descriptor(&g.name, &g.ty), *n)
                     }
                 }
-                _ => gen.get_global_jvm_descriptor(&g.name, &g.ty),
+                _ => (gen.get_global_jvm_descriptor(&g.name, &g.ty), 0),
             };
-            let outer = if let IrType::Array(_, n) = &g.ty { *n } else { 0 };
             let inner = if gen.is_global_uses_object_array(&g.name) {
                 gen.get_global_object_array_inner_size(&g.name)
             } else {

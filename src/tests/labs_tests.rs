@@ -153,6 +153,42 @@ fn test_lab_vm4_jvm() {
 
 // ========== System-programms labs ==========
 
+fn compile_sys_metrics(target: &str) -> Option<String> {
+    let out = format!("target/tmp-sys-metrics-{target}");
+    let src = "labs-examples/system-programms/lab-1/metrics.mylang";
+    if !cargo(&[src, "-o", &out, "-t", target]) {
+        return None;
+    }
+    let o = if target == "nasm" {
+        Command::new(format!("{out}/program.exe")).output().ok()?
+    } else {
+        Command::new("java").args(["-cp", &out, "Main"]).output().ok()?
+    };
+    Some(clean(&String::from_utf8_lossy(&o.stdout)))
+}
+
+#[test]
+fn test_sys_metrics_nasm() {
+    let out = compile_sys_metrics("nasm").expect("compile/run failed");
+    assert!(out.contains("Lab 1") && out.contains("Scheduling"));
+    assert!(out.contains("RR(2):"));
+    assert!(out.contains("SRT:"));
+    assert!(out.contains("Avg turn:"));
+    assert!(out.contains("Avg wait:"));
+    assert!(out.contains("=== Done ==="));
+}
+
+#[test]
+fn test_sys_metrics_jvm() {
+    let out = compile_sys_metrics("jvm").expect("compile/run failed");
+    assert!(out.contains("Lab 1") && out.contains("Scheduling"));
+    assert!(out.contains("RR(2):"));
+    assert!(out.contains("SRT:"));
+    assert!(out.contains("Avg turn:"));
+    assert!(out.contains("Avg wait:"));
+    assert!(out.contains("=== Done ==="));
+}
+
 /// Sys lab-1: infinite coroutine loop, runs forever until killed.
 fn test_sys_lab1(target: &str) {
     let out = format!("target/tmp-sys-lab1-{target}");

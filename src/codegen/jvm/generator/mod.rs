@@ -83,7 +83,6 @@ impl JvmGenerator {
         for sname in program.struct_layouts.structs.keys() {
             self.global.struct_names.insert(sname.clone());
         }
-
         self.global.global_struct_offset_sets.clear();
         for func in &program.functions {
             for block in &func.blocks {
