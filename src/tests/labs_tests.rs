@@ -34,7 +34,7 @@ fn stdin_run(exe: &str, args: &[&str], stdin_data: &[u8]) -> Option<String> {
 }
 
 fn compile_nasm(lab: &str) -> Option<String> {
-    let out = format!("target/tmp-lab-{lab}");
+    let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "nasm"]) {
         return None;
@@ -44,7 +44,7 @@ fn compile_nasm(lab: &str) -> Option<String> {
 }
 
 fn compile_jvm(lab: &str) -> Option<String> {
-    let out = format!("target/tmp-lab-{lab}");
+    let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "jvm"]) {
         return None;
@@ -54,7 +54,7 @@ fn compile_jvm(lab: &str) -> Option<String> {
 }
 
 fn compile_nasm_stdin(lab: &str, input: &[u8]) -> Option<String> {
-    let out = format!("target/tmp-lab-{lab}");
+    let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "nasm"]) {
         return None;
@@ -63,7 +63,7 @@ fn compile_nasm_stdin(lab: &str, input: &[u8]) -> Option<String> {
 }
 
 fn compile_jvm_stdin(lab: &str, input: &[u8]) -> Option<String> {
-    let out = format!("target/tmp-lab-{lab}");
+    let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "jvm"]) {
         return None;
@@ -73,9 +73,9 @@ fn compile_jvm_stdin(lab: &str, input: &[u8]) -> Option<String> {
 
 fn lab4(target: &str) -> Option<String> {
     let input = b"create name Alice\ncreate age 30\nget name\nlist\nexit\n";
-    let out = "target/tmp-lab4";
+    let out = format!("target/tmp-lab4-{target}");
     let src = "labs-examples/vitrual-machines/lab-4/input.mylang";
-    if !cargo(&[src, "-o", out, "-t", target]) {
+    if !cargo(&[src, "-o", &out, "-t", target]) {
         return None;
     }
     let mut c = if target == "nasm" {
@@ -86,7 +86,7 @@ fn lab4(target: &str) -> Option<String> {
             .ok()?
     } else {
         Command::new("java")
-            .args(["-cp", out, "RuntimeStub"])
+            .args(["-cp", &out, "RuntimeStub"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
