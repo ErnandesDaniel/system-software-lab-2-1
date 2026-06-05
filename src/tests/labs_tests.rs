@@ -1,6 +1,7 @@
 /// Integration tests for VM labs.
 /// Runs the exact commands from each lab's README.md,
 /// then verifies expected output.
+use std::fs;
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
@@ -249,4 +250,109 @@ fn test_sys_lab1_metrics_nasm() {
 #[test]
 fn test_sys_lab1_metrics_jvm() {
     test_sys_lab1_metrics("jvm");
+}
+
+// ========== Coroutine + file I/O regression tests ==========
+
+fn compile_nasm_src(src: &str, tmp_dir: &str) -> bool {
+    let out = format!("target/{tmp_dir}");
+    if !cargo(&[src, "-o", &out, "-t", "nasm"]) {
+        return false;
+    }
+    let output = Command::new(format!("{out}/program.exe"))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .output()
+        .expect("spawn failed");
+    output.status.success()
+}
+
+fn write_test_src(name: &str, content: &str) -> String {
+    let dir = format!("target/tmp-coro-{name}");
+    let _ = fs::create_dir_all(&dir);
+    let path = format!("{dir}/input.mylang");
+    fs::write(&path, content).expect("write test src");
+    path
+}
+
+/// Regression: regular (non-coroutine) fopen + fgetc.
+#[test]
+fn test_regular_fopen_fgetc() {
+    let src = write_test_src("regular_fopen_fgetc", r#"import puts;
+import fopen;
+import fgetc;
+import fclose;
+
+def main() of int {
+    gf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (gf == 0) { puts("FAIL"); return 1; }
+    c = fgetc(gf);
+    fclose(gf);
+    puts("=== DONE ===");
+    return 0;
+}
+"#);
+    assert!(compile_nasm_src(&src, "regular-fopen-fgetc"), "regular fopen+fgetc should pass");
+}
+
+/// Regression: coroutine fopen + yield then fgetc.
+#[test]
+fn test_coro_fopen_yield_fgetc() {
+    let src = write_test_src("fopen_yield_fgetc", r#"import puts;
+import fopen;
+import fgetc;
+import fclose;
+import resume_coroutine;
+import coro_init;
+import create_coroutine;
+
+coroutine reader() of int {
+    gf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (gf == 0) { return 0; }
+    yield;
+    c = fgetc(gf);
+    fclose(gf);
+    return c;
+}
+def main() of int {
+    coro_init();
+    r = resume_coroutine(0);
+    r = resume_coroutine(0);
+    puts("=== DONE ===");
+    return 0;
+}
+"#);
+    assert!(compile_nasm_src(&src, "coro-fopen-yield-fgetc"), "coroutine fopen yield fgetc should pass");
+}
+
+/// Regression: coroutine fopen + yield + read_line wrapper (reproduces lab 2).
+#[test]
+fn test_coro_fopen_yield_read_line() {
+    let src = write_test_src("fopen_yield_read_line", r#"import puts;
+import fopen;
+import fgetc;
+import fclose;
+import resume_coroutine;
+import coro_init;
+import create_coroutine;
+
+def read_line(f of string) of int { return fgetc(f); }
+
+coroutine reader() of int {
+    gf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (gf == 0) { return 0; }
+    yield;
+    c = read_line(gf);
+    fclose(gf);
+    return c;
+}
+def main() of int {
+    coro_init();
+    r = resume_coroutine(0);
+    r = resume_coroutine(0);
+    puts("=== DONE ===");
+    return 0;
+}
+"#);
+    assert!(compile_nasm_src(&src, "coro-fopen-yield-read-line"), "coroutine fopen+yield+read_line should pass");
 }
