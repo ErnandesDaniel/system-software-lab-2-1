@@ -26,6 +26,8 @@ impl AsmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 if let Some(co_off) = self.coro_offset(name) {
+                    let needs_rcx_save = reg != "rcx" && reg != "ecx" && reg != "rsp";
+                    if needs_rcx_save { self.line("push rcx"); }
                     self.restore_coro_ctx();
                     let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
                     let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
@@ -39,12 +41,35 @@ impl AsmGenerator {
                         if lea_reg != reg {
                             self.line(&format!("mov {reg}, {lea_reg}"));
                         }
+                    } else if Self::is_wide_type(ty) {
+                        let reg64 = if nreg.starts_with('e') {
+                            self.reg_name(REGS_32.iter().position(|r| *r == nreg).unwrap_or(0), true)
+                        } else {
+                            nreg
+                        };
+                        self.line(&format!("mov {reg64}, [rcx + {co_off}]"));
+                        if needs_rcx_save { self.line("pop rcx"); }
+                        if reg64 != reg {
+                            self.line(&format!("mov {reg}, {reg64}"));
+                        }
                     } else {
                         self.line(&format!("mov {nreg}, [rcx + {co_off}]"));
+                        if needs_rcx_save { self.line("pop rcx"); }
                         if nreg != reg {
-                            self.line(&format!("mov {reg}, {nreg}"));
+                            if reg.starts_with('r') && nreg.starts_with('e') {
+                                let second = reg.as_bytes().get(1).copied().unwrap_or(0);
+                                let reg32 = if second.is_ascii_alphabetic() {
+                                    format!("e{}", &reg[1..])
+                                } else {
+                                    format!("{}d", reg)
+                                };
+                                self.line(&format!("mov {reg32}, {nreg}"));
+                            } else {
+                                self.line(&format!("mov {reg}, {nreg}"));
+                            }
                         }
                     }
+                    if needs_rcx_save && use_lea { self.line("pop rcx"); }
                     return;
                 }
                 let mem = self.mem_for(name);
@@ -85,11 +110,26 @@ impl AsmGenerator {
 
         if let Some(co_off) = self.coro_offset(name) {
             self.restore_coro_ctx();
-            let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
-            if nreg != reg {
-                self.line(&format!("mov {nreg}, {reg}"));
+            if Self::is_wide_type(ty) {
+                let reg64 = if reg.starts_with('e') {
+                    self.reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                } else {
+                    reg
+                };
+                self.line(&format!("mov [rcx + {co_off}], {reg64}"));
+            } else {
+                let nreg = if reg == "ecx" || reg == "rcx" { "eax" } else { reg };
+                if nreg != reg {
+                    let second = reg.as_bytes().get(1).copied().unwrap_or(0);
+                    let r32 = if second.is_ascii_alphabetic() {
+                        format!("e{}", &reg[1..])
+                    } else {
+                        format!("{}d", reg)
+                    };
+                    self.line(&format!("mov {nreg}, {r32}"));
+                }
+                self.line(&format!("mov [rcx + {co_off}], {nreg}"));
             }
-            self.line(&format!("mov [rcx + {co_off}], {nreg}"));
             return;
         }
 
