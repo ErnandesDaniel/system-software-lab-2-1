@@ -168,7 +168,7 @@ fn compile_sys_metrics(target: &str) -> Option<String> {
 }
 
 #[test]
-fn test_sys_metrics_nasm() {
+fn test_sys_lab1_metrics_nasm() {
     let out = compile_sys_metrics("nasm").expect("compile/run failed");
     assert!(out.contains("Lab 1") && out.contains("Scheduling"));
     assert!(out.contains("RR(2):"));
@@ -179,7 +179,7 @@ fn test_sys_metrics_nasm() {
 }
 
 #[test]
-fn test_sys_metrics_jvm() {
+fn test_sys_lab1_metrics_jvm() {
     let out = compile_sys_metrics("jvm").expect("compile/run failed");
     assert!(out.contains("Lab 1") && out.contains("Scheduling"));
     assert!(out.contains("RR(2):"));
