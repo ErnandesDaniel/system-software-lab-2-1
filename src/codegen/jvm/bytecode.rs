@@ -37,12 +37,8 @@ impl JvmGenerator {
     }
 
     fn emit_coro_entry(&self, func: &IrFunction, insts: &mut Vec<JvmInst>) {
-        let cset: HashSet<&str> = func.coroutine_blocks.iter().map(|s| s.as_str()).collect();
-        let entry = func
-            .blocks
-            .iter()
-            .find(|b| !cset.contains(b.id.as_str()))
-            .map_or_else(|| func.blocks[0].id.clone(), |b| b.id.clone());
+        let entry = func.blocks[0].id.clone();
+        let _cset: HashSet<&str> = func.coroutine_blocks.iter().skip(1).map(|s| s.as_str()).collect();
         insts.push(JvmInst::Real(Instruction::Aload_0));
         insts.push(JvmInst::Real(Instruction::Getfield(self.coro.coroutine_state_field)));
         insts.push(JvmInst::Placeholder(JumpPlaceholder::Ifeq { block_id: entry }));
