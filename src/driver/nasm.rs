@@ -62,9 +62,9 @@ impl CompilerDriver {
             helper.push_str("    push rbp\n    mov rbp, rsp\n    sub rsp, 40\n");
             helper.push_str("    mov [rbp + 32], rbx\n");
             helper.push_str("    mov rcx, rbx\n");
-            helper.push_str("    mov rdx, [rbx + 32]\n");
-            helper.push_str("    mov r8,  [rbx + 40]\n");
-            helper.push_str("    mov r9,  [rbx + 48]\n");
+            helper.push_str("    mov rdx, [rbx + 24]\n");
+            helper.push_str("    mov r8,  [rbx + 32]\n");
+            helper.push_str("    mov r9,  [rbx + 40]\n");
             helper.push_str("    call [rbx + 8]\n");
             helper.push_str("    mov rbx, [rbp + 32]\n");
             helper.push_str("    mov eax, [rbx + 16]\n    leave\n    ret\n");

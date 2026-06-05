@@ -264,6 +264,12 @@ fn compile_nasm_src(src: &str, tmp_dir: &str) -> bool {
         .stderr(Stdio::piped())
         .output()
         .expect("spawn failed");
+    if !output.status.success() {
+        let stdout = String::from_utf8_lossy(&output.stdout);
+        eprintln!("STDOUT: [{stdout}]");
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        eprintln!("STDERR: [{stderr}]");
+    }
     output.status.success()
 }
 
