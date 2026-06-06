@@ -5,23 +5,22 @@
 import puts;
 import printf;
 
-def test() of int {
-    c1 = [
+def f() of def(int) of int { - написать нормальный тип тут и проверить как тут, так и на PHP
+    y = 0;
+
+    return [
         def add2(x of int) of int {
-            return x + 2;
+            return y = x + y;
         },
         def mul2(x of int) of int {
-            return x * 2;
+            return y = x * y;
         }
     ];
-    c2 = [
-        def add2_2(x of int) of int {
-            return x + 2;
-        },
-        def mul2_2(x of int) of int {
-            return x * 2;
-        }
-    ];
+}
+
+def test() of int { - переписать на PHP для 4 лабы и проверить что оно будет работать
+    c1 = f();
+    c2 = f();
 
     x1 = c1[0](2);
     printf("c1[0](2) = %d\n", x1);

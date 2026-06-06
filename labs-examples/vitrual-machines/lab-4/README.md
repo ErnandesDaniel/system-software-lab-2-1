@@ -39,10 +39,10 @@ php labs-examples/vitrual-machines/lab-4/input.php --target jvm
 
 ```powershell
 # 1. Компиляция (NASM)
-cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t nasm
+cargo run -- labs-examples/vitrual-machines/lab-4/input.mylang -o output -t jvm
 
 # 2. Запуск демона и проверка команд
-php labs-examples/vitrual-machines/lab-4/input.php
+php labs-examples/vitrual-machines/lab-4/input.php --target jvm
 ```
 
 Пример сессии в демоне:
