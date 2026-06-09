@@ -69,9 +69,10 @@ impl AsmGenerator {
             if self.global_names.contains(&local.name) {
                 continue;
             }
-            let slot_size = local.ty.size().max(8) as i32;
-            self.alloc_slot(&local.name, slot_size as u32);
-            stack_size += slot_size;
+            let raw_size = local.ty.size().max(8) as u32;
+            let aligned = raw_size.next_power_of_two() as i32;
+            self.alloc_slot(&local.name, raw_size);
+            stack_size += aligned;
         }
 
         self.param_registers.clear();

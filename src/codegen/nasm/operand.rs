@@ -17,8 +17,16 @@ impl AsmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 let mem = self.mem_for(name);
-                let use_lea = matches!(ty, IrType::Array(_, _) | IrType::Struct { .. });
-                if use_lea {
+                let is_struct_ptr = matches!(ty, IrType::Struct { .. });
+                let is_local = self.global_names.contains(name) == false;
+                if is_struct_ptr && is_local {
+                    let wide_reg = if reg.starts_with('e') {
+                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
+                    } else {
+                        reg
+                    };
+                    self.line(&format!("mov {wide_reg}, {mem}"));
+                } else if matches!(ty, IrType::Array(_, _) | IrType::Struct { .. }) {
                     let lea_reg = if reg.starts_with('e') {
                         Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
                     } else {

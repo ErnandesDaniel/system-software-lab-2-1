@@ -19,7 +19,15 @@ impl IrGenerator {
                     .global_types
                     .get(&base_name)
                     .cloned()
-                    .or_else(|| self.symbols.local_struct_types.get(&base_name).map(|_| IrType::Int))
+                    .or_else(|| {
+                        self.symbols.local_struct_types.get(&base_name).and_then(|struct_name| {
+                            let fields = self.symbols.struct_fields.get(struct_name)?;
+                            let total_size: usize = fields.iter().map(|(_, ty, _)| ty.size() as usize).sum();
+                            let typed: Vec<(String, IrType)> = fields.iter().map(|(n, ty, _)| (n.clone(), ty.clone())).collect();
+                            Some(IrType::Struct { name: struct_name.clone(), fields: typed, size: total_size })
+                        })
+                    })
+                    .or_else(|| self.symbols.lookup(&base_name).map(|l| l.ty.clone()))
                     .unwrap_or(IrType::Int);
                 let result_temp = self.generate_temp();
                 block.instructions.push(IrInstruction {

@@ -13,6 +13,8 @@
 typedef struct {
     ucontext_t ctx;
     int active;
+    int finished;
+    void (*fn)(void);
 } Coro;
 
 static Coro coros[MAX];
@@ -27,18 +29,26 @@ int get_current_coroutine_id_nasm(void) {
     return cur;
 }
 
+static void coro_entry(int id) {
+    coros[id].fn();
+    coros[id].finished = 1;
+    setcontext(&tramp_ctx);
+}
+
 static void trampoline(void) {
     while (1) {
         int next = scheduler_fn ? scheduler_fn() : -1;
-        if (next < 0 || next >= n || !coros[next].active) break;
+        if (next < 0 || next >= n || coros[next].finished) break;
         cur = next;
         setitimer(ITIMER_REAL, &quant, NULL);
         swapcontext(&tramp_ctx, &coros[next].ctx);
     }
+    setcontext(&main_ctx);
 }
 
 static void tick(int sig) {
     if (n == 0 || !scheduler_fn) return;
+    if (coros[cur].finished) return;
     swapcontext(&coros[cur].ctx, &tramp_ctx);
 }
 
@@ -52,7 +62,9 @@ void set_coroutine_scheduler_nasm(int (*fn)(void)) {
 }
 
 void init_coroutine_runtime_nasm(void) {
-    setbuf(stdout, NULL);
+    n = 0;
+    cur = 0;
+    scheduler_fn = NULL;
     struct sigaction sa;
     sa.sa_handler = tick;
     sa.sa_flags = SA_NODEFER;
@@ -64,6 +76,8 @@ int create_coroutine_nasm(void (*fn)(void)) {
     if (n >= MAX) return -1;
     int id = n++;
     coros[id].active = 1;
+    coros[id].finished = 0;
+    coros[id].fn = fn;
     sigset_t old, m;
     sigemptyset(&m); sigaddset(&m, SIGALRM);
     sigprocmask(SIG_UNBLOCK, &m, &old);
@@ -71,7 +85,7 @@ int create_coroutine_nasm(void (*fn)(void)) {
     coros[id].ctx.uc_stack.ss_sp = malloc(STACK_SIZE);
     coros[id].ctx.uc_stack.ss_size = STACK_SIZE;
     coros[id].ctx.uc_link = NULL;
-    makecontext(&coros[id].ctx, fn, 0);
+    makecontext(&coros[id].ctx, (void (*)())coro_entry, 1, id);
     sigprocmask(SIG_SETMASK, &old, NULL);
     return id;
 }

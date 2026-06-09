@@ -15,10 +15,12 @@ impl AsmGenerator {
             IrOperand::Constant(Constant::Int(v)) => *v,
             _ => 0,
         };
-        let (base_name, _base_type) = match base {
+        let (base_name, base_type) = match base {
             IrOperand::Variable(n, ty) => (n.clone(), ty.clone()),
             _ => return,
         };
+
+        let is_struct_ptr = matches!(base_type, IrType::Struct { .. });
 
         if inst.operands.len() >= 4 {
             let index = &inst.operands[3];
@@ -29,7 +31,11 @@ impl AsmGenerator {
 
             let base_reg = self.alloc_scratch(true);
             let base_mem = self.mem_for(&base_name);
-            self.line(&format!("lea {base_reg}, {base_mem}"));
+            if is_struct_ptr {
+                self.line(&format!("mov {base_reg}, {base_mem}"));
+            } else {
+                self.line(&format!("lea {base_reg}, {base_mem}"));
+            }
 
             match index {
                 IrOperand::Constant(Constant::Int(idx_val)) => {
@@ -58,7 +64,11 @@ impl AsmGenerator {
         let val_reg = self.alloc_scratch(val_wide);
         self.load_operand(value, val_reg);
         let base_mem = self.mem_for(&base_name);
-        if off == 0 {
+        if is_struct_ptr {
+            let ptr_reg = self.alloc_scratch(true);
+            self.line(&format!("mov {ptr_reg}, {base_mem}"));
+            self.line(&format!("mov [{ptr_reg} + {off}], {val_reg}"));
+        } else if off == 0 {
             self.line(&format!("mov {base_mem}, {val_reg}"));
         } else {
             self.line(&format!("lea rcx, {base_mem}"));
@@ -73,6 +83,10 @@ impl AsmGenerator {
         };
         let result_ty = inst.result_type.as_ref().cloned().unwrap_or(IrType::Int);
         let result_wide = AsmGenerator::is_wide_type(&result_ty);
+
+        let is_struct_base = inst.operands.first().map_or(false, |op| {
+            matches!(op, IrOperand::Variable(_, IrType::Struct { .. }))
+        });
 
         match inst.operands.len() {
             1 => {
@@ -91,7 +105,22 @@ impl AsmGenerator {
                     let reg = self.alloc_scratch(result_wide);
                     let mem = self.mem_for(&base_name);
                     let is_ptr_type = matches!(result_ty, IrType::Array(_, _) | IrType::Struct { .. });
-                    if *off == 0 {
+
+                    if is_struct_base {
+                        let base_reg = self.alloc_scratch(true);
+                        self.line(&format!("mov {base_reg}, {mem}"));
+                        if *off == 0 {
+                            if is_ptr_type {
+                                self.line(&format!("lea {reg}, [{base_reg}]"));
+                            } else {
+                                self.line(&format!("mov {reg}, [{base_reg}]"));
+                            }
+                        } else if is_ptr_type {
+                            self.line(&format!("lea {reg}, [{base_reg} + {off}]"));
+                        } else {
+                            self.line(&format!("mov {reg}, [{base_reg} + {off}]"));
+                        }
+                    } else if *off == 0 {
                         if is_ptr_type {
                             self.line(&format!("lea {reg}, {mem}"));
                         } else {
@@ -107,17 +136,22 @@ impl AsmGenerator {
                     }
                     self.store_result(&result, reg, &result_ty);
                 } else {
-                    let (array_name, _) = match &inst.operands[0] {
-                        IrOperand::Variable(n, _ty) => (n.clone(), ()),
+                    let (array_name, base_ty) = match &inst.operands[0] {
+                        IrOperand::Variable(n, ty) => (n.clone(), ty.clone()),
                         _ => return,
                     };
+                    let is_arr_struct = matches!(base_ty, IrType::Struct { .. });
                     let elem_stride = Self::elem_stride_for(inst);
                     let idx_reg = self.alloc_scratch(true);
                     self.load_operand(&inst.operands[1], idx_reg);
                     let res_reg = self.alloc_scratch(result_wide);
                     let base_reg = self.alloc_scratch(true);
                     let mem = self.mem_for(&array_name);
-                    self.line(&format!("lea {base_reg}, {mem}"));
+                    if is_arr_struct {
+                        self.line(&format!("mov {base_reg}, {mem}"));
+                    } else {
+                        self.line(&format!("lea {base_reg}, {mem}"));
+                    }
                     if matches!(elem_stride, 1 | 2 | 4 | 8) {
                         self.line(&format!("mov {res_reg}, [{base_reg} + {idx_reg}*{elem_stride}]"));
                     } else {
@@ -129,10 +163,11 @@ impl AsmGenerator {
                 }
             }
             3 | 4 => {
-                let (base_name, _) = match &inst.operands[0] {
-                    IrOperand::Variable(n, _ty) => (n.clone(), ()),
+                let (base_name, base_ty) = match &inst.operands[0] {
+                    IrOperand::Variable(n, ty) => (n.clone(), ty.clone()),
                     _ => return,
                 };
+                let is_arr_struct = matches!(base_ty, IrType::Struct { .. });
                 let off = match &inst.operands[1] {
                     IrOperand::Constant(Constant::Int(v)) => *v,
                     _ => 0,
@@ -143,7 +178,11 @@ impl AsmGenerator {
                 let res_reg = self.alloc_scratch(result_wide);
                 let base_reg = self.alloc_scratch(true);
                 let mem = self.mem_for(&base_name);
-                self.line(&format!("lea {base_reg}, {mem}"));
+                if is_arr_struct {
+                    self.line(&format!("mov {base_reg}, {mem}"));
+                } else {
+                    self.line(&format!("lea {base_reg}, {mem}"));
+                }
                 if off != 0 {
                     self.line(&format!("add {base_reg}, {off}"));
                 }
