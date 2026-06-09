@@ -3,3 +3,5 @@ target
 output
 
 hs_err_pid*.log
+
+ext3.img
