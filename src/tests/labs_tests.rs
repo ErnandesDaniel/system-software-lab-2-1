@@ -401,10 +401,38 @@ fn test_sys_lab3_ext3_nasm() {
 #[cfg(target_os = "linux")]
 fn test_sys_lab2_pipeline_nasm() {
     let out = compile_sys_file("lab-2/input.mylang").expect("compile/run failed");
+
+    // All 7 queries must complete
     assert!(out.contains("Done"), "should complete:\n{out}");
+
+    // Q1: INNER JOIN vedomosti(tid=3,pid>153285) × types
+    // Expect: "Colloquium, 153286" ... "Found: 4"
     assert!(out.contains("Q1"), "should run Q1:\n{out}");
+    assert!(out.contains("Colloquium"), "Q1 should print type name:\n{out}");
     assert!(out.contains("Found:"), "should have results:\n{out}");
-    assert!(out.len() > 200, "should produce output (got {} bytes)", out.len());
+
+    // Q2: LEFT JOIN studies(pid=163276) × students(start=2008-09-01)
+    assert!(out.contains("Q2"), "should run Q2:\n{out}");
+    assert!(out.contains("163276"), "Q2 should contain pid 163276:\n{out}");
+    assert!(out.contains("OK500"), "Q2 should contain OK500:\n{out}");
+
+    // Q3: COUNT without patronymic + FCE + student exists
+    assert!(out.contains("Q3"), "should run Q3:\n{out}");
+    assert!(out.contains("Count:"), "Q3 should have Count:\n{out}");
+
+    // Q4: Plans >2 groups on Computer Engineering
+    assert!(out.contains("Q4"), "should run Q4:\n{out}");
+
+    // Q5: Avg grades 4100 >= 1100
+    assert!(out.contains("Q5"), "should run Q5:\n{out}");
+
+    // Q6: After 2012-09-01, course 1, part-time
+    assert!(out.contains("Q6"), "should run Q6:\n{out}");
+
+    // Q7: Same surname, diff bday
+    assert!(out.contains("Q7"), "should run Q7:\n{out}");
+
+    assert!(out.len() > 400, "should produce output (got {} bytes)", out.len());
 }
 
 
