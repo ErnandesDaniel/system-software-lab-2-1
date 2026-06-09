@@ -9,6 +9,74 @@ signal.h
 
 **`input.mylang`** — демо корутин. Две бесконечные корутины печатают `1` и `2` поочерёдно через планировщик.
 
+**`metrics.mylang`** — симуляция алгоритмов планирования Round Robin (квант 2) и Shortest Remaining Time.
+
+---
+
+## Сборка и запуск под Linux (WSL)
+
+### 1. Установка Ubuntu в WSL
+
+В **PowerShell**:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Запустите `wsl -d Ubuntu`, создайте пользователя и пароль.
+
+### 2. Установка инструментов внутри Ubuntu
+
+Все следующие команды выполняются **в терминале Ubuntu** (не PowerShell):
+
+```bash
+# Обновить пакеты
+sudo apt update
+
+# Установить компилятор C, NASM, curl
+sudo apt install -y build-essential nasm curl default-jdk
+
+# Установить Rust (без интерактива)
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+# Добавить cargo в PATH для текущей сессии
+source "$HOME/.cargo/env"
+```
+
+### 3. Сборка компилятора
+
+```bash
+# Перейти в директорию проекта (Windows-диск монтируется в /mnt/c/)
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
+
+# Собрать компилятор
+cargo build --release
+```
+
+### 4. Компиляция и запуск .mylang
+
+```bash
+# input.mylang — демо корутин
+cargo run --release -- labs-examples/system-programms/lab-1/input.mylang -o output -t nasm --os linux
+./output/program
+
+# metrics.mylang — симуляция планировщика
+cargo run --release -- labs-examples/system-programms/lab-1/metrics.mylang -o output -t nasm --os linux
+./output/program
+```
+
+**Ключ `--os linux`** переключает кодогенерацию:
+- Формат: `elf64` (вместо `win64`)
+- Calling convention: System V AMD64 (rdi, rsi, rdx, rcx, r8, r9)
+- Линковка: `gcc -no-pie`
+- Preemptive корутины через `setitimer` + `sigaction(SIGVTALRM)` + `ucontext_t`
+
+---
+
+## Сборка и запуск под Windows
+
+В **PowerShell** (из корня проекта):
+
 ```powershell
 cargo run -- labs-examples/system-programms/lab-1/input.mylang -o output -t nasm
 .\output\program.exe
@@ -91,8 +159,19 @@ SRT:
 
 ## Ожидаемая картина
 
-- RR(2) даёт больший средний turnaround и wait, чем SRT, потому что:
+- RR(2) даёт бóльший средний turnaround и wait, чем SRT, потому что:
   - Короткие процессы вынуждены ждать кванта времени наравне с длинными
   - Переключения контекста (прерывания по кванту) добавляют задержки
 - SRT минимизирует среднее время ожидания, давая коротким процессам выполняться сразу
 - Во втором тесте (интервал 3) средние метрики выше, чем в первом, так как процессы накладываются друг на друга сильнее
+
+---
+
+## Технические детали (Linux preemptive корутины)
+
+Preemptive многозадачность реализована через:
+
+- `setitimer(ITIMER_VIRTUAL, ...)` — таймер, считающий CPU time в user-mode
+- `sigaction(SIGVTALRM, ...)` с флагом `SA_NODEFER` — обработчик прерывания
+- `ucontext_t` — сохранение/восстановление регистров (RIP, RSP, RBX, RBP, R12-R15) прямо в обработчике сигнала
+- После возврата из обработчика ядро продолжает выполнение с новым контекстом
