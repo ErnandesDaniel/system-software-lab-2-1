@@ -16,7 +16,12 @@ impl IrGenerator {
             let mut args = Vec::new();
             for arg in &expr.arguments {
                 let (temp, arg_type) = self.visit_expr(block, arg);
-                args.push(IrOperand::Variable(temp, arg_type));
+                let is_fn = self.symbols.function_return_types.contains_key(&temp);
+                if is_fn {
+                    args.push(IrOperand::FuncRef(temp));
+                } else {
+                    args.push(IrOperand::Variable(temp, arg_type));
+                }
             }
 
             let result_return_type = self

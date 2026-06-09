@@ -1,0 +1,52 @@
+import puts;
+import putchar;
+import printf;
+import create_coroutine;
+import coro_init;
+import set_scheduler;
+import get_current_id;
+import run;
+
+def worker_a() of int {
+    while (true) { putchar(65); }
+    return 0;
+}
+
+def worker_b() of int {
+    while (true) { putchar(66); }
+    return 0;
+}
+
+def worker_c() of int {
+    while (true) { putchar(67); }
+    return 0;
+}
+
+global ticks of int[3];
+
+def srt_scheduler() of int {
+    cur = get_current_id();
+    ticks[cur] = ticks[cur] + 1;
+    best = 0;
+    best_val = ticks[0];
+    i = 1;
+    while (i < 3) {
+        if (ticks[i] < best_val) {
+            best_val = ticks[i];
+            best = i;
+        }
+        i = i + 1;
+    }
+    return best;
+}
+
+def main() of int {
+    puts("=== SRT ===");
+    coro_init();
+    create_coroutine(worker_a);
+    create_coroutine(worker_b);
+    create_coroutine(worker_c);
+    set_scheduler(srt_scheduler);
+    run();
+    return 0;
+}

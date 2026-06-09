@@ -1,0 +1,38 @@
+import puts;
+import putchar;
+import printf;
+import create_coroutine;
+import coro_init;
+import set_scheduler;
+import get_current_id;
+import run;
+
+def worker_a() of int {
+    while (true) { putchar(65); }
+    return 0;
+}
+
+def worker_b() of int {
+    while (true) { putchar(66); }
+    return 0;
+}
+
+def worker_c() of int {
+    while (true) { putchar(67); }
+    return 0;
+}
+
+def rr_scheduler() of int {
+    return (get_current_id() + 1) % 3;
+}
+
+def main() of int {
+    puts("=== RR (Round Robin) ===");
+    coro_init();
+    create_coroutine(worker_a);
+    create_coroutine(worker_b);
+    create_coroutine(worker_c);
+    set_scheduler(rr_scheduler);
+    run();
+    return 0;
+}

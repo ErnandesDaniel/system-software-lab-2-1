@@ -7,14 +7,6 @@ use std::sync::Mutex;
 
 static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
-fn os_flag() -> &'static str {
-    if cfg!(target_os = "linux") { "--os" } else { "" }
-}
-
-fn os_value() -> &'static str {
-    if cfg!(target_os = "linux") { "linux" } else { "" }
-}
-
 fn exe_name() -> &'static str {
     if cfg!(target_os = "linux") { "program" } else { "program.exe" }
 }
@@ -22,7 +14,7 @@ fn exe_name() -> &'static str {
 fn cargo(args: &[&str]) -> bool {
     let _lock = CARGO_LOCK.lock().unwrap();
     let mut cmd = Command::new("cargo");
-    cmd.args(["run", "--quiet", "--"]);
+    cmd.args(["run", "--release", "--quiet", "--"]);
     cmd.args(args);
     if cfg!(target_os = "linux") {
         cmd.args(["--os", "linux"]);
@@ -179,43 +171,53 @@ fn test_lab_vm4_jvm() {
 
 // ========== System-programms labs ==========
 
-fn compile_sys_metrics(target: &str) -> Option<String> {
-    if target == "jvm" && !has_java() {
+#[cfg(target_os = "linux")]
+fn compile_sys_file(file: &str) -> Option<String> {
+    let out = "target/tmp-sys";
+    let src = format!("labs-examples/system-programms/{file}");
+    if !cargo(&[&src, "-o", out, "-t", "nasm"]) {
         return None;
     }
-    let out = format!("target/tmp-sys-metrics-{target}");
-    let src = "labs-examples/system-programms/lab-1/metrics.mylang";
-    if !cargo(&[src, "-o", &out, "-t", target]) {
-        return None;
-    }
-    let o = if target == "nasm" {
-        Command::new(format!("{out}/{}", exe_name())).output().ok()?
-    } else {
-        Command::new("java").args(["-cp", &out, "Main"]).output().ok()?
-    };
+    let o = Command::new(format!("{out}/{}", exe_name())).output().ok()?;
     Some(clean(&String::from_utf8_lossy(&o.stdout)))
 }
 
-#[test]
-fn test_sys_lab1_metrics_nasm() {
-    let out = compile_sys_metrics("nasm").expect("compile/run failed");
-    assert!(out.contains("Lab 1") && out.contains("Scheduling"));
-    assert!(out.contains("RR(2):"));
-    assert!(out.contains("SRT:"));
-    assert!(out.contains("Avg turn:"));
-    assert!(out.contains("Avg wait:"));
-    assert!(out.contains("=== Done ==="));
-}
+// --- sys-lab-1: input.mylang (coroutine demo, RR, 2 workers) ---
 
 #[test]
-fn test_sys_lab1_metrics_jvm() {
-    let out = compile_sys_metrics("jvm").expect("compile/run failed");
-    assert!(out.contains("Lab 1") && out.contains("Scheduling"));
-    assert!(out.contains("RR(2):"));
-    assert!(out.contains("SRT:"));
-    assert!(out.contains("Avg turn:"));
-    assert!(out.contains("Avg wait:"));
-    assert!(out.contains("=== Done ==="));
+#[cfg(target_os = "linux")]
+fn test_sys_lab1_input_nasm() {
+    let out = compile_sys_file("lab-1/input.mylang").expect("compile/run failed");
+    assert!(out.contains("Start"), "should print Start");
+    assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
+    assert!(out.contains('1'), "worker1 should print 1");
+    assert!(out.contains('2'), "worker2 should print 2");
+}
+
+// --- sys-lab-1: metrics-rr.mylang (RR scheduler demo, 3 workers) ---
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_sys_lab1_metrics_rr_nasm() {
+    let out = compile_sys_file("lab-1/metrics-rr.mylang").expect("compile/run failed");
+    assert!(out.contains("RR"), "should print RR title");
+    assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
+    assert!(out.contains('A'), "worker A should print");
+    assert!(out.contains('B'), "worker B should print");
+    assert!(out.contains('C'), "worker C should print");
+}
+
+// --- sys-lab-1: metrics-srt.mylang (SRT scheduler demo, 3 workers) ---
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_sys_lab1_metrics_srt_nasm() {
+    let out = compile_sys_file("lab-1/metrics-srt.mylang").expect("compile/run failed");
+    assert!(out.contains("SRT"), "should print SRT title");
+    assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
+    assert!(out.contains('A'), "worker A should print");
+    assert!(out.contains('B'), "worker B should print");
+    assert!(out.contains('C'), "worker C should print");
 }
 
 

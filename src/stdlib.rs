@@ -48,6 +48,13 @@ impl StdLib {
         funcs.insert("exit");
         funcs.insert("fflush");
 
+        // Coroutine runtime functions
+        funcs.insert("create_coroutine");
+        funcs.insert("coro_init");
+        funcs.insert("run");
+        funcs.insert("set_scheduler");
+        funcs.insert("get_current_id");
+
         // EntityStore functions (JVM daemon)
         funcs.insert("map_put_jvm");
         funcs.insert("map_get_jvm");
@@ -90,7 +97,13 @@ impl StdLib {
             ("feof", ("file: string", "int")),
             ("atoi", ("str: string", "int")),
             ("sprintf", ("buf: string, format: string, value: int", "int")),
+            ("sleep", ("seconds: int", "int")),
             ("Sleep", ("ms: int", "")), // Windows Sleep (milliseconds) - blocking
+            ("create_coroutine", ("fn: int", "int")),
+            ("coro_init", ("", "")),
+            ("run", ("", "")),
+            ("set_scheduler", ("fn: int", "")),
+            ("get_current_id", ("", "int")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }
