@@ -50,10 +50,10 @@ impl StdLib {
 
         // Coroutine runtime functions
         funcs.insert("create_coroutine_nasm");
-        funcs.insert("coro_init_nasm");
-        funcs.insert("run_nasm");
-        funcs.insert("set_scheduler_nasm");
-        funcs.insert("get_current_id_nasm");
+        funcs.insert("init_coroutine_runtime_nasm");
+        funcs.insert("run_coroutine_runtime_nasm");
+        funcs.insert("set_coroutine_scheduler_nasm");
+        funcs.insert("get_current_coroutine_id_nasm");
 
         // Binary I/O functions (NASM-only wrappers)
         funcs.insert("fread_nasm");
@@ -107,10 +107,10 @@ impl StdLib {
             ("sleep", ("seconds: int", "int")),
             ("Sleep", ("ms: int", "")), // Windows Sleep (milliseconds) - blocking
             ("create_coroutine_nasm", ("fn: int", "int")),
-            ("coro_init_nasm", ("", "")),
-            ("run_nasm", ("", "")),
-            ("set_scheduler_nasm", ("fn: int", "")),
-            ("get_current_id_nasm", ("", "int")),
+            ("init_coroutine_runtime_nasm", ("", "")),
+            ("run_coroutine_runtime_nasm", ("", "")),
+            ("set_coroutine_scheduler_nasm", ("fn: int", "")),
+            ("get_current_coroutine_id_nasm", ("", "int")),
 
             // Binary I/O (NASM wrappers)
             ("fread_nasm", ("buf: string, size: int, count: int, file: string", "int")),

@@ -2,10 +2,10 @@ import puts;
 import putchar;
 import printf;
 import create_coroutine_nasm;
-import coro_init_nasm;
-import set_scheduler_nasm;
-import get_current_id_nasm;
-import run_nasm;
+import init_coroutine_runtime_nasm;
+import set_coroutine_scheduler_nasm;
+import get_current_coroutine_id_nasm;
+import run_coroutine_runtime_nasm;
 
 def worker_a() of int {
     while (true) { putchar(65); }
@@ -25,7 +25,7 @@ def worker_c() of int {
 global ticks of int[3];
 
 def srt_scheduler() of int {
-    cur = get_current_id_nasm();
+    cur = get_current_coroutine_id_nasm();
     ticks[cur] = ticks[cur] + 1;
     best = 0;
     best_val = ticks[0];
@@ -42,11 +42,11 @@ def srt_scheduler() of int {
 
 def main() of int {
     puts("=== SRT ===");
-    coro_init_nasm();
+    init_coroutine_runtime_nasm();
     create_coroutine_nasm(worker_a);
     create_coroutine_nasm(worker_b);
     create_coroutine_nasm(worker_c);
-    set_scheduler_nasm(srt_scheduler);
-    run_nasm();
+    set_coroutine_scheduler_nasm(srt_scheduler);
+    run_coroutine_runtime_nasm();
     return 0;
 }
