@@ -395,4 +395,16 @@ fn test_sys_lab3_ext3_nasm() {
     let _ = std::fs::remove_file(&extracted_sub);
 }
 
+// ========== sys-lab-2: Coroutine Map-Reduce Pipeline ==========
+
+#[test]
+#[cfg(target_os = "linux")]
+fn test_sys_lab2_pipeline_nasm() {
+    let out = compile_sys_file("lab-2/input.mylang").expect("compile/run failed");
+    assert!(out.contains("Done"), "should complete:\n{out}");
+    assert!(out.contains("Q1"), "should run Q1:\n{out}");
+    assert!(out.contains("Found:"), "should have results:\n{out}");
+    assert!(out.len() > 200, "should produce output (got {} bytes)", out.len());
+}
+
 
