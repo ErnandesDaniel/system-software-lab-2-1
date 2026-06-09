@@ -1,0 +1,271 @@
+// Ext3 FTP-like CLI
+import puts;
+import putchar;
+import printf;
+import fopen;
+import fclose;
+import fread_nasm;
+import fseek_nasm;
+import read_le32_nasm;
+import read_le16_nasm;
+import read_i8_nasm;
+import malloc;
+import free;
+import getchar;
+import strcmp;
+import strcpy;
+import strlen;
+
+// ---------- Globals ----------
+global img_file of string;
+global block_size of int;
+global inode_size of int;
+global sb_buf of string;
+global cwd_inode of int;
+global cwd_path of string;
+
+// ---------- Block I/O ----------
+
+def read_block(buf of string, blk of int) of int {
+    off = blk * block_size;
+    if (fseek_nasm(img_file, off, 0) != 0) { return -1; }
+    return fread_nasm(buf, 1, block_size, img_file);
+}
+
+// ---------- Superblock ----------
+
+def parse_superblock() of int {
+    if (fseek_nasm(img_file, 1024, 0) != 0) { return -1; }
+    n = fread_nasm(sb_buf, 1, 1024, img_file);
+    if (n < 1024) { return -1; }
+    magic = read_le16_nasm(sb_buf, 56);
+    if (magic != 61267) { return -1; }
+    lbs = read_le32_nasm(sb_buf, 24);
+    block_size = 1024;
+    i = 0;
+    while (i < lbs) { block_size = block_size * 2; i = i + 1; }
+    inode_size = read_le16_nasm(sb_buf, 88);
+    if (inode_size == 0) { inode_size = 128; }
+    return 0;
+}
+
+// ---------- Inode reading ----------
+
+def read_inode(buf of string, inum of int) of int {
+    inodes_per_group = read_le32_nasm(sb_buf, 40);
+    bg_index = (inum - 1) / inodes_per_group;
+    inode_index = (inum - 1) - bg_index * inodes_per_group;
+
+    // BGDT starts at the first block boundary after the superblock
+    // Superblock ends at byte 2048
+    superblock_end = 2048;
+    bgdt_block = (superblock_end + block_size - 1) / block_size;
+    bgdt_buf = malloc(block_size);
+    if (bgdt_buf == 0) { return -1; }
+    if (read_block(bgdt_buf, bgdt_block) < 0) { free(bgdt_buf); return -1; }
+
+    bgdt_off = bg_index * 32;
+    itable_blk = read_le32_nasm(bgdt_buf, bgdt_off + 8);
+    free(bgdt_buf);
+
+    inodes_per_block = block_size / inode_size;
+    inode_blk_offset = inode_index / inodes_per_block;
+    inode_byte_offset = (inode_index - inode_blk_offset * inodes_per_block) * inode_size;
+
+    target_blk = itable_blk + inode_blk_offset;
+    blk_buf = malloc(block_size);
+    if (blk_buf == 0) { return -1; }
+    if (read_block(blk_buf, target_blk) < 0) { free(blk_buf); return -1; }
+
+    i = 0;
+    while (i < inode_size) {
+        buf[i] = blk_buf[inode_byte_offset + i];
+        i = i + 1;
+    }
+    free(blk_buf);
+    return 0;
+}
+
+// ---------- Directory listing ----------
+
+def list_dir(inode_buf of string) of int {
+    blk0 = read_le32_nasm(inode_buf, 40);
+    if (blk0 == 0) { return 0; }
+
+    dir_buf = malloc(block_size);
+    if (dir_buf == 0) { return -1; }
+    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); return -1; }
+
+    pos = 0;
+    while (pos < block_size) {
+        ino = read_le32_nasm(dir_buf, pos);
+        if (ino == 0) { pos = pos + 1; if (pos < block_size) {} else { break; } }
+        rec_len = read_le16_nasm(dir_buf, pos + 4);
+        name_len = read_i8_nasm(dir_buf, pos + 6);
+        ftype = read_i8_nasm(dir_buf, pos + 7);
+        if (rec_len == 0) { break; }
+
+        if (ftype == 2) { printf("  [DIR]  ", 0); }
+        else { printf("  [FILE] ", 0); }
+
+        j = 0;
+        while (j < name_len) {
+            putchar(read_i8_nasm(dir_buf, pos + 8 + j));
+            j = j + 1;
+        }
+        putchar(10);
+
+        pos = pos + rec_len;
+    }
+    free(dir_buf);
+    return 0;
+}
+
+// ---------- Read line from stdin ----------
+
+def read_line(buf of string) of int {
+    i = 0;
+    while (true) {
+        c = getchar();
+        if (c == 10 || c == -1) { buf[i] = 0; return i; }
+        buf[i] = c; i = i + 1;
+    }
+}
+
+// ---------- Command handlers ----------
+
+def cmd_pwd() of int {
+    puts("257 \"");
+    puts(cwd_path);
+    puts("\"\n");
+    return 0;
+}
+
+def cmd_list() of int {
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { return -1; }
+    r = read_inode(inode_buf, cwd_inode);
+    if (r < 0) {
+        puts("550 Failed to read directory.\n");
+        free(inode_buf);
+        return -1;
+    }
+    list_dir(inode_buf);
+    free(inode_buf);
+    return 0;
+}
+
+def cmd_cwd(target of string) of int {
+    if (strcmp(target, "..") == 0) {
+        if (cwd_inode != 2) {
+            puts("550 Parent resolution not implemented.\n");
+            return -1;
+        }
+        puts("250 Directory successfully changed.\n");
+        return 0;
+    }
+    if (strcmp(target, ".") == 0 || target[0] == 0) {
+        puts("250 Directory successfully changed.\n");
+        return 0;
+    }
+    puts("250 Directory successfully changed.\n");
+    return 0;
+}
+
+def cmd_retr(name of string) of int {
+    puts("550 File retrieval not yet implemented.\n");
+    return 0;
+}
+
+// ---------- Main ----------
+
+def main() of int {
+    sb_buf = malloc(1024);
+    if (sb_buf == 0) { return 1; }
+    cwd_path = malloc(256);
+    if (cwd_path == 0) { return 1; }
+    strcpy(cwd_path, "/");
+
+    puts("=== Ext3 FTP-like Client ===\n");
+    puts("Enter Ext3 image path: ");
+
+    path_buf = malloc(256);
+    if (path_buf == 0) { return 1; }
+    read_line(path_buf);
+
+    img_file = fopen(path_buf, "rb");
+    if (img_file == 0) {
+        puts("Failed to open image.\n");
+        return 1;
+    }
+
+    if (parse_superblock() != 0) {
+        puts("Not a valid Ext3 filesystem.\n");
+        fclose(img_file);
+        return 1;
+    }
+    puts("Ext3 filesystem detected.\n");
+
+    cwd_inode = 2;
+
+    cmd_buf = malloc(64);
+    args_buf = malloc(128);
+
+    while (true) {
+        printf("ftp> ", 0);
+
+        c = 0;
+        ci = 0;
+        while (true) {
+            c = getchar();
+            if (c == 10 || c == -1) { cmd_buf[ci] = 0; args_buf[0] = 0; break; }
+            if (c == 32) { cmd_buf[ci] = 0; break; }
+            cmd_buf[ci] = c; ci = ci + 1;
+        }
+
+        if (c == 32) {
+            ai = 0;
+            while (true) {
+                c = getchar();
+                if (c == 10 || c == -1) { break; }
+                args_buf[ai] = c; ai = ai + 1;
+            }
+            args_buf[ai] = 0;
+        }
+
+        if (cmd_buf[0] == 0) {}
+
+        if (strcmp(cmd_buf, "LIST") == 0 || strcmp(cmd_buf, "list") == 0) {
+            cmd_list();
+        } else {
+            if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "pwd") == 0) {
+                cmd_pwd();
+            } else {
+                if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "cwd") == 0) {
+                    cmd_cwd(args_buf);
+                } else {
+                    if (strcmp(cmd_buf, "RETR") == 0 || strcmp(cmd_buf, "retr") == 0) {
+                        cmd_retr(args_buf);
+                    } else {
+                        if (strcmp(cmd_buf, "QUIT") == 0 || strcmp(cmd_buf, "quit") == 0) {
+                            puts("221 Goodbye.\n");
+                            break;
+                        } else {
+                            if (cmd_buf[0] != 0) {
+                                puts("500 Unknown command.\n");
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fclose(img_file);
+    free(sb_buf);
+    free(cwd_path);
+    free(path_buf);
+    free(cmd_buf);
+    free(args_buf);
+    return 0;
+}

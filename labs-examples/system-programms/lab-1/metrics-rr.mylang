@@ -1,11 +1,11 @@
 import puts;
 import putchar;
 import printf;
-import create_coroutine;
-import coro_init;
-import set_scheduler;
-import get_current_id;
-import run;
+import create_coroutine_nasm;
+import coro_init_nasm;
+import set_scheduler_nasm;
+import get_current_id_nasm;
+import run_nasm;
 
 def worker_a() of int {
     while (true) { putchar(65); }
@@ -23,16 +23,16 @@ def worker_c() of int {
 }
 
 def rr_scheduler() of int {
-    return (get_current_id() + 1) % 3;
+    return (get_current_id_nasm() + 1) % 3;
 }
 
 def main() of int {
     puts("=== RR (Round Robin) ===");
-    coro_init();
-    create_coroutine(worker_a);
-    create_coroutine(worker_b);
-    create_coroutine(worker_c);
-    set_scheduler(rr_scheduler);
-    run();
+    coro_init_nasm();
+    create_coroutine_nasm(worker_a);
+    create_coroutine_nasm(worker_b);
+    create_coroutine_nasm(worker_c);
+    set_scheduler_nasm(rr_scheduler);
+    run_nasm();
     return 0;
 }

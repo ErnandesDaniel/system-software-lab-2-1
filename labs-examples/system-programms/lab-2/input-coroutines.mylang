@@ -6,8 +6,8 @@ import fclose;
 import fgetc;
 import malloc;
 import resume_coroutine;
-import coro_init;
-import create_coroutine;
+import coro_init_nasm;
+import create_coroutine_nasm;
 
 global row_buf of string;
 global gf of string;
@@ -50,7 +50,7 @@ def main() of int {
     row_buf = malloc(10000);
     if (row_buf == 0) { return 1; }
     puts("=== Test fopen in coroutine ===");
-    coro_init();
+    coro_init_nasm();
     r1 = 0; r2 = 0;
     while (r1 == 0 || r2 == 0) {
         if (r1 == 0) { r1 = resume_coroutine(0); }

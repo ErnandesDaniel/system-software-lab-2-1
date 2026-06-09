@@ -49,11 +49,18 @@ impl StdLib {
         funcs.insert("fflush");
 
         // Coroutine runtime functions
-        funcs.insert("create_coroutine");
-        funcs.insert("coro_init");
-        funcs.insert("run");
-        funcs.insert("set_scheduler");
-        funcs.insert("get_current_id");
+        funcs.insert("create_coroutine_nasm");
+        funcs.insert("coro_init_nasm");
+        funcs.insert("run_nasm");
+        funcs.insert("set_scheduler_nasm");
+        funcs.insert("get_current_id_nasm");
+
+        // Binary I/O functions (NASM-only wrappers)
+        funcs.insert("fread_nasm");
+        funcs.insert("fseek_nasm");
+        funcs.insert("read_le32_nasm");
+        funcs.insert("read_le16_nasm");
+        funcs.insert("read_i8_nasm");
 
         // EntityStore functions (JVM daemon)
         funcs.insert("map_put_jvm");
@@ -99,11 +106,18 @@ impl StdLib {
             ("sprintf", ("buf: string, format: string, value: int", "int")),
             ("sleep", ("seconds: int", "int")),
             ("Sleep", ("ms: int", "")), // Windows Sleep (milliseconds) - blocking
-            ("create_coroutine", ("fn: int", "int")),
-            ("coro_init", ("", "")),
-            ("run", ("", "")),
-            ("set_scheduler", ("fn: int", "")),
-            ("get_current_id", ("", "int")),
+            ("create_coroutine_nasm", ("fn: int", "int")),
+            ("coro_init_nasm", ("", "")),
+            ("run_nasm", ("", "")),
+            ("set_scheduler_nasm", ("fn: int", "")),
+            ("get_current_id_nasm", ("", "int")),
+
+            // Binary I/O (NASM wrappers)
+            ("fread_nasm", ("buf: string, size: int, count: int, file: string", "int")),
+            ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
+            ("read_le32_nasm", ("buf: string, offset: int", "int")),
+            ("read_le16_nasm", ("buf: string, offset: int", "int")),
+            ("read_i8_nasm", ("buf: string, offset: int", "int")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

@@ -90,20 +90,30 @@ impl CompilerDriver {
             }
         }
 
-        if os == OsTarget::Linux {
-            let coro_c = Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("src/codegen/nasm/runtime/coro_linux.c");
-            let coro_obj = Path::new(output_dir).join(format!("coro_linux.{}", obj_ext));
+        // Compile NASM runtime C files
+        let runtimes: [(&str, bool); 2] = [
+            ("coro_linux.c", os == OsTarget::Linux),
+            ("io_nasm.c", true),
+        ];
+        for (cfile, enabled) in &runtimes {
+            if !enabled {
+                continue;
+            }
+            let src = Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("src/codegen/nasm/runtime")
+                .join(cfile);
+            let obj_name = format!("{}.{}", cfile.replace(".c", ""), obj_ext);
+            let obj_path = Path::new(output_dir).join(&obj_name);
             let gcc_out = Command::new("gcc")
                 .args(["-c", "-o"])
-                .arg(coro_obj.to_string_lossy().as_ref())
-                .arg(coro_c.to_string_lossy().as_ref())
+                .arg(obj_path.to_string_lossy().as_ref())
+                .arg(src.to_string_lossy().as_ref())
                 .output();
             if let Ok(out) = gcc_out {
                 if out.status.success() {
-                    obj_files.push(coro_obj);
+                    obj_files.push(obj_path);
                 } else {
-                    eprintln!("gcc (coro_linux.c) failed: {}", String::from_utf8_lossy(&out.stderr));
+                    eprintln!("gcc ({cfile}) failed: {}", String::from_utf8_lossy(&out.stderr));
                 }
             }
         }

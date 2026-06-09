@@ -22,7 +22,7 @@ static ucontext_t main_ctx;
 static int (*scheduler_fn)(void) = NULL;
 static struct itimerval quant = { {0, QUANTUM_US}, {0, QUANTUM_US} };
 
-int get_current_id(void) {
+int get_current_id_nasm(void) {
     return cur;
 }
 
@@ -46,11 +46,11 @@ void Sleep(int ms) {
     nanosleep(&ts, NULL);
 }
 
-void set_scheduler(int (*fn)(void)) {
+void set_scheduler_nasm(int (*fn)(void)) {
     scheduler_fn = fn;
 }
 
-void coro_init(void) {
+void coro_init_nasm(void) {
     struct sigaction sa;
     sa.sa_handler = tick;
     sa.sa_flags = SA_NODEFER;
@@ -58,7 +58,7 @@ void coro_init(void) {
     sigaction(SIGALRM, &sa, NULL);
 }
 
-int create_coroutine(void (*fn)(void)) {
+int create_coroutine_nasm(void (*fn)(void)) {
     if (n >= MAX) return -1;
     int id = n++;
     coros[id].active = 1;
@@ -74,7 +74,7 @@ int create_coroutine(void (*fn)(void)) {
     return id;
 }
 
-void run(void) {
+void run_nasm(void) {
     if (n == 0) return;
     cur = 0;
     getcontext(&tramp_ctx);

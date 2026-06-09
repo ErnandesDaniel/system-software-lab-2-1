@@ -1,10 +1,10 @@
 import puts;
 import putchar;
-import create_coroutine;
-import coro_init;
-import set_scheduler;
-import get_current_id;
-import run;
+import create_coroutine_nasm;
+import coro_init_nasm;
+import set_scheduler_nasm;
+import get_current_id_nasm;
+import run_nasm;
 
 def worker1() of int {
     while (true) {
@@ -22,15 +22,15 @@ def worker2() of int {
 
 def rr_scheduler() of int {
     n = 3;  // количество корутин
-    return (get_current_id() + 1) % n;
+    return (get_current_id_nasm() + 1) % n;
 }
 
 def main() of int {
     puts("Start");
-    coro_init();
-    create_coroutine(worker1);
-    create_coroutine(worker2);
-    set_scheduler(rr_scheduler);
-    run();
+    coro_init_nasm();
+    create_coroutine_nasm(worker1);
+    create_coroutine_nasm(worker2);
+    set_scheduler_nasm(rr_scheduler);
+    run_nasm();
     return 0;
 }
