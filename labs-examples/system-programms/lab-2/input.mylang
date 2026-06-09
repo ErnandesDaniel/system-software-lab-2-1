@@ -144,7 +144,7 @@ def rr_scheduler() of int {
 global q1_v of Pipe;  // vedomosti: pid_off, date_off
 global q1_t of Pipe;  // types: id_off, name_off
 
-coroutine q1_read_ved() {
+def q1_read_ved() {
     f = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
     if (f == 0) { p_write(q1_v, -1); return; }
     read_csv(f);
@@ -164,7 +164,7 @@ coroutine q1_read_ved() {
     free(cols);
 }
 
-coroutine q1_read_types() {
+def q1_read_types() {
     f = fopen("labs-examples/system-programms/lab-2/csv-data/types_vedomostei.csv", "r");
     if (f == 0) { p_write(q1_t, -1); return; }
     read_csv(f);
@@ -180,7 +180,7 @@ coroutine q1_read_types() {
     free(cols);
 }
 
-coroutine q1_join_print() {
+def q1_join_print() {
     // Load types into local arrays (small cache)
     t_ids = malloc(40);
     t_nams = malloc(40);
@@ -223,7 +223,7 @@ coroutine q1_join_print() {
 // studies.pid = 163276 LEFT JOIN students ON start='2008-09-01'
 // ============================================================
 
-coroutine q2_run() {
+def q2_run() {
     s_pids = malloc(400);
     s_grps = malloc(400);
     s_starts = malloc(400);
@@ -287,7 +287,7 @@ coroutine q2_run() {
 // Q3: Count no patronymic + FCE (1 coroutine)
 // ============================================================
 
-coroutine q3_run() {
+def q3_run() {
     count = 0;
     pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
     if (pf == 0) { return; }
@@ -344,7 +344,7 @@ def main() of int {
     if (row_buf == 0) { puts("malloc failed"); return 1; }
     arena_init();
 
-    puts("=== Lab 2: Coroutine Map-Reduce Pipeline ===\n");
+    puts("=== Lab 2: def Map-Reduce Pipeline ===\n");
 
     // ---- Q1 ----
     puts("--- Q1: INNER JOIN (3 coroutines via pipes) ---\n");

@@ -8,12 +8,7 @@ use crate::lexer::Token;
 impl Parser<'_> {
     pub(crate) fn parse_function(&mut self) -> crate::Result<FuncDefinition> {
         let start = self.current_span();
-        // Accept both `def` and `coroutine` keywords
-        if self.current_token() == Some(&Token::Def) || self.current_token() == Some(&Token::Coroutine) {
-            self.advance();
-        } else {
-            self.expect(Token::Def)?;
-        }
+        self.expect(Token::Def)?;
         let sig = self.parse_signature()?;
 
         self.expect(Token::LBrace)?;

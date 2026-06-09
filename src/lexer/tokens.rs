@@ -8,8 +8,6 @@ use thiserror::Error;
 pub enum Token {
     #[token("def")]
     Def,
-    #[token("coroutine")]
-    Coroutine,
     #[token("import")]
     Import,
     #[token("global")]
