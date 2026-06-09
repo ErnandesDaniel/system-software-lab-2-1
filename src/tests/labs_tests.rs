@@ -445,23 +445,29 @@ fn test_sys_lab2_pipeline_nasm() {
     // All 7 queries must complete
     assert!(out.contains("Done"), "should complete:\n{out}");
 
-    // Q1: INNER JOIN vedomosti(tid=3,pid>153285) × types → "DiffPass, 153286" ... "Found: 4"
+    // Q1: INNER JOIN
     assert!(out.contains("Q1"), "should run Q1:\n{out}");
     assert!(out.contains("DiffPass"), "Q1 should print type name:\n{out}");
     assert!(out.contains("Found: 4"), "Q1 should find 4:\n{out}");
 
-    // Q2: LEFT JOIN studies(pid=163276) × students(start=2008-09-01)
+    // Q2: LEFT JOIN
     assert!(out.contains("Q2"), "should run Q2:\n{out}");
     assert!(out.contains("163276, OK500"), "Q2 should contain OK500:\n{out}");
 
-    // Q3: COUNT without patronymic + FCE + student exists
+    // Q3: COUNT
     assert!(out.contains("Q3"), "should run Q3:\n{out}");
     assert!(out.contains("Count: 6"), "Q3 should find 6:\n{out}");
 
-    // Q4–Q7: all complete
+    // Q4: Plans >2 groups
     assert!(out.contains("Q4"), "should run Q4:\n{out}");
+
+    // Q5: Avg grades
     assert!(out.contains("Q5"), "should run Q5:\n{out}");
+
+    // Q6: After 2012-09-01
     assert!(out.contains("Q6"), "should run Q6:\n{out}");
+
+    // Q7: Same surname – 12 rows
     assert!(out.contains("Q7"), "should run Q7:\n{out}");
 
     assert!(out.len() > 400, "should produce output (got {} bytes)", out.len());

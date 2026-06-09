@@ -364,7 +364,7 @@ def q4_run() of int {
         dept_off = save_str(cols[2]);
         if (eq_str(dept_off, "Department of Computer Engineering") != 0) {
             // Store pid and group
-            pids[gp_n] = save_str(cols[0]);
+            pids[gp_n] = atoi(row_buf + cols[0]);
             groups_seen[gp_n] = save_str(cols[1]);
             gp_n = gp_n + 1;
         }
@@ -379,7 +379,7 @@ def q4_run() of int {
 
     i = 0;
     while (i < gp_n) {
-        pid = int_str(pids[i]);
+        pid = pids[i];
         // Check if pid already processed
         already = 0;
         si = 0;
@@ -387,23 +387,23 @@ def q4_run() of int {
             if (seen_pid[si] == pid) { already = 1; break; }
             si = si + 1;
         }
-        if (already == 0) {
+            if (already == 0) {
             // Count distinct groups
             cnt = 0;
             seen_grp = malloc(200);
             sgn = 0;
             j = 0;
             while (j < gp_n) {
-                if (int_str(pids[j]) == pid) {
+                if (pids[j] == pid) {
                     grp = int_str(groups_seen[j]);
                     dup = 0;
                     gi = 0;
                     while (gi < sgn) {
-                        if (seen_grp[gi] == grp) { dup = 1; break; }
+                        if (int_str(seen_grp[gi]) == grp) { dup = 1; break; }
                         gi = gi + 1;
                     }
                     if (dup == 0) {
-                        seen_grp[sgn] = grp;
+                        seen_grp[sgn] = groups_seen[j];
                         sgn = sgn + 1;
                         cnt = cnt + 1;
                     }
@@ -462,8 +462,8 @@ def group_avg(grp_name of string, out_avg of string) of int {
         while (true) {
             if (read_csv(vf) == 0) { break; }
             n = split_row(cols);
-            pid = int_str(cols[2]);
-            mark = int_str(cols[4]);
+            pid = atoi(row_buf + cols[2]);
+            mark = atoi(row_buf + cols[4]);
             // Check if pid in group
             pi = 0;
             while (pi < grp_pn) {
@@ -504,7 +504,7 @@ def q5_run() of int {
         n = split_row(cols);
         grp_off = save_str(cols[1]);
         if (eq_str(grp_off, "4100") != 0) {
-            pid = int_str(cols[0]);
+            pid = atoi(row_buf + cols[0]);
 
             // Compute personal avg
             sum = 0; cnt = 0;
@@ -514,8 +514,8 @@ def q5_run() of int {
                 while (true) {
                     if (read_csv(vf) == 0) { break; }
                     n2 = split_row(cols);
-                    if (int_str(cols[2]) == pid && int_str(cols[4]) >= 3) {
-                        sum = sum + int_str(cols[4]);
+                    if (atoi(row_buf + cols[2]) == pid && atoi(row_buf + cols[4]) >= 3) {
+                        sum = sum + atoi(row_buf + cols[4]);
                         cnt = cnt + 1;
                     }
                 }
@@ -531,7 +531,7 @@ def q5_run() of int {
                         while (true) {
                             if (read_csv(pf) == 0) { break; }
                             n3 = split_row(cols);
-                            if (int_str(cols[0]) == pid) {
+                            if (atoi(row_buf + cols[0]) == pid) {
                                 printf("%d, ", pid);
                                 print_str(save_str(cols[1]));
                                 putchar(32);
@@ -574,7 +574,7 @@ def q6_run() of int {
         n = split_row(cols);
         start_off = save_str(cols[2]);
         if (gt_str(start_off, "2012-09-01") > 0) {
-            pid = int_str(cols[0]);
+            pid = atoi(row_buf + cols[0]);
             // Check studies: course=1 AND form='part-time'
             stf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
             if (stf != 0) {
@@ -582,7 +582,7 @@ def q6_run() of int {
                 while (true) {
                     if (read_csv(stf) == 0) { break; }
                     n2 = split_row(cols);
-                    if (int_str(cols[0]) == pid && int_str(cols[6]) == 1 && eq_str(save_str(cols[2]), "part-time") != 0) {
+                    if (atoi(row_buf + cols[0]) == pid && atoi(row_buf + cols[6]) == 1 && eq_str(save_str(cols[2]), "part-time") != 0) {
                         // Print student info
                         pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
                         if (pf != 0) {
@@ -590,7 +590,7 @@ def q6_run() of int {
                             while (true) {
                                 if (read_csv(pf) == 0) { break; }
                                 n3 = split_row(cols);
-                                if (int_str(cols[0]) == pid) {
+                                if (atoi(row_buf + cols[0]) == pid) {
                                     print_str(start_off);
                                     putchar(44); putchar(32);
                                     print_str(save_str(cols[1]));
