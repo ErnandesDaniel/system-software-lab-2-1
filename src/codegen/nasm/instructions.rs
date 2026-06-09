@@ -52,7 +52,6 @@ impl AsmGenerator {
             IrOpcode::Slice => self.emit_slice(inst),
             IrOpcode::StrGetByte => self.emit_str_get_byte(inst),
             IrOpcode::StrSetByte => self.emit_str_set_byte(inst),
-            IrOpcode::CoroYield => self.emit_yield(inst),
             IrOpcode::CallIndirect => self.emit_call_indirect(inst),
             IrOpcode::MakeClosure => self.emit_make_closure(inst),
             IrOpcode::CallClosure => self.emit_call_closure(inst),
@@ -90,18 +89,8 @@ impl AsmGenerator {
             IrOperand::Variable(name, _) => name.clone(),
             _ => return,
         };
-        let src_mem = if let Some(co_off) = self.coro_offset(&src_name) {
-            self.restore_coro_ctx();
-            format!("[rcx + {co_off}]")
-        } else {
-            self.mem_for(&src_name)
-        };
-        let dst_mem = if let Some(co_off) = self.coro_offset(result) {
-            self.restore_coro_ctx();
-            format!("[rcx + {co_off}]")
-        } else {
-            self.mem_for(result)
-        };
+        let src_mem = self.mem_for(&src_name);
+        let dst_mem = self.mem_for(result);
 
         let qwords = size / 8;
         let label = self.func_local_label();

@@ -22,16 +22,6 @@ fn test_kw_struct() {
 }
 
 #[test]
-fn test_kw_coroutine() {
-    assert_eq!(tokens("coroutine"), vec![Token::Coroutine]);
-}
-
-#[test]
-fn test_kw_yield() {
-    assert_eq!(tokens("yield"), vec![Token::Yield]);
-}
-
-#[test]
 fn test_kw_if() {
     assert_eq!(tokens("if"), vec![Token::If]);
 }

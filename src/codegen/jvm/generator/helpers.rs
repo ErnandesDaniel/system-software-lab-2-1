@@ -9,14 +9,6 @@ impl JvmGenerator {
     }
 
     pub fn emit_store_result(&self, code: &mut Vec<Instruction>, name: &str, ty: &IrType) {
-        if self.coro.is_coroutine {
-            if let Some(&field_ref) = self.coro.coroutine_field_refs.get(name) {
-                code.push(Instruction::Aload_0);
-                code.push(Instruction::Swap);
-                code.push(Instruction::Putfield(field_ref));
-                return;
-            }
-        }
         if let Some(&field_ref) = self.global.global_field_refs.get(name) {
             code.push(Instruction::Putstatic(field_ref));
             return;

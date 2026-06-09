@@ -2,7 +2,7 @@ use crate::codegen::jvm::types::ir_type_to_jvm_descriptor;
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::traits;
 use crate::ir::types::{Constant, IrFunction, IrOpcode, IrOperand, IrType};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 impl JvmGenerator {
     pub fn reset_state(&mut self) {
@@ -19,11 +19,6 @@ impl JvmGenerator {
         self.pool.func_ref_init_refs.clear();
         self.pool.func_ref_instance_slots.clear();
         self.pool.func_ref_env_field_refs.clear();
-        self.coro.is_coroutine = false;
-        self.coro.coroutine_field_refs.clear();
-        self.coro.coroutine_state_field = 0;
-        self.coro.coroutine_result_field = 0;
-        self.coro.coroutine_field_entries.clear();
         self.pool.string_slice_ref = 0;
         self.st.struct_field_types.clear();
         self.st.struct_uses_object_array.clear();
@@ -36,111 +31,6 @@ impl JvmGenerator {
         self.pool.large_int_refs.clear();
         self.global.global_field_refs.clear();
         self.pool.runtime_stub_class_ref = 0;
-    }
-
-    pub fn setup_coroutine_fields(&mut self, func: &IrFunction, class_name: &str) {
-        let this_class = self
-            .pool
-            .constant_pool
-            .add_class(class_name)
-            .expect("Failed to add to constant pool");
-
-        let state_name_idx = self
-            .pool
-            .constant_pool
-            .add_utf8("state")
-            .expect("Failed to add to constant pool");
-        let state_desc_idx = self
-            .pool
-            .constant_pool
-            .add_utf8("I")
-            .expect("Failed to add to constant pool");
-        self.coro.coroutine_state_field = self
-            .pool
-            .constant_pool
-            .add_field_ref(this_class, "state", "I")
-            .expect("Failed to add to constant pool");
-        self.coro.coroutine_field_entries.push((state_name_idx, state_desc_idx));
-
-        let result_name_idx = self
-            .pool
-            .constant_pool
-            .add_utf8("result")
-            .expect("Failed to add to constant pool");
-        let result_desc_idx = self
-            .pool
-            .constant_pool
-            .add_utf8("I")
-            .expect("Failed to add to constant pool");
-        self.coro.coroutine_result_field = self
-            .pool
-            .constant_pool
-            .add_field_ref(this_class, "result", "I")
-            .expect("Failed to add to constant pool");
-        self.coro
-            .coroutine_field_entries
-            .push((result_name_idx, result_desc_idx));
-
-        let mut field_names: Vec<String> = Vec::new();
-        let mut seen_names: HashSet<String> = HashSet::new();
-
-        for param in &func.parameters {
-            if param.name == "__env" {
-                continue;
-            }
-            if seen_names.insert(param.name.clone()) {
-                field_names.push(param.name.clone());
-            }
-        }
-        for local in &func.locals {
-            if seen_names.insert(local.name.clone()) {
-                field_names.push(local.name.clone());
-            }
-        }
-        for block in &func.blocks {
-            for inst in &block.instructions {
-                if let Some(ref result) = inst.result {
-                    if traits::is_temp(result) && seen_names.insert(result.clone()) {
-                        field_names.push(result.clone());
-                    }
-                }
-            }
-        }
-
-        for name in &field_names {
-            if self.coro.coroutine_field_refs.contains_key(name) {
-                continue;
-            }
-            let field_name_idx = self
-                .pool
-                .constant_pool
-                .add_utf8(format!("var_{name}"))
-                .expect("Failed to add to constant pool");
-            let field_desc_idx = self
-                .pool
-                .constant_pool
-                .add_utf8("I")
-                .expect("Failed to add to constant pool");
-            let fname = format!("var_{name}");
-            let fdesc = "I".to_string();
-            let field_ref = self
-                .pool
-                .constant_pool
-                .add_field_ref(this_class, &fname, &fdesc)
-                .expect("Failed to add to constant pool");
-            self.coro.coroutine_field_refs.insert(name.clone(), field_ref);
-            self.coro.coroutine_field_entries.push((field_name_idx, field_desc_idx));
-        }
-
-        let param_refs: Vec<Option<u16>> = func
-            .parameters
-            .iter()
-            .filter(|p| p.name != "__env")
-            .map(|p| self.coro.coroutine_field_refs.get(&p.name).copied())
-            .collect();
-        let p1 = param_refs.first().copied().flatten();
-        let p2 = param_refs.get(1).copied().flatten();
-        self.coro.coroutine_param_field_refs.push((p1, p2));
     }
 
     pub fn setup_local_variables(&mut self, func: &IrFunction) {

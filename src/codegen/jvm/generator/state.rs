@@ -8,7 +8,6 @@ pub(crate) enum JumpPlaceholder {
     Goto { block_id: String },
     Ifne { block_id: String },
     Ifeq { block_id: String },
-    IfIcmpeq { block_id: String },
 }
 
 #[derive(Debug, Clone)]
@@ -54,15 +53,6 @@ pub struct JvmClosureState {
     pub func_ref_targets: HashSet<String>,
 }
 
-pub struct JvmCoroState {
-    pub is_coroutine: bool,
-    pub coroutine_field_refs: HashMap<String, u16>,
-    pub coroutine_state_field: u16,
-    pub coroutine_result_field: u16,
-    pub coroutine_field_entries: Vec<(u16, u16)>,
-    pub coroutine_param_field_refs: Vec<(Option<u16>, Option<u16>)>,
-}
-
 pub struct JvmStructState {
     pub struct_field_types: HashMap<String, Vec<(usize, IrType)>>,
     pub struct_uses_object_array: HashSet<String>,
@@ -80,7 +70,6 @@ pub struct JvmGenerator {
     pub pool: JvmPoolState,
     pub func: JvmFuncState,
     pub closure: JvmClosureState,
-    pub coro: JvmCoroState,
     pub st: JvmStructState,
     pub global: JvmGlobalState,
     pub stub_needed: bool,

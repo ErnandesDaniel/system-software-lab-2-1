@@ -1,6 +1,6 @@
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir::types::{IrFunction, IrOpcode};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 impl AsmGenerator {
     pub fn generate_single_function(&mut self, func: &IrFunction) -> String {
@@ -85,14 +85,6 @@ impl AsmGenerator {
             }
         }
 
-        self.coro_ctx_offset = if self.is_coroutine {
-            let off = self.alloc_slot("__co_ctx", 8);
-            stack_size += 8;
-            off
-        } else {
-            0
-        };
-
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let Some(ref result) = inst.result {
@@ -116,60 +108,32 @@ impl AsmGenerator {
 
         let param_names: Vec<String> = self.param_registers.to_vec();
         for (i, param_name) in param_names.iter().enumerate() {
-            let reg = if self.is_coroutine {
-                match i {
-                    0 => "rdx",
-                    1 => "r8",
-                    2 => "r9",
-                    _ => "rax",
-                }
-            } else {
-                match i {
-                    0 => "rcx",
-                    1 => "rdx",
-                    2 => "r8",
-                    3 => "r9",
-                    _ => "rax",
-                }
+            let reg = match (self.os, i) {
+                (crate::OsTarget::Linux, 0) => "rdi",
+                (crate::OsTarget::Linux, 1) => "rsi",
+                (crate::OsTarget::Linux, 2) => "rdx",
+                (crate::OsTarget::Linux, 3) => "rcx",
+                (crate::OsTarget::Linux, 4) => "r8",
+                (crate::OsTarget::Linux, 5) => "r9",
+                (_, 0) => "rcx",
+                (_, 1) => "rdx",
+                (_, 2) => "r8",
+                (_, 3) => "r9",
+                _ => "rax",
             };
             let mem = self.mem_for(param_name);
             self.line(&format!("mov {mem}, {reg}"));
         }
-
-        if self.is_coroutine {
-            let ctx_mem = self.mem_for("__co_ctx");
-            self.line(&format!("mov {ctx_mem}, rcx"));
-            self.line("mov eax, [rcx]");
-            for s in 0..=self.yield_count {
-                self.line(&format!("cmp eax, {s}"));
-                self.line(&format!("je {f}_co_{s}", f = func.name));
-            }
-        }
     }
 
     fn emit_body(&mut self, func: &IrFunction) {
-        if self.is_coroutine {
-            let resume_map: HashMap<&str, usize> = func
-                .coroutine_blocks
-                .iter()
-                .enumerate()
-                .map(|(i, id)| (id.as_str(), i))
-                .collect();
-            for block in &func.blocks {
-                if let Some(&state) = resume_map.get(block.id.as_str()) {
-                    self.line(&format!("{f}_co_{state}:", f = func.name));
-                }
-                self.emit_block(block);
-            }
-        } else {
-            let mut blocks: Vec<_> = func.blocks.iter().collect();
-            blocks.sort_by_key(|b| {
-                let num = b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0);
-                num
-            });
-            for block in &blocks {
-                self.emit_block(block);
-            }
+        let mut blocks: Vec<_> = func.blocks.iter().collect();
+        blocks.sort_by_key(|b| {
+            let num = b.id.trim_start_matches("BB").parse::<i32>().unwrap_or(0);
+            num
+        });
+        for block in &blocks {
+            self.emit_block(block);
         }
     }
 
@@ -241,17 +205,10 @@ impl AsmGenerator {
         }
 
         for func in &program.functions {
-            if func.is_coroutine {
-                self.set_coroutine(func.yield_count);
-            } else {
-                self.is_coroutine = false;
-                self.yield_count = 0;
-            }
             self.current_function = Some(func.name.clone());
             self.reset_for_function();
             self.emit_prologue(func);
             self.emit_body(func);
-            self.is_coroutine = false;
         }
 
         if !self.data_section.is_empty() || !program.globals.is_empty() {

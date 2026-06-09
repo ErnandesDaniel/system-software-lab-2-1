@@ -1,5 +1,6 @@
 use crate::codegen::nasm::AsmGenerator;
 use crate::ir::types::{IrInstruction, IrOperand};
+use crate::OsTarget;
 
 impl AsmGenerator {
     pub fn emit_make_closure(&mut self, inst: &IrInstruction) {
@@ -25,42 +26,42 @@ impl AsmGenerator {
     pub fn emit_call_closure(&mut self, inst: &IrInstruction) {
         if let (Some(func_op), Some(env_op)) = (inst.operands.first(), inst.operands.get(1)) {
             self.load_operand(func_op, "rax");
-            self.load_operand(env_op, "rcx");
+
+            if self.os == OsTarget::Linux {
+                self.load_operand(env_op, "rdi");
+            } else {
+                self.load_operand(env_op, "rcx");
+            }
 
             for (i, arg) in inst.operands.iter().enumerate().skip(2) {
                 if (i - 2) < 3 {
                     let wide = AsmGenerator::is_wide_type(&arg.get_type());
-                    let reg = match i - 2 {
-                        0 => {
-                            if wide {
-                                "rdx"
-                            } else {
-                                "edx"
-                            }
+                    let reg = if self.os == OsTarget::Linux {
+                        match i - 2 {
+                            0 => { if wide { "rsi" } else { "esi" } }
+                            1 => { if wide { "rdx" } else { "edx" } }
+                            2 => { if wide { "rcx" } else { "ecx" } }
+                            _ => "eax",
                         }
-                        1 => {
-                            if wide {
-                                "r8"
-                            } else {
-                                "r8d"
-                            }
+                    } else {
+                        match i - 2 {
+                            0 => { if wide { "rdx" } else { "edx" } }
+                            1 => { if wide { "r8" } else { "r8d" } }
+                            2 => { if wide { "r9" } else { "r9d" } }
+                            _ => "eax",
                         }
-                        2 => {
-                            if wide {
-                                "r9"
-                            } else {
-                                "r9d"
-                            }
-                        }
-                        _ => "eax",
                     };
                     self.load_operand(arg, reg);
                 }
             }
 
-            self.line("sub rsp, 32");
+            if self.os == OsTarget::Windows {
+                self.line("sub rsp, 32");
+            }
             self.line("call rax");
-            self.line("add rsp, 32");
+            if self.os == OsTarget::Windows {
+                self.line("add rsp, 32");
+            }
 
             if let Some(ref result) = inst.result {
                 let ret_ty = inst.result_type.as_ref().unwrap_or(&crate::ir::IrType::Int);

@@ -188,14 +188,6 @@ fn test_import_short_tokens() {
 }
 
 #[test]
-fn test_coroutine_tokens() {
-    let t = tokens("coroutine foo() { yield; return 0; }");
-    assert_eq!(t.len(), 11);
-    assert_eq!(t[0], Token::Coroutine);
-    assert_eq!(t[5], Token::Yield);
-}
-
-#[test]
 fn test_bang_not_bitwise() {
     let t = tokens("!x");
     assert_eq!(t.len(), 2);

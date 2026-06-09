@@ -192,11 +192,6 @@ fn test_asm_many_globals() {
     assert!(output.contains("section .data") || output.contains("g0"));
 }
 #[test]
-fn test_asm_coroutine_frame() {
-    let output = asm("coroutine worker() of int { yield; return 0; }");
-    assert!(output.contains("worker:") || output.contains("push rbp"));
-}
-#[test]
 fn test_asm_nested_blocks() {
     let output = asm("def f() of int { { { return 1; } } }");
     assert!(output.contains("ret"));

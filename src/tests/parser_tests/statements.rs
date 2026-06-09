@@ -188,14 +188,6 @@ fn test_stmt_var_decl_with_array() {
 }
 
 #[test]
-fn test_stmt_yield() {
-    let program = parse("coroutine f() { yield; }");
-    if let crate::ast::SourceItem::CoroutineDef(c) = &program.items[0] {
-        assert!(matches!(c.body[0], crate::ast::Statement::Yield(_)));
-    }
-}
-
-#[test]
 fn test_stmt_expression_only() {
     let program = parse("def f() { 42; }");
     let f = as_func(&program, 0);

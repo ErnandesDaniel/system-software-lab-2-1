@@ -1,11 +1,12 @@
 use std::env;
 
-use crate::CodeGenTarget;
+use crate::{CodeGenTarget, OsTarget};
 
 pub struct Args {
     pub source_path: String,
     pub output_dir: String,
     pub target: CodeGenTarget,
+    pub os: OsTarget,
 }
 
 pub fn parse_args() -> Args {
@@ -19,6 +20,7 @@ pub fn parse_args() -> Args {
     let source_path = args[1].clone();
     let mut output_dir: Option<String> = None;
     let mut target = CodeGenTarget::default();
+    let mut os = OsTarget::default();
 
     let mut i = 2;
     while i < args.len() {
@@ -47,6 +49,21 @@ pub fn parse_args() -> Args {
                     std::process::exit(1);
                 }
             }
+            "--os" => {
+                if i + 1 < args.len() {
+                    match args[i + 1].parse::<OsTarget>() {
+                        Ok(o) => os = o,
+                        Err(e) => {
+                            eprintln!("Error: {e}");
+                            std::process::exit(1);
+                        }
+                    }
+                    i += 2;
+                } else {
+                    eprintln!("Error: --os requires an argument");
+                    std::process::exit(1);
+                }
+            }
             _ => {
                 eprintln!("Unknown argument: {}", args[i]);
                 std::process::exit(1);
@@ -65,6 +82,7 @@ pub fn parse_args() -> Args {
         source_path,
         output_dir,
         target,
+        os,
     }
 }
 
@@ -72,5 +90,6 @@ fn print_usage(program: &str) {
     eprintln!("Usage: {program} <source_file> -o <output_dir> [options]");
     eprintln!("Options:");
     eprintln!("  -o, --output <dir>    Output directory (required)");
-    eprintln!("  -t, --target <target>  Target: nasm, jvm (default: nasm)");
+    eprintln!("  -t, --target <target> Target: nasm, jvm (default: nasm)");
+    eprintln!("  --os <os>             OS: windows, linux (default: auto)");
 }

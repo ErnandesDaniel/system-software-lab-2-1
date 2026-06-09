@@ -2,7 +2,7 @@ mod assignments;
 mod control_flow;
 
 use super::Parser;
-use crate::ast::{Statement, YieldStatement};
+use crate::ast::Statement;
 use crate::lexer::Token;
 
 impl Parser<'_> {
@@ -13,15 +13,6 @@ impl Parser<'_> {
             Some(Token::While | Token::Until) => self.parse_while(),
             Some(Token::Break) => self.parse_break(),
             Some(Token::LBrace) => self.parse_block_like(),
-            Some(Token::Yield) => {
-                let start = self.current_span();
-                self.expect(Token::Yield)?;
-                let span = start.merge(self.current_span());
-                if self.current_token() == Some(&Token::Semi) {
-                    self.advance();
-                }
-                Ok(Statement::Yield(YieldStatement { span }))
-            }
             Some(Token::Def) => {
                 let func_def = self.parse_function()?;
                 if self.current_token() == Some(&Token::Semi) {

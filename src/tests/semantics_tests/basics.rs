@@ -185,18 +185,6 @@ fn test_semantics_break_inside_loop_ok() {
 }
 
 #[test]
-fn test_semantics_coroutine_ok() {
-    let source = r#"
-        coroutine worker() of int {
-            yield;
-            return 0;
-        }
-    "#;
-    let result = analyze(source);
-    assert!(result.is_ok(), "Expected ok but got: {:?}", result);
-}
-
-#[test]
 fn test_semantics_char_type_variable_ok() {
     let source = r#"
         def main() of int {

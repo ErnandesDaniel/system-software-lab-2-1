@@ -1,51 +1,18 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_arguments)]
 
-mod coro;
 mod string;
 
-use crate::codegen::jvm::types::capitalize_first;
 use crate::codegen::jvm::JvmGenerator;
 use crate::ir::types::{IrFunction, IrType};
 use ristretto_classfile::attributes::{Attribute, Instruction};
 use ristretto_classfile::{ClassAccessFlags, ClassFile, Field, FieldAccessFlags, FieldType, Method, MethodAccessFlags};
 
 impl JvmGenerator {
-    pub(super) fn generate_runtime_stub(&mut self, functions: &[IrFunction]) -> Vec<u8> {
+    pub(super) fn generate_runtime_stub(&mut self, _functions: &[IrFunction]) -> Vec<u8> {
         let this_class = self.pool.constant_pool.add_class("RuntimeStub").unwrap();
         let super_class = self.pool.constant_pool.add_class("java/lang/Object").unwrap();
         let code_attr = self.pool.constant_pool.add_utf8("Code").unwrap();
-        let coro_field_name = self.pool.constant_pool.add_utf8("coroutines").unwrap();
-        let coro_field_desc = self.pool.constant_pool.add_utf8("[Ljava/lang/Object;").unwrap();
-        let coro_field_ref = self
-            .pool
-            .constant_pool
-            .add_field_ref(this_class, "coroutines", "[Ljava/lang/Object;")
-            .unwrap();
-
-        let coro_info: Vec<(String, u16)> = functions
-            .iter()
-            .filter(|f| f.is_coroutine)
-            .map(|f| {
-                let name = if f.name == "main" {
-                    "Main".to_string()
-                } else {
-                    capitalize_first(&f.name)
-                };
-                let ci = self.pool.constant_pool.add_class(&name).unwrap();
-                self.pool.constant_pool.add_method_ref(ci, "<init>", "()V").unwrap();
-                self.pool.constant_pool.add_method_ref(ci, "resume", "()I").unwrap();
-                (name, ci)
-            })
-            .collect();
-        let count = coro_info.len();
         let mut methods = Vec::new();
-
-        if count > 0 {
-            self.build_coro_init(&mut methods, &coro_info, count, code_attr, coro_field_ref);
-            self.build_coro_resume(&mut methods, &coro_info, code_attr, coro_field_ref);
-            self.build_coro_get_state(&mut methods, &coro_info, code_attr, coro_field_ref);
-            self.build_coro_set_param(&mut methods, &coro_info, code_attr, coro_field_ref);
-        }
 
         let system_class = self.pool.constant_pool.add_class("java/lang/System").unwrap();
         let system_out_ref = self
@@ -204,15 +171,6 @@ impl JvmGenerator {
         });
 
         let mut fields = vec![];
-        if count > 0 {
-            fields.push(Field {
-                access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
-                name_index: coro_field_name,
-                descriptor_index: coro_field_desc,
-                field_type: FieldType::parse("[Ljava/lang/Object;").unwrap(),
-                attributes: vec![],
-            });
-        }
         fields.push(Field {
             access_flags: FieldAccessFlags::PUBLIC | FieldAccessFlags::STATIC,
             name_index: file_fds_name,

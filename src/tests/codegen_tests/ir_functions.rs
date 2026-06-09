@@ -114,41 +114,6 @@ fn test_ir_used_functions_imported() {
 }
 
 #[test]
-fn test_ir_not_coroutine() {
-    let ir = ir("def f() { }");
-    assert!(!ir.functions[0].is_coroutine);
-}
-
-#[test]
-fn test_ir_is_coroutine() {
-    let ir = ir("coroutine f() of int { yield; return 0; }");
-    assert!(ir.functions[0].is_coroutine);
-}
-
-#[test]
-fn test_ir_coroutine_yield_instructions() {
-    let ir = ir("coroutine f() of int { yield; return 0; }");
-    let has_yield = ir.functions[0]
-        .blocks
-        .iter()
-        .flat_map(|b| &b.instructions)
-        .any(|i| i.opcode == crate::ir::IrOpcode::CoroYield);
-    assert!(has_yield, "Expected CoroYield instruction");
-}
-
-#[test]
-fn test_ir_yield_count() {
-    let ir = ir("coroutine f() of int { yield; yield; yield; return 0; }");
-    assert_eq!(ir.functions[0].yield_count, 3);
-}
-
-#[test]
-fn test_ir_no_yield_in_regular_func() {
-    let ir = ir("def f() { }");
-    assert_eq!(ir.functions[0].yield_count, 0);
-}
-
-#[test]
 fn test_ir_struct_layout_present() {
     let ir = ir("struct P { x of int; } def f() { }");
     assert!(

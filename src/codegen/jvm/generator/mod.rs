@@ -3,7 +3,7 @@ mod state;
 
 pub(crate) use state::{JumpPlaceholder, JvmInst};
 pub use state::{
-    JvmClosureState, JvmCoroState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState, JvmStructState,
+    JvmClosureState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState, JvmStructState,
 };
 
 use crate::ir::types::{Constant, IrFunction, IrOperand, IrProgram, IrType};
@@ -47,14 +47,6 @@ impl JvmGenerator {
                 wrapped_vars: HashSet::new(),
                 func_ref_targets: HashSet::new(),
             },
-            coro: JvmCoroState {
-                is_coroutine: false,
-                coroutine_field_refs: HashMap::new(),
-                coroutine_state_field: 0,
-                coroutine_result_field: 0,
-                coroutine_field_entries: Vec::new(),
-                coroutine_param_field_refs: Vec::new(),
-            },
             st: JvmStructState {
                 struct_field_types: HashMap::new(),
                 struct_uses_object_array: HashSet::new(),
@@ -72,7 +64,6 @@ impl JvmGenerator {
 
     pub fn generate_program(&mut self, program: &IrProgram) -> Vec<(String, Vec<u8>)> {
         let mut classes = Vec::new();
-        self.coro.coroutine_param_field_refs.clear();
 
         self.global.global_vars.clear();
         self.global.global_uses_object_array.clear();
@@ -170,8 +161,7 @@ impl JvmGenerator {
             classes.push((class_name, class_bytes));
         }
 
-        let needs_stub =
-            self.stub_needed || program.functions.iter().any(|f| f.is_coroutine) || !self.global.global_vars.is_empty();
+        let needs_stub = self.stub_needed || !self.global.global_vars.is_empty();
         if needs_stub {
             let stub_bytes = self.generate_runtime_stub(&program.functions);
             classes.push(("RuntimeStub".to_string(), stub_bytes));
@@ -185,11 +175,6 @@ impl JvmGenerator {
         self.func.current_function_name = func.name.clone();
         self.func.current_params = func.parameters.clone();
         self.func.current_return_type = func.return_type.clone();
-
-        if func.is_coroutine {
-            self.coro.is_coroutine = true;
-            self.setup_coroutine_fields(func, class_name);
-        }
 
         self.scan_struct_field_types(func);
 
@@ -220,10 +205,6 @@ impl JvmGenerator {
 
         self.setup_local_variables(func);
 
-        if self.coro.is_coroutine {
-            self.func.next_local_slot = 1;
-            self.func.locals.clear();
-        }
         self.collect_external_calls(func);
         let code = self.generate_bytecode(func);
         self.build_class_file(class_name, func, code)

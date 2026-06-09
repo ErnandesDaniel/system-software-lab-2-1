@@ -37,8 +37,6 @@ impl Parser<'_> {
                     | Token::Import
                     | Token::Global
                     | Token::Struct
-                    | Token::Coroutine
-                    | Token::Yield
                     | Token::LBrace
             ) {
                 break;

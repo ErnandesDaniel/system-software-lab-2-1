@@ -113,18 +113,6 @@ fn test_decl_func_with_string_return() {
 }
 
 #[test]
-fn test_decl_coroutine() {
-    let program = parse("coroutine worker() of int { yield; return 0; }");
-    assert!(matches!(&program.items[0], crate::ast::SourceItem::CoroutineDef(_)));
-}
-
-#[test]
-fn test_decl_coroutine_void() {
-    let program = parse("coroutine worker() { yield; }");
-    assert!(matches!(&program.items[0], crate::ast::SourceItem::CoroutineDef(_)));
-}
-
-#[test]
 fn test_decl_mixed_order() {
     let program = parse("import puts\nstruct P { x of int; }\nglobal g of int = 0;\ndef main() { }");
     assert_eq!(program.items.len(), 4);

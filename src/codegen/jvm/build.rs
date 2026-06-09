@@ -28,29 +28,13 @@ impl JvmGenerator {
             .constant_pool
             .add_utf8("Code")
             .expect("Failed to add UTF8 'Code'");
-        let max_locals = if self.coro.is_coroutine {
-            1
-        } else {
-            self.func.next_local_slot
-        };
+        let max_locals = self.func.next_local_slot;
         let max_stack = JvmGenerator::estimate_max_stack(&code);
 
         let code_size: u32 = code.iter().map(|i| JvmGenerator::instr_size(i) as u32).sum();
         assert!(code_size <= 65535,
             "Function {func_name}: Generated code size ({code_size}) exceeds JVM limit of 65535 bytes. max_stack={max_stack}, max_locals={max_locals}"
         );
-
-        if self.coro.is_coroutine {
-            return self.build_coroutine_class(
-                class_name,
-                func,
-                code,
-                this_class,
-                super_class,
-                code_attr_name_idx,
-                max_stack,
-            );
-        }
 
         let mut methods = Vec::new();
 
@@ -445,5 +429,62 @@ impl JvmGenerator {
             .add_utf8("[[I")
             .expect("Failed to add env descriptor");
         (name_idx, desc_idx)
+    }
+
+    pub fn generate_fn_interface(&mut self, params: &[IrType], ret: &IrType) -> Vec<u8> {
+        let iface_name = get_fn_interface_name(params, ret);
+        let this_class = self
+            .pool
+            .constant_pool
+            .add_class(&iface_name)
+            .expect("Failed to add to constant pool");
+        let super_class = self
+            .pool
+            .constant_pool
+            .add_class("java/lang/Object")
+            .expect("Failed to add to constant pool");
+
+        let method_desc = format!(
+            "({}){}",
+            params
+                .iter()
+                .map(crate::codegen::jvm::types::ir_type_to_jvm_descriptor)
+                .collect::<String>(),
+            crate::codegen::jvm::types::ir_type_to_jvm_descriptor(ret)
+        );
+        let method_name_idx = self
+            .pool
+            .constant_pool
+            .add_utf8("apply")
+            .expect("Failed to add to constant pool");
+        let method_desc_idx = self
+            .pool
+            .constant_pool
+            .add_utf8(&method_desc)
+            .expect("Failed to add to constant pool");
+
+        let class_file = ClassFile {
+            version: ristretto_classfile::JAVA_5,
+            constant_pool: self.pool.constant_pool.clone(),
+            access_flags: ClassAccessFlags::PUBLIC | ClassAccessFlags::INTERFACE | ClassAccessFlags::ABSTRACT,
+            this_class,
+            super_class,
+            interfaces: vec![],
+            fields: vec![],
+            methods: vec![Method {
+                access_flags: MethodAccessFlags::PUBLIC | MethodAccessFlags::ABSTRACT,
+                name_index: method_name_idx,
+                descriptor_index: method_desc_idx,
+                attributes: vec![],
+            }],
+            attributes: vec![],
+            code_source_url: None,
+        };
+
+        let mut buffer = Vec::new();
+        match class_file.to_bytes(&mut buffer) {
+            Ok(()) => buffer,
+            Err(e) => panic!("Failed to generate interface class: {e:?}"),
+        }
     }
 }

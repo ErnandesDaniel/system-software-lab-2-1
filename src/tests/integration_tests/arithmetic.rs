@@ -1,4 +1,4 @@
-use super::compile_and_run;
+use super::{compile_and_run, exit_code};
 
 #[test]
 fn test_exe_add() {
@@ -32,7 +32,7 @@ fn test_exe_mod() {
 fn test_exe_negation() {
     let source = "def main() of int { x = 7; return -x; }";
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(-7i32 as u32 as i32), "-7 should be -7");
+    assert_eq!(exit_code(&output), Some(-7), "-7 should be -7");
 }
 
 #[test]

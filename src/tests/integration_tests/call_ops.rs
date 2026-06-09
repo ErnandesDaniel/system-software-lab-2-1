@@ -1,4 +1,4 @@
-use super::compile_and_run;
+use super::{compile_and_run, exit_code};
 
 #[test]
 fn test_exe_function_call() {
@@ -97,7 +97,7 @@ fn test_exe_bitwise_not() {
         }
     "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(-1));
+    assert_eq!(exit_code(&output), Some(-1));
 }
 
 #[test]

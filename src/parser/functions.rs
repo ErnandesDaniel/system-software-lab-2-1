@@ -1,6 +1,6 @@
 use super::Parser;
 use crate::ast::{
-    Arg, BuiltinType, CoroutineDefinition, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
+    Arg, BuiltinType, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
     StructDefinition, StructField, TypeRef,
 };
 use crate::lexer::Token;
@@ -178,24 +178,4 @@ impl Parser<'_> {
         })
     }
 
-    pub(crate) fn parse_coroutine(&mut self) -> crate::Result<CoroutineDefinition> {
-        let start = self.current_span();
-        self.expect(Token::Coroutine)?;
-        let sig = self.parse_signature()?;
-
-        self.expect(Token::LBrace)?;
-        let mut body = Vec::new();
-        while self.current_token() != Some(&Token::RBrace) && self.current_token().is_some() {
-            let stmt = self.parse_statement()?;
-            body.push(stmt);
-        }
-        self.expect(Token::RBrace)?;
-
-        let span = start.merge(self.current_span());
-        Ok(CoroutineDefinition {
-            signature: sig,
-            body,
-            span,
-        })
-    }
 }

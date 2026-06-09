@@ -27,6 +27,34 @@ pub fn run() -> crate::Result<()> {
     CompilerDriver::compile(&args)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum OsTarget {
+    Windows,
+    Linux,
+}
+
+impl Default for OsTarget {
+    fn default() -> Self {
+        if cfg!(target_os = "linux") {
+            OsTarget::Linux
+        } else {
+            OsTarget::Windows
+        }
+    }
+}
+
+impl std::str::FromStr for OsTarget {
+    type Err = String;
+
+    fn from_str(s: &str) -> std::result::Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "windows" => Ok(OsTarget::Windows),
+            "linux" => Ok(OsTarget::Linux),
+            _ => Err(format!("Unknown OS target: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Default)]
 pub enum CodeGenTarget {
     #[default]

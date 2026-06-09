@@ -11,13 +11,6 @@ impl JvmGenerator {
                     code.push(Instruction::Getstatic(field_ref));
                     return;
                 }
-                if self.coro.is_coroutine {
-                    if let Some(&field_ref) = self.coro.coroutine_field_refs.get(name) {
-                        code.push(Instruction::Aload_0);
-                        code.push(Instruction::Getfield(field_ref));
-                        return;
-                    }
-                }
                 let slot = self.get_local_slot(name);
                 if self.closure.wrapped_vars.contains(name) {
                     // Wrapped var: load through int[1] wrapper

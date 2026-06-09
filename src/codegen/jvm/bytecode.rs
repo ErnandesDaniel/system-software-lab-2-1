@@ -9,11 +9,7 @@ impl JvmGenerator {
         let mut insts: Vec<JvmInst> = Vec::new();
         let mut starts: HashMap<String, usize> = HashMap::new();
 
-        if self.coro.is_coroutine {
-            self.emit_coro_entry(func, &mut insts);
-        } else {
-            self.emit_init_prologue(func, &mut insts);
-        }
+        self.emit_init_prologue(func, &mut insts);
 
         let ordered = Self::reorder(&func.blocks);
         let mut idx = insts.len();
@@ -34,28 +30,6 @@ impl JvmGenerator {
             flat.push(Instruction::Nop);
         }
         flat
-    }
-
-    fn emit_coro_entry(&self, func: &IrFunction, insts: &mut Vec<JvmInst>) {
-        let cset: HashSet<&str> = func.coroutine_blocks.iter().map(|s| s.as_str()).collect();
-        let entry = func
-            .blocks
-            .iter()
-            .find(|b| !cset.contains(b.id.as_str()))
-            .map_or_else(|| func.blocks[0].id.clone(), |b| b.id.clone());
-        insts.push(JvmInst::Real(Instruction::Aload_0));
-        insts.push(JvmInst::Real(Instruction::Getfield(self.coro.coroutine_state_field)));
-        insts.push(JvmInst::Placeholder(JumpPlaceholder::Ifeq { block_id: entry }));
-        for s in 1..=func.yield_count {
-            if let Some(bid) = func.coroutine_blocks.get(s) {
-                insts.push(JvmInst::Real(Instruction::Aload_0));
-                insts.push(JvmInst::Real(Instruction::Getfield(self.coro.coroutine_state_field)));
-                insts.push(JvmInst::Real(Instruction::Bipush(s as i8)));
-                insts.push(JvmInst::Placeholder(JumpPlaceholder::IfIcmpeq {
-                    block_id: bid.clone(),
-                }));
-            }
-        }
     }
 
     fn emit_init_prologue(&self, func: &IrFunction, insts: &mut Vec<JvmInst>) {
@@ -292,15 +266,13 @@ impl JvmGenerator {
                 let bid = match &p {
                     JumpPlaceholder::Goto { block_id }
                     | JumpPlaceholder::Ifne { block_id }
-                    | JumpPlaceholder::Ifeq { block_id }
-                    | JumpPlaceholder::IfIcmpeq { block_id } => block_id,
+                    | JumpPlaceholder::Ifeq { block_id } => block_id,
                 };
                 let idx = targets.get(bid).copied().unwrap_or(0);
                 match p {
                     JumpPlaceholder::Goto { .. } => Instruction::Goto(idx),
                     JumpPlaceholder::Ifne { .. } => Instruction::Ifne(idx),
                     JumpPlaceholder::Ifeq { .. } => Instruction::Ifeq(idx),
-                    JumpPlaceholder::IfIcmpeq { .. } => Instruction::If_icmpeq(idx),
                 }
             }
         }

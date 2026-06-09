@@ -17,14 +17,13 @@ impl Scope {
     }
 }
 
-/// Full signature of a function or coroutine
+/// Full signature of a function
 #[derive(Debug, Clone)]
 pub struct FunctionSignature {
     pub name: String,
     pub return_type: IrType,
     pub param_names: Vec<String>,
     pub param_types: Vec<IrType>,
-    pub is_coroutine: bool,
     pub is_extern: bool,
 }
 
@@ -190,7 +189,6 @@ impl SymbolTable {
         return_type: IrType,
         param_names: Vec<String>,
         param_types: Vec<IrType>,
-        is_coroutine: bool,
         is_extern: bool,
     ) {
         let sig = FunctionSignature {
@@ -198,7 +196,6 @@ impl SymbolTable {
             return_type: return_type.clone(),
             param_names,
             param_types: param_types.clone(),
-            is_coroutine,
             is_extern,
         };
         self.function_sigs.insert(name.to_string(), sig);
@@ -207,10 +204,6 @@ impl SymbolTable {
 
     pub fn get_function_sig(&self, name: &str) -> Option<&FunctionSignature> {
         self.function_sigs.get(name)
-    }
-
-    pub fn is_coroutine(&self, name: &str) -> bool {
-        self.function_sigs.get(name).is_some_and(|s| s.is_coroutine)
     }
 
     // ── Struct layout ─────────────────────────────────────────────

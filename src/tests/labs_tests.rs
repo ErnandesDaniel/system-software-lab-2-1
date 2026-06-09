@@ -7,14 +7,31 @@ use std::sync::Mutex;
 
 static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
+fn os_flag() -> &'static str {
+    if cfg!(target_os = "linux") { "--os" } else { "" }
+}
+
+fn os_value() -> &'static str {
+    if cfg!(target_os = "linux") { "linux" } else { "" }
+}
+
+fn exe_name() -> &'static str {
+    if cfg!(target_os = "linux") { "program" } else { "program.exe" }
+}
+
 fn cargo(args: &[&str]) -> bool {
     let _lock = CARGO_LOCK.lock().unwrap();
-    Command::new("cargo")
-        .args(["run", "--quiet", "--"])
-        .args(args)
-        .status()
-        .map(|s| s.success())
-        .unwrap_or(false)
+    let mut cmd = Command::new("cargo");
+    cmd.args(["run", "--quiet", "--"]);
+    cmd.args(args);
+    if cfg!(target_os = "linux") {
+        cmd.args(["--os", "linux"]);
+    }
+    cmd.status().map(|s| s.success()).unwrap_or(false)
+}
+
+fn has_java() -> bool {
+    Command::new("java").arg("-version").output().is_ok()
 }
 
 fn clean(s: &str) -> String {
@@ -40,11 +57,14 @@ fn compile_nasm(lab: &str) -> Option<String> {
     if !cargo(&[&src, "-o", &out, "-t", "nasm"]) {
         return None;
     }
-    let o = Command::new(format!("{out}/program.exe")).output().ok()?;
+    let o = Command::new(format!("{out}/{}", exe_name())).output().ok()?;
     Some(clean(&String::from_utf8_lossy(&o.stdout)))
 }
 
 fn compile_jvm(lab: &str) -> Option<String> {
+    if !has_java() {
+        return None;
+    }
     let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "jvm"]) {
@@ -60,10 +80,13 @@ fn compile_nasm_stdin(lab: &str, input: &[u8]) -> Option<String> {
     if !cargo(&[&src, "-o", &out, "-t", "nasm"]) {
         return None;
     }
-    stdin_run(&format!("{out}/program.exe"), &[], input)
+    stdin_run(&format!("{out}/{}", exe_name()), &[], input)
 }
 
 fn compile_jvm_stdin(lab: &str, input: &[u8]) -> Option<String> {
+    if !has_java() {
+        return None;
+    }
     let out = format!("target/tmp-{lab}");
     let src = format!("labs-examples/vitrual-machines/{lab}/input.mylang");
     if !cargo(&[&src, "-o", &out, "-t", "jvm"]) {
@@ -73,6 +96,9 @@ fn compile_jvm_stdin(lab: &str, input: &[u8]) -> Option<String> {
 }
 
 fn lab4(target: &str) -> Option<String> {
+    if target == "jvm" && !has_java() {
+        return None;
+    }
     let input = b"create name Alice\ncreate age 30\nget name\nlist\nexit\n";
     let out = format!("target/tmp-lab4-{target}");
     let src = "labs-examples/vitrual-machines/lab-4/input.mylang";
@@ -80,7 +106,7 @@ fn lab4(target: &str) -> Option<String> {
         return None;
     }
     let mut c = if target == "nasm" {
-        Command::new(format!("{out}/program.exe"))
+        Command::new(format!("{out}/{}", exe_name()))
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .spawn()
@@ -154,13 +180,16 @@ fn test_lab_vm4_jvm() {
 // ========== System-programms labs ==========
 
 fn compile_sys_metrics(target: &str) -> Option<String> {
+    if target == "jvm" && !has_java() {
+        return None;
+    }
     let out = format!("target/tmp-sys-metrics-{target}");
     let src = "labs-examples/system-programms/lab-1/metrics.mylang";
     if !cargo(&[src, "-o", &out, "-t", target]) {
         return None;
     }
     let o = if target == "nasm" {
-        Command::new(format!("{out}/program.exe")).output().ok()?
+        Command::new(format!("{out}/{}", exe_name())).output().ok()?
     } else {
         Command::new("java").args(["-cp", &out, "Main"]).output().ok()?
     };
@@ -189,48 +218,4 @@ fn test_sys_lab1_metrics_jvm() {
     assert!(out.contains("=== Done ==="));
 }
 
-/// Sys lab-1: infinite coroutine loop, runs forever until killed.
-fn test_sys_lab1(target: &str) {
-    let out = format!("target/tmp-sys-lab1-{target}");
-    let src = "labs-examples/system-programms/lab-1/input.mylang";
-    if !cargo(&[src, "-o", &out, "-t", target]) {
-        panic!("compile failed");
-    }
-    let exe = if target == "nasm" {
-        format!("{out}/program.exe")
-    } else {
-        "java".to_string()
-    };
-    let args: &[&str] = if target == "nasm" { &[] } else { &["-cp", &out, "Main"] };
-    let mut child = Command::new(&exe)
-        .args(args)
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .expect("spawn failed");
-    std::thread::sleep(std::time::Duration::from_secs(2));
-    let _ = child.kill();
-    let out = child
-        .wait_with_output()
-        .ok()
-        .map(|o| clean(&String::from_utf8_lossy(&o.stdout)))
-        .unwrap_or_default();
-    assert!(out.contains("Start"), "should print Start");
-    assert!(out.contains("1"), "should print 1");
-    assert!(out.contains("2"), "should print 2");
-    let body = out.trim_start_matches("Start\n");
-    assert!(
-        body.starts_with("12") || body.starts_with("21"),
-        "should alternate: {:?}",
-        &body[..10.min(body.len())]
-    );
-}
 
-#[test]
-fn test_sys_lab1_nasm() {
-    test_sys_lab1("nasm");
-}
-#[test]
-fn test_sys_lab1_jvm() {
-    test_sys_lab1("jvm");
-}

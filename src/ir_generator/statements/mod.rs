@@ -1,8 +1,8 @@
 mod control;
 
 use super::IrGenerator;
-use crate::ast::{Arg, FuncDefinition, Identifier, Span, Statement};
-use crate::ir::{Constant, IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
+use crate::ast::{Arg, FuncDefinition, Identifier, Statement};
+use crate::ir::{IrBlock, IrInstruction, IrOpcode, IrOperand, IrType};
 
 impl IrGenerator {
     pub fn visit_statement(&mut self, block: &mut IrBlock, stmt: &Statement) {
@@ -23,7 +23,6 @@ impl IrGenerator {
             }
             Statement::Break(_) => self.visit_break(block, stmt),
             Statement::VarDecl(vd) => self.visit_var_decl(vd),
-            Statement::Yield(y) => self.handle_yield(block, y.span),
             Statement::FuncDef(fd) => self.handle_func_def(block, fd),
         }
     }
@@ -81,25 +80,6 @@ impl IrGenerator {
             }
             _ => {}
         }
-    }
-
-    fn handle_yield(&mut self, block: &mut IrBlock, span: Span) {
-        self.current_yield_state += 1;
-        block.instructions.push(IrInstruction {
-            opcode: IrOpcode::CoroYield,
-            result: None,
-            result_type: Some(IrType::Int),
-            operands: vec![IrOperand::Constant(Constant::Int(self.current_yield_state as i64))],
-            jump_target: None,
-            true_target: None,
-            false_target: None,
-            span,
-        });
-        let new_id = format!("BB{}", self.block_counter);
-        self.coroutine_state_blocks.push(new_id.clone());
-        self.block_counter += 1;
-        let old_block = std::mem::replace(block, IrBlock::new(new_id));
-        self.block_stack.push(old_block);
     }
 
     fn handle_func_def(&mut self, block: &mut IrBlock, fd: &FuncDefinition) {

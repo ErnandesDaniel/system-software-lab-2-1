@@ -77,11 +77,9 @@ pub fn get_method_descriptor(target: &str) -> String {
         "map_list_jvm" => "()[B".to_string(),
         "free" => "([B)V".to_string(),
         "srand" | "Sleep" => "(I)V".to_string(),
-        "set_coroutine_param" => "(III)V".to_string(),
-        "coro_init" => "()V".to_string(),
         "map_put_jvm" | "fopen" => "([B[B)I".to_string(),
         "puts" | "map_remove_jvm" | "map_has_jvm" | "atoi" => "([B)I".to_string(),
-        "putchar" | "time" | "resume_coroutine" | "get_coroutine_state" | "fgetc" | "fclose" | "fflush" => "(I)I".to_string(),
+        "putchar" | "time" | "fgetc" | "fclose" | "fflush" => "(I)I".to_string(),
         _ => "()I".to_string(),
     }
 }

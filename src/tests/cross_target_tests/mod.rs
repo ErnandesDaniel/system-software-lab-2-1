@@ -1,5 +1,4 @@
 mod closures_structs;
-mod coroutine_tests;
 mod nasm_extra;
 
 use crate::codegen::jvm::JvmGenerator;
@@ -19,20 +18,29 @@ fn generate_ir(source: &str) -> crate::ir::IrProgram {
 pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     let temp_dir = TempDir::new().expect("Failed to create temp dir");
 
+    let os_target = if cfg!(target_os = "linux") {
+        crate::OsTarget::Linux
+    } else {
+        crate::OsTarget::Windows
+    };
+    let nasm_format = if cfg!(target_os = "linux") { "elf64" } else { "win64" };
+    let obj_ext = if cfg!(target_os = "linux") { "o" } else { "obj" };
+    let exe_name = if cfg!(target_os = "linux") { "program" } else { "program.exe" };
+
     let ast = parse(source);
     let mut ir_gen = IrGenerator::new();
     let ir = ir_gen.generate(&ast);
-    let mut asm_gen = AsmGenerator::new();
+    let mut asm_gen = AsmGenerator::with_os(os_target);
     let asm = asm_gen.generate(&ir);
 
     let asm_path = temp_dir.path().join("program.asm");
     fs::write(&asm_path, &asm).unwrap();
 
-    let obj_path = temp_dir.path().join("program.obj");
+    let obj_path = temp_dir.path().join(format!("program.{}", obj_ext));
     let nasm_result = Command::new("nasm")
         .args([
             "-f",
-            "win64",
+            nasm_format,
             "-o",
             obj_path.to_str().unwrap(),
             asm_path.to_str().unwrap(),
@@ -43,8 +51,12 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
         eprintln!("NASM FAILED: {}", String::from_utf8_lossy(&nasm_result.stderr));
     }
 
-    let exe_path = temp_dir.path().join("program.exe");
-    let gcc_result = Command::new("gcc")
+    let exe_path = temp_dir.path().join(exe_name);
+    let mut gcc_cmd = Command::new("gcc");
+    if cfg!(target_os = "linux") {
+        gcc_cmd.arg("-no-pie");
+    }
+    let gcc_result = gcc_cmd
         .args(["-o", exe_path.to_str().unwrap(), obj_path.to_str().unwrap()])
         .output()
         .expect("GCC not found");
@@ -55,7 +67,7 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     }
 
     if !exe_path.exists() {
-        panic!("program.exe was not created by gcc");
+        panic!("{} was not created by gcc", exe_name);
     }
 
     Command::new(exe_path.to_str().unwrap())
@@ -78,15 +90,10 @@ pub fn compile_and_run_jvm(source: &str) -> std::process::Output {
         let path = temp_dir.path().join(format!("{}.class", name));
         fs::write(&path, bytes).unwrap();
     }
-    let output = Command::new("java")
+    Command::new("java")
         .args(["-cp", temp_dir.path().to_str().unwrap(), "Main"])
         .output()
-        .expect("Java not found — JVM tests require java on PATH");
-    if output.status.code() != Some(0) {
-        eprintln!("Java stderr: {}", String::from_utf8_lossy(&output.stderr));
-        eprintln!("Java stdout: {}", String::from_utf8_lossy(&output.stdout));
-    }
-    output
+        .expect("Java not found — JVM tests require java on PATH")
 }
 
 pub fn jvm_valid(source: &str) -> bool {

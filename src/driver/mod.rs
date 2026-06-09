@@ -29,7 +29,7 @@ impl CompilerDriver {
         Self::generate_cfg_diagrams(&ir_program, &args.output_dir);
 
         match args.target {
-            CodeGenTarget::NASM => Self::generate_nasm(&ir_program, &args.output_dir),
+            CodeGenTarget::NASM => Self::generate_nasm(&ir_program, &args.output_dir, args.os),
             CodeGenTarget::JVM => Self::generate_jvm(&ir_program, &args.output_dir)?,
         }
         Ok(())
@@ -149,32 +149,19 @@ impl CompilerDriver {
                 }
             }
         }
-        let has_coroutines = ir.functions.iter().any(|f| f.is_coroutine);
-
         Self::generate_jvm_stub(output_dir, &global_info, &scalar_inits);
 
-        if has_coroutines {
-            // Use internal RuntimeStub.class (has coroutine methods)
-            for (class_name, class_bytes) in &classes {
-                if class_name == "RuntimeStub" {
-                    let path = Path::new(output_dir).join("RuntimeStub.class");
-                    let _ = fs::write(&path, class_bytes);
-                    break;
-                }
-            }
-        } else {
-            let stub_output = Command::new("javac")
-                .current_dir(output_dir)
-                .arg("RuntimeStub.java")
-                .output()
-                .map_err(|e| CompilerError::Codegen(format!("Failed to run javac for RuntimeStub.java: {e}")))?;
+        let stub_output = Command::new("javac")
+            .current_dir(output_dir)
+            .arg("RuntimeStub.java")
+            .output()
+            .map_err(|e| CompilerError::Codegen(format!("Failed to run javac for RuntimeStub.java: {e}")))?;
 
-            if !stub_output.status.success() {
-                return Err(CompilerError::Codegen(format!(
-                    "javac (RuntimeStub.java) failed:\n{}",
-                    String::from_utf8_lossy(&stub_output.stderr)
-                )));
-            }
+        if !stub_output.status.success() {
+            return Err(CompilerError::Codegen(format!(
+                "javac (RuntimeStub.java) failed:\n{}",
+                String::from_utf8_lossy(&stub_output.stderr)
+            )));
         }
 
         let runner_output = Command::new("javac")

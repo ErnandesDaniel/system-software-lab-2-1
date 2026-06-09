@@ -39,10 +39,10 @@ fn test_no_error_on_valid_code() {
 #[test]
 fn test_no_error_on_complex_program() {
     assert!(!has_error(
-        "struct Point { x of int; y of int; }
+        "         struct Point { x of int; y of int; }
          def add(a of int, b of int) of int { return a + b; }
          global counter of int = 0;
-         coroutine worker() { yield; }"
+         def main() of int { return 0; }"
     ));
 }
 

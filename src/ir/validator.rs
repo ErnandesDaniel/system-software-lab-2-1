@@ -34,7 +34,6 @@ impl IrValidator {
         Self::validate_jump_targets(func, errors);
         Self::validate_reachability(func, errors);
         Self::validate_terminators(func, errors);
-        Self::validate_coroutine_consistency(func, errors);
     }
 
     fn validate_name_and_blocks(func: &IrFunction, errors: &mut Vec<String>) {
@@ -81,9 +80,6 @@ impl IrValidator {
         }
 
         let mut reachable = std::collections::HashSet::new();
-        for coro_block in &func.coroutine_blocks {
-            reachable.insert(coro_block.clone());
-        }
         if let Some(first) = func.blocks.first() {
             reachable.insert(first.id.clone());
         }
@@ -129,7 +125,7 @@ impl IrValidator {
         for block in &func.blocks {
             if let Some(last) = block.instructions.last() {
                 match last.opcode {
-                    IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr | IrOpcode::CoroYield => {}
+                    IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr => {}
                     _ => {
                         if func.return_type == crate::ir::IrType::Void || block.successors.is_empty() {
                             if block.id == *func.blocks.last().map(|b| &b.id).unwrap_or(&String::new()) {
@@ -154,28 +150,4 @@ impl IrValidator {
         }
     }
 
-    fn validate_coroutine_consistency(func: &IrFunction, errors: &mut Vec<String>) {
-        if !func.is_coroutine {
-            return;
-        }
-
-        if func.yield_count == 0 {
-            errors.push(format!(
-                "Function '{}': marked as coroutine but has 0 yield states",
-                func.name
-            ));
-        }
-
-        let has_yield = func
-            .blocks
-            .iter()
-            .any(|b| b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::CoroYield)));
-
-        if !has_yield {
-            errors.push(format!(
-                "Function '{}': marked as coroutine but contains no yield instruction",
-                func.name
-            ));
-        }
-    }
 }

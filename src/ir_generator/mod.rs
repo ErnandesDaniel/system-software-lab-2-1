@@ -19,8 +19,6 @@ pub struct IrGenerator {
     pub loop_exit_stack: Vec<String>,
     pub loop_depth: usize,
     pub external_functions: HashSet<String>,
-    pub current_yield_state: usize,
-    pub coroutine_state_blocks: Vec<String>,
     pub pending_functions: Vec<IrFunction>,
     pub lambda_counter: usize,
     pub captured_vars: HashMap<String, usize>,
@@ -40,8 +38,6 @@ impl IrGenerator {
             loop_exit_stack: Vec::new(),
             loop_depth: 0,
             external_functions: HashSet::new(),
-            current_yield_state: 0,
-            coroutine_state_blocks: Vec::new(),
             pending_functions: Vec::new(),
             lambda_counter: 0,
             captured_vars: HashMap::new(),
@@ -126,7 +122,6 @@ impl IrGenerator {
                         }
                     }
                 }
-                SourceItem::CoroutineDef(_) => {}
                 SourceItem::StructDef(s) => {
                     let mut fields = Vec::new();
                     let mut offset: usize = 0;
@@ -159,21 +154,12 @@ impl IrGenerator {
                 self.block_counter = 0;
                 self.symbols.reset_locals();
                 self.used_functions.clear();
-                self.current_yield_state = 0;
                 let ir_func = self.generate_function(def);
                 functions.push(ir_func);
                 while !self.pending_functions.is_empty() {
                     let pf = self.pending_functions.remove(0);
                     functions.push(pf);
                 }
-            }
-            if let SourceItem::CoroutineDef(coroutine) = item {
-                self.block_counter = 0;
-                self.symbols.reset_locals();
-                self.used_functions.clear();
-                self.current_yield_state = 0;
-                let ir_func = self.generate_coroutine_function(coroutine);
-                functions.push(ir_func);
             }
         }
 

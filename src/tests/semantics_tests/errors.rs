@@ -8,13 +8,6 @@ fn test_semantics_break_outside_loop() {
 }
 
 #[test]
-fn test_semantics_yield_outside_coroutine() {
-    let source = "def main() of int { yield; return 0; }";
-    let result = analyze(source);
-    assert!(result.is_err(), "Expected error for yield outside coroutine");
-}
-
-#[test]
 fn test_semantics_undefined_var() {
     let source = "def main() of int { return undefined_var; }";
     let result = analyze(source);
@@ -54,13 +47,6 @@ fn test_semantics_wrong_arg_type() {
     let source = "def foo(x of int) { } def main() { foo(true); }";
     let result = analyze(source);
     assert!(result.is_err(), "Expected error for wrong arg type");
-}
-
-#[test]
-fn test_semantics_coroutine_return_non_int() {
-    let source = "coroutine f() of int { yield; return true; }";
-    let result = analyze(source);
-    assert!(result.is_err(), "Expected error for wrong coroutine return type");
 }
 
 #[test]

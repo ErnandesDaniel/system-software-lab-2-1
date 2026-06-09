@@ -36,20 +36,6 @@ fn test_break_statement() {
 }
 
 #[test]
-fn test_yield_statement() {
-    let source = "coroutine foo() { yield; return 0; }";
-    let program = parse(source);
-    assert_eq!(program.items.len(), 1);
-}
-
-#[test]
-fn test_coroutine_definition() {
-    let source = "coroutine worker() of int { putchar(49); yield; return 0; }";
-    let program = parse(source);
-    assert_eq!(program.items.len(), 1);
-}
-
-#[test]
 fn test_char_literal() {
     let source = "def foo() { x = 'a'; }";
     let program = parse(source);
@@ -166,13 +152,6 @@ fn test_nested_struct_and_field_chain() {
     "#;
     let program = parse(source);
     assert_eq!(program.items.len(), 3);
-}
-
-#[test]
-fn test_coroutine_with_params() {
-    let source = "coroutine foo(x of int, y of int) of int { yield; return x + y; }";
-    let program = parse(source);
-    assert_eq!(program.items.len(), 1);
 }
 
 #[test]

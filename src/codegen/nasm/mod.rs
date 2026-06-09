@@ -10,6 +10,8 @@ mod output;
 
 use std::collections::{HashMap, HashSet};
 
+use crate::OsTarget;
+
 pub struct AsmGenerator {
     output: String,
     data_section: String,
@@ -20,11 +22,9 @@ pub struct AsmGenerator {
     global_names: HashSet<String>,
     used_functions: Vec<String>,
     param_registers: Vec<String>,
-    is_coroutine: bool,
-    yield_count: usize,
-    coro_ctx_offset: i32,
     regs_used_32: u32,
     regs_used_64: u32,
+    pub os: OsTarget,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -48,21 +48,31 @@ impl AsmGenerator {
             global_names: HashSet::new(),
             used_functions: Vec::new(),
             param_registers: Vec::new(),
-            is_coroutine: false,
-            yield_count: 0,
-            coro_ctx_offset: 0,
             regs_used_32: 0,
             regs_used_64: 0,
+            os: OsTarget::Windows,
+        }
+    }
+
+    pub fn with_os(os: OsTarget) -> Self {
+        Self {
+            output: String::new(),
+            data_section: String::new(),
+            string_counter: 0,
+            current_function: None,
+            slots: HashMap::new(),
+            next_stack_offset: 0,
+            global_names: HashSet::new(),
+            used_functions: Vec::new(),
+            param_registers: Vec::new(),
+            regs_used_32: 0,
+            regs_used_64: 0,
+            os,
         }
     }
 
     pub fn set_global_names(&mut self, names: &[String]) {
         self.global_names = names.iter().cloned().collect();
-    }
-
-    pub fn set_coroutine(&mut self, yield_count: usize) {
-        self.is_coroutine = true;
-        self.yield_count = yield_count;
     }
 
     pub fn reset_for_function(&mut self) {

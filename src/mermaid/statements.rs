@@ -71,13 +71,6 @@ impl MermaidGenerator {
                     self.generate_statement(s, output, Some(&format!("N{stmt_id}")));
                 }
             }
-            Statement::Yield(_) => {
-                let id = self.next_id();
-                output.push_str(&format!("N{id}[\"yield\"]\n"));
-                if let Some(p) = parent_id {
-                    output.push_str(&format!("{p} --> N{id}\n"));
-                }
-            }
             Statement::VarDecl(vd) => {
                 let id = self.next_id();
                 output.push_str(&format!("N{}[\"var_decl {}\"]\n", id, vd.name.name));

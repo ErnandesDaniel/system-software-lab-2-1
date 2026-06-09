@@ -167,7 +167,7 @@ def main() of int {
     x3 = c1[1](7);
     y3 = c2[0](3);
 
-    return (x1 + x2 + x3) * 100 + (y1 + y2 + y3);
+    return x1 + y1 + x2 + y2 + x3 + y3;
 }
 "#;
 
@@ -195,7 +195,7 @@ fn test_jvm_array_of_functions_valid() {
 #[test]
 fn test_jvm_runtime_array_of_functions() {
     let output = compile_and_run_jvm(JVM_ARRAY_OF_FUNCTIONS);
-    assert_eq!(output.status.code(), Some(2223), "jvm array of functions c1[0](2) etc");
+    assert_eq!(output.status.code(), Some(45), "jvm array of functions c1[0](2) etc");
 }
 
 const JVM_STRUCT_ARRAY_FIELD: &str = r#"

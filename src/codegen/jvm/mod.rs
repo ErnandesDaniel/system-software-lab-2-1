@@ -13,7 +13,6 @@ mod build;
 mod bytecode;
 mod collect;
 mod context;
-mod coro_build;
 mod generator;
 mod instr;
 mod loaders;

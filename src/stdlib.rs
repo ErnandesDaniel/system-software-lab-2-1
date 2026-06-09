@@ -57,13 +57,6 @@ impl StdLib {
         funcs.insert("map_key_jvm");
         funcs.insert("map_list_jvm");
 
-        // Coroutine runtime
-        funcs.insert("resume_coroutine");
-        funcs.insert("create_coroutine");
-        funcs.insert("coro_init");
-        funcs.insert("get_coroutine_state");
-        funcs.insert("set_coroutine_param");
-
         funcs
     }
 
@@ -98,12 +91,6 @@ impl StdLib {
             ("atoi", ("str: string", "int")),
             ("sprintf", ("buf: string, format: string, value: int", "int")),
             ("Sleep", ("ms: int", "")), // Windows Sleep (milliseconds) - blocking
-            // Coroutine runtime
-            ("resume_coroutine", ("index: int", "int")),
-            ("create_coroutine", ("", "")),
-            ("coro_init", ("", "")),
-            ("get_coroutine_state", ("index: int", "int")),
-            ("set_coroutine_param", ("index: int, p1: int, p2: int", "")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

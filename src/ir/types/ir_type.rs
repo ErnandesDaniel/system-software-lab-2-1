@@ -25,9 +25,6 @@ pub struct IrFunction {
     pub blocks: Vec<IrBlock>,
     pub locals: Vec<IrLocal>,
     pub used_functions: Vec<String>,
-    pub yield_count: usize,
-    pub coroutine_blocks: Vec<String>,
-    pub is_coroutine: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

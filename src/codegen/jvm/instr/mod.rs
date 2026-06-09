@@ -50,7 +50,6 @@ impl JvmGenerator {
             IrOpcode::Load => self.generate_array_load(code, inst),
             IrOpcode::Slice => self.generate_slice(code, inst),
             IrOpcode::Store => self.generate_store(code, inst),
-            IrOpcode::CoroYield => self.generate_coro_yield(code, inst),
             IrOpcode::CallIndirect => self.generate_call_indirect(code, inst),
             IrOpcode::MakeClosure => self.generate_make_closure(code, inst),
             IrOpcode::CallClosure => self.generate_call_closure(code, inst),

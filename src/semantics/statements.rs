@@ -114,11 +114,6 @@ impl SemanticsAnalyzer {
                     self.add_error(e.to_string(), vd.span);
                 }
             }
-            Statement::Yield(y) => {
-                if !self.in_coroutine {
-                    self.add_error("'yield' outside coroutine".to_string(), y.span);
-                }
-            }
             Statement::FuncDef(fd) => {
                 let param_types: Vec<IrType> = fd
                     .signature
@@ -152,15 +147,12 @@ impl SemanticsAnalyzer {
                 let saved_return_type = self.current_return_type.take();
                 self.current_return_type = Some(ret_type);
                 let saved_loop_depth = self.loop_depth;
-                let saved_coroutine = self.in_coroutine;
                 self.loop_depth = 0;
-                self.in_coroutine = false;
                 for s in &fd.body {
                     if let Err(e) = self.check_statement(&mut inner_scope, s) {
                         self.add_error(e.to_string(), s.span());
                     }
                 }
-                self.in_coroutine = saved_coroutine;
                 self.loop_depth = saved_loop_depth;
                 self.current_return_type = saved_return_type;
             }

@@ -17,7 +17,6 @@ pub struct SemanticsAnalyzer {
     pub(crate) current_return_type: Option<IrType>,
     pub(crate) loop_depth: usize,
     pub(crate) struct_fields: std::collections::HashMap<String, Vec<(String, IrType)>>,
-    pub(crate) in_coroutine: bool,
 }
 
 impl SemanticsAnalyzer {
@@ -29,7 +28,6 @@ impl SemanticsAnalyzer {
             current_return_type: None,
             loop_depth: 0,
             struct_fields: std::collections::HashMap::new(),
-            in_coroutine: false,
         }
     }
 

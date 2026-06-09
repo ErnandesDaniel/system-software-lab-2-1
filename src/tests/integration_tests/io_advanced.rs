@@ -1,6 +1,6 @@
 use super::compile_and_run;
 use super::compile_and_run_with_stdin;
-use super::normalize_output;
+use super::{exit_code, normalize_output};
 
 fn eof_source() -> String {
     "import getchar\nimport putchar\ndef main() of int {\n    c = getchar();\n    if (c == -1) {\n        putchar(69);\n        putchar(79);\n        putchar(70);\n    } else {\n        putchar(79);\n        putchar(75);\n    }\n    putchar(10);\n    return 0;\n}".to_string()
@@ -108,7 +108,7 @@ fn test_exe_empty_stdin_immediate_eof() {
         }
     "#;
     let output = compile_and_run_with_stdin(source, "");
-    assert_eq!(output.status.code(), Some(-1i32 as u32 as i32));
+    assert_eq!(exit_code(&output), Some(-1));
 }
 
 #[test]

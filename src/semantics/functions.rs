@@ -28,7 +28,6 @@ impl SemanticsAnalyzer {
                     }
                     self.struct_fields.insert(s.name.name.clone(), fields);
                 }
-                SourceItem::CoroutineDef(_) => {}
             }
         }
     }
@@ -119,20 +118,8 @@ impl SemanticsAnalyzer {
 
     pub fn check_functions(&mut self, program: &Program) -> crate::Result<()> {
         for item in &program.items {
-            match item {
-                SourceItem::FuncDefinition(def) => {
-                    self.in_coroutine = false;
-                    self.check_function(def)?;
-                }
-                SourceItem::CoroutineDef(coro) => {
-                    self.in_coroutine = true;
-                    if let Err(e) = self.check_coroutine(coro) {
-                        self.in_coroutine = false;
-                        return Err(e);
-                    }
-                    self.in_coroutine = false;
-                }
-                _ => {}
+            if let SourceItem::FuncDefinition(def) = item {
+                self.check_function(def)?;
             }
         }
         Ok(())
@@ -161,31 +148,6 @@ impl SemanticsAnalyzer {
 
         self.current_return_type = None;
 
-        Ok(())
-    }
-
-    pub fn check_coroutine(&mut self, def: &crate::ast::CoroutineDefinition) -> crate::Result<()> {
-        let mut local_scope = SymbolTable::new();
-
-        if let Some(ref params) = def.signature.parameters {
-            for arg in params {
-                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                local_scope.add(arg.name.name.clone(), param_type)?;
-            }
-        }
-
-        let ret_type = def
-            .signature
-            .return_type
-            .as_ref()
-            .map_or(IrType::Void, |t| self.convert_type(t));
-        self.current_return_type = Some(ret_type);
-
-        for stmt in &def.body {
-            self.check_statement(&mut local_scope, stmt)?;
-        }
-
-        self.current_return_type = None;
         Ok(())
     }
 

@@ -479,18 +479,6 @@ impl IrInstruction {
             span,
         }
     }
-    pub fn coro_yield(state: i64, span: Span) -> Self {
-        Self {
-            opcode: IrOpcode::CoroYield,
-            result: None,
-            result_type: Some(IrType::Int),
-            operands: vec![IrOperand::Constant(Constant::Int(state))],
-            jump_target: None,
-            true_target: None,
-            false_target: None,
-            span,
-        }
-    }
     pub fn bit_not(result: String, operand: IrOperand, span: Span) -> Self {
         Self {
             opcode: IrOpcode::BitNot,
@@ -536,7 +524,6 @@ pub enum IrOpcode {
     Load,
     Store,
     Slice,
-    CoroYield,
     CallIndirect,
     MakeClosure,
     CallClosure,

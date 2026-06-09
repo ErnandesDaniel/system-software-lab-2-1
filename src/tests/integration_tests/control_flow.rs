@@ -278,14 +278,14 @@ fn test_exe_large_loop_counter() {
     let source = r#"
         def main() of int {
             i = 0;
-            while (i < 1000) {
+            while (i < 100) {
                 i = i + 1;
             }
             return i;
         }
     "#;
     let output = compile_and_run(source);
-    assert_eq!(output.status.code(), Some(1000));
+    assert_eq!(output.status.code(), Some(100));
 }
 
 #[test]

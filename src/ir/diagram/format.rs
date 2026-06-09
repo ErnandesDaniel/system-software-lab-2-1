@@ -25,7 +25,6 @@ pub fn format_instruction(inst: &IrInstruction) -> String {
         IrOpcode::Call => format_call(inst),
         IrOpcode::Jump => format_jump(inst),
         IrOpcode::CondBr => format_cond_br(inst),
-        IrOpcode::CoroYield => "yield".to_string(),
         IrOpcode::CallIndirect => format_call_indirect(inst),
         IrOpcode::Ret => format_ret(inst),
         IrOpcode::Load => format_load(inst),

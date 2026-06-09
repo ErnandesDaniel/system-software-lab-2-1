@@ -1,5 +1,5 @@
 use super::IrGenerator;
-use crate::ast::{Arg, CoroutineDefinition, Expr, FuncDefinition, Statement, TypeRef};
+use crate::ast::{Arg, Expr, FuncDefinition, Statement, TypeRef};
 use crate::ir::{IrBlock, IrFunction, IrInstruction, IrOpcode, IrParameter, IrType};
 use crate::ir_generator::symbols::SymbolTable;
 use std::collections::HashSet;
@@ -71,71 +71,6 @@ impl IrGenerator {
             blocks,
             locals: self.symbols.all_locals(),
             used_functions: used,
-            yield_count: 0,
-            coroutine_blocks: vec![],
-            is_coroutine: false,
-        }
-    }
-
-    pub fn generate_coroutine_function(&mut self, def: &CoroutineDefinition) -> IrFunction {
-        let return_type = match &def.signature.return_type {
-            Some(ty) => self.convert_type(ty),
-            None => IrType::Void,
-        };
-        let mut params = Vec::new();
-        if let Some(ref args) = def.signature.parameters {
-            for arg in args {
-                let param_type = arg.ty.as_ref().map_or(IrType::Int, |t| self.convert_type(t));
-                if let Some(TypeRef::Custom(id)) = &arg.ty {
-                    self.symbols
-                        .local_struct_types
-                        .insert(arg.name.name.clone(), id.name.clone());
-                }
-                params.push(IrParameter {
-                    name: arg.name.name.clone(),
-                    ty: param_type,
-                });
-            }
-        }
-
-        for param in &params {
-            self.symbols.define_local(&param.name, param.ty.clone());
-        }
-        self.used_functions.clear();
-        self.block_stack.clear();
-        let entry_id = format!("BB{}", self.block_counter);
-        let mut current_block = IrBlock::new(entry_id.clone());
-        self.block_counter += 1;
-
-        self.coroutine_state_blocks = vec![entry_id.clone()];
-
-        for stmt in &def.body {
-            self.visit_statement(&mut current_block, stmt);
-        }
-
-        let mut blocks: Vec<IrBlock> = std::mem::take(&mut self.block_stack);
-        blocks.push(current_block);
-        if let Some(pos) = blocks.iter().position(|b| b.id == entry_id) {
-            if pos != 0 {
-                let entry = blocks.remove(pos);
-                blocks.insert(0, entry);
-            }
-        }
-
-        let mut used = Vec::new();
-        std::mem::swap(&mut used, &mut self.used_functions);
-        let state_blocks = std::mem::take(&mut self.coroutine_state_blocks);
-
-        IrFunction {
-            name: def.signature.name.name.clone(),
-            return_type,
-            parameters: params,
-            blocks,
-            locals: self.symbols.all_locals(),
-            used_functions: used,
-            yield_count: self.current_yield_state,
-            coroutine_blocks: state_blocks,
-            is_coroutine: true,
         }
     }
 
@@ -204,7 +139,7 @@ impl IrGenerator {
                 Self::scan_expr(&r.condition, outer_symbols, param_names, found, seen);
                 Self::scan_exprs_in_stmts(&r.body, outer_symbols, param_names, found, seen);
             }
-            Statement::VarDecl(_) | Statement::Break(_) | Statement::Yield(_) => {}
+            Statement::VarDecl(_) | Statement::Break(_) => {}
             Statement::FuncDef(fd) => {
                 Self::scan_exprs_in_stmts(&fd.body, outer_symbols, param_names, found, seen);
             }
