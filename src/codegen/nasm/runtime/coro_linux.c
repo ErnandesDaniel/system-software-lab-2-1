@@ -1,4 +1,5 @@
 #include <signal.h>
+#include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
 #include <ucontext.h>
@@ -51,6 +52,7 @@ void set_coroutine_scheduler_nasm(int (*fn)(void)) {
 }
 
 void init_coroutine_runtime_nasm(void) {
+    setbuf(stdout, NULL);
     struct sigaction sa;
     sa.sa_handler = tick;
     sa.sa_flags = SA_NODEFER;

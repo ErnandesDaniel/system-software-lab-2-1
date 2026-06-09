@@ -4,6 +4,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
+use std::time::{Duration, Instant};
 
 static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
@@ -169,6 +170,45 @@ fn test_lab_vm4_jvm() {
     assert!(out.contains("age"));
 }
 
+fn compile_sys_file_timeout(file: &str, timeout_secs: u64) -> Option<String> {
+    let out = "target/tmp-sys";
+    let src = format!("labs-examples/system-programms/{file}");
+    if !cargo(&[&src, "-o", out, "-t", "nasm"]) {
+        return None;
+    }
+    let mut child = Command::new(format!("{out}/{}", exe_name()))
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .ok()?;
+
+    let mut stdout = child.stdout.take()?;
+    let reader = std::thread::spawn(move || {
+        use std::io::Read;
+        let mut buf = Vec::new();
+        let _ = stdout.read_to_end(&mut buf);
+        buf
+    });
+
+    let deadline = Instant::now() + Duration::from_secs(timeout_secs);
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => break,
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    break;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => return None,
+        }
+    }
+    let _ = child.wait();
+    let out_bytes = reader.join().ok()?;
+    Some(clean(&String::from_utf8_lossy(&out_bytes)))
+}
+
 // ========== System-programms labs ==========
 
 #[cfg(target_os = "linux")]
@@ -187,7 +227,7 @@ fn compile_sys_file(file: &str) -> Option<String> {
 #[test]
 #[cfg(target_os = "linux")]
 fn test_sys_lab1_input_nasm() {
-    let out = compile_sys_file("lab-1/input.mylang").expect("compile/run failed");
+    let out = compile_sys_file_timeout("lab-1/input.mylang", 3).expect("compile/run failed");
     assert!(out.contains("Start"), "should print Start");
     assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
     assert!(out.contains('1'), "worker1 should print 1");
@@ -199,7 +239,7 @@ fn test_sys_lab1_input_nasm() {
 #[test]
 #[cfg(target_os = "linux")]
 fn test_sys_lab1_metrics_rr_nasm() {
-    let out = compile_sys_file("lab-1/metrics-rr.mylang").expect("compile/run failed");
+    let out = compile_sys_file_timeout("lab-1/metrics-rr.mylang", 3).expect("compile/run failed");
     assert!(out.contains("RR"), "should print RR title");
     assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
     assert!(out.contains('A'), "worker A should print");
@@ -212,7 +252,7 @@ fn test_sys_lab1_metrics_rr_nasm() {
 #[test]
 #[cfg(target_os = "linux")]
 fn test_sys_lab1_metrics_srt_nasm() {
-    let out = compile_sys_file("lab-1/metrics-srt.mylang").expect("compile/run failed");
+    let out = compile_sys_file_timeout("lab-1/metrics-srt.mylang", 3).expect("compile/run failed");
     assert!(out.contains("SRT"), "should print SRT title");
     assert!(out.len() > 100, "should produce output (got {} bytes)", out.len());
     assert!(out.contains('A'), "worker A should print");
