@@ -21,7 +21,7 @@ def worker2() of int {
 }
 
 def rr_scheduler() of int {
-    n = 3;  // РєРѕР»РёС‡РµСЃС‚РІРѕ РєРѕСЂСѓС‚РёРЅ
+    n = 3;  // количество корутин
     return (get_current_coroutine_id_nasm() + 1) % n;
 }
 
