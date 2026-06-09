@@ -49,13 +49,13 @@ impl<'source> Parser<'source> {
 
             if !matches!(
                 token,
-                Token::Def | Token::Import | Token::Global | Token::Struct
+                Token::Def | Token::Coroutine | Token::Import | Token::Global | Token::Struct
             ) {
                 break;
             }
 
             match token {
-                Token::Def => {
+                Token::Def | Token::Coroutine => {
                     items.push(SourceItem::FuncDefinition(self.parse_function()?));
                 }
                 Token::Import => {
