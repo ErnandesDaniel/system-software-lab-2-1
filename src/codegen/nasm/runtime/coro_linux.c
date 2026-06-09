@@ -62,6 +62,8 @@ void set_coroutine_scheduler_nasm(int (*fn)(void)) {
 }
 
 void init_coroutine_runtime_nasm(void) {
+    struct itimerval zero = {{0, 0}, {0, 0}};
+    setitimer(ITIMER_REAL, &zero, NULL);
     n = 0;
     cur = 0;
     scheduler_fn = NULL;

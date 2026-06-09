@@ -452,10 +452,13 @@ fn test_sys_lab2_pipeline_nasm() {
 
     // Q2: LEFT JOIN studies(pid=163276) × students(start=2008-09-01)
     assert!(out.contains("Q2"), "should run Q2:\n{out}");
-    assert!(out.contains("163276"), "Q2 should contain pid 163276:\n{out}");
+    assert!(out.contains("163276, OK500"), "Q2 should contain OK500:\n{out}");
 
-    // Q3–Q7: all complete
+    // Q3: COUNT without patronymic + FCE + student exists
     assert!(out.contains("Q3"), "should run Q3:\n{out}");
+    assert!(out.contains("Count: 6"), "Q3 should find 6:\n{out}");
+
+    // Q4–Q7: all complete
     assert!(out.contains("Q4"), "should run Q4:\n{out}");
     assert!(out.contains("Q5"), "should run Q5:\n{out}");
     assert!(out.contains("Q6"), "should run Q6:\n{out}");

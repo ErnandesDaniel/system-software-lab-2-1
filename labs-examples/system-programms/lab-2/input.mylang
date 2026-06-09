@@ -53,6 +53,10 @@ def arena_init() {
     arena_pos = 0;
 }
 
+def arena_reset() {
+    arena_pos = 0;
+}
+
 // Save null-terminated column at row_buf[src] into arena.
 // Returns offset in arena.
 def save_str(src of int) of int {
@@ -307,7 +311,7 @@ def q3_run() {
                     if (read_csv(sf) == 0) { break; }
                     n2 = split_row(cols);
                     if (atoi(row_buf + cols[0]) == pid) {
-                        fac_off = save_str(cols[6]);
+                        fac_off = save_str(cols[5]);
                         if (eq_str(fac_off, "FCE") != 0) {
                             df = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
                             if (df != 0) {
@@ -380,7 +384,7 @@ def q4_run() of int {
         already = 0;
         si = 0;
         while (si < seen_pn) {
-            if (int_str(seen_pid[si]) == pid) { already = 1; break; }
+            if (seen_pid[si] == pid) { already = 1; break; }
             si = si + 1;
         }
         if (already == 0) {
@@ -411,7 +415,7 @@ def q4_run() of int {
                 printf("%d: %d groups\n", pid, cnt);
                 found = found + 1;
             }
-            seen_pid[seen_pn] = save_str(0);
+            seen_pid[seen_pn] = pid;
             seen_pn = seen_pn + 1;
         }
         i = i + 1;
@@ -430,7 +434,7 @@ def q4_run() of int {
 
 // Helper: compute average grade for a group from vedomosti
 def group_avg(grp_name of string, out_avg of string) of int {
-    // Load students in this group
+    // Load students in this group — store pid as arena offset
     sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
     if (sf == 0) { return 0; }
     read_csv(sf);
@@ -442,7 +446,7 @@ def group_avg(grp_name of string, out_avg of string) of int {
         n = split_row(cols);
         grp_off = save_str(cols[1]);
         if (eq_str(grp_off, grp_name) != 0) {
-            grp_pids[grp_pn] = int_str(cols[0]);
+            grp_pids[grp_pn] = save_str(cols[0]);  // save pid string, store arena offset
             grp_pn = grp_pn + 1;
         }
     }
@@ -463,7 +467,7 @@ def group_avg(grp_name of string, out_avg of string) of int {
             // Check if pid in group
             pi = 0;
             while (pi < grp_pn) {
-                if (grp_pids[pi] == pid && mark >= 3) {
+                if (int_str(grp_pids[pi]) == pid && mark >= 3) {
                     sum = sum + mark;
                     cnt = cnt + 1;
                 }
@@ -578,7 +582,7 @@ def q6_run() of int {
                 while (true) {
                     if (read_csv(stf) == 0) { break; }
                     n2 = split_row(cols);
-                    if (int_str(cols[0]) == pid && int_str(cols[7]) == 1 && eq_str(save_str(cols[5]), "part-time") != 0) {
+                    if (int_str(cols[0]) == pid && int_str(cols[6]) == 1 && eq_str(save_str(cols[2]), "part-time") != 0) {
                         // Print student info
                         pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
                         if (pf != 0) {
@@ -732,6 +736,7 @@ def main() of int {
 
     // ---- Q2 ----
     puts("--- Q2: LEFT JOIN (coroutine) ---\n");
+    arena_reset();
     n_coros = 1;
     init_coroutine_runtime_nasm();
     create_coroutine_nasm(q2_run);
@@ -741,6 +746,7 @@ def main() of int {
 
     // ---- Q3 ----
     puts("--- Q3: No patronymic + FCE (coroutine) ---\n");
+    arena_reset();
     n_coros = 1;
     init_coroutine_runtime_nasm();
     create_coroutine_nasm(q3_run);
@@ -749,15 +755,19 @@ def main() of int {
     puts("--- Q3 done ---\n");
 
     // ---- Q4 ----
+    arena_reset();
     q4_run();
 
     // ---- Q5 ----
+    arena_reset();
     q5_run();
 
     // ---- Q6 ----
+    arena_reset();
     q6_run();
 
     // ---- Q7 ----
+    arena_reset();
     q7_run();
 
     puts("\n=== Done ===\n");
