@@ -363,9 +363,9 @@ def q4_run() of int {
         n = split_row(cols);
         dept_off = save_str(cols[2]);
         if (eq_str(dept_off, "Department of Computer Engineering") != 0) {
-            // Store pid and group
+            // Store pid and group as ints (fit in byte for this dataset)
             pids[gp_n] = atoi(row_buf + cols[0]);
-            groups_seen[gp_n] = save_str(cols[1]);
+            groups_seen[gp_n] = atoi(row_buf + cols[1]);
             gp_n = gp_n + 1;
         }
     }
@@ -395,15 +395,15 @@ def q4_run() of int {
             j = 0;
             while (j < gp_n) {
                 if (pids[j] == pid) {
-                    grp = int_str(groups_seen[j]);
+                    grp = groups_seen[j];
                     dup = 0;
                     gi = 0;
                     while (gi < sgn) {
-                        if (int_str(seen_grp[gi]) == grp) { dup = 1; break; }
+                        if (seen_grp[gi] == grp) { dup = 1; break; }
                         gi = gi + 1;
                     }
                     if (dup == 0) {
-                        seen_grp[sgn] = groups_seen[j];
+                        seen_grp[sgn] = grp;
                         sgn = sgn + 1;
                         cnt = cnt + 1;
                     }
@@ -575,6 +575,7 @@ def q6_run() of int {
         start_off = save_str(cols[2]);
         if (gt_str(start_off, "2012-09-01") > 0) {
             pid = atoi(row_buf + cols[0]);
+            grp_off = save_str(cols[1]);
             // Check studies: course=1 AND form='part-time'
             stf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
             if (stf != 0) {
@@ -591,7 +592,9 @@ def q6_run() of int {
                                 if (read_csv(pf) == 0) { break; }
                                 n3 = split_row(cols);
                                 if (atoi(row_buf + cols[0]) == pid) {
-                                    print_str(start_off);
+                                    print_str(grp_off);
+                                    putchar(44); putchar(32);
+                                    printf("%d", pid);
                                     putchar(44); putchar(32);
                                     print_str(save_str(cols[1]));
                                     putchar(32);

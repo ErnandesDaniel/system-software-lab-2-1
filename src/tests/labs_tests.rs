@@ -458,17 +458,24 @@ fn test_sys_lab2_pipeline_nasm() {
     assert!(out.contains("Q3"), "should run Q3:\n{out}");
     assert!(out.contains("Count: 6"), "Q3 should find 6:\n{out}");
 
-    // Q4: Plans >2 groups
+    // Q4: Plans >2 groups on CE
     assert!(out.contains("Q4"), "should run Q4:\n{out}");
+    assert!(out.contains("101: 3 groups"), "Q4 should find 101:\n{out}");
+    assert!(out.contains("104: 3 groups"), "Q4 should find 104:\n{out}");
 
     // Q5: Avg grades
     assert!(out.contains("Q5"), "should run Q5:\n{out}");
+    assert!(out.contains("Zaitsev"), "Q5 should contain Zaitsev:\n{out}");
+    assert!(out.contains("Grigoriev"), "Q5 should contain Grigoriev:\n{out}");
 
-    // Q6: After 2012-09-01
+    // Q6: After 2012-09-01 – 4 students
     assert!(out.contains("Q6"), "should run Q6:\n{out}");
+    assert!(out.contains("Timofeev"), "Q6 should contain Timofeev:\n{out}");
+    assert!(out.contains("Count: 4"), "Q6 should find 4:\n{out}");
 
     // Q7: Same surname – 12 rows
     assert!(out.contains("Q7"), "should run Q7:\n{out}");
+    assert!(out.contains("Groups: 12"), "Q7 should have 12:\n{out}");
 
     assert!(out.len() > 400, "should produce output (got {} bytes)", out.len());
 }
