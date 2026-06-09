@@ -337,6 +337,377 @@ def q3_run() {
 }
 
 // ============================================================
+// Q4: Plans >2 groups on Computer Engineering
+// group_plans.csv: pid(0), group(1), dept(2)
+// WHERE dept = 'Department of Computer Engineering'
+// GROUP BY pid HAVING count(DISTINCT group) > 2
+// ============================================================
+
+def q4_run() of int {
+    puts("--- Q4: Plans >2 groups on CE ---\n");
+    // Cache: pid -> dept, seen set for dedup
+    pids = malloc(200);
+    groups_seen = malloc(400);
+    gp_n = 0;
+
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r");
+    if (f == 0) { return -1; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        dept_off = save_str(cols[2]);
+        if (eq_str(dept_off, "Department of Computer Engineering") != 0) {
+            // Store pid and group
+            pids[gp_n] = save_str(cols[0]);
+            groups_seen[gp_n] = save_str(cols[1]);
+            gp_n = gp_n + 1;
+        }
+    }
+    fclose(f);
+    free(cols);
+
+    // Count distinct groups per pid
+    found = 0;
+    seen_pid = malloc(200);
+    seen_pn = 0;
+
+    i = 0;
+    while (i < gp_n) {
+        pid = int_str(pids[i]);
+        // Check if pid already processed
+        already = 0;
+        si = 0;
+        while (si < seen_pn) {
+            if (int_str(seen_pid[si]) == pid) { already = 1; break; }
+            si = si + 1;
+        }
+        if (already == 0) {
+            // Count distinct groups
+            cnt = 0;
+            seen_grp = malloc(200);
+            sgn = 0;
+            j = 0;
+            while (j < gp_n) {
+                if (int_str(pids[j]) == pid) {
+                    grp = int_str(groups_seen[j]);
+                    dup = 0;
+                    gi = 0;
+                    while (gi < sgn) {
+                        if (seen_grp[gi] == grp) { dup = 1; break; }
+                        gi = gi + 1;
+                    }
+                    if (dup == 0) {
+                        seen_grp[sgn] = grp;
+                        sgn = sgn + 1;
+                        cnt = cnt + 1;
+                    }
+                }
+                j = j + 1;
+            }
+            free(seen_grp);
+            if (cnt > 2) {
+                printf("%d: %d groups\n", pid, cnt);
+                found = found + 1;
+            }
+            seen_pid[seen_pn] = save_str(0);
+            seen_pn = seen_pn + 1;
+        }
+        i = i + 1;
+    }
+    printf("Found: %d\n", found);
+    free(pids); free(groups_seen); free(seen_pid);
+    return found;
+}
+
+// ============================================================
+// Q5: Avg grades for group 4100 >= group 1100
+// students: pid(0), group(1), start(2)
+// vedomosti: pid(2), mark(4)
+// people: id(0), surname(1), name(2)
+// ============================================================
+
+// Helper: compute average grade for a group from vedomosti
+def group_avg(grp_name of string, out_avg of string) of int {
+    // Load students in this group
+    sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (sf == 0) { return 0; }
+    read_csv(sf);
+    cols = malloc(20);
+    grp_pids = malloc(200);
+    grp_pn = 0;
+    while (true) {
+        if (read_csv(sf) == 0) { break; }
+        n = split_row(cols);
+        grp_off = save_str(cols[1]);
+        if (eq_str(grp_off, grp_name) != 0) {
+            grp_pids[grp_pn] = int_str(cols[0]);
+            grp_pn = grp_pn + 1;
+        }
+    }
+    fclose(sf);
+    free(cols);
+
+    // Sum grades from vedomosti for these students
+    sum = 0; cnt = 0;
+    vf = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
+    if (vf != 0) {
+        read_csv(vf);
+        cols = malloc(20);
+        while (true) {
+            if (read_csv(vf) == 0) { break; }
+            n = split_row(cols);
+            pid = int_str(cols[2]);
+            mark = int_str(cols[4]);
+            // Check if pid in group
+            pi = 0;
+            while (pi < grp_pn) {
+                if (grp_pids[pi] == pid && mark >= 3) {
+                    sum = sum + mark;
+                    cnt = cnt + 1;
+                }
+                pi = pi + 1;
+            }
+        }
+        fclose(vf);
+        free(cols);
+    }
+    free(grp_pids);
+    if (cnt == 0) { out_avg[0] = 0; return 0; }
+    avg = (sum * 10) / cnt;
+    out_avg[0] = avg;
+    return cnt;
+}
+
+def q5_run() of int {
+    puts("--- Q5: Avg grades 4100 >= 1100 ---\n");
+    avg_buf = malloc(4);
+    avg1100 = 0;
+    group_avg("1100", avg_buf);
+    avg1100 = avg_buf[0];
+    printf("Avg 1100 = %d\n", avg1100);
+
+    // Stream group 4100 students
+    sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (sf == 0) { return -1; }
+    read_csv(sf);
+    cols = malloc(20);
+    found = 0;
+
+    while (true) {
+        if (read_csv(sf) == 0) { break; }
+        n = split_row(cols);
+        grp_off = save_str(cols[1]);
+        if (eq_str(grp_off, "4100") != 0) {
+            pid = int_str(cols[0]);
+
+            // Compute personal avg
+            sum = 0; cnt = 0;
+            vf = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
+            if (vf != 0) {
+                read_csv(vf);
+                while (true) {
+                    if (read_csv(vf) == 0) { break; }
+                    n2 = split_row(cols);
+                    if (int_str(cols[2]) == pid && int_str(cols[4]) >= 3) {
+                        sum = sum + int_str(cols[4]);
+                        cnt = cnt + 1;
+                    }
+                }
+                fclose(vf);
+            }
+            if (cnt != 0) {
+                pavg = (sum * 10) / cnt;
+                if (pavg >= avg1100) {
+                    // Lookup person name
+                    pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+                    if (pf != 0) {
+                        read_csv(pf);
+                        while (true) {
+                            if (read_csv(pf) == 0) { break; }
+                            n3 = split_row(cols);
+                            if (int_str(cols[0]) == pid) {
+                                printf("%d, ", pid);
+                                print_str(save_str(cols[1]));
+                                putchar(32);
+                                print_str(save_str(cols[2]));
+                                printf(" %d.%d\n", pavg / 10, pavg % 10);
+                                found = found + 1;
+                                break;
+                            }
+                        }
+                        fclose(pf);
+                    }
+                }
+            }
+        }
+    }
+    fclose(sf);
+    free(cols);
+    printf("Found: %d\n", found);
+    free(avg_buf);
+    return found;
+}
+
+// ============================================================
+// Q6: Enrolled after 2012-09-01, course=1, part-time
+// students: pid(0), group(1), start(2)
+// studies: pid(0), form(5), course(7)
+// people: id(0), surname(1), name(2)
+// ============================================================
+
+def q6_run() of int {
+    puts("--- Q6: After 2012-09-01, course 1, part-time ---\n");
+    count = 0;
+    sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (sf == 0) { return -1; }
+    read_csv(sf);
+    cols = malloc(20);
+
+    while (true) {
+        if (read_csv(sf) == 0) { break; }
+        n = split_row(cols);
+        start_off = save_str(cols[2]);
+        if (gt_str(start_off, "2012-09-01") > 0) {
+            pid = int_str(cols[0]);
+            // Check studies: course=1 AND form='part-time'
+            stf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+            if (stf != 0) {
+                read_csv(stf);
+                while (true) {
+                    if (read_csv(stf) == 0) { break; }
+                    n2 = split_row(cols);
+                    if (int_str(cols[0]) == pid && int_str(cols[7]) == 1 && eq_str(save_str(cols[5]), "part-time") != 0) {
+                        // Print student info
+                        pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+                        if (pf != 0) {
+                            read_csv(pf);
+                            while (true) {
+                                if (read_csv(pf) == 0) { break; }
+                                n3 = split_row(cols);
+                                if (int_str(cols[0]) == pid) {
+                                    print_str(start_off);
+                                    putchar(44); putchar(32);
+                                    print_str(save_str(cols[1]));
+                                    putchar(32);
+                                    print_str(save_str(cols[2]));
+                                    putchar(10);
+                                    count = count + 1;
+                                    break;
+                                }
+                            }
+                            fclose(pf);
+                        }
+                        break;
+                    }
+                }
+                fclose(stf);
+            }
+        }
+    }
+    fclose(sf);
+    free(cols);
+    printf("Count: %d\n", count);
+    return count;
+}
+
+// ============================================================
+// Q7: Same surname, different bday
+// people: id(0), surname(1), name(2), patr(3), bday(4)
+// ============================================================
+
+def q7_run() of int {
+    puts("--- Q7: Same surname, diff bday ---\n");
+    // Load people into arrays
+    p_ids = malloc(200);
+    p_surnames = malloc(200);
+    p_names = malloc(200);
+    p_bdays = malloc(200);
+    pn = 0;
+
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (f == 0) { return -1; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        p_ids[pn] = save_str(cols[0]);
+        p_surnames[pn] = save_str(cols[1]);
+        p_names[pn] = save_str(cols[2]);
+        p_bdays[pn] = save_str(cols[4]);
+        pn = pn + 1;
+    }
+    fclose(f);
+    free(cols);
+
+    // Mark pairs with same surname, different bday
+    w = malloc(200);
+    i = 0;
+    while (i < pn) { w[i] = 0; i = i + 1; }
+
+    i = 0;
+    while (i < pn) {
+        j = i + 1;
+        while (j < pn) {
+            if (eq_str_arena(p_surnames[i], p_surnames[j]) != 0) {
+                if (eq_str_arena(p_bdays[i], p_bdays[j]) == 0) {
+                    w[i] = 1;
+                    w[j] = 1;
+                }
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+
+    count = 0;
+    i = 0;
+    while (i < pn) {
+        if (w[i] != 0) {
+            print_str(p_surnames[i]);
+            putchar(44); putchar(32);
+            print_str(p_names[i]);
+            putchar(44); putchar(32);
+            print_str(p_bdays[i]);
+            putchar(10);
+            count = count + 1;
+        }
+        i = i + 1;
+    }
+    printf("Groups: %d\n", count);
+    free(p_ids); free(p_surnames); free(p_names); free(p_bdays); free(w);
+    return count;
+}
+
+// Arena string comparison (both offsets)
+def eq_str_arena(a of int, b of int) of int {
+    i = 0;
+    while (true) {
+        ac = arena[a + i];
+        bc = arena[b + i];
+        if (ac != bc) { return 0; }
+        if (ac == 0) { return 1; }
+        i = i + 1;
+    }
+}
+
+// Lexicographic compare of arena string vs literal (> 0 means greater)
+def gt_str(off of int, lit of string) of int {
+    i = 0;
+    while (true) {
+        ac = arena[off + i];
+        lc = lit[i];
+        if (ac == 0 && lc == 0) { return 0; }
+        if (ac == 0) { return -1; }
+        if (lc == 0) { return 1; }
+        if (ac != lc) { return ac - lc; }
+        i = i + 1;
+    }
+}
+
+// ============================================================
 // Main
 // ============================================================
 def main() of int {
@@ -376,6 +747,18 @@ def main() of int {
     set_coroutine_scheduler_nasm(rr_scheduler);
     run_coroutine_runtime_nasm();
     puts("--- Q3 done ---\n");
+
+    // ---- Q4 ----
+    q4_run();
+
+    // ---- Q5 ----
+    q5_run();
+
+    // ---- Q6 ----
+    q6_run();
+
+    // ---- Q7 ----
+    q7_run();
 
     puts("\n=== Done ===\n");
     return 0;
