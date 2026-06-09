@@ -99,9 +99,33 @@ ftp> LIST
   [FILE] hello.txt
   [FILE] nested.txt
 
-ftp> CWD /subdir
+ftp> RETR hello.txt
+226 Transfer complete.
+
+ftp> CWD subdir
 250 Directory successfully changed.
+
+ftp> PWD
+257 "/subdir"
+
+ftp> LIST
+  [DIR]  .
+  [DIR]  ..
+  [FILE] data.txt
+
+ftp> RETR data.txt
+226 Transfer complete.
 
 ftp> QUIT
 221 Goodbye.
+```
+
+Файлы `hello.txt` и `subdir/data.txt` извлечены в текущую директорию.
+
+```
+C:\> type hello.txt
+Hello from Ext3!
+
+C:\> type data.txt
+Inside subdir
 ```

@@ -27,3 +27,8 @@ int32_t read_le16_nasm(const void *buf, int offset) {
 int32_t read_i8_nasm(const void *buf, int offset) {
     return (int32_t)((const uint8_t *)buf)[offset];
 }
+
+// Wrapper around standard C fwrite
+size_t fwrite_nasm(const void *buf, size_t size, size_t count, FILE *stream) {
+    return fwrite(buf, size, count, stream);
+}

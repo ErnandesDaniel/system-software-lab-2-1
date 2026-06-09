@@ -238,7 +238,8 @@ fn test_sys_lab3_ext3_nasm() {
         let root_data_block = 9u32;
         let subdir_data_block = 10u32;
         let file_data_block = 11u32;
-        let last_used_block = 11u32;
+        let subdir_file_block = 12u32;
+        let last_used_block = 12u32;
 
         let mut img = vec![0u8; (blocks_total * block_size) as usize];
 
@@ -259,7 +260,8 @@ fn test_sys_lab3_ext3_nasm() {
         bgdt[4..8].copy_from_slice(&bgdt_inode_bitmap.to_le_bytes());
         bgdt[8..12].copy_from_slice(&bgdt_inode_table.to_le_bytes());
         bgdt[12..14].copy_from_slice(&((blocks_total - last_used_block - 1) as u16).to_le_bytes());
-        bgdt[14..16].copy_from_slice(&((inodes_total - 5) as u16).to_le_bytes());
+        // 6 used inodes: 1,2,11,12,13,14
+        bgdt[14..16].copy_from_slice(&((inodes_total - 6) as u16).to_le_bytes());
         bgdt[16..18].copy_from_slice(&3u16.to_le_bytes());
 
         // Block 3: Block bitmap
@@ -269,8 +271,8 @@ fn test_sys_lab3_ext3_nasm() {
             img[3072 + byte_idx] |= 1 << bit_idx;
         }
 
-        // Block 4: Inode bitmap
-        for &ino in &[1u32, 2, 11, 12, 13] {
+        // Block 4: Inode bitmap — inodes 1,2,11,12,13,14 used
+        for &ino in &[1u32, 2, 11, 12, 13, 14] {
             let byte_idx = (ino / 8) as usize;
             let bit_idx = ino % 8;
             img[4096 + byte_idx] |= 1 << bit_idx;
@@ -291,6 +293,7 @@ fn test_sys_lab3_ext3_nasm() {
         write_inode(it, 2, 0x41ED, block_size, root_data_block, 3);
         write_inode(it, 12, 0x41ED, block_size, subdir_data_block, 2);
         write_inode(it, 13, 0x81A4, 6, file_data_block, 1);
+        write_inode(it, 14, 0x81A4, 5, subdir_file_block, 1);
 
         // Block 9: Root directory data
         fn write_dirent(data: &mut [u8], offset: usize, inode: u32, rec_len: u16, name_len: u8, ftype: u8, name: &[u8]) {
@@ -308,15 +311,19 @@ fn test_sys_lab3_ext3_nasm() {
         write_dirent(root_data, 36, 12, 12, 6, 2, b"subdir");
         write_dirent(root_data, 48, 13, 976, 5, 1, b"a.txt");
 
-        // Block 10: subdir directory data
+        // Block 10: subdir — now includes b.txt
         let subdir_data = &mut img[(subdir_data_block * block_size) as usize..][..block_size as usize];
         write_dirent(subdir_data, 0, 12, 12, 1, 2, b".");
         write_dirent(subdir_data, 12, 2, 12, 2, 2, b"..");
-        write_dirent(subdir_data, 24, 1000, 1000, 0, 0, b"");
+        write_dirent(subdir_data, 24, 14, 1000, 5, 1, b"b.txt");
 
         // Block 11: a.txt content
         let file_data = &mut img[(file_data_block * block_size) as usize..][..block_size as usize];
         file_data[..6].copy_from_slice(b"Hello\n");
+
+        // Block 12: b.txt content (inside subdir)
+        let subdir_file = &mut img[(subdir_file_block * block_size) as usize..][..block_size as usize];
+        subdir_file[..5].copy_from_slice(b"Data\n");
 
         std::fs::write(path, img)
     }
@@ -334,7 +341,7 @@ fn test_sys_lab3_ext3_nasm() {
     drop(_lock);
 
     let input = format!(
-        "{}\nPWD\nLIST\nCWD /subdir\nLIST\nQUIT\n",
+        "{}\nPWD\nLIST\nRETR a.txt\nCWD subdir\nPWD\nLIST\nRETR b.txt\nQUIT\n",
         img_path.to_str().unwrap()
     );
 
@@ -342,6 +349,7 @@ fn test_sys_lab3_ext3_nasm() {
     let mut child = std::process::Command::new(&exe)
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
         .spawn()
         .expect("spawn");
 
@@ -351,10 +359,40 @@ fn test_sys_lab3_ext3_nasm() {
     let stdout = clean(&String::from_utf8_lossy(&output.stdout));
 
     assert!(stdout.contains("Ext3 filesystem detected"), "should detect ext3:\n{stdout}");
+
+    // PWD shows root
     assert!(stdout.contains("/"), "should show root path:\n{stdout}");
+
+    // LIST shows files in root
     assert!(stdout.contains("subdir"), "should list subdir:\n{stdout}");
     assert!(stdout.contains("a.txt"), "should list a.txt:\n{stdout}");
+
+    // RETR a.txt from root
+    assert!(stdout.contains("226 Transfer complete"), "RETR should complete:\n{stdout}");
+
+    // CWD actually changed directory — PWD shows /subdir
+    assert!(stdout.contains("/subdir"), "should change to subdir:\n{stdout}");
+
+    // LIST after CWD shows b.txt (file inside subdir)
+    assert!(stdout.contains("b.txt"), "should list b.txt in subdir:\n{stdout}");
+
+    // RETR b.txt from subdir
+    assert!(stdout.contains("226 Transfer"), "second RETR should complete:\n{stdout}");
     assert!(stdout.contains("221 Goodbye"), "should quit cleanly:\n{stdout}");
+
+    // Verify extracted a.txt content from root
+    let extracted_root = tmp.path().join("a.txt");
+    assert!(extracted_root.exists(), "a.txt should be extracted");
+    let content_root = std::fs::read_to_string(&extracted_root).unwrap_or_default();
+    assert_eq!(content_root, "Hello\n", "a.txt content mismatch");
+    let _ = std::fs::remove_file(&extracted_root);
+
+    // Verify extracted b.txt content from subdir
+    let extracted_sub = tmp.path().join("b.txt");
+    assert!(extracted_sub.exists(), "b.txt should be extracted");
+    let content_sub = std::fs::read_to_string(&extracted_sub).unwrap_or_default();
+    assert_eq!(content_sub, "Data\n", "b.txt content mismatch");
+    let _ = std::fs::remove_file(&extracted_sub);
 }
 
 

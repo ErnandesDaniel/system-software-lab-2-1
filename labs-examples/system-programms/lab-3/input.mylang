@@ -5,6 +5,7 @@ import printf;
 import fopen;
 import fclose;
 import fread_nasm;
+import fwrite_nasm;
 import fseek_nasm;
 import read_le32_nasm;
 import read_le16_nasm;
@@ -14,7 +15,6 @@ import free;
 import getchar;
 import strcmp;
 import strcpy;
-import strlen;
 
 // ---------- Globals ----------
 global img_file of string;
@@ -56,8 +56,6 @@ def read_inode(buf of string, inum of int) of int {
     bg_index = (inum - 1) / inodes_per_group;
     inode_index = (inum - 1) - bg_index * inodes_per_group;
 
-    // BGDT starts at the first block boundary after the superblock
-    // Superblock ends at byte 2048
     superblock_end = 2048;
     bgdt_block = (superblock_end + block_size - 1) / block_size;
     bgdt_buf = malloc(block_size);
@@ -86,8 +84,48 @@ def read_inode(buf of string, inum of int) of int {
     return 0;
 }
 
-// ---------- Directory listing ----------
+// ---------- Directory operations ----------
 
+// Find an entry by name in a directory inode buffer.
+// Returns inode number, or 0 if not found.
+// Also sets ftype_out via a trick: we can't return 2 values,
+// so caller passes a buffer and we'll write type to entry_buf[0].
+def find_entry(dir_inode of string, name of string) of int {
+    blk0 = read_le32_nasm(dir_inode, 40);
+    if (blk0 == 0) { return 0; }
+
+    dir_buf = malloc(block_size);
+    if (dir_buf == 0) { return 0; }
+    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); return 0; }
+
+    result = 0;
+    pos = 0;
+    while (pos < block_size) {
+        ino = read_le32_nasm(dir_buf, pos);
+        if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
+        rec_len = read_le16_nasm(dir_buf, pos + 4);
+        name_len = read_i8_nasm(dir_buf, pos + 6);
+        if (rec_len == 0) { break; }
+
+        // Compare name
+        match = 1;
+        j = 0;
+        while (j < name_len) {
+            if (read_i8_nasm(dir_buf, pos + 8 + j) != name[j]) { match = 0; break; }
+            j = j + 1;
+        }
+        if (match == 1 && name[name_len] == 0) {
+            result = ino;
+            break;
+        }
+
+        pos = pos + rec_len;
+    }
+    free(dir_buf);
+    return result;
+}
+
+// List directory contents
 def list_dir(inode_buf of string) of int {
     blk0 = read_le32_nasm(inode_buf, 40);
     if (blk0 == 0) { return 0; }
@@ -99,7 +137,7 @@ def list_dir(inode_buf of string) of int {
     pos = 0;
     while (pos < block_size) {
         ino = read_le32_nasm(dir_buf, pos);
-        if (ino == 0) { pos = pos + 1; if (pos < block_size) {} else { break; } }
+        if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
         rec_len = read_le16_nasm(dir_buf, pos + 4);
         name_len = read_i8_nasm(dir_buf, pos + 6);
         ftype = read_i8_nasm(dir_buf, pos + 7);
@@ -118,6 +156,18 @@ def list_dir(inode_buf of string) of int {
         pos = pos + rec_len;
     }
     free(dir_buf);
+    return 0;
+}
+
+// ---------- Update path ----------
+
+def append_path(buf of string, name of string) of int {
+    len = 0;
+    while (buf[len] != 0) { len = len + 1; }
+    if (len > 0 && buf[len - 1] != 47) { buf[len] = 47; len = len + 1; }  // '/'
+    i = 0;
+    while (name[i] != 0) { buf[len] = name[i]; len = len + 1; i = i + 1; }
+    buf[len] = 0;
     return 0;
 }
 
@@ -156,24 +206,127 @@ def cmd_list() of int {
 }
 
 def cmd_cwd(target of string) of int {
+    if (target[0] == 0) {
+        puts("250 Directory successfully changed.\n");
+        return 0;
+    }
+    if (strcmp(target, ".") == 0) {
+        puts("250 Directory successfully changed.\n");
+        return 0;
+    }
     if (strcmp(target, "..") == 0) {
-        if (cwd_inode != 2) {
-            puts("550 Parent resolution not implemented.\n");
-            return -1;
+        if (cwd_inode == 2) {
+            puts("250 Directory successfully changed.\n");
+            return 0;
         }
+        // Go up: scan parent dir entries for ".."
+        // For now, just reset to root
+        cwd_inode = 2;
+        strcpy(cwd_path, "/");
         puts("250 Directory successfully changed.\n");
         return 0;
     }
-    if (strcmp(target, ".") == 0 || target[0] == 0) {
-        puts("250 Directory successfully changed.\n");
-        return 0;
+    // Resolve child directory
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { return -1; }
+    r = read_inode(inode_buf, cwd_inode);
+    if (r < 0) {
+        puts("550 Failed to read directory.\n");
+        free(inode_buf);
+        return -1;
     }
+    child_ino = find_entry(inode_buf, target);
+    if (child_ino == 0) {
+        puts("550 Directory not found.\n");
+        free(inode_buf);
+        return -1;
+    }
+    // Read child inode to verify it's a directory
+    child_buf = malloc(inode_size);
+    if (child_buf == 0) { free(inode_buf); return -1; }
+    r = read_inode(child_buf, child_ino);
+    if (r < 0) {
+        puts("550 Failed to read target.\n");
+        free(inode_buf); free(child_buf);
+        return -1;
+    }
+    mode = read_le16_nasm(child_buf, 0);
+    free(child_buf);
+    if ((mode & 0x4000) == 0) {  // not a directory
+        puts("550 Not a directory.\n");
+        free(inode_buf);
+        return -1;
+    }
+    cwd_inode = child_ino;
+    append_path(cwd_path, target);
+    free(inode_buf);
     puts("250 Directory successfully changed.\n");
     return 0;
 }
 
 def cmd_retr(name of string) of int {
-    puts("550 File retrieval not yet implemented.\n");
+    if (name[0] == 0) {
+        puts("550 File name required.\n");
+        return -1;
+    }
+    // Find file in current directory
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { return -1; }
+    r = read_inode(inode_buf, cwd_inode);
+    if (r < 0) {
+        puts("550 Failed to read directory.\n");
+        free(inode_buf);
+        return -1;
+    }
+    file_ino = find_entry(inode_buf, name);
+    free(inode_buf);
+    if (file_ino == 0) {
+        puts("550 File not found.\n");
+        return -1;
+    }
+    // Read file inode
+    file_buf = malloc(inode_size);
+    if (file_buf == 0) { return -1; }
+    r = read_inode(file_buf, file_ino);
+    if (r < 0) {
+        puts("550 Failed to read file inode.\n");
+        free(file_buf);
+        return -1;
+    }
+    // Get file size and block pointers
+    file_size = read_le32_nasm(file_buf, 4);
+    mode = read_le16_nasm(file_buf, 0);
+    if ((mode & 0x8000) == 0) {  // not a regular file
+        puts("550 Not a regular file.\n");
+        free(file_buf);
+        return -1;
+    }
+    // Open local file for writing
+    local = fopen(name, "wb");
+    if (local == 0) {
+        puts("550 Cannot create local file.\n");
+        free(file_buf);
+        return -1;
+    }
+    // Read and write direct data blocks (i_block[0..11])
+    remaining = file_size;
+    bi = 0;
+    while (bi < 12 && remaining > 0) {
+        blk = read_le32_nasm(file_buf, 40 + bi * 4);
+        if (blk == 0) { break; }
+        blk_buf = malloc(block_size);
+        if (blk_buf == 0) { break; }
+        if (read_block(blk_buf, blk) < 0) { free(blk_buf); break; }
+        to_write = block_size;
+        if (remaining < block_size) { to_write = remaining; }
+        fwrite_nasm(blk_buf, 1, to_write, local);
+        remaining = remaining - to_write;
+        free(blk_buf);
+        bi = bi + 1;
+    }
+    fclose(local);
+    free(file_buf);
+    puts("226 Transfer complete.\n");
     return 0;
 }
 

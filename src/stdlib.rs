@@ -57,6 +57,7 @@ impl StdLib {
 
         // Binary I/O functions (NASM-only wrappers)
         funcs.insert("fread_nasm");
+        funcs.insert("fwrite_nasm");
         funcs.insert("fseek_nasm");
         funcs.insert("read_le32_nasm");
         funcs.insert("read_le16_nasm");
@@ -114,6 +115,7 @@ impl StdLib {
 
             // Binary I/O (NASM wrappers)
             ("fread_nasm", ("buf: string, size: int, count: int, file: string", "int")),
+            ("fwrite_nasm", ("buf: string, size: int, count: int, file: string", "int")),
             ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
             ("read_le32_nasm", ("buf: string, offset: int", "int")),
             ("read_le16_nasm", ("buf: string, offset: int", "int")),
