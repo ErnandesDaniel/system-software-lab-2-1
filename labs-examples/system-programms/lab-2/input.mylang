@@ -623,65 +623,63 @@ def q6_run() of int {
 
 def q7_run() of int {
     puts("--- Q7: Same surname, diff bday ---\n");
-    // Load people into arrays
-    p_ids = malloc(200);
-    p_surnames = malloc(200);
-    p_names = malloc(200);
-    p_bdays = malloc(200);
-    pn = 0;
-
-    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-    if (f == 0) { return -1; }
-    read_csv(f);
-    cols = malloc(20);
-    while (true) {
-        if (read_csv(f) == 0) { break; }
-        n = split_row(cols);
-        p_ids[pn] = save_str(cols[0]);
-        p_surnames[pn] = save_str(cols[1]);
-        p_names[pn] = save_str(cols[2]);
-        p_bdays[pn] = save_str(cols[4]);
-        pn = pn + 1;
-    }
-    fclose(f);
-    free(cols);
-
-    // Mark pairs with same surname, different bday
-    w = malloc(200);
-    i = 0;
-    while (i < pn) { w[i] = 0; i = i + 1; }
+    count = 0;
 
     i = 0;
-    while (i < pn) {
+    while (i < 30) {
+        // Read person i
+        fi = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+        if (fi == 0) { return -1; }
+        read_csv(fi);
+        cols = malloc(20);
+        ci = 0;
+        while (true) {
+            if (read_csv(fi) == 0) { break; }
+            if (ci < i) { ci = ci + 1; } else {
+                n = split_row(cols);
+                break;
+            }
+        }
+        si = save_str(cols[1]);
+        ni = save_str(cols[2]);
+        bi = save_str(cols[4]);
+        fclose(fi);
+        free(cols);
+
+        // Compare with people j > i
         j = i + 1;
-        while (j < pn) {
-            if (eq_str_arena(p_surnames[i], p_surnames[j]) != 0) {
-                if (eq_str_arena(p_bdays[i], p_bdays[j]) == 0) {
-                    w[i] = 1;
-                    w[j] = 1;
+        while (j < 30) {
+            fj = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+            if (fj == 0) { return -1; }
+            read_csv(fj);
+            cols = malloc(20);
+            cj = 0;
+            while (true) {
+                if (read_csv(fj) == 0) { break; }
+                if (cj < j) { cj = cj + 1; } else {
+                    n = split_row(cols);
+                    break;
                 }
             }
+            sj = save_str(cols[1]);
+            nj = save_str(cols[2]);
+            bj = save_str(cols[4]);
+            if (eq_str_arena(si, sj) != 0 && eq_str_arena(bi, bj) == 0) {
+                print_str(si); putchar(44); putchar(32);
+                print_str(ni); putchar(44); putchar(32);
+                print_str(bi); putchar(10);
+                print_str(sj); putchar(44); putchar(32);
+                print_str(nj); putchar(44); putchar(32);
+                print_str(bj); putchar(10);
+                count = count + 2;
+            }
+            fclose(fj);
+            free(cols);
             j = j + 1;
         }
         i = i + 1;
     }
-
-    count = 0;
-    i = 0;
-    while (i < pn) {
-        if (w[i] != 0) {
-            print_str(p_surnames[i]);
-            putchar(44); putchar(32);
-            print_str(p_names[i]);
-            putchar(44); putchar(32);
-            print_str(p_bdays[i]);
-            putchar(10);
-            count = count + 1;
-        }
-        i = i + 1;
-    }
     printf("Groups: %d\n", count);
-    free(p_ids); free(p_surnames); free(p_names); free(p_bdays); free(w);
     return count;
 }
 
