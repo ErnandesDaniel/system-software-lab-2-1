@@ -28,7 +28,7 @@ def p_init(p of Pipe) { p.head = 0; p.tail = 0; p.count = 0; }
 def p_write(p of Pipe, v of int) of int {
     if (p.count >= 256) { return -1; }
     p.arr[p.tail] = v;
-    p.tail = (p.tail + 1) % 64;
+    p.tail = (p.tail + 1) % 256;
     p.count = p.count + 1;
     return 0;
 }
@@ -36,7 +36,7 @@ def p_write(p of Pipe, v of int) of int {
 def p_read(p of Pipe) of int {
     if (p.count <= 0) { return -2; }
     r = p.arr[p.head];
-    p.head = (p.head + 1) % 64;
+    p.head = (p.head + 1) % 256;
     p.count = p.count - 1;
     return r;
 }
@@ -223,46 +223,75 @@ def q1_join_print() {
 }
 
 // ============================================================
-// Q2: LEFT JOIN (1 coroutine)
+// Q2: LEFT JOIN (3 coroutines via pipes)
 // studies.pid = 163276 LEFT JOIN students ON start='2008-09-01'
+// Pipeline:
+//   [studies_reader] -> pipe -> [join_and_print]
+//   [students_loader] -> pipe -> [join_and_print]
 // ============================================================
 
-def q2_run() {
-    s_pids = malloc(400);
-    s_grps = malloc(400);
-    s_starts = malloc(400);
-    sn = 0;
+global q2_st of Pipe;  // studies: pid_off
+global q2_sl of Pipe;  // students: pid_off, grp_off
 
-    sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
-    if (sf != 0) {
-        read_csv(sf);
-        cols = malloc(20);
-        while (true) {
-            if (read_csv(sf) == 0) { break; }
-            n = split_row(cols);
-            start_off = save_str(cols[2]);
-            if (eq_str(start_off, "2008-09-01") != 0) {
-                s_pids[sn] = save_str(cols[0]);
-                s_grps[sn] = save_str(cols[1]);
-                s_starts[sn] = start_off;
-                sn = sn + 1;
-            }
-        }
-        fclose(sf);
-        free(cols);
-    }
-
-    pf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
-    if (pf == 0) { return; }
-    read_csv(pf);
+def q2_read_studies() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+    if (f == 0) { p_write(q2_st, -1); return; }
+    read_csv(f);
     cols = malloc(20);
-    found = 0;
-
     while (true) {
-        if (read_csv(pf) == 0) { break; }
+        if (read_csv(f) == 0) { break; }
         n = split_row(cols);
         pid = atoi(row_buf + cols[0]);
         if (pid == 163276) {
+            p_write(q2_st, save_str(cols[0]));
+        }
+    }
+    p_write(q2_st, -1);
+    fclose(f);
+    free(cols);
+}
+
+def q2_load_students() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (f == 0) { p_write(q2_sl, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        start_off = save_str(cols[2]);
+        if (eq_str(start_off, "2008-09-01") != 0) {
+            p_write(q2_sl, save_str(cols[0]));  // pid
+            p_write(q2_sl, save_str(cols[1]));  // group
+        }
+    }
+    p_write(q2_sl, -1);
+    fclose(f);
+    free(cols);
+}
+
+def q2_join_print() {
+    // Load students into cache
+    s_pids = malloc(400);
+    s_grps = malloc(400);
+    sn = 0;
+    while (true) {
+        pid_off = p_read(q2_sl);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            s_pids[sn] = pid_off;
+            s_grps[sn] = p_read(q2_sl);
+            sn = sn + 1;
+        }
+    }
+
+    // Stream studies, LEFT JOIN with students cache
+    found = 0;
+    while (true) {
+        pid_off = p_read(q2_st);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            pid = int_str(pid_off);
             joined = 0;
             si = 0;
             while (si < sn) {
@@ -281,81 +310,146 @@ def q2_run() {
             }
         }
     }
-    fclose(pf);
-    free(cols);
     printf("Found: %d\n", found);
-    free(s_pids); free(s_grps); free(s_starts);
+    free(s_pids); free(s_grps);
 }
 
 // ============================================================
-// Q3: Count no patronymic + FCE (1 coroutine)
+// Q3: Count no patronymic + FCE + in students (4 coroutines)
+// Pipeline:
+//   [people_reader] -> pipe -> [join_and_count]
+//   [studies_fce_loader] -> pipe -> [join_and_count]
+//   [students_loader] -> pipe -> [join_and_count]
 // ============================================================
 
-def q3_run() {
-    count = 0;
-    pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-    if (pf == 0) { return; }
-    read_csv(pf);
-    cols = malloc(20);
+global q3_pp of Pipe;  // people (no patronymic): pid_off
+global q3_sf of Pipe;  // studies FCE: pid_off
+global q3_sl of Pipe;  // students: pid_off
 
+def q3_read_people() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (f == 0) { p_write(q3_pp, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
     while (true) {
-        if (read_csv(pf) == 0) { break; }
+        if (read_csv(f) == 0) { break; }
         n = split_row(cols);
-        if (row_buf[cols[3]] == 0) {
-            pid = atoi(row_buf + cols[0]);
-            sf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
-            if (sf != 0) {
-                read_csv(sf);
-                fce_ok = 0;
-                while (true) {
-                    if (read_csv(sf) == 0) { break; }
-                    n2 = split_row(cols);
-                    if (atoi(row_buf + cols[0]) == pid) {
-                        fac_off = save_str(cols[5]);
-                        if (eq_str(fac_off, "FCE") != 0) {
-                            df = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
-                            if (df != 0) {
-                                read_csv(df);
-                                while (true) {
-                                    if (read_csv(df) == 0) { break; }
-                                    n3 = split_row(cols);
-                                    if (atoi(row_buf + cols[0]) == pid) {
-                                        count = count + 1;
-                                        break;
-                                    }
-                                }
-                                fclose(df);
-                            }
-                            fce_ok = 1;
-                            break;
-                        }
-                    }
-                }
-                fclose(sf);
+        if (row_buf[cols[3]] == 0) {  // no patronymic
+            p_write(q3_pp, save_str(cols[0]));  // pid
+        }
+    }
+    p_write(q3_pp, -1);
+    fclose(f);
+    free(cols);
+}
+
+def q3_load_studies_fce() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+    if (f == 0) { p_write(q3_sf, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        fac_off = save_str(cols[5]);
+        if (eq_str(fac_off, "FCE") != 0) {
+            p_write(q3_sf, save_str(cols[0]));  // pid
+        }
+    }
+    p_write(q3_sf, -1);
+    fclose(f);
+    free(cols);
+}
+
+def q3_load_students() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (f == 0) { p_write(q3_sl, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        p_write(q3_sl, save_str(cols[0]));  // pid
+    }
+    p_write(q3_sl, -1);
+    fclose(f);
+    free(cols);
+}
+
+// Helper: store int value in 3-byte split (chars truncate >255)
+def store_int(arr of string, idx of int, val of int) {
+    arr[idx * 3] = val % 256;
+    arr[idx * 3 + 1] = (val / 256) % 256;
+    arr[idx * 3 + 2] = (val / 65536) % 256;
+}
+
+def load_int(arr of string, idx of int) of int {
+    return arr[idx * 3] + arr[idx * 3 + 1] * 256 + arr[idx * 3 + 2] * 65536;
+}
+
+def q3_join_count() {
+    fce_buf = malloc(300);
+    fce_n = 0;
+    while (true) {
+        pid_off = p_read(q3_sf);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            store_int(fce_buf, fce_n, pid_off);
+            fce_n = fce_n + 1;
+        }
+    }
+
+    stu_buf = malloc(300);
+    stu_n = 0;
+    while (true) {
+        pid_off = p_read(q3_sl);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            store_int(stu_buf, stu_n, pid_off);
+            stu_n = stu_n + 1;
+        }
+    }
+
+    count = 0;
+    while (true) {
+        pid_off = p_read(q3_pp);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            pid = int_str(pid_off);
+            in_fce = 0;
+            fi = 0;
+            while (fi < fce_n) {
+                if (int_str(load_int(fce_buf, fi)) == pid) { in_fce = 1; break; }
+                fi = fi + 1;
+            }
+            in_stu = 0;
+            si = 0;
+            while (si < stu_n) {
+                if (int_str(load_int(stu_buf, si)) == pid) { in_stu = 1; break; }
+                si = si + 1;
+            }
+            if (in_fce != 0 && in_stu != 0) {
+                count = count + 1;
             }
         }
     }
-    fclose(pf);
-    free(cols);
     printf("Count: %d\n", count);
+    free(fce_buf); free(stu_buf);
 }
 
 // ============================================================
-// Q4: Plans >2 groups on Computer Engineering
+// Q4: Plans >2 groups on Computer Engineering (2 coroutines)
 // group_plans.csv: pid(0), group(1), dept(2)
 // WHERE dept = 'Department of Computer Engineering'
 // GROUP BY pid HAVING count(DISTINCT group) > 2
+// Pipeline: [plans_reader] -> pipe -> [group_and_print]
 // ============================================================
 
-def q4_run() of int {
-    puts("--- Q4: Plans >2 groups on CE ---\n");
-    // Cache: pid -> dept, seen set for dedup
-    pids = malloc(200);
-    groups_seen = malloc(400);
-    gp_n = 0;
+global q4_pl of Pipe;  // plans: pid (int), group_num (int)
 
+def q4_read_plans() {
     f = fopen("labs-examples/system-programms/lab-2/csv-data/group_plans.csv", "r");
-    if (f == 0) { return -1; }
+    if (f == 0) { p_write(q4_pl, -1); return; }
     read_csv(f);
     cols = malloc(20);
     while (true) {
@@ -363,39 +457,52 @@ def q4_run() of int {
         n = split_row(cols);
         dept_off = save_str(cols[2]);
         if (eq_str(dept_off, "Department of Computer Engineering") != 0) {
-            // Store pid and group as ints (fit in byte for this dataset)
-            pids[gp_n] = atoi(row_buf + cols[0]);
-            groups_seen[gp_n] = atoi(row_buf + cols[1]);
-            gp_n = gp_n + 1;
+            p_write(q4_pl, atoi(row_buf + cols[0]));  // pid as int
+            p_write(q4_pl, atoi(row_buf + cols[1]));  // group as int
         }
     }
+    p_write(q4_pl, -1);
     fclose(f);
     free(cols);
+}
 
-    // Count distinct groups per pid
+def q4_group_print() {
+    // Read all plans into arrays
+    pids = malloc(200);
+    grps = malloc(200);
+    pn = 0;
+    while (true) {
+        pid = p_read(q4_pl);
+        if (pid == -1) { break; }
+        if (pid == -2) { } else {
+            pids[pn] = pid;
+            grps[pn] = p_read(q4_pl);
+            pn = pn + 1;
+        }
+    }
+
     found = 0;
     seen_pid = malloc(200);
     seen_pn = 0;
 
     i = 0;
-    while (i < gp_n) {
+    while (i < pn) {
         pid = pids[i];
-        // Check if pid already processed
         already = 0;
         si = 0;
         while (si < seen_pn) {
             if (seen_pid[si] == pid) { already = 1; break; }
             si = si + 1;
         }
-            if (already == 0) {
-            // Count distinct groups
+        if (already == 0) {
+            // Count distinct groups for this pid
             cnt = 0;
             seen_grp = malloc(200);
             sgn = 0;
             j = 0;
-            while (j < gp_n) {
+            while (j < pn) {
                 if (pids[j] == pid) {
-                    grp = groups_seen[j];
+                    grp = grps[j];
                     dup = 0;
                     gi = 0;
                     while (gi < sgn) {
@@ -421,20 +528,21 @@ def q4_run() of int {
         i = i + 1;
     }
     printf("Found: %d\n", found);
-    free(pids); free(groups_seen); free(seen_pid);
-    return found;
+    free(pids); free(grps); free(seen_pid);
 }
 
 // ============================================================
-// Q5: Avg grades for group 4100 >= group 1100
+// Q5: Avg grades for group 4100 >= group 1100 (3 coroutines)
 // students: pid(0), group(1), start(2)
 // vedomosti: pid(2), mark(4)
 // people: id(0), surname(1), name(2)
+// Pipeline:
+//   [avg_1100] computed first (regular function)
+//   [students_4100_reader] -> pipe -> [avg_calc_lookup_print]
 // ============================================================
 
 // Helper: compute average grade for a group from vedomosti
 def group_avg(grp_name of string, out_avg of string) of int {
-    // Load students in this group — store pid as arena offset
     sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
     if (sf == 0) { return 0; }
     read_csv(sf);
@@ -446,14 +554,13 @@ def group_avg(grp_name of string, out_avg of string) of int {
         n = split_row(cols);
         grp_off = save_str(cols[1]);
         if (eq_str(grp_off, grp_name) != 0) {
-            grp_pids[grp_pn] = save_str(cols[0]);  // save pid string, store arena offset
+            grp_pids[grp_pn] = save_str(cols[0]);
             grp_pn = grp_pn + 1;
         }
     }
     fclose(sf);
     free(cols);
 
-    // Sum grades from vedomosti for these students
     sum = 0; cnt = 0;
     vf = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
     if (vf != 0) {
@@ -464,7 +571,6 @@ def group_avg(grp_name of string, out_avg of string) of int {
             n = split_row(cols);
             pid = atoi(row_buf + cols[2]);
             mark = atoi(row_buf + cols[4]);
-            // Check if pid in group
             pi = 0;
             while (pi < grp_pn) {
                 if (int_str(grp_pids[pi]) == pid && mark >= 3) {
@@ -484,20 +590,14 @@ def group_avg(grp_name of string, out_avg of string) of int {
     return cnt;
 }
 
-def q5_run() of int {
-    puts("--- Q5: Avg grades 4100 >= 1100 ---\n");
-    avg_buf = malloc(4);
-    avg1100 = 0;
-    group_avg("1100", avg_buf);
-    avg1100 = avg_buf[0];
-    printf("Avg 1100 = %d\n", avg1100);
+global q5_p of Pipe;  // 4100 students: pid_off, pavg (int*10)
+global g_avg1100 of int;
 
-    // Stream group 4100 students
+def q5_read_4100() {
     sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
-    if (sf == 0) { return -1; }
+    if (sf == 0) { p_write(q5_p, -1); return; }
     read_csv(sf);
     cols = malloc(20);
-    found = 0;
 
     while (true) {
         if (read_csv(sf) == 0) { break; }
@@ -506,7 +606,6 @@ def q5_run() of int {
         if (eq_str(grp_off, "4100") != 0) {
             pid = atoi(row_buf + cols[0]);
 
-            // Compute personal avg
             sum = 0; cnt = 0;
             vf = fopen("labs-examples/system-programms/lab-2/csv-data/vedomosti.csv", "r");
             if (vf != 0) {
@@ -523,168 +622,172 @@ def q5_run() of int {
             }
             if (cnt != 0) {
                 pavg = (sum * 10) / cnt;
-                if (pavg >= avg1100) {
-                    // Lookup person name
-                    pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-                    if (pf != 0) {
-                        read_csv(pf);
-                        while (true) {
-                            if (read_csv(pf) == 0) { break; }
-                            n3 = split_row(cols);
-                            if (atoi(row_buf + cols[0]) == pid) {
-                                printf("%d, ", pid);
-                                print_str(save_str(cols[1]));
-                                putchar(32);
-                                print_str(save_str(cols[2]));
-                                printf(" %d.%d\n", pavg / 10, pavg % 10);
-                                found = found + 1;
-                                break;
-                            }
+                p_write(q5_p, pid);
+                p_write(q5_p, pavg);
+            }
+        }
+    }
+    p_write(q5_p, -1);
+    fclose(sf);
+    free(cols);
+}
+
+def q5_lookup_print() {
+    found = 0;
+    while (true) {
+        pid = p_read(q5_p);
+        if (pid == -1) { break; }
+        if (pid == -2) { } else {
+            pavg = p_read(q5_p);
+            if (pavg >= g_avg1100) {
+                pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+                if (pf != 0) {
+                    read_csv(pf);
+                    cols = malloc(20);
+                    while (true) {
+                        if (read_csv(pf) == 0) { break; }
+                        n = split_row(cols);
+                        if (atoi(row_buf + cols[0]) == pid) {
+                            printf("%d, ", pid);
+                            print_str(save_str(cols[1]));
+                            putchar(32);
+                            print_str(save_str(cols[2]));
+                            printf(" %d.%d\n", pavg / 10, pavg % 10);
+                            found = found + 1;
+                            break;
                         }
-                        fclose(pf);
                     }
+                    fclose(pf);
+                    free(cols);
                 }
             }
         }
     }
-    fclose(sf);
-    free(cols);
     printf("Found: %d\n", found);
-    free(avg_buf);
-    return found;
 }
 
 // ============================================================
-// Q6: Enrolled after 2012-09-01, course=1, part-time
+// Q6: Enrolled after 2012-09-01, course=1, part-time (3 coroutines)
 // students: pid(0), group(1), start(2)
 // studies: pid(0), form(5), course(7)
 // people: id(0), surname(1), name(2)
+// Pipeline:
+//   [studies_loader] -> pipe -> [students_reader]
+//   [students_reader] -> pipe -> [lookup_print]
 // ============================================================
 
-def q6_run() of int {
-    puts("--- Q6: After 2012-09-01, course 1, part-time ---\n");
-    count = 0;
-    sf = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
-    if (sf == 0) { return -1; }
-    read_csv(sf);
-    cols = malloc(20);
+global q6_sl of Pipe;  // studies pids: pid_off
 
+def q6_load_studies() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
+    if (f == 0) { p_write(q6_sl, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
     while (true) {
-        if (read_csv(sf) == 0) { break; }
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        form_off = save_str(cols[2]);
+        course = atoi(row_buf + cols[6]);
+        if (eq_str(form_off, "part-time") != 0 && course == 1) {
+            p_write(q6_sl, save_str(cols[0]));  // pid
+        }
+    }
+    p_write(q6_sl, -1);
+    fclose(f);
+    free(cols);
+}
+
+global q6_st of Pipe;  // students: pid_off, grp_off
+
+def q6_read_students() {
+    // First load studies pids into cache
+    pt_pids = malloc(300);
+    pt_n = 0;
+    while (true) {
+        pid_off = p_read(q6_sl);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            store_int(pt_pids, pt_n, pid_off);
+            pt_n = pt_n + 1;
+        }
+    }
+
+    // Stream students, filter by start_date and pid in cache
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/students.csv", "r");
+    if (f == 0) { p_write(q6_st, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
+    while (true) {
+        if (read_csv(f) == 0) { break; }
         n = split_row(cols);
         start_off = save_str(cols[2]);
         if (gt_str(start_off, "2012-09-01") > 0) {
             pid = atoi(row_buf + cols[0]);
-            grp_off = save_str(cols[1]);
-            // Check studies: course=1 AND form='part-time'
-            stf = fopen("labs-examples/system-programms/lab-2/csv-data/studies.csv", "r");
-            if (stf != 0) {
-                read_csv(stf);
+            // Check if pid in part-time studies cache
+            found_pid = 0;
+            pi = 0;
+            while (pi < pt_n) {
+                if (int_str(load_int(pt_pids, pi)) == pid) { found_pid = 1; break; }
+                pi = pi + 1;
+            }
+            if (found_pid != 0) {
+                p_write(q6_st, save_str(cols[0]));  // pid
+                p_write(q6_st, save_str(cols[1]));  // group
+            }
+        }
+    }
+    p_write(q6_st, -1);
+    fclose(f);
+    free(cols);
+    free(pt_pids);
+}
+
+def q6_lookup_print() {
+    count = 0;
+    while (true) {
+        pid_off = p_read(q6_st);
+        if (pid_off == -1) { break; }
+        if (pid_off == -2) { } else {
+            grp_off = p_read(q6_st);
+            pid = int_str(pid_off);
+
+            // Lookup name in people.csv
+            pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+            if (pf != 0) {
+                read_csv(pf);
+                cols = malloc(20);
                 while (true) {
-                    if (read_csv(stf) == 0) { break; }
-                    n2 = split_row(cols);
-                    if (atoi(row_buf + cols[0]) == pid && atoi(row_buf + cols[6]) == 1 && eq_str(save_str(cols[2]), "part-time") != 0) {
-                        // Print student info
-                        pf = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-                        if (pf != 0) {
-                            read_csv(pf);
-                            while (true) {
-                                if (read_csv(pf) == 0) { break; }
-                                n3 = split_row(cols);
-                                if (atoi(row_buf + cols[0]) == pid) {
-                                    print_str(grp_off);
-                                    putchar(44); putchar(32);
-                                    printf("%d", pid);
-                                    putchar(44); putchar(32);
-                                    print_str(save_str(cols[1]));
-                                    putchar(32);
-                                    print_str(save_str(cols[2]));
-                                    putchar(10);
-                                    count = count + 1;
-                                    break;
-                                }
-                            }
-                            fclose(pf);
-                        }
+                    if (read_csv(pf) == 0) { break; }
+                    n = split_row(cols);
+                    if (atoi(row_buf + cols[0]) == pid) {
+                        print_str(grp_off);
+                        putchar(44); putchar(32);
+                        printf("%d", pid);
+                        putchar(44); putchar(32);
+                        print_str(save_str(cols[1]));
+                        putchar(32);
+                        print_str(save_str(cols[2]));
+                        putchar(10);
+                        count = count + 1;
                         break;
                     }
                 }
-                fclose(stf);
+                fclose(pf);
+                free(cols);
             }
         }
     }
-    fclose(sf);
-    free(cols);
     printf("Count: %d\n", count);
-    return count;
 }
 
 // ============================================================
-// Q7: Same surname, different bday
+// Q7: Same surname, different bday (2 coroutines)
 // people: id(0), surname(1), name(2), patr(3), bday(4)
+// Pipeline:
+//   [people_loader] -> cache -> [compare_print]
 // ============================================================
 
-def q7_run() of int {
-    puts("--- Q7: Same surname, diff bday ---\n");
-    count = 0;
-
-    i = 0;
-    while (i < 30) {
-        // Read person i
-        fi = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-        if (fi == 0) { return -1; }
-        read_csv(fi);
-        cols = malloc(20);
-        ci = 0;
-        while (true) {
-            if (read_csv(fi) == 0) { break; }
-            if (ci < i) { ci = ci + 1; } else {
-                n = split_row(cols);
-                break;
-            }
-        }
-        si = save_str(cols[1]);
-        ni = save_str(cols[2]);
-        bi = save_str(cols[4]);
-        fclose(fi);
-        free(cols);
-
-        // Compare with people j > i
-        j = i + 1;
-        while (j < 30) {
-            fj = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
-            if (fj == 0) { return -1; }
-            read_csv(fj);
-            cols = malloc(20);
-            cj = 0;
-            while (true) {
-                if (read_csv(fj) == 0) { break; }
-                if (cj < j) { cj = cj + 1; } else {
-                    n = split_row(cols);
-                    break;
-                }
-            }
-            sj = save_str(cols[1]);
-            nj = save_str(cols[2]);
-            bj = save_str(cols[4]);
-            if (eq_str_arena(si, sj) != 0 && eq_str_arena(bi, bj) == 0) {
-                print_str(si); putchar(44); putchar(32);
-                print_str(ni); putchar(44); putchar(32);
-                print_str(bi); putchar(10);
-                print_str(sj); putchar(44); putchar(32);
-                print_str(nj); putchar(44); putchar(32);
-                print_str(bj); putchar(10);
-                count = count + 2;
-            }
-            fclose(fj);
-            free(cols);
-            j = j + 1;
-        }
-        i = i + 1;
-    }
-    printf("Groups: %d\n", count);
-    return count;
-}
+global q7_p of Pipe;
 
 // Arena string comparison (both offsets)
 def eq_str_arena(a of int, b of int) of int {
@@ -712,6 +815,66 @@ def gt_str(off of int, lit of string) of int {
     }
 }
 
+// Global cache for all people records (offsets stored via store_int/load_int)
+global q7_data of string;
+global q7_count of int;
+
+def q7_load_people() {
+    f = fopen("labs-examples/system-programms/lab-2/csv-data/people.csv", "r");
+    if (f == 0) { p_write(q7_p, -1); return; }
+    read_csv(f);
+    cols = malloc(20);
+
+    q7_data = malloc(500);
+    q7_count = 0;
+
+    while (true) {
+        if (read_csv(f) == 0) { break; }
+        n = split_row(cols);
+        // Store 4 offsets per person: pid, surname, name, bday
+        store_int(q7_data, q7_count * 4, save_str(cols[0]));
+        store_int(q7_data, q7_count * 4 + 1, save_str(cols[1]));
+        store_int(q7_data, q7_count * 4 + 2, save_str(cols[2]));
+        store_int(q7_data, q7_count * 4 + 3, save_str(cols[4]));
+        q7_count = q7_count + 1;
+    }
+    fclose(f);
+    free(cols);
+    p_write(q7_p, 1);  // signal ready
+}
+
+def q7_compare_print() {
+    // Wait for load signal
+    while (true) {
+        sig = p_read(q7_p);
+        if (sig == 1) { break; }
+    }
+
+    count = 0;
+    i = 0;
+    while (i < q7_count) {
+        j = i + 1;
+        while (j < q7_count) {
+            si = load_int(q7_data, i * 4 + 1);
+            sj = load_int(q7_data, j * 4 + 1);
+            bi = load_int(q7_data, i * 4 + 3);
+            bj = load_int(q7_data, j * 4 + 3);
+            if (eq_str_arena(si, sj) != 0 && eq_str_arena(bi, bj) == 0) {
+                print_str(si); putchar(44); putchar(32);
+                print_str(load_int(q7_data, i * 4 + 2)); putchar(44); putchar(32);
+                print_str(bi); putchar(10);
+                print_str(sj); putchar(44); putchar(32);
+                print_str(load_int(q7_data, j * 4 + 2)); putchar(44); putchar(32);
+                print_str(bj); putchar(10);
+                count = count + 2;
+            }
+            j = j + 1;
+        }
+        i = i + 1;
+    }
+    printf("Groups: %d\n", count);
+}
+
 // ============================================================
 // Main
 // ============================================================
@@ -720,10 +883,10 @@ def main() of int {
     if (row_buf == 0) { puts("malloc failed"); return 1; }
     arena_init();
 
-    puts("=== Lab 2: def Map-Reduce Pipeline ===\n");
+    puts("=== Lab 2: Map-Reduce Pipeline ===\n");
 
     // ---- Q1 ----
-    puts("--- Q1: INNER JOIN (3 coroutines via pipes) ---\n");
+    puts("--- Q1: INNER JOIN (3 coroutines) ---\n");
     p_init(q1_v);
     p_init(q1_t);
     n_coros = 3;
@@ -736,40 +899,92 @@ def main() of int {
     puts("--- Q1 done ---\n");
 
     // ---- Q2 ----
-    puts("--- Q2: LEFT JOIN (coroutine) ---\n");
+    puts("--- Q2: LEFT JOIN (3 coroutines) ---\n");
     arena_reset();
-    n_coros = 1;
+    p_init(q2_st);
+    p_init(q2_sl);
+    n_coros = 3;
     init_coroutine_runtime_nasm();
-    create_coroutine_nasm(q2_run);
+    create_coroutine_nasm(q2_read_studies);
+    create_coroutine_nasm(q2_load_students);
+    create_coroutine_nasm(q2_join_print);
     set_coroutine_scheduler_nasm(rr_scheduler);
     run_coroutine_runtime_nasm();
     puts("--- Q2 done ---\n");
 
     // ---- Q3 ----
-    puts("--- Q3: No patronymic + FCE (coroutine) ---\n");
+    puts("--- Q3: No patronymic + FCE (4 coroutines) ---\n");
     arena_reset();
-    n_coros = 1;
+    p_init(q3_pp);
+    p_init(q3_sf);
+    p_init(q3_sl);
+    n_coros = 4;
     init_coroutine_runtime_nasm();
-    create_coroutine_nasm(q3_run);
+    create_coroutine_nasm(q3_read_people);
+    create_coroutine_nasm(q3_load_studies_fce);
+    create_coroutine_nasm(q3_load_students);
+    create_coroutine_nasm(q3_join_count);
     set_coroutine_scheduler_nasm(rr_scheduler);
     run_coroutine_runtime_nasm();
     puts("--- Q3 done ---\n");
 
     // ---- Q4 ----
+    puts("--- Q4: Plans >2 groups on CE (2 coroutines) ---\n");
     arena_reset();
-    q4_run();
+    p_init(q4_pl);
+    n_coros = 2;
+    init_coroutine_runtime_nasm();
+    create_coroutine_nasm(q4_read_plans);
+    create_coroutine_nasm(q4_group_print);
+    set_coroutine_scheduler_nasm(rr_scheduler);
+    run_coroutine_runtime_nasm();
+    puts("--- Q4 done ---\n");
 
     // ---- Q5 ----
+    puts("--- Q5: Avg grades 4100 >= 1100 ---\n");
     arena_reset();
-    q5_run();
+    // Compute avg1100 (sequential, not a coroutine)
+    avg_buf = malloc(4);
+    g_avg1100 = 0;
+    group_avg("1100", avg_buf);
+    g_avg1100 = avg_buf[0];
+    printf("Avg 1100 = %d\n", g_avg1100);
+
+    p_init(q5_p);
+    n_coros = 2;
+    init_coroutine_runtime_nasm();
+    create_coroutine_nasm(q5_read_4100);
+    create_coroutine_nasm(q5_lookup_print);
+    set_coroutine_scheduler_nasm(rr_scheduler);
+    run_coroutine_runtime_nasm();
+    free(avg_buf);
+    puts("--- Q5 done ---\n");
 
     // ---- Q6 ----
+    puts("--- Q6: After 2012-09-01, course 1, part-time (3 coroutines) ---\n");
     arena_reset();
-    q6_run();
+    p_init(q6_sl);
+    p_init(q6_st);
+    n_coros = 3;
+    init_coroutine_runtime_nasm();
+    create_coroutine_nasm(q6_load_studies);
+    create_coroutine_nasm(q6_read_students);
+    create_coroutine_nasm(q6_lookup_print);
+    set_coroutine_scheduler_nasm(rr_scheduler);
+    run_coroutine_runtime_nasm();
+    puts("--- Q6 done ---\n");
 
     // ---- Q7 ----
+    puts("--- Q7: Same surname, diff bday (2 coroutines) ---\n");
     arena_reset();
-    q7_run();
+    p_init(q7_p);
+    n_coros = 2;
+    init_coroutine_runtime_nasm();
+    create_coroutine_nasm(q7_load_people);
+    create_coroutine_nasm(q7_compare_print);
+    set_coroutine_scheduler_nasm(rr_scheduler);
+    run_coroutine_runtime_nasm();
+    puts("--- Q7 done ---\n");
 
     puts("\n=== Done ===\n");
     return 0;

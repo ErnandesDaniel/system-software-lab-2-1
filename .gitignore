@@ -1,6 +1,7 @@
 target
 .idea
 output
+output-linux
 
 hs_err_pid*.log
 
