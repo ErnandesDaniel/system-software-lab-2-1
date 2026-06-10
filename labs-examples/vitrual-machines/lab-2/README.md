@@ -32,15 +32,17 @@ cargo run -- labs-examples/vitrual-machines/lab-2/input.mylang -o output -t nasm
 
 Надо исправить так, чтобы состояние вне двух функций изменялось после использования этих функций типа
 
-def f() of def(int) of int { - написать нормальный тип тут и проверить как тут, так и на PHP
+def f() of def(int) of int array[2] { - написать нормальный тип тут и проверить как тут, так и на PHP
 y = 0;
 
     return [
         def add2(x of int) of int {
-            return y = x + y;
+            y = x + y; 
+            return y;
         },
         def mul2(x of int) of int {
-            return y = x * y;
+            y = x * y;
+            return y;
         }
     ];
 }
