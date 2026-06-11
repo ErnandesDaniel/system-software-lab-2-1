@@ -297,6 +297,7 @@ fn test_asm_closure_make() {
 fn test_asm_closure_call() {
     let output = asm("def main() of int { x = 5; def inner() of int { return x; } return inner(); }");
     assert!(output.contains("call rax"), "expected call rax for closure");
+    assert!(output.contains("xmalloc"), "expected xmalloc for closure env");
 }
 #[test]
 fn test_asm_repeat_loop() {

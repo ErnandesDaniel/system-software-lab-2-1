@@ -1,5 +1,5 @@
 use crate::codegen::nasm::AsmGenerator;
-use crate::ir::types::{IrFunction, IrOpcode};
+use crate::ir::types::{IrFunction, IrOpcode, IrType};
 use std::collections::HashSet;
 
 impl AsmGenerator {
@@ -43,6 +43,7 @@ impl AsmGenerator {
         for ext in &func.used_functions {
             set.insert(ext.clone());
         }
+        let mut needs_xmalloc = false;
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let IrOpcode::Call = inst.opcode {
@@ -55,7 +56,13 @@ impl AsmGenerator {
                         set.insert(name.clone());
                     }
                 }
+                if matches!(inst.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray) {
+                    needs_xmalloc = true;
+                }
             }
+        }
+        if needs_xmalloc {
+            set.insert("xmalloc".to_string());
         }
         let mut list: Vec<String> = set.into_iter().collect();
         list.sort();
@@ -95,8 +102,17 @@ impl AsmGenerator {
                         && !self.slots.contains_key(result)
                         && !self.global_names.contains(result.as_str())
                     {
-                        self.alloc_slot(result, 8);
-                        stack_size += 8;
+                        let slot_size = inst.result_type.as_ref().map_or(8, |t| {
+                        if matches!(t, IrType::Array(_, _)) {
+                            8u32
+                        } else if matches!(t, IrType::Closure(_, _)) {
+                            16u32
+                        } else {
+                            t.size().max(8) as u32
+                        }
+                    });
+                        self.alloc_slot(result, slot_size);
+                        stack_size += slot_size as i32;
                     }
                 }
             }

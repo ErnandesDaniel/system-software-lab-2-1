@@ -53,7 +53,7 @@ impl JvmGenerator {
         let fn_s: HashSet<u16> = func
             .locals
             .iter()
-            .filter(|l| matches!(l.ty, IrType::Function(_, _)))
+            .filter(|l| matches!(l.ty, IrType::Function(_, _) | IrType::Closure(_, _)))
             .filter_map(|l| self.func.locals.get(&l.name))
             .copied()
             .collect();
@@ -218,7 +218,7 @@ impl JvmGenerator {
     }
 
     fn is_jvm_ref(ty: &IrType) -> bool {
-        matches!(ty, IrType::String | IrType::Function(_, _))
+        matches!(ty, IrType::String | IrType::Function(_, _) | IrType::Closure(_, _))
             || matches!(ty, IrType::Array(et, _) if !matches!(et.as_ref(), IrType::Int))
     }
 
@@ -287,7 +287,7 @@ impl JvmGenerator {
         }
         match &func.return_type {
             IrType::Void => code.push(Instruction::Return),
-            IrType::String | IrType::Function(_, _) | IrType::Array(..) => {
+            IrType::String | IrType::Function(_, _) | IrType::Closure(_, _) | IrType::Array(..) => {
                 code.push(Instruction::Aconst_null);
                 code.push(Instruction::Areturn);
             }

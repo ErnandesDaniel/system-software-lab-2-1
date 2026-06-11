@@ -71,11 +71,21 @@ impl JvmGenerator {
                             self.closure.env_vars.insert(result.clone());
                             if let Some(ref target) = inst.jump_target {
                                 self.closure.closure_targets.insert(result.clone(), target.clone());
+                                func_ref_instance_temps.insert(target.clone(), result.clone());
                             }
                         }
-                        for op in inst.operands.iter().skip(1) {
-                            if let IrOperand::Variable(name, _) = op {
-                                self.closure.wrapped_vars.insert(name.clone());
+                    }
+                    IrOpcode::Assign => {
+                        if let Some(ref target) = inst.result {
+                            if traits::is_temp(target) && !temps_used.contains(target) {
+                                temps_used.push(target.clone());
+                            }
+                            if let Some(IrOperand::Variable(source, ty)) = inst.operands.first() {
+                                if matches!(ty, IrType::Closure(_, _)) {
+                                    if let Some(lambda) = self.closure.closure_targets.get(source) {
+                                        self.closure.closure_targets.insert(target.clone(), lambda.clone());
+                                    }
+                                }
                             }
                         }
                     }

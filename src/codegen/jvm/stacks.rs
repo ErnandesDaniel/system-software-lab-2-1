@@ -165,17 +165,14 @@ impl JvmGenerator {
             | Instruction::Ifle(_)
             | Instruction::Tableswitch { .. }
             | Instruction::Lookupswitch { .. }
-            | Instruction::Putstatic(_)
-            | Instruction::Invokevirtual(_)
             | Instruction::Invokespecial(_)
-            | Instruction::Invokestatic(_)
-            | Instruction::Invokeinterface(_, _)
-            | Instruction::Invokedynamic(_)
+            | Instruction::Invokevirtual(_)
             | Instruction::Athrow
             | Instruction::Monitorenter
             | Instruction::Monitorexit
             | Instruction::Ifnull(_)
             | Instruction::Ifnonnull(_)
+            | Instruction::Putstatic(_)
             | Instruction::Iaload
             | Instruction::Laload
             | Instruction::Faload
@@ -184,6 +181,11 @@ impl JvmGenerator {
             | Instruction::Baload
             | Instruction::Caload
             | Instruction::Saload => -1,
+            // Invokestatic/Invokeinterface/Invokedynamic:
+            // conservative +1 to avoid underestimation (they may push a return value)
+            | Instruction::Invokestatic(_)
+            | Instruction::Invokeinterface(_, _)
+            | Instruction::Invokedynamic(_) => 1,
             _ => 0,
         }
     }

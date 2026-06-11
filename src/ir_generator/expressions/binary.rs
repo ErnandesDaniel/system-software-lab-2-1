@@ -349,10 +349,6 @@ impl IrGenerator {
         if !name.is_empty() && !self.symbols.is_declared(&name) {
             self.symbols.define_local(&name, right_type.clone());
         }
-        if self.closure_envs.contains_key(right_temp) {
-            let env_tmp = self.closure_envs[right_temp].clone();
-            self.closure_envs.insert(name, env_tmp);
-        }
     }
 
     fn assign_to_captured(

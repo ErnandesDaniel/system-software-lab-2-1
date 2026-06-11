@@ -213,3 +213,41 @@ def main() of int {
 fn test_jvm_struct_array_field_valid() {
     assert!(jvm_valid(JVM_STRUCT_ARRAY_FIELD));
 }
+
+const JVM_MUTATING_CLOSURE_ARRAY_RETURN: &str = r#"
+def f() of def(int) of int array[2] {
+    y = 0;
+    return [
+        def add2(x of int) of int {
+            y = x + y;
+            return y;
+        },
+        def mul2(x of int) of int {
+            y = x * y;
+            return y;
+        }
+    ];
+}
+
+def main() of int {
+    c = f();
+    r1 = c[0](3);
+    r2 = c[1](4);
+    r3 = c[0](1);
+    return r1 * 10000 + r2 * 100 + r3;
+}
+"#;
+
+#[test]
+fn test_jvm_runtime_mutating_closure_array_return() {
+    let output = compile_and_run_jvm(JVM_MUTATING_CLOSURE_ARRAY_RETURN);
+    assert_eq!(output.status.code(), Some(31213), "mutating closures sharing captured y via returned array");
+}
+
+#[test]
+fn test_jvm_mutating_closure_array_return_valid() {
+    assert!(
+        jvm_valid(JVM_MUTATING_CLOSURE_ARRAY_RETURN),
+        "mutating closure array return should produce valid class files"
+    );
+}

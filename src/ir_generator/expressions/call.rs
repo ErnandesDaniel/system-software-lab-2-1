@@ -9,7 +9,9 @@ impl IrGenerator {
             _ => String::new(),
         };
 
-        let is_direct = !func_name.is_empty()
+        let is_closure_var = !func_name.is_empty()
+            && matches!(self.symbols.get_type(&func_name), IrType::Closure(_, _));
+        let is_direct = !func_name.is_empty() && !is_closure_var
             && (self.symbols.function_return_types.contains_key(&func_name) || self.is_external_function(&func_name));
 
         if is_direct {
@@ -58,21 +60,22 @@ impl IrGenerator {
         } else {
             let (func_temp, func_ty) = self.visit_expr(block, &expr.function);
 
-            if let Some(env_tmp) = self.closure_envs.get(&func_temp) {
-                let mut return_type = IrType::Int;
-                if let IrType::Function(_, ret) = &func_ty {
-                    return_type = *ret.clone();
-                }
-                let mut operands = vec![
-                    IrOperand::Variable(func_temp.clone(), func_ty.clone()),
-                    IrOperand::Variable(env_tmp.clone(), IrType::Int),
-                ];
-                for arg in &expr.arguments {
-                    let (temp, arg_type) = self.visit_expr(block, arg);
-                    operands.push(IrOperand::Variable(temp, arg_type));
-                }
-                let is_void = matches!(return_type, IrType::Void);
-                let result_temp = if is_void { String::new() } else { self.generate_temp() };
+            let return_type = match &func_ty {
+                IrType::Function(_, ret) | IrType::Closure(_, ret) => *ret.clone(),
+                _ => IrType::Int,
+            };
+
+            let mut operands = vec![IrOperand::Variable(func_temp.clone(), func_ty.clone())];
+
+            for arg in &expr.arguments {
+                let (temp, arg_type) = self.visit_expr(block, arg);
+                operands.push(IrOperand::Variable(temp, arg_type));
+            }
+
+            let is_void = matches!(return_type, IrType::Void);
+            let result_temp = if is_void { String::new() } else { self.generate_temp() };
+
+            if matches!(func_ty, IrType::Closure(_, _)) {
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::CallClosure,
                     result: if is_void { None } else { Some(result_temp.clone()) },
@@ -85,20 +88,6 @@ impl IrGenerator {
                 });
                 (result_temp, return_type)
             } else {
-                let mut return_type = IrType::Int;
-                if let IrType::Function(_, ret) = &func_ty {
-                    return_type = *ret.clone();
-                }
-                let mut operands = vec![IrOperand::Variable(func_temp, func_ty)];
-
-                for arg in &expr.arguments {
-                    let (temp, arg_type) = self.visit_expr(block, arg);
-                    operands.push(IrOperand::Variable(temp, arg_type));
-                }
-
-                let is_void = matches!(return_type, IrType::Void);
-                let result_temp = if is_void { String::new() } else { self.generate_temp() };
-
                 block.instructions.push(IrInstruction {
                     opcode: IrOpcode::CallIndirect,
                     result: if is_void { None } else { Some(result_temp.clone()) },
@@ -109,7 +98,6 @@ impl IrGenerator {
                     false_target: None,
                     span: expr.span,
                 });
-
                 (result_temp, return_type)
             }
         }

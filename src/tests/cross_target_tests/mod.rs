@@ -3,6 +3,7 @@ mod nasm_extra;
 
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::nasm::AsmGenerator;
+use crate::ir::IrOpcode;
 use crate::ir_generator::IrGenerator;
 use crate::tests::parse;
 use std::fs;
@@ -45,6 +46,7 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
         .args([
             "-f",
             nasm_format,
+            "-O0",
             "-o",
             obj_path.to_str().unwrap(),
             asm_path.to_str().unwrap(),
@@ -56,14 +58,34 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     }
 
     let exe_path = temp_dir.path().join(exe_name);
+    let mut extra_objs: Vec<std::path::PathBuf> = Vec::new();
+    // Provide xmalloc for tests that use MakeClosure or AllocArray
+    let needs_xmalloc = ir.functions.iter().any(|f| {
+        f.blocks.iter().any(|b| {
+            b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray))
+        })
+    });
+    if needs_xmalloc {
+        let xmalloc_c = temp_dir.path().join("xmalloc.c");
+        fs::write(&xmalloc_c, b"#include <stdlib.h>\nvoid *xmalloc(size_t s) { return malloc(s); }\nvoid xfree(void *p) { free(p); }\n").unwrap();
+        let xmalloc_obj = temp_dir.path().join(format!("xmalloc.{}", obj_ext));
+        Command::new("gcc").args(["-c", "-o"]).arg(xmalloc_obj.to_str().unwrap()).arg(xmalloc_c.to_str().unwrap()).output().expect("GCC not found for xmalloc");
+        extra_objs.push(xmalloc_obj);
+    }
+    
     let mut gcc_cmd = Command::new("gcc");
     if cfg!(target_os = "linux") {
         gcc_cmd.arg("-no-pie");
     }
-    let gcc_result = gcc_cmd
-        .args(["-o", exe_path.to_str().unwrap(), obj_path.to_str().unwrap()])
-        .output()
-        .expect("GCC not found");
+    let mut link_objs: Vec<&std::path::Path> = vec![&obj_path];
+    for o in &extra_objs {
+        link_objs.push(o);
+    }
+    let mut gcc_args = vec!["-o", exe_path.to_str().unwrap()];
+    for o in &link_objs {
+        gcc_args.push(o.to_str().unwrap());
+    }
+    let gcc_result = gcc_cmd.args(&gcc_args).output().expect("GCC not found");
     if !gcc_result.status.success() {
         eprintln!("gcc stdout: {}", String::from_utf8_lossy(&gcc_result.stdout));
         eprintln!("gcc stderr: {}", String::from_utf8_lossy(&gcc_result.stderr));

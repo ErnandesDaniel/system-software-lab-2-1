@@ -11,6 +11,7 @@ mod stdlib;
 mod types;
 
 use crate::codegen::nasm::AsmGenerator;
+use crate::ir::IrOpcode;
 use crate::ir_generator::IrGenerator;
 use crate::parser::Parser;
 use crate::OsTarget;
@@ -71,7 +72,7 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         let mut gen = AsmGenerator::with_os(test_os());
         gen.set_global_names(&global_names);
         let mut asm = gen.generate_single_function(func);
-        if !ir.globals.is_empty() {
+    if !ir.globals.is_empty() {
             let mut externs = String::new();
             for g in &ir.globals {
                 externs.push_str(&format!("extern {}\n", g.name));
@@ -84,7 +85,7 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
 
         let obj_path = temp_dir.path().join(format!("{}.{}", func.name, test_obj_ext()));
         let nasm_result = Command::new("nasm")
-            .args(["-f", test_nasm_format(), "-o"])
+            .args(["-f", test_nasm_format(), "-O0", "-o"])
             .arg(obj_path.to_str().unwrap())
             .arg(asm_path.to_str().unwrap())
             .output();
@@ -96,6 +97,21 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
             );
         }
         obj_files.push(obj_path);
+    }
+
+    // Provide xmalloc for tests that use MakeClosure or AllocArray
+    let needs_xmalloc = ir.functions.iter().any(|f| {
+        f.blocks.iter().any(|b| {
+            b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray))
+        })
+    });
+    if needs_xmalloc {
+        let xmalloc_c = temp_dir.path().join("xmalloc.c");
+        fs::write(&xmalloc_c, b"#include <stdlib.h>\nvoid *xmalloc(size_t s) { return malloc(s); }\nvoid xfree(void *p) { free(p); }\n").unwrap();
+        let xmalloc_obj = temp_dir.path().join(format!("xmalloc.{}", test_obj_ext()));
+        if Command::new("gcc").args(["-c", "-o"]).arg(xmalloc_obj.to_str().unwrap()).arg(xmalloc_c.to_str().unwrap()).output().map(|o| o.status.success()).unwrap_or(false) {
+            obj_files.push(xmalloc_obj);
+        }
     }
 
     if !ir.globals.is_empty() {
@@ -134,7 +150,11 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
 
     let gcc_result = Command::new("gcc").args(&gcc_args).output();
     if !gcc_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
-        panic!("GCC error: {}", String::from_utf8_lossy(&gcc_result.unwrap().stderr));
+        panic!(
+            "GCC error (args={}): {}",
+            gcc_args.iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "),
+            String::from_utf8_lossy(&gcc_result.unwrap().stderr)
+        );
     }
 
     (temp_dir, all_asm)

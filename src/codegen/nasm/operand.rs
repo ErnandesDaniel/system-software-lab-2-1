@@ -1,5 +1,4 @@
-use crate::codegen::nasm::AsmGenerator;
-use crate::codegen::nasm::REGS_32;
+use crate::codegen::nasm::{AsmGenerator, REGS_32, REGS_64};
 use crate::ir::types::{Constant, IrOperand, IrType};
 
 impl AsmGenerator {
@@ -17,27 +16,23 @@ impl AsmGenerator {
         match operand {
             IrOperand::Variable(name, ty) => {
                 let mem = self.mem_for(name);
+
+                if self.wrapped_vars.contains(name) {
+                    self.line(&format!("mov rcx, {mem}"));
+                    self.line(&format!("mov {reg}, [rcx]"));
+                    return;
+                }
+
+                let is_env_param = name == "__env";
                 let is_struct_ptr = matches!(ty, IrType::Struct { .. });
-                if is_struct_ptr && self.param_names.contains(name) {
-                    let wide_reg = if reg.starts_with('e') {
-                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
-                    } else {
-                        reg
-                    };
+                if is_env_param || (is_struct_ptr && self.param_names.contains(name)) {
+                    let wide_reg = Self::to_wide(reg);
                     self.line(&format!("mov {wide_reg}, {mem}"));
-                } else if matches!(ty, IrType::Array(_, _) | IrType::Struct { .. }) {
-                    let lea_reg = if reg.starts_with('e') {
-                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
-                    } else {
-                        reg
-                    };
-                    self.line(&format!("lea {lea_reg}, {mem}"));
+                } else if self.heap_allocated.contains(name) || matches!(ty, IrType::Closure(_, _)) {
+                    let wide_reg = Self::to_wide(reg);
+                    self.line(&format!("mov {wide_reg}, {mem}"));
                 } else if Self::is_wide_type(ty) {
-                    let reg64 = if reg.starts_with('e') {
-                        Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
-                    } else {
-                        reg
-                    };
+                    let reg64 = Self::to_wide(reg);
                     self.line(&format!("mov {reg64}, {mem}"));
                 } else {
                     self.line(&format!("mov {reg}, {mem}"));
@@ -59,6 +54,13 @@ impl AsmGenerator {
             return;
         }
 
+        if self.wrapped_vars.contains(name) {
+            let mem = self.mem_for(name);
+            self.line(&format!("mov rcx, {mem}"));
+            self.line(&format!("mov [rcx], {reg}"));
+            return;
+        }
+
         let slot_size = self.ensure_slot(name, ty);
         let mem = if let Some(slot) = self.get_slot(name) {
             format!("[rbp + {}]", slot.offset)
@@ -67,11 +69,7 @@ impl AsmGenerator {
         };
 
         if slot_size > 4 {
-            let reg64 = if reg.starts_with('e') {
-                Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
-            } else {
-                reg
-            };
+            let reg64 = Self::to_wide(reg);
             self.line(&format!("mov {mem}, {reg64}"));
         } else {
             self.line(&format!("mov {mem}, {reg}"));
@@ -85,6 +83,15 @@ impl AsmGenerator {
         let size = ty.size().max(4);
         self.alloc_slot(name, size);
         size
+    }
+
+    fn to_wide(reg: &str) -> &'static str {
+        Self::reg_name(
+            REGS_32.iter().position(|r| *r == reg)
+                .or_else(|| REGS_64.iter().position(|r| *r == reg))
+                .unwrap_or(0),
+            true,
+        )
     }
 
     pub fn load_constant(&mut self, constant: &Constant, reg: &str) {

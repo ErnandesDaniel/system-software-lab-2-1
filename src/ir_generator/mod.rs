@@ -22,9 +22,6 @@ pub struct IrGenerator {
     pub pending_functions: Vec<IrFunction>,
     pub lambda_counter: usize,
     pub captured_vars: HashMap<String, usize>,
-    pub closure_envs: HashMap<String, String>,
-    /// Block stack for statement and expression CFG construction.
-    /// Contains completed blocks that have been swapped out by control-flow constructs.
     pub block_stack: Vec<IrBlock>,
 }
 
@@ -41,7 +38,6 @@ impl IrGenerator {
             pending_functions: Vec::new(),
             lambda_counter: 0,
             captured_vars: HashMap::new(),
-            closure_envs: HashMap::new(),
             block_stack: Vec::new(),
         }
     }

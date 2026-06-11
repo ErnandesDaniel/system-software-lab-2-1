@@ -1,5 +1,5 @@
 use crate::codegen::nasm::AsmGenerator;
-use crate::ir::types::{IrInstruction, IrOperand};
+use crate::ir::types::{IrInstruction, IrOperand, IrType};
 use crate::OsTarget;
 
 impl AsmGenerator {
@@ -8,106 +8,123 @@ impl AsmGenerator {
             Some(r) => r.clone(),
             _ => return,
         };
-        let env_base = self.get_slot("__env_slot_0").map_or(0, |s| s.offset);
+
+        let func_name = match inst.operands.first() {
+            Some(IrOperand::FuncRef(name)) => name.clone(),
+            _ => return,
+        };
+
+        let num_captures = inst.operands.len().saturating_sub(1);
+
+        if num_captures == 0 {
+            self.line(&format!("lea rax, [rel {func_name}]"));
+            self.store_result(&result, "rax", &IrType::Closure(vec![], Box::new(IrType::Int)));
+            return;
+        }
+
+        self.line(&format!("mov ecx, {}", num_captures * 8));
+        if self.os == OsTarget::Windows {
+            self.line("sub rsp, 32");
+        }
+        self.line("call xmalloc");
+        if self.os == OsTarget::Windows {
+            self.line("add rsp, 32");
+        }
+        self.line("mov r8, rax");
 
         for (i, op) in inst.operands.iter().enumerate().skip(1) {
             if let IrOperand::Variable(name, _) = op {
-                let slot_off = env_base + (i - 1) as i32 * 8;
+                self.line("push r8");
+                self.line("mov ecx, 4");
+                if self.os == OsTarget::Windows {
+                    self.line("sub rsp, 32");
+                }
+                self.line("call xmalloc");
+                if self.os == OsTarget::Windows {
+                    self.line("add rsp, 32");
+                }
+                self.line("mov r9, rax");
+
+                self.load_operand(op, "eax");
+                self.line("mov [r9], eax");
+
+                self.line("pop r8");
+                self.line(&format!("mov [r8 + {}], r9", (i - 1) * 8));
+
                 let mem = self.mem_for(name);
-                self.line(&format!("lea rax, {mem}"));
-                self.line(&format!("mov [rbp + {slot_off}], rax"));
+                self.line(&format!("mov {mem}, r9"));
+
+                self.wrapped_vars.insert(name.clone());
             }
         }
 
-        self.line(&format!("lea rax, [rbp + {env_base}]"));
-        self.store_result(&result, "rax", &crate::ir::IrType::Int);
+        let slot_offset = self.ensure_16_byte_slot(&result);
+        self.line(&format!("lea rdx, [rel {func_name}]"));
+        self.line(&format!("mov [rbp + {}], rdx", slot_offset));
+        self.line(&format!("mov [rbp + {}], r8", slot_offset + 8));
+    }
+
+    fn ensure_16_byte_slot(&mut self, name: &str) -> i32 {
+        if let Some(slot) = self.get_slot(name) {
+            return slot.offset;
+        }
+        self.alloc_slot(name, 16);
+        self.get_slot(name).map_or(0, |s| s.offset)
     }
 
     pub fn emit_call_closure(&mut self, inst: &IrInstruction) {
-        if let (Some(func_op), Some(env_op)) = (inst.operands.first(), inst.operands.get(1)) {
-            self.load_operand(func_op, "rax");
+        let Some(closure_op) = inst.operands.first() else {
+            return;
+        };
 
-            if self.os == OsTarget::Linux {
-                self.load_operand(env_op, "rdi");
-            } else {
-                self.load_operand(env_op, "rcx");
-            }
+        let closure_name = match closure_op {
+            IrOperand::Variable(name, _) => name.clone(),
+            _ => return,
+        };
 
-            for (i, arg) in inst.operands.iter().enumerate().skip(2) {
-                if (i - 2) < 3 {
-                    let wide = AsmGenerator::is_wide_type(&arg.get_type());
-                    let reg = if self.os == OsTarget::Linux {
-                        match i - 2 {
-                            0 => {
-                                if wide {
-                                    "rsi"
-                                } else {
-                                    "esi"
-                                }
-                            }
-                            1 => {
-                                if wide {
-                                    "rdx"
-                                } else {
-                                    "edx"
-                                }
-                            }
-                            2 => {
-                                if wide {
-                                    "rcx"
-                                } else {
-                                    "ecx"
-                                }
-                            }
-                            _ => "eax",
-                        }
-                    } else {
-                        match i - 2 {
-                            0 => {
-                                if wide {
-                                    "rdx"
-                                } else {
-                                    "edx"
-                                }
-                            }
-                            1 => {
-                                if wide {
-                                    "r8"
-                                } else {
-                                    "r8d"
-                                }
-                            }
-                            2 => {
-                                if wide {
-                                    "r9"
-                                } else {
-                                    "r9d"
-                                }
-                            }
-                            _ => "eax",
-                        }
-                    };
-                    self.load_operand(arg, reg);
+        let closure_slot = match self.get_slot(&closure_name) {
+            Some(s) => s,
+            None => return,
+        };
+
+        self.line(&format!("mov rax, [rbp + {}]", closure_slot.offset));
+        self.line(&format!("mov rcx, [rbp + {}]", closure_slot.offset + 8));
+
+        for (i, arg) in inst.operands.iter().enumerate().skip(1) {
+            let arg_ty = arg.get_type();
+            let wide = AsmGenerator::is_wide_type(&arg_ty);
+            let reg = if self.os == OsTarget::Linux {
+                match i - 1 {
+                    0 => { if wide { "rsi" } else { "esi" } }
+                    1 => { if wide { "rdx" } else { "edx" } }
+                    2 => { if wide { "rcx" } else { "ecx" } }
+                    3 => { if wide { "r8" } else { "r8d" } }
+                    4 => { if wide { "r9" } else { "r9d" } }
+                    _ => { if wide { "rax" } else { "eax" } }
                 }
-            }
+            } else {
+                match i - 1 {
+                    0 => { if wide { "rdx" } else { "edx" } }
+                    1 => { if wide { "r8" } else { "r8d" } }
+                    2 => { if wide { "r9" } else { "r9d" } }
+                    _ => { if wide { "rax" } else { "eax" } }
+                }
+            };
+            self.load_operand(arg, reg);
+        }
 
-            if self.os == OsTarget::Windows {
-                self.line("sub rsp, 32");
-            }
-            self.line("call rax");
-            if self.os == OsTarget::Windows {
-                self.line("add rsp, 32");
-            }
+        if self.os == OsTarget::Windows {
+            self.line("sub rsp, 32");
+        }
+        self.line("call rax");
+        if self.os == OsTarget::Windows {
+            self.line("add rsp, 32");
+        }
 
-            if let Some(ref result) = inst.result {
-                let ret_ty = inst.result_type.as_ref().unwrap_or(&crate::ir::IrType::Int);
-                let r = if AsmGenerator::is_wide_type(ret_ty) {
-                    "rax"
-                } else {
-                    "eax"
-                };
-                self.store_result(result, r, ret_ty);
-            }
+        if let Some(ref result) = inst.result {
+            let ret_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+            let r = if AsmGenerator::is_wide_type(ret_ty) { "rax" } else { "eax" };
+            self.store_result(result, r, ret_ty);
         }
     }
 
@@ -123,12 +140,8 @@ impl AsmGenerator {
             };
             self.load_operand(env_op, "rax");
             self.line(&format!("mov rax, [rax + {}]", slot * 8));
-            let result_ty = inst.result_type.as_ref().unwrap_or(&crate::ir::IrType::Int);
-            let ptr_reg = if AsmGenerator::is_wide_type(result_ty) {
-                "rax"
-            } else {
-                "eax"
-            };
+            let result_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+            let ptr_reg = if AsmGenerator::is_wide_type(result_ty) { "rax" } else { "eax" };
             self.line(&format!("mov {ptr_reg}, [rax]"));
             self.store_result(&result, ptr_reg, result_ty);
         }

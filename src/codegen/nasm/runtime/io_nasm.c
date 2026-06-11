@@ -1,5 +1,19 @@
 #include <stdio.h>
 #include <stdint.h>
+#include <stdlib.h>
+
+void *xmalloc(size_t size) {
+    void *p = malloc(size);
+    if (!p && size > 0) {
+        puts("xmalloc failed");
+        exit(1);
+    }
+    return p;
+}
+
+void xfree(void *p) {
+    free(p);
+}
 
 // Wrapper around standard C fread
 size_t fread_nasm(void *buf, size_t size, size_t count, FILE *stream) {

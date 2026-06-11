@@ -57,14 +57,7 @@ impl AsmGenerator {
             IrOpcode::CallClosure => self.emit_call_closure(inst),
             IrOpcode::LoadCaptured => self.emit_load_captured(inst),
             IrOpcode::StoreCaptured => self.emit_store_captured(inst),
-            IrOpcode::AllocArray => {
-                if let Some(ref result) = inst.result {
-                    if !self.global_names.contains(result.as_str()) && self.get_slot(result).is_none() {
-                        let elem_size = inst.result_type.as_ref().map_or(4, |t| t.size());
-                        self.alloc_slot(result, elem_size);
-                    }
-                }
-            }
+            IrOpcode::AllocArray => self.emit_alloc_array(inst),
         }
         self.free_all_scratch();
     }
@@ -203,6 +196,12 @@ impl AsmGenerator {
             self.line(&format!("neg {r}"));
             self.store_result(result, r, result_ty);
         }
+    }
+
+    fn emit_alloc_array(&mut self, _inst: &IrInstruction) {
+        // Stack-based array allocation: the slot holds inline array data.
+        // No code generation needed here since the slot was already allocated
+        // in the prologue.
     }
 
     fn emit_bitnot(&mut self, inst: &IrInstruction) {

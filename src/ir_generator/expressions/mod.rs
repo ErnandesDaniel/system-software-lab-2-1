@@ -215,22 +215,11 @@ impl IrGenerator {
         self.loop_exit_stack = saved_loop_exit;
         self.loop_depth = saved_loop_depth;
 
+        let closure_type = IrType::Closure(param_types.clone(), Box::new(ret_type.clone()));
         let func_type = IrType::Function(param_types, Box::new(ret_type));
 
         if has_captures {
-            let func_tmp = self.generate_temp();
-            let env_tmp = self.generate_temp();
-
-            block.instructions.push(IrInstruction {
-                opcode: IrOpcode::Assign,
-                result: Some(func_tmp.clone()),
-                result_type: Some(func_type.clone()),
-                operands: vec![IrOperand::FuncRef(mangled.clone())],
-                jump_target: None,
-                true_target: None,
-                false_target: None,
-                span: f.span,
-            });
+            let closure_tmp = self.generate_temp();
 
             let mut env_operands: Vec<IrOperand> = captures
                 .iter()
@@ -240,8 +229,8 @@ impl IrGenerator {
 
             block.instructions.push(IrInstruction {
                 opcode: IrOpcode::MakeClosure,
-                result: Some(env_tmp.clone()),
-                result_type: Some(IrType::Int),
+                result: Some(closure_tmp.clone()),
+                result_type: Some(closure_type.clone()),
                 operands: env_operands,
                 jump_target: Some(mangled.clone()),
                 true_target: None,
@@ -249,8 +238,7 @@ impl IrGenerator {
                 span: f.span,
             });
 
-            self.closure_envs.insert(func_tmp.clone(), env_tmp.clone());
-            (func_tmp, func_type)
+            (closure_tmp, closure_type)
         } else {
             let tmp = self.generate_temp();
             block.instructions.push(IrInstruction {

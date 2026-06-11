@@ -54,6 +54,7 @@ pub enum IrType {
     String,
     Array(Box<IrType>, usize),
     Function(Vec<IrType>, Box<IrType>),
+    Closure(Vec<IrType>, Box<IrType>),
     Struct {
         name: String,
         fields: Vec<(String, IrType)>,
@@ -69,6 +70,7 @@ impl IrType {
             IrType::Void => 0,
             IrType::Bool | IrType::Byte | IrType::Char | IrType::Int | IrType::Uint => 4,
             IrType::Long | IrType::Ulong | IrType::String | IrType::Function(_, _) => 8,
+            IrType::Closure(_, _) => 16,
             IrType::Array(elem, size) => elem.size() * *size as u32,
             IrType::Struct { size, .. } => *size as u32,
         }
@@ -76,7 +78,7 @@ impl IrType {
 
     #[must_use]
     pub fn is_pointer(&self) -> bool {
-        matches!(self, IrType::String | IrType::Function(_, _) | IrType::Array(_, _))
+        matches!(self, IrType::String | IrType::Function(_, _) | IrType::Closure(_, _) | IrType::Array(_, _))
     }
 
     #[must_use]
@@ -132,7 +134,7 @@ impl IrType {
             IrType::Long | IrType::Ulong => "J".to_string(),
             IrType::String => "[B".to_string(),
             IrType::Array(elem, _) => format!("[{}", elem.jvm_descriptor()),
-            IrType::Function(_, _) => "Ljava/lang/Object;".to_string(),
+            IrType::Function(_, _) | IrType::Closure(_, _) => "Ljava/lang/Object;".to_string(),
         }
     }
 }

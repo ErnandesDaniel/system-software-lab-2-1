@@ -120,37 +120,49 @@ impl IrGenerator {
         self.loop_exit_stack = saved_loop_exit;
         self.loop_depth = saved_loop_depth;
 
+        let closure_type = IrType::Closure(param_types.clone(), Box::new(ret_type.clone()));
         let func_type = IrType::Function(param_types, Box::new(ret_type));
-        if !self.symbols.is_declared(&fd.signature.name.name) {
-            self.symbols.define_local(&fd.signature.name.name, func_type.clone());
-        }
-
-        let tmp = self.generate_temp();
-        block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Assign,
-            result: Some(tmp.clone()),
-            result_type: Some(func_type.clone()),
-            operands: vec![IrOperand::FuncRef(mangled.clone())],
-            jump_target: None,
-            true_target: None,
-            false_target: None,
-            span: fd.span,
-        });
-
         if has_captures {
-            self.emit_make_closure(block, fd, &mangled, &captures, &tmp, &func_type);
+            if !self.symbols.is_declared(&fd.signature.name.name) {
+                self.symbols.define_local(&fd.signature.name.name, closure_type.clone());
+            }
+            let closure_tmp = self.emit_make_closure(block, fd, &mangled, &captures, &closure_type);
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Assign,
+                result: Some(fd.signature.name.name.clone()),
+                result_type: Some(closure_type.clone()),
+                operands: vec![IrOperand::Variable(closure_tmp, closure_type)],
+                jump_target: None,
+                true_target: None,
+                false_target: None,
+                span: fd.span,
+            });
+        } else {
+            if !self.symbols.is_declared(&fd.signature.name.name) {
+                self.symbols.define_local(&fd.signature.name.name, func_type.clone());
+            }
+            let tmp = self.generate_temp();
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Assign,
+                result: Some(tmp.clone()),
+                result_type: Some(func_type.clone()),
+                operands: vec![IrOperand::FuncRef(mangled.clone())],
+                jump_target: None,
+                true_target: None,
+                false_target: None,
+                span: fd.span,
+            });
+            block.instructions.push(IrInstruction {
+                opcode: IrOpcode::Assign,
+                result: Some(fd.signature.name.name.clone()),
+                result_type: Some(func_type.clone()),
+                operands: vec![IrOperand::Variable(tmp, func_type)],
+                jump_target: None,
+                true_target: None,
+                false_target: None,
+                span: fd.span,
+            });
         }
-
-        block.instructions.push(IrInstruction {
-            opcode: IrOpcode::Assign,
-            result: Some(fd.signature.name.name.clone()),
-            result_type: Some(func_type.clone()),
-            operands: vec![IrOperand::Variable(tmp, func_type)],
-            jump_target: None,
-            true_target: None,
-            false_target: None,
-            span: fd.span,
-        });
     }
 
     fn generate_nested_func(
@@ -190,10 +202,9 @@ impl IrGenerator {
         fd: &FuncDefinition,
         mangled: &str,
         captures: &[(String, usize)],
-        tmp: &str,
-        _func_type: &IrType,
-    ) {
-        let env_tmp = self.generate_temp();
+        closure_type: &IrType,
+    ) -> String {
+        let closure_tmp = self.generate_temp();
         let mut env_operands: Vec<IrOperand> = captures
             .iter()
             .map(|(name, _)| IrOperand::Variable(name.clone(), IrType::Int))
@@ -204,15 +215,14 @@ impl IrGenerator {
         }
         block.instructions.push(IrInstruction {
             opcode: IrOpcode::MakeClosure,
-            result: Some(env_tmp.clone()),
-            result_type: Some(IrType::Int),
+            result: Some(closure_tmp.clone()),
+            result_type: Some(closure_type.clone()),
             operands: env_operands,
             jump_target: Some(mangled.to_string()),
             true_target: None,
             false_target: None,
             span: fd.span,
         });
-        self.closure_envs.insert(tmp.to_string(), env_tmp.clone());
-        self.closure_envs.insert(fd.signature.name.name.clone(), env_tmp);
+        closure_tmp
     }
 }

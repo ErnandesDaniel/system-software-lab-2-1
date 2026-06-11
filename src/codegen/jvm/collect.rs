@@ -152,10 +152,10 @@ impl JvmGenerator {
         if inst.opcode != IrOpcode::CallClosure {
             return;
         }
-        let Some(IrOperand::Variable(env_name, _)) = inst.operands.get(1) else {
+        let Some(IrOperand::Variable(closure_name, _)) = inst.operands.first() else {
             return;
         };
-        let Some(lambda_name) = self.closure.closure_targets.get(env_name) else {
+        let Some(lambda_name) = self.closure.closure_targets.get(closure_name) else {
             return;
         };
         if self.pool.method_refs.contains_key(lambda_name) {
@@ -170,7 +170,7 @@ impl JvmGenerator {
             .expect("Failed to add closure class");
 
         let mut param_desc = "[[I".to_string();
-        for arg in inst.operands.iter().skip(2) {
+        for arg in inst.operands.iter().skip(1) {
             param_desc.push_str(&ir_type_to_jvm_descriptor(&arg.get_type()));
         }
         let ret_desc = inst
@@ -220,7 +220,7 @@ impl JvmGenerator {
             return;
         }
         let Some(func_op) = inst.operands.first() else { return };
-        let IrType::Function(params, ret) = func_op.get_type() else {
+        let (IrType::Function(params, ret) | IrType::Closure(params, ret)) = func_op.get_type() else {
             return;
         };
         let iface_name = get_fn_interface_name(&params, &ret);

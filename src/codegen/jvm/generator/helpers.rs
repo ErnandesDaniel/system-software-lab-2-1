@@ -15,7 +15,7 @@ impl JvmGenerator {
         }
         let slot = self.get_local_slot(name);
         match ty {
-            IrType::String | IrType::Function(_, _) | IrType::Array(..) => {
+            IrType::String | IrType::Function(_, _) | IrType::Closure(_, _) | IrType::Array(..) => {
                 code.push(Instruction::Astore(slot as u8));
             }
             _ => code.push(Instruction::Istore(slot as u8)),

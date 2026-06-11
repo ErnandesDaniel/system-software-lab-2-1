@@ -25,6 +25,8 @@ pub struct AsmGenerator {
     param_names: HashSet<String>,
     regs_used_32: u32,
     regs_used_64: u32,
+    wrapped_vars: HashSet<String>,
+    heap_allocated: HashSet<String>,
     pub os: OsTarget,
 }
 
@@ -52,6 +54,8 @@ impl AsmGenerator {
             param_names: HashSet::new(),
             regs_used_32: 0,
             regs_used_64: 0,
+            wrapped_vars: HashSet::new(),
+            heap_allocated: HashSet::new(),
             os: OsTarget::Windows,
         }
     }
@@ -70,6 +74,8 @@ impl AsmGenerator {
             param_names: HashSet::new(),
             regs_used_32: 0,
             regs_used_64: 0,
+            wrapped_vars: HashSet::new(),
+            heap_allocated: HashSet::new(),
             os,
         }
     }
@@ -85,6 +91,8 @@ impl AsmGenerator {
         self.param_names.clear();
         self.regs_used_32 = 0;
         self.regs_used_64 = 0;
+        self.wrapped_vars.clear();
+        self.heap_allocated.clear();
     }
 
     pub fn alloc_slot(&mut self, name: &str, size: u32) -> i32 {

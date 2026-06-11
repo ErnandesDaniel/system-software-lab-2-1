@@ -35,7 +35,7 @@ fn ir_type_short_descriptor(ty: &IrType) -> &'static str {
         IrType::Char => "C",
         IrType::String => "Str",
         IrType::Array(_, _) => "Arr",
-        IrType::Function(_, _) => "Fn",
+        IrType::Function(_, _) | IrType::Closure(_, _) => "Fn",
         IrType::Struct { .. } => "S",
     }
 }
@@ -62,7 +62,7 @@ pub fn ir_type_to_jvm_descriptor(ty: &IrType) -> String {
         IrType::Long | IrType::Ulong => "J".to_string(),
         IrType::String => "[B".to_string(),
         IrType::Array(elem, _) => format!("[{}", ir_type_to_jvm_descriptor(elem)),
-        IrType::Function(params, ret) => {
+        IrType::Function(params, ret) | IrType::Closure(params, ret) => {
             let iface_name = get_fn_interface_name(params, ret);
             format!("L{iface_name};")
         }
