@@ -34,27 +34,33 @@ impl AsmGenerator {
 
         for (i, op) in inst.operands.iter().enumerate().skip(1) {
             if let IrOperand::Variable(name, _) = op {
-                self.line("push r8");
-                self.line("mov ecx, 4");
-                if self.os == OsTarget::Windows {
-                    self.line("sub rsp, 32");
+                if self.wrapped_vars.contains(name) {
+                    let mem = self.mem_for(name);
+                    self.line(&format!("mov r9, {mem}"));
+                    self.line(&format!("mov [r8 + {}], r9", (i - 1) * 8));
+                } else {
+                    self.line("push r8");
+                    self.line("mov ecx, 4");
+                    if self.os == OsTarget::Windows {
+                        self.line("sub rsp, 32");
+                    }
+                    self.line("call xmalloc");
+                    if self.os == OsTarget::Windows {
+                        self.line("add rsp, 32");
+                    }
+                    self.line("mov r9, rax");
+
+                    self.load_operand(op, "eax");
+                    self.line("mov [r9], eax");
+
+                    self.line("pop r8");
+                    self.line(&format!("mov [r8 + {}], r9", (i - 1) * 8));
+
+                    let mem = self.mem_for(name);
+                    self.line(&format!("mov {mem}, r9"));
+
+                    self.wrapped_vars.insert(name.clone());
                 }
-                self.line("call xmalloc");
-                if self.os == OsTarget::Windows {
-                    self.line("add rsp, 32");
-                }
-                self.line("mov r9, rax");
-
-                self.load_operand(op, "eax");
-                self.line("mov [r9], eax");
-
-                self.line("pop r8");
-                self.line(&format!("mov [r8 + {}], r9", (i - 1) * 8));
-
-                let mem = self.mem_for(name);
-                self.line(&format!("mov {mem}, r9"));
-
-                self.wrapped_vars.insert(name.clone());
             }
         }
 
