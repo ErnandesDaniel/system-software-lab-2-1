@@ -5,36 +5,42 @@
 import puts;
 import printf;
 
-def test() of int {
+def make_pair() of def(int) of int array[2] {
     y = 0;
 
-    add2 = def fn_add2(x of int) of int {
-        y = x + y;
-        return y;
-    };
+    return [
+        def add2(x of int) of int {
+            y = x + y;
+            return y;
+        },
+        def mul2(x of int) of int {
+            y = x * y;
+            return y;
+        }
+    ];
+}
 
-    mul2 = def fn_mul2(x of int) of int {
-        y = x * y;
-        return y;
-    };
+def test() of int {
+    c1 = make_pair();
+    c2 = make_pair();
 
-    x1 = add2(2);     // y = 0+2 = 2
-    printf("add2(2) = %d\n", x1);
+    x1 = c1[0](2);     // c1 y = 0+2 = 2
+    printf("c1[0](2) = %d\n", x1);
 
-    x2 = add2(2);     // y = 2+2 = 4
-    printf("add2(2) = %d\n", x2);
+    y1 = c2[0](2);     // c2 y = 0+2 = 2
+    printf("c2[0](2) = %d\n", y1);
 
-    x3 = mul2(7);     // y = 7*4 = 28
-    printf("mul2(7) = %d\n", x3);
+    x2 = c1[0](2);     // c1 y = 2+2 = 4
+    printf("c1[0](2) = %d\n", x2);
 
-    y1 = add2(3);     // y = 3+28 = 31
-    printf("add2(3) = %d\n", y1);
+    y2 = c2[1](7);     // c2 y = 7*2 = 14
+    printf("c2[1](7) = %d\n", y2);
 
-    y2 = mul2(2);     // y = 2*31 = 62
-    printf("mul2(2) = %d\n", y2);
+    x3 = c1[1](7);     // c1 y = 7*4 = 28
+    printf("c1[1](7) = %d\n", x3);
 
-    y3 = add2(5);     // y = 5+62 = 67
-    printf("add2(5) = %d\n", y3);
+    y3 = c2[0](3);     // c2 y = 3+14 = 17
+    printf("c2[0](3) = %d\n", y3);
 
     return (x1 + x2 + x3) * 100 + (y1 + y2 + y3);
 }
