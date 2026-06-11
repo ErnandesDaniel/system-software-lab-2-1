@@ -5,17 +5,19 @@
 
 Все запросы в одном файле `input.mylang`.
 
-## Компиляция и запуск
+## Компиляция и запуск под Linux (WSL)
 
 Запускать из корня проекта (рабочая директория нужна для путей к CSV).
 
-```powershell
-cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output
-.\output\program.exe
-```
+```bash
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
 
-```powershell
-cargo run -- labs-examples/system-programms/lab-2/input.mylang -o output -t jvm
+# NASM target
+cargo run --release -- labs-examples/system-programms/lab-2/input.mylang -o output -t nasm --os linux
+./output/program
+
+# JVM target
+cargo run --release -- labs-examples/system-programms/lab-2/input.mylang -o output -t jvm --os linux
 java -cp output Main
 ```
 
@@ -94,7 +96,14 @@ Groups: 12
 ## Верификация через SQLite
 
 ```powershell
+# Windows
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
+```
+
+```bash
+# Linux (WSL)
+sqlite3 :memory: -init labs-examples/system-programms/lab-2/sql/init.sql \
+  ".read labs-examples/system-programms/lab-2/sql/queries.sql" 2>&1 | grep -v "^--"
 ```
 
 Results:

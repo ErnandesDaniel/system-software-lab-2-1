@@ -50,9 +50,18 @@
 - `file_type` (offset 7, 1 байт) — тип: 1 = файл, 2 = директория
 - `name` (offset 8, `name_len` байт) — имя
 
+## Требования
+
+- **Rust**, **NASM**, **Clang (LLVM)** — для сборки компилятора и `.exe` (см. корневой `README.md`)
+- **WSL с Ubuntu** — для создания ext3-образа (установка WSL описана в `labs-examples/system-programms/lab-1/README.md`)
+- **e2fsprogs** в WSL — содержит `mkfs.ext3` и `debugfs`:
+  ```bash
+  sudo apt update && sudo apt install -y e2fsprogs
+  ```
+
 ## Как создать Ext3 образ для тестирования
 
-Через WSL (требуется Ubuntu или другой дистрибутив Linux):
+Через WSL:
 
 ```bash
 # 1. Создать пустой файл образа
@@ -70,14 +79,18 @@ debugfs -w ext3.img -R "write /dev/stdin /subdir/data.txt" <<< "Inside subdir"
 
 Образ создаётся в текущей директории, откуда запускается FTP-клиент.
 
-## Сборка и запуск
+## Сборка и запуск под Linux (WSL)
 
-```powershell
+Запускать из корня проекта.
+
+```bash
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
+
 # Компиляция
-cargo run -- labs-examples/system-programms/lab-3/input.mylang -o output -t nasm
+cargo run --release -- labs-examples/system-programms/lab-3/input.mylang -o output -t nasm --os linux
 
 # Запуск
-.\output\program.exe
+./output/program
 # Ввести путь к образу: ext3.img
 ```
 
