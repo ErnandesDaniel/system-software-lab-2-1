@@ -138,7 +138,6 @@ fn test_lab_vm1_jvm() {
     assert!(out.contains("\n65"));
 }
 #[test]
-#[ignore = "Linux NASM runtime: xmalloc returns NULL in closure sections (pre-existing)"]
 fn test_lab_vm2_nasm() {
     let out = compile_nasm("lab-2").expect("compile/run failed");
     assert!(out.contains("All done"));
