@@ -9,7 +9,11 @@ use std::time::{Duration, Instant};
 static CARGO_LOCK: Mutex<()> = Mutex::new(());
 
 fn exe_name() -> &'static str {
-    if cfg!(target_os = "linux") { "program" } else { "program.exe" }
+    if cfg!(target_os = "linux") {
+        "program"
+    } else {
+        "program.exe"
+    }
 }
 
 fn cargo(args: &[&str]) -> bool {
@@ -336,7 +340,15 @@ fn test_sys_lab3_ext3_nasm() {
         write_inode(it, 14, 0x81A4, 5, subdir_file_block, 1);
 
         // Block 9: Root directory data
-        fn write_dirent(data: &mut [u8], offset: usize, inode: u32, rec_len: u16, name_len: u8, ftype: u8, name: &[u8]) {
+        fn write_dirent(
+            data: &mut [u8],
+            offset: usize,
+            inode: u32,
+            rec_len: u16,
+            name_len: u8,
+            ftype: u8,
+            name: &[u8],
+        ) {
             data[offset..offset + 4].copy_from_slice(&inode.to_le_bytes());
             data[offset + 4..offset + 6].copy_from_slice(&rec_len.to_le_bytes());
             data[offset + 6] = name_len;
@@ -398,7 +410,10 @@ fn test_sys_lab3_ext3_nasm() {
     let output = child.wait_with_output().expect("wait");
     let stdout = clean(&String::from_utf8_lossy(&output.stdout));
 
-    assert!(stdout.contains("Ext3 filesystem detected"), "should detect ext3:\n{stdout}");
+    assert!(
+        stdout.contains("Ext3 filesystem detected"),
+        "should detect ext3:\n{stdout}"
+    );
 
     // PWD shows root
     assert!(stdout.contains("/"), "should show root path:\n{stdout}");
@@ -408,7 +423,10 @@ fn test_sys_lab3_ext3_nasm() {
     assert!(stdout.contains("a.txt"), "should list a.txt:\n{stdout}");
 
     // RETR a.txt from root
-    assert!(stdout.contains("226 Transfer complete"), "RETR should complete:\n{stdout}");
+    assert!(
+        stdout.contains("226 Transfer complete"),
+        "RETR should complete:\n{stdout}"
+    );
 
     // CWD actually changed directory — PWD shows /subdir
     assert!(stdout.contains("/subdir"), "should change to subdir:\n{stdout}");
@@ -417,7 +435,10 @@ fn test_sys_lab3_ext3_nasm() {
     assert!(stdout.contains("b.txt"), "should list b.txt in subdir:\n{stdout}");
 
     // RETR b.txt from subdir
-    assert!(stdout.contains("226 Transfer"), "second RETR should complete:\n{stdout}");
+    assert!(
+        stdout.contains("226 Transfer"),
+        "second RETR should complete:\n{stdout}"
+    );
     assert!(stdout.contains("221 Goodbye"), "should quit cleanly:\n{stdout}");
 
     // Verify extracted a.txt content from root
@@ -479,5 +500,3 @@ fn test_sys_lab2_pipeline_nasm() {
 
     assert!(out.len() > 400, "should produce output (got {} bytes)", out.len());
 }
-
-

@@ -276,11 +276,7 @@ impl JvmGenerator {
                     IrType::Function(_, _) | IrType::String | IrType::Array(..) => {
                         let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem_type);
                         let class_name = desc.trim_start_matches('L').trim_end_matches(';');
-                        if let Ok(class_idx) = self
-                            .pool
-                            .constant_pool
-                            .add_class(class_name)
-                        {
+                        if let Ok(class_idx) = self.pool.constant_pool.add_class(class_name) {
                             code.push(Instruction::Anewarray(class_idx));
                         }
                     }

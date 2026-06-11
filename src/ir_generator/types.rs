@@ -46,7 +46,9 @@ impl IrGenerator {
     pub fn expr_to_constant(&self, expr: &Expr) -> Option<crate::ir::Constant> {
         match expr {
             Expr::Literal(lit, _) => match lit {
-                crate::ast::Literal::Dec(v) | crate::ast::Literal::Hex(v) | crate::ast::Literal::Bits(v) => Some(crate::ir::Constant::Int(*v as i64)),
+                crate::ast::Literal::Dec(v) | crate::ast::Literal::Hex(v) | crate::ast::Literal::Bits(v) => {
+                    Some(crate::ir::Constant::Int(*v as i64))
+                }
                 crate::ast::Literal::Str(s) => Some(crate::ir::Constant::String(unescape_string(s))),
                 crate::ast::Literal::Char(c) => Some(crate::ir::Constant::Char(*c as u8)),
                 crate::ast::Literal::Bool(b) => Some(crate::ir::Constant::Bool(*b)),

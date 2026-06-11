@@ -18,8 +18,7 @@ impl AsmGenerator {
             IrOperand::Variable(name, ty) => {
                 let mem = self.mem_for(name);
                 let is_struct_ptr = matches!(ty, IrType::Struct { .. });
-                let is_local = self.global_names.contains(name) == false;
-                if is_struct_ptr && is_local {
+                if is_struct_ptr && self.param_names.contains(name) {
                     let wide_reg = if reg.starts_with('e') {
                         Self::reg_name(REGS_32.iter().position(|r| *r == reg).unwrap_or(0), true)
                     } else {

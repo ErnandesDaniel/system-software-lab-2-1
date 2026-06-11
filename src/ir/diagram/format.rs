@@ -1,4 +1,4 @@
-use crate::ir::{IrInstruction, IrOpcode, IrOperand, Constant};
+use crate::ir::{Constant, IrInstruction, IrOpcode, IrOperand};
 
 pub fn format_instruction(inst: &IrInstruction) -> String {
     match &inst.opcode {

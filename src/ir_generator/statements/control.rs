@@ -297,10 +297,8 @@ impl IrGenerator {
 }
 
 fn ends_with_control_flow(block: &IrBlock) -> bool {
-    block.instructions.last().is_some_and(|inst| {
-        matches!(
-            inst.opcode,
-            IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr
-        )
-    })
+    block
+        .instructions
+        .last()
+        .is_some_and(|inst| matches!(inst.opcode, IrOpcode::Ret | IrOpcode::Jump | IrOpcode::CondBr))
 }

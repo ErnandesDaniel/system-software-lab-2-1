@@ -76,7 +76,9 @@ impl AsmGenerator {
         }
 
         self.param_registers.clear();
+        self.param_names.clear();
         for (i, param) in func.parameters.iter().enumerate() {
+            self.param_names.insert(param.name.clone());
             if i < 4 {
                 self.param_registers.push(param.name.clone());
                 if !self.slots.contains_key(&param.name) {

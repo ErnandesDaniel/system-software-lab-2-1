@@ -50,5 +50,4 @@ impl JvmGenerator {
     pub(super) fn generate_jump(&self, _code: &mut Vec<Instruction>, _inst: &IrInstruction) {}
 
     pub(super) fn generate_conditional_branch(&self, _code: &mut Vec<Instruction>, _inst: &IrInstruction) {}
-
 }

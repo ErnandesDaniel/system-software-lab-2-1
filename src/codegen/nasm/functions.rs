@@ -94,43 +94,91 @@ impl AsmGenerator {
         if self.os == OsTarget::Linux {
             match i {
                 0 => {
-                    if wide { "rdi".to_string() } else { "edi".to_string() }
+                    if wide {
+                        "rdi".to_string()
+                    } else {
+                        "edi".to_string()
+                    }
                 }
                 1 => {
-                    if wide { "rsi".to_string() } else { "esi".to_string() }
+                    if wide {
+                        "rsi".to_string()
+                    } else {
+                        "esi".to_string()
+                    }
                 }
                 2 => {
-                    if wide { "rdx".to_string() } else { "edx".to_string() }
+                    if wide {
+                        "rdx".to_string()
+                    } else {
+                        "edx".to_string()
+                    }
                 }
                 3 => {
-                    if wide { "rcx".to_string() } else { "ecx".to_string() }
+                    if wide {
+                        "rcx".to_string()
+                    } else {
+                        "ecx".to_string()
+                    }
                 }
                 4 => {
-                    if wide { "r8".to_string() } else { "r8d".to_string() }
+                    if wide {
+                        "r8".to_string()
+                    } else {
+                        "r8d".to_string()
+                    }
                 }
                 5 => {
-                    if wide { "r9".to_string() } else { "r9d".to_string() }
+                    if wide {
+                        "r9".to_string()
+                    } else {
+                        "r9d".to_string()
+                    }
                 }
                 _ => {
-                    if wide { "rax".to_string() } else { "eax".to_string() }
+                    if wide {
+                        "rax".to_string()
+                    } else {
+                        "eax".to_string()
+                    }
                 }
             }
         } else {
             match i {
                 0 => {
-                    if wide { "rcx".to_string() } else { "ecx".to_string() }
+                    if wide {
+                        "rcx".to_string()
+                    } else {
+                        "ecx".to_string()
+                    }
                 }
                 1 => {
-                    if wide { "rdx".to_string() } else { "edx".to_string() }
+                    if wide {
+                        "rdx".to_string()
+                    } else {
+                        "edx".to_string()
+                    }
                 }
                 2 => {
-                    if wide { "r8".to_string() } else { "r8d".to_string() }
+                    if wide {
+                        "r8".to_string()
+                    } else {
+                        "r8d".to_string()
+                    }
                 }
                 3 => {
-                    if wide { "r9".to_string() } else { "r9d".to_string() }
+                    if wide {
+                        "r9".to_string()
+                    } else {
+                        "r9d".to_string()
+                    }
                 }
                 _ => {
-                    if wide { "rax".to_string() } else { "eax".to_string() }
+                    if wide {
+                        "rax".to_string()
+                    } else {
+                        "eax".to_string()
+                    }
                 }
             }
         }

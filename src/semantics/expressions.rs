@@ -210,7 +210,8 @@ impl SemanticsAnalyzer {
                     let arg_type = self.check_expression(scope, arg)?;
                     let param_type = &sig.parameters[i].1;
                     let compatible = arg_type == *param_type
-                        || (matches!(param_type, crate::ir::IrType::Int) && matches!(arg_type, crate::ir::IrType::Function(_, _)));
+                        || (matches!(param_type, crate::ir::IrType::Int)
+                            && matches!(arg_type, crate::ir::IrType::Function(_, _)));
                     if !compatible {
                         self.add_error(
                             format!(

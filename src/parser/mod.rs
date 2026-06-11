@@ -47,10 +47,7 @@ impl<'source> Parser<'source> {
         while let Some(current_token) = self.current_token().copied() {
             let token = current_token;
 
-            if !matches!(
-                token,
-                Token::Def | Token::Import | Token::Global | Token::Struct
-            ) {
+            if !matches!(token, Token::Def | Token::Import | Token::Global | Token::Struct) {
                 break;
             }
 

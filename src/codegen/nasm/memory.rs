@@ -31,7 +31,7 @@ impl AsmGenerator {
 
             let base_reg = self.alloc_scratch(true);
             let base_mem = self.mem_for(&base_name);
-            if is_struct_ptr {
+            if is_struct_ptr && self.param_names.contains(&base_name) {
                 self.line(&format!("mov {base_reg}, {base_mem}"));
             } else {
                 self.line(&format!("lea {base_reg}, {base_mem}"));
@@ -64,7 +64,7 @@ impl AsmGenerator {
         let val_reg = self.alloc_scratch(val_wide);
         self.load_operand(value, val_reg);
         let base_mem = self.mem_for(&base_name);
-        if is_struct_ptr {
+        if is_struct_ptr && self.param_names.contains(&base_name) {
             let ptr_reg = self.alloc_scratch(true);
             self.line(&format!("mov {ptr_reg}, {base_mem}"));
             self.line(&format!("mov [{ptr_reg} + {off}], {val_reg}"));
@@ -84,9 +84,10 @@ impl AsmGenerator {
         let result_ty = inst.result_type.as_ref().cloned().unwrap_or(IrType::Int);
         let result_wide = AsmGenerator::is_wide_type(&result_ty);
 
-        let is_struct_base = inst.operands.first().map_or(false, |op| {
-            matches!(op, IrOperand::Variable(_, IrType::Struct { .. }))
-        });
+        let is_struct_base = inst
+            .operands
+            .first()
+            .map_or(false, |op| matches!(op, IrOperand::Variable(_, IrType::Struct { .. })));
 
         match inst.operands.len() {
             1 => {
@@ -106,7 +107,7 @@ impl AsmGenerator {
                     let mem = self.mem_for(&base_name);
                     let is_ptr_type = matches!(result_ty, IrType::Array(_, _) | IrType::Struct { .. });
 
-                    if is_struct_base {
+                    if is_struct_base && self.param_names.contains(&base_name) {
                         let base_reg = self.alloc_scratch(true);
                         self.line(&format!("mov {base_reg}, {mem}"));
                         if *off == 0 {
@@ -147,7 +148,7 @@ impl AsmGenerator {
                     let res_reg = self.alloc_scratch(result_wide);
                     let base_reg = self.alloc_scratch(true);
                     let mem = self.mem_for(&array_name);
-                    if is_arr_struct {
+                    if is_arr_struct && self.param_names.contains(&array_name) {
                         self.line(&format!("mov {base_reg}, {mem}"));
                     } else {
                         self.line(&format!("lea {base_reg}, {mem}"));
@@ -178,7 +179,7 @@ impl AsmGenerator {
                 let res_reg = self.alloc_scratch(result_wide);
                 let base_reg = self.alloc_scratch(true);
                 let mem = self.mem_for(&base_name);
-                if is_arr_struct {
+                if is_arr_struct && self.param_names.contains(&base_name) {
                     self.line(&format!("mov {base_reg}, {mem}"));
                 } else {
                     self.line(&format!("lea {base_reg}, {mem}"));

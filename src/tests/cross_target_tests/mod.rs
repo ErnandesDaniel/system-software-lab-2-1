@@ -25,7 +25,11 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     };
     let nasm_format = if cfg!(target_os = "linux") { "elf64" } else { "win64" };
     let obj_ext = if cfg!(target_os = "linux") { "o" } else { "obj" };
-    let exe_name = if cfg!(target_os = "linux") { "program" } else { "program.exe" };
+    let exe_name = if cfg!(target_os = "linux") {
+        "program"
+    } else {
+        "program.exe"
+    };
 
     let ast = parse(source);
     let mut ir_gen = IrGenerator::new();

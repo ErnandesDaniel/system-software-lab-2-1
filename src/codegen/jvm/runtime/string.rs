@@ -1,4 +1,10 @@
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::too_many_arguments, clippy::vec_init_then_push)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::too_many_arguments,
+    clippy::vec_init_then_push
+)]
 
 use crate::codegen::jvm::JvmGenerator;
 use ristretto_classfile::attributes::{Attribute, Instruction};

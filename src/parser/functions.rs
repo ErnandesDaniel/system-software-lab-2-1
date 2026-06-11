@@ -1,7 +1,7 @@
 use super::Parser;
 use crate::ast::{
-    Arg, BuiltinType, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier,
-    StructDefinition, StructField, TypeRef,
+    Arg, BuiltinType, FuncDeclaration, FuncDefinition, FuncSignature, GlobalDecl, Identifier, StructDefinition,
+    StructField, TypeRef,
 };
 use crate::lexer::Token;
 
@@ -177,5 +177,4 @@ impl Parser<'_> {
             span,
         })
     }
-
 }

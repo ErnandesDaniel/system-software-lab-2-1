@@ -112,10 +112,15 @@ impl StdLib {
             ("run_coroutine_runtime_nasm", ("", "")),
             ("set_coroutine_scheduler_nasm", ("fn: int", "")),
             ("get_current_coroutine_id_nasm", ("", "int")),
-
             // Binary I/O (NASM wrappers)
-            ("fread_nasm", ("buf: string, size: int, count: int, file: string", "int")),
-            ("fwrite_nasm", ("buf: string, size: int, count: int, file: string", "int")),
+            (
+                "fread_nasm",
+                ("buf: string, size: int, count: int, file: string", "int"),
+            ),
+            (
+                "fwrite_nasm",
+                ("buf: string, size: int, count: int, file: string", "int"),
+            ),
             ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
             ("read_le32_nasm", ("buf: string, offset: int", "int")),
             ("read_le16_nasm", ("buf: string, offset: int", "int")),

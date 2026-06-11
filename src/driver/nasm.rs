@@ -91,10 +91,7 @@ impl CompilerDriver {
         }
 
         // Compile NASM runtime C files
-        let runtimes: [(&str, bool); 2] = [
-            ("coro_linux.c", os == OsTarget::Linux),
-            ("io_nasm.c", true),
-        ];
+        let runtimes: [(&str, bool); 2] = [("coro_linux.c", os == OsTarget::Linux), ("io_nasm.c", true)];
         for (cfile, enabled) in &runtimes {
             if !enabled {
                 continue;

@@ -22,6 +22,7 @@ pub struct AsmGenerator {
     global_names: HashSet<String>,
     used_functions: Vec<String>,
     param_registers: Vec<String>,
+    param_names: HashSet<String>,
     regs_used_32: u32,
     regs_used_64: u32,
     pub os: OsTarget,
@@ -48,6 +49,7 @@ impl AsmGenerator {
             global_names: HashSet::new(),
             used_functions: Vec::new(),
             param_registers: Vec::new(),
+            param_names: HashSet::new(),
             regs_used_32: 0,
             regs_used_64: 0,
             os: OsTarget::Windows,
@@ -65,6 +67,7 @@ impl AsmGenerator {
             global_names: HashSet::new(),
             used_functions: Vec::new(),
             param_registers: Vec::new(),
+            param_names: HashSet::new(),
             regs_used_32: 0,
             regs_used_64: 0,
             os,
@@ -79,6 +82,7 @@ impl AsmGenerator {
         self.slots.clear();
         self.next_stack_offset = 0;
         self.param_registers.clear();
+        self.param_names.clear();
         self.regs_used_32 = 0;
         self.regs_used_64 = 0;
     }

@@ -81,9 +81,10 @@ impl SymbolTable {
     // ── Locals ────────────────────────────────────────────────────
 
     pub fn add(&mut self, name: String, ty: IrType) -> crate::Result<()> {
-        let scope = self.scopes.last_mut().ok_or_else(|| {
-            crate::error::CompilerError::Semantic("No active scope".to_string())
-        })?;
+        let scope = self
+            .scopes
+            .last_mut()
+            .ok_or_else(|| crate::error::CompilerError::Semantic("No active scope".to_string()))?;
         if scope.declared.contains(&name) {
             return Err(crate::error::CompilerError::Semantic(format!(
                 "Symbol '{name}' already exists in this scope"

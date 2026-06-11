@@ -2,9 +2,7 @@ mod helpers;
 mod state;
 
 pub(crate) use state::{JumpPlaceholder, JvmInst};
-pub use state::{
-    JvmClosureState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState, JvmStructState,
-};
+pub use state::{JvmClosureState, JvmFuncState, JvmGenerator, JvmGlobalState, JvmPoolState, JvmStructState};
 
 use crate::ir::types::{Constant, IrFunction, IrOperand, IrProgram, IrType};
 use ristretto_classfile::ConstantPool;

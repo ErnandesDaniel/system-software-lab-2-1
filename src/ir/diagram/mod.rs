@@ -1,6 +1,6 @@
 pub mod format;
 
-use crate::ir::{IrProgram, IrFunction, IrBlock};
+use crate::ir::{IrBlock, IrFunction, IrProgram};
 use format::format_instruction;
 
 pub struct CfgMermaidGenerator {

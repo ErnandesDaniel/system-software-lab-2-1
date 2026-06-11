@@ -28,15 +28,27 @@ fn test_os() -> OsTarget {
 }
 
 fn test_nasm_format() -> &'static str {
-    if cfg!(target_os = "linux") { "elf64" } else { "win64" }
+    if cfg!(target_os = "linux") {
+        "elf64"
+    } else {
+        "win64"
+    }
 }
 
 fn test_obj_ext() -> &'static str {
-    if cfg!(target_os = "linux") { "o" } else { "obj" }
+    if cfg!(target_os = "linux") {
+        "o"
+    } else {
+        "obj"
+    }
 }
 
 fn test_exe_name() -> &'static str {
-    if cfg!(target_os = "linux") { "program" } else { "program.exe" }
+    if cfg!(target_os = "linux") {
+        "program"
+    } else {
+        "program.exe"
+    }
 }
 
 pub fn compile_only(source: &str) -> (TempDir, String) {

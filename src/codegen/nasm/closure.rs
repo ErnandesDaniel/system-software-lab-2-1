@@ -38,16 +38,52 @@ impl AsmGenerator {
                     let wide = AsmGenerator::is_wide_type(&arg.get_type());
                     let reg = if self.os == OsTarget::Linux {
                         match i - 2 {
-                            0 => { if wide { "rsi" } else { "esi" } }
-                            1 => { if wide { "rdx" } else { "edx" } }
-                            2 => { if wide { "rcx" } else { "ecx" } }
+                            0 => {
+                                if wide {
+                                    "rsi"
+                                } else {
+                                    "esi"
+                                }
+                            }
+                            1 => {
+                                if wide {
+                                    "rdx"
+                                } else {
+                                    "edx"
+                                }
+                            }
+                            2 => {
+                                if wide {
+                                    "rcx"
+                                } else {
+                                    "ecx"
+                                }
+                            }
                             _ => "eax",
                         }
                     } else {
                         match i - 2 {
-                            0 => { if wide { "rdx" } else { "edx" } }
-                            1 => { if wide { "r8" } else { "r8d" } }
-                            2 => { if wide { "r9" } else { "r9d" } }
+                            0 => {
+                                if wide {
+                                    "rdx"
+                                } else {
+                                    "edx"
+                                }
+                            }
+                            1 => {
+                                if wide {
+                                    "r8"
+                                } else {
+                                    "r8d"
+                                }
+                            }
+                            2 => {
+                                if wide {
+                                    "r9"
+                                } else {
+                                    "r9d"
+                                }
+                            }
                             _ => "eax",
                         }
                     };
