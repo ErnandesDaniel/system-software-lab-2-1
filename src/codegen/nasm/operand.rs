@@ -28,6 +28,9 @@ impl AsmGenerator {
                 if is_env_param || (is_struct_ptr && self.param_names.contains(name)) {
                     let wide_reg = Self::to_wide(reg);
                     self.line(&format!("mov {wide_reg}, {mem}"));
+                } else if is_struct_ptr {
+                    let wide_reg = Self::to_wide(reg);
+                    self.line(&format!("lea {wide_reg}, {mem}"));
                 } else if self.heap_allocated.contains(name) || matches!(ty, IrType::Closure(_, _)) {
                     let wide_reg = Self::to_wide(reg);
                     self.line(&format!("mov {wide_reg}, {mem}"));
