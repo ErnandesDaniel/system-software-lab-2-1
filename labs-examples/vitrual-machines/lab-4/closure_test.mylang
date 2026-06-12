@@ -1,0 +1,137 @@
+import putchar;
+import getchar;
+import malloc;
+import fflush;
+
+global NL of int = 10;
+global buf of string;
+global ppos of int;
+
+global y0 of int;
+global y1 of int;
+
+def print_int(n of int) {
+    if (n < 0) { putchar('-'); n = -n; }
+    if (n == 0) { putchar('0'); return; }
+    rev of string;
+    rev = malloc(16);
+    i = 0;
+    while (n > 0) {
+        r = n - n / 10 * 10;
+        rev[i] = '0' + r;
+        n = n / 10;
+        i = i + 1;
+    }
+    while (i > 0) {
+        i = i - 1;
+        putchar(rev[i]);
+    }
+}
+
+def strcmp_at(s of string, pos of int, t of string) of int {
+    i = 0;
+    while (true) {
+        a = s[pos + i];
+        b = t[i];
+        if (b == 0) { return 1; }
+        if (a != b) { return 0; }
+        if (a == 0) { return 1; }
+        i = i + 1;
+    }
+}
+
+def read_line() of int {
+    p = 0;
+    while (true) {
+        c = getchar();
+        if (c == NL || c == -1) {
+            buf[p] = 0;
+            if (c == -1) { return 0; }
+            return 1;
+        }
+        if (c != 13) {
+            buf[p] = c;
+            p = p + 1;
+        }
+    }
+}
+
+def next_int() of int {
+    while (buf[ppos] == ' ') { ppos = ppos + 1; }
+    n = 0;
+    while (true) {
+        c = buf[ppos];
+        if (c >= '0' && c <= '9') {
+            n = n * 10 + (c - '0');
+            ppos = ppos + 1;
+        } else { break; }
+    }
+    return n;
+}
+
+def ok() {
+    putchar('O'); putchar('K'); putchar(NL); fflush(0);
+}
+
+def ok_int(n of int) {
+    putchar('O'); putchar('K'); putchar(' ');
+    print_int(n); putchar(NL); fflush(0);
+}
+
+def err(m of string) {
+    putchar('E'); putchar('R'); putchar('R'); putchar(' ');
+    i = 0;
+    while (true) {
+        c = m[i];
+        if (c == 0) { break; }
+        putchar(c);
+        i = i + 1;
+    }
+    putchar(NL); fflush(0);
+}
+
+def cmd_new0() { y0 = 0; ok(); }
+def cmd_new1() { y1 = 0; ok(); }
+
+def cmd_call0(idx of int, x of int) {
+    pair = [
+        def add2(x of int) of int { y0 = x + y0; return y0; },
+        def mul2(x of int) of int { y0 = x * y0; return y0; }
+    ];
+    ok_int(pair[idx](x));
+}
+
+def cmd_call1(idx of int, x of int) {
+    pair = [
+        def add2(x of int) of int { y1 = x + y1; return y1; },
+        def mul2(x of int) of int { y1 = x * y1; return y1; }
+    ];
+    ok_int(pair[idx](x));
+}
+
+def main() of int {
+    buf = malloc(256);
+
+    while (read_line() == 1) {
+        if (strcmp_at(buf, 0, "exit") == 1) {
+            ok(); return 0;
+        } else if (strcmp_at(buf, 0, "new") == 1) {
+            ppos = 3;
+            id = next_int();
+            if (id == 0) { cmd_new0(); }
+            else if (id == 1) { cmd_new1(); }
+            else { err("Bad id"); }
+        } else if (strcmp_at(buf, 0, "call") == 1) {
+            ppos = 4;
+            id = next_int();
+            idx = next_int();
+            x = next_int();
+            if (id == 0) { cmd_call0(idx, x); }
+            else if (id == 1) { cmd_call1(idx, x); }
+            else { err("Bad id"); }
+        }
+    }
+
+    err("EOF");
+    return 0;
+}

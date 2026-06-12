@@ -170,12 +170,13 @@ impl JvmGenerator {
     }
 
     pub(super) fn global_jvm_descriptor(&self, name: &str, ir_type: &IrType) -> String {
-        if self.global.global_uses_object_array.contains(name) {
+        let result = if self.global.global_uses_object_array.contains(name) {
             "[Ljava/lang/Object;".to_string()
         } else if matches!(ir_type, IrType::Struct { .. }) {
             "[I".to_string()
         } else {
             ir_type_to_jvm_descriptor(ir_type)
-        }
+        };
+        result
     }
 }

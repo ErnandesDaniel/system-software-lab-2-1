@@ -1,0 +1,54 @@
+import putchar;
+import fflush;
+import malloc;
+
+global NL of int = 10;
+
+def f() of def(int) of int array[2] {
+    y = 0;
+    return [
+        def add2(x of int) of int {
+            y = x + y;
+            return y;
+        },
+        def mul2(x of int) of int {
+            y = x * y;
+            return y;
+        }
+    ];
+}
+
+global pair0 of def(int) of int array[2];
+global pair1 of def(int) of int array[2];
+
+def print_int(n of int) {
+    if (n < 0) { putchar('-'); n = -n; }
+    if (n == 0) { putchar('0'); return; }
+    rev of string;
+    rev = malloc(16);
+    i = 0;
+    while (n > 0) {
+        r = n - n / 10 * 10;
+        rev[i] = '0' + r;
+        n = n / 10;
+        i = i + 1;
+    }
+    while (i > 0) {
+        i = i - 1;
+        putchar(rev[i]);
+    }
+}
+
+def main() of int {
+    pair0 = f();
+    pair1 = f();
+
+    print_int(pair0[0](2)); putchar(NL);
+    print_int(pair1[0](2)); putchar(NL);
+    print_int(pair0[0](2)); putchar(NL);
+    print_int(pair1[1](7)); putchar(NL);
+    print_int(pair0[1](7)); putchar(NL);
+    print_int(pair1[0](3)); putchar(NL);
+
+    return 0;
+}

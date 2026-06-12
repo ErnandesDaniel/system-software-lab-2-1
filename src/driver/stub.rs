@@ -14,7 +14,14 @@ fn jvm_desc_to_java_type(desc: &str) -> String {
         "F" => "float",
         "D" => "double",
         "Ljava/lang/Object;" => "Object",
-        _ => "int",
+        _ => {
+            if base.starts_with('L') && base.ends_with(';') {
+                // Custom class descriptor: strip L and ;
+                &base[1..base.len()-1]
+            } else {
+                "int"
+            }
+        }
     };
     if dims > 0 {
         format!("{}{}", base_type, "[]".repeat(dims))

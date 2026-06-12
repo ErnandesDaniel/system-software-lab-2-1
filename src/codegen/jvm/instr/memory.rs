@@ -190,7 +190,12 @@ impl JvmGenerator {
                                     self.emit_load_constant(code, &Constant::Int(base_idx));
                                     code.push(Instruction::Iadd);
                                 }
-                                code.push(Instruction::Iaload);
+                                let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
+                                if matches!(elem_type, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+                                    code.push(Instruction::Aaload);
+                                } else {
+                                    code.push(Instruction::Iaload);
+                                }
                             }
                         } else {
                             let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);

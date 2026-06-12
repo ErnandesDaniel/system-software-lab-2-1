@@ -11,7 +11,7 @@ impl JvmGenerator {
         self.collect_instruction_refs(func);
     }
 
-    fn collect_global_field_refs(&mut self) {
+    pub(super) fn collect_global_field_refs(&mut self) {
         let runtime_stub_class = self
             .pool
             .constant_pool
@@ -24,9 +24,8 @@ impl JvmGenerator {
                 continue;
             }
             let desc = self.global_jvm_descriptor(gname, gty);
-            if let Ok(field_ref) = self.pool.constant_pool.add_field_ref(runtime_stub_class, gname, &desc) {
-                self.global.global_field_refs.insert(gname.clone(), field_ref);
-            }
+            let field_ref = self.pool.constant_pool.add_field_ref(runtime_stub_class, gname, &desc).unwrap();
+            self.global.global_field_refs.insert(gname.clone(), field_ref);
         }
     }
 
