@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include <sys/time.h>
 #include <time.h>
-#include <ucontext.h>
+#include <ucontext.h> // избавиться от него
 #include <stdlib.h>
 #include <unistd.h>
 
