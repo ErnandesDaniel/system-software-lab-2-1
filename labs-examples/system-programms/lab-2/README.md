@@ -7,6 +7,11 @@
 
 ## Компиляция и запуск под Linux (WSL)
 
+Сначала зайти в WSL (из PowerShell):
+```powershell
+wsl -d Ubuntu
+```
+
 Запускать из корня проекта (рабочая директория нужна для путей к CSV).
 
 ```bash
@@ -112,18 +117,14 @@ labs-examples\system-programms\lab-2\sql\run_verification.cmd
 
 ### Linux (WSL) — ручная верификация
 
-Запускать из корня проекта (т.к. `init.sql` использует относительные пути `lab-2/csv-data/...`):
-
 ```bash
-cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1/labs-examples/system-programms/lab-2/sql
 
 # 1. Создать БД и импортировать CSV
-sqlite3 labs-examples/system-programms/lab-2/sql/ucheb_test.db \
-  < labs-examples/system-programms/lab-2/sql/init.sql
+sqlite3 ucheb_test.db < init.sql
 
 # 2. Выполнить запросы
-sqlite3 -header -column labs-examples/system-programms/lab-2/sql/ucheb_test.db \
-  < labs-examples/system-programms/lab-2/sql/queries.sql
+sqlite3 -header -column ucheb_test.db < queries.sql
 ```
 
-Чтобы пересоздать — удалить `ucheb_test.db` и повторить шаг 1.
+Чтобы пересоздать — удалить `ucheb_test.db` в `sql/` и повторить шаг 1.
