@@ -41,6 +41,16 @@ function sendCmd($stdin, $stdout, string $cmd): ?int {
     throw new RuntimeException("Bad response: $response");
 }
 
+
+/*
+$x = ....;
+
+$c1 = $x['make_pair']->call();
+$c2 = $x['make_pair']->call();
+
+        printf("c1[0](2) = %d\n", $c1->getItem(0)->call(2));
+
+*/
 function test(): int {
     [$process, $pipes] = startMyLang();
     [$stdin, $stdout, $stderr] = $pipes;
