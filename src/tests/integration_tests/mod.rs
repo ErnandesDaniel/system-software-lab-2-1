@@ -99,20 +99,7 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         obj_files.push(obj_path);
     }
 
-    // Provide xmalloc for tests that use MakeClosure or AllocArray
-    let needs_xmalloc = ir.functions.iter().any(|f| {
-        f.blocks.iter().any(|b| {
-            b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray))
-        })
-    });
-    if needs_xmalloc {
-        let xmalloc_c = temp_dir.path().join("xmalloc.c");
-        fs::write(&xmalloc_c, b"#include <stdlib.h>\nvoid *xmalloc(size_t s) { return malloc(s); }\nvoid xfree(void *p) { free(p); }\n").unwrap();
-        let xmalloc_obj = temp_dir.path().join(format!("xmalloc.{}", test_obj_ext()));
-        if Command::new("gcc").args(["-c", "-o"]).arg(xmalloc_obj.to_str().unwrap()).arg(xmalloc_c.to_str().unwrap()).output().map(|o| o.status.success()).unwrap_or(false) {
-            obj_files.push(xmalloc_obj);
-        }
-    }
+
 
     if !ir.globals.is_empty() {
         let globals_asm = format!(

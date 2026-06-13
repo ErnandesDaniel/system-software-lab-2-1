@@ -43,7 +43,8 @@ impl AsmGenerator {
             }
             IrOperand::Constant(c) => self.load_constant(c, reg),
             IrOperand::FuncRef(func_name) => {
-                self.line(&format!("lea rax, [rel {func_name}]"));
+                let mapped = Self::map_extern_name(func_name);
+                self.line(&format!("lea rax, [rel {mapped}]"));
                 if reg != "rax" {
                     self.line(&format!("mov {reg}, rax"));
                 }

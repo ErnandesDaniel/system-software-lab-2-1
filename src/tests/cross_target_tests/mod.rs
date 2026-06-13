@@ -59,19 +59,6 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
 
     let exe_path = temp_dir.path().join(exe_name);
     let mut extra_objs: Vec<std::path::PathBuf> = Vec::new();
-    // Provide xmalloc for tests that use MakeClosure or AllocArray
-    let needs_xmalloc = ir.functions.iter().any(|f| {
-        f.blocks.iter().any(|b| {
-            b.instructions.iter().any(|i| matches!(i.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray))
-        })
-    });
-    if needs_xmalloc {
-        let xmalloc_c = temp_dir.path().join("xmalloc.c");
-        fs::write(&xmalloc_c, b"#include <stdlib.h>\nvoid *xmalloc(size_t s) { return malloc(s); }\nvoid xfree(void *p) { free(p); }\n").unwrap();
-        let xmalloc_obj = temp_dir.path().join(format!("xmalloc.{}", obj_ext));
-        Command::new("gcc").args(["-c", "-o"]).arg(xmalloc_obj.to_str().unwrap()).arg(xmalloc_c.to_str().unwrap()).output().expect("GCC not found for xmalloc");
-        extra_objs.push(xmalloc_obj);
-    }
     
     let mut gcc_cmd = Command::new("gcc");
     if cfg!(target_os = "linux") {

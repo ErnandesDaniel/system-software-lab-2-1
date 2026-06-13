@@ -55,13 +55,11 @@ impl StdLib {
         funcs.insert("set_coroutine_scheduler_nasm");
         funcs.insert("get_current_coroutine_id_nasm");
 
-        // Binary I/O functions (NASM-only wrappers)
+        // Binary I/O functions (NASM-only)
         funcs.insert("fread_nasm");
         funcs.insert("fwrite_nasm");
         funcs.insert("fseek_nasm");
-        funcs.insert("read_le32_nasm");
-        funcs.insert("read_le16_nasm");
-        funcs.insert("read_i8_nasm");
+
 
         // EntityStore functions (JVM daemon)
         funcs.insert("map_put_jvm");
@@ -112,7 +110,7 @@ impl StdLib {
             ("run_coroutine_runtime_nasm", ("", "")),
             ("set_coroutine_scheduler_nasm", ("fn: int", "")),
             ("get_current_coroutine_id_nasm", ("", "int")),
-            // Binary I/O (NASM wrappers)
+            // Binary I/O (NASM-only)
             (
                 "fread_nasm",
                 ("buf: string, size: int, count: int, file: string", "int"),
@@ -122,9 +120,7 @@ impl StdLib {
                 ("buf: string, size: int, count: int, file: string", "int"),
             ),
             ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
-            ("read_le32_nasm", ("buf: string, offset: int", "int")),
-            ("read_le16_nasm", ("buf: string, offset: int", "int")),
-            ("read_i8_nasm", ("buf: string, offset: int", "int")),
+
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

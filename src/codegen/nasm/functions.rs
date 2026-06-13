@@ -5,7 +5,7 @@ use crate::OsTarget;
 impl AsmGenerator {
     pub fn emit_call(&mut self, inst: &IrInstruction) {
         let func_name = match &inst.jump_target {
-            Some(f) => f.clone(),
+            Some(f) => Self::map_extern_name(f),
             _ => return,
         };
         self.used_functions.push(func_name.clone());

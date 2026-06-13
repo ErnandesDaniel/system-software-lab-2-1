@@ -95,25 +95,35 @@ Groups: 12
 
 ## Верификация через SQLite
 
+### Установка SQLite в WSL
+
+```bash
+sudo apt update && sudo apt install sqlite3 -y
+sqlite3 --version
+```
+
+### Windows (батник)
+
 ```powershell
-# Windows
 labs-examples\system-programms\lab-2\sql\run_verification.cmd
 ```
 
+Батник использует `init_abs.sql` с абсолютными Windows-путями к CSV, создаёт `ucheb_test.db` и выполняет запросы.
+
+### Linux (WSL) — ручная верификация
+
+Запускать из корня проекта (т.к. `init.sql` использует относительные пути `lab-2/csv-data/...`):
+
 ```bash
-# Linux (WSL)
-sqlite3 :memory: -init labs-examples/system-programms/lab-2/sql/init.sql \
-  ".read labs-examples/system-programms/lab-2/sql/queries.sql" 2>&1 | grep -v "^--"
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
+
+# 1. Создать БД и импортировать CSV
+sqlite3 labs-examples/system-programms/lab-2/sql/ucheb_test.db \
+  < labs-examples/system-programms/lab-2/sql/init.sql
+
+# 2. Выполнить запросы
+sqlite3 -header -column labs-examples/system-programms/lab-2/sql/ucheb_test.db \
+  < labs-examples/system-programms/lab-2/sql/queries.sql
 ```
 
-Results:
-
-| # | Результат |
-|---|--------|
-| 1 | 4 rows (DiffPass with dates) |
-| 2 | 1 row (163276, OK500, 163276) |
-| 3 | 6 (FCE students without patronymic) |
-| 4 | 2 plans (101: 3 groups, 104: 3 groups) |
-| 5 | 2 students (Grigoriev 5.0, Zaitsev 5.0) |
-| 6 | 4 students (part-time, course 1, after 2012) |
-| 7 | 12 rows (6 pairs with same surname) |
+Чтобы пересоздать — удалить `ucheb_test.db` и повторить шаг 1.

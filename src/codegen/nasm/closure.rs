@@ -10,7 +10,7 @@ impl AsmGenerator {
         };
 
         let func_name = match inst.operands.first() {
-            Some(IrOperand::FuncRef(name)) => name.clone(),
+            Some(IrOperand::FuncRef(name)) => Self::map_extern_name(name),
             _ => return,
         };
 
@@ -26,7 +26,7 @@ impl AsmGenerator {
         if self.os == OsTarget::Windows {
             self.line("sub rsp, 32");
         }
-        self.line("call xmalloc");
+        self.line("call malloc");
         if self.os == OsTarget::Windows {
             self.line("add rsp, 32");
         }
@@ -44,7 +44,7 @@ impl AsmGenerator {
                     if self.os == OsTarget::Windows {
                         self.line("sub rsp, 32");
                     }
-                    self.line("call xmalloc");
+                    self.line("call malloc");
                     if self.os == OsTarget::Windows {
                         self.line("add rsp, 32");
                     }

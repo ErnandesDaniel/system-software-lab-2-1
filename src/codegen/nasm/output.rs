@@ -38,31 +38,36 @@ impl AsmGenerator {
         std::mem::take(&mut self.output)
     }
 
+    pub(crate) fn map_extern_name(name: &str) -> String {
+        match name {
+            "fread_nasm" => "fread".to_string(),
+            "fwrite_nasm" => "fwrite".to_string(),
+            "fseek_nasm" => "fseek".to_string(),
+            _ => name.to_string(),
+        }
+    }
+
     fn collect_externs(func: &IrFunction) -> Vec<String> {
         let mut set: HashSet<String> = HashSet::new();
         for ext in &func.used_functions {
-            set.insert(ext.clone());
+            set.insert(Self::map_extern_name(ext));
         }
-        let mut needs_xmalloc = false;
         for block in &func.blocks {
             for inst in &block.instructions {
                 if let IrOpcode::Call = inst.opcode {
                     if let Some(ref target) = inst.jump_target {
-                        set.insert(target.clone());
+                        set.insert(Self::map_extern_name(target));
                     }
                 }
                 for op in &inst.operands {
                     if let crate::ir::IrOperand::FuncRef(name) = op {
-                        set.insert(name.clone());
+                        set.insert(Self::map_extern_name(name));
                     }
                 }
                 if matches!(inst.opcode, IrOpcode::MakeClosure | IrOpcode::AllocArray) {
-                    needs_xmalloc = true;
+                    set.insert("malloc".to_string());
                 }
             }
-        }
-        if needs_xmalloc {
-            set.insert("xmalloc".to_string());
         }
         let mut list: Vec<String> = set.into_iter().collect();
         list.sort();
@@ -193,21 +198,21 @@ impl AsmGenerator {
         let mut extern_set: std::collections::HashSet<String> = std::collections::HashSet::new();
         for func in &program.functions {
             for ext in &func.used_functions {
-                extern_set.insert(ext.clone());
+                extern_set.insert(Self::map_extern_name(ext));
             }
             for block in &func.blocks {
                 for inst in &block.instructions {
                     if let IrOpcode::Call = inst.opcode {
                         if let Some(ref target) = inst.jump_target {
                             if !all_func_names.contains(target.as_str()) {
-                                extern_set.insert(target.clone());
+                                extern_set.insert(Self::map_extern_name(target));
                             }
                         }
                     }
                     for op in &inst.operands {
                         if let crate::ir::IrOperand::FuncRef(n) = op {
                             if !all_func_names.contains(n.as_str()) {
-                                extern_set.insert(n.clone());
+                                extern_set.insert(Self::map_extern_name(n));
                             }
                         }
                     }

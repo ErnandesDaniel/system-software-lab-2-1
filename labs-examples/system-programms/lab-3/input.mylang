@@ -7,9 +7,7 @@ import fclose;
 import fread_nasm;
 import fwrite_nasm;
 import fseek_nasm;
-import read_le32_nasm;
-import read_le16_nasm;
-import read_i8_nasm;
+
 import malloc;
 import free;
 import getchar;
@@ -23,6 +21,20 @@ global inode_size of int;
 global sb_buf of string;
 global cwd_inode of int;
 global cwd_path of string;
+
+// ---------- Binary helpers ----------
+
+def read_i8_nasm(buf of string, offset of int) of int {
+    return buf[offset];
+}
+
+def read_le16_nasm(buf of string, offset of int) of int {
+    return buf[offset] | (buf[offset + 1] * 256);
+}
+
+def read_le32_nasm(buf of string, offset of int) of int {
+    return buf[offset] | (buf[offset + 1] * 256) | (buf[offset + 2] * 65536) | (buf[offset + 3] * 16777216);
+}
 
 // ---------- Block I/O ----------
 

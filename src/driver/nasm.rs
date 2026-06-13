@@ -90,28 +90,47 @@ impl CompilerDriver {
             }
         }
 
-        // Compile NASM runtime C files
-        let runtimes: [(&str, bool); 2] = [("coro_linux.c", os == OsTarget::Linux), ("io_nasm.c", true)];
-        for (cfile, enabled) in &runtimes {
-            if !enabled {
+        // Compile NASM runtime files
+        struct RuntimeFile<'a> {
+            name: &'a str,
+            lang: &'a str,
+            enabled: bool,
+        }
+        let runtimes: [RuntimeFile; 2] = [
+            RuntimeFile { name: "coro_linux.c", lang: "c", enabled: os == OsTarget::Linux },
+            RuntimeFile { name: "context.asm", lang: "asm", enabled: os == OsTarget::Linux },
+        ];
+        for rf in &runtimes {
+            if !rf.enabled {
                 continue;
             }
             let src = Path::new(env!("CARGO_MANIFEST_DIR"))
                 .join("src/codegen/nasm/runtime")
-                .join(cfile);
-            let obj_name = format!("{}.{}", cfile.replace(".c", ""), obj_ext);
+                .join(rf.name);
+            let obj_name = format!("{}.{}", rf.name.replace(".asm", "").replace(".c", ""), obj_ext);
             let obj_path = Path::new(output_dir).join(&obj_name);
-            let gcc_out = Command::new("gcc")
-                .args(["-c", "-o"])
-                .arg(obj_path.to_string_lossy().as_ref())
-                .arg(src.to_string_lossy().as_ref())
-                .output();
-            if let Ok(out) = gcc_out {
-                if out.status.success() {
-                    obj_files.push(obj_path);
-                } else {
-                    eprintln!("gcc ({cfile}) failed: {}", String::from_utf8_lossy(&out.stderr));
+            let result = if rf.lang == "c" {
+                Command::new("gcc")
+                    .args(["-c", "-o"])
+                    .arg(obj_path.to_string_lossy().as_ref())
+                    .arg(src.to_string_lossy().as_ref())
+                    .output()
+            } else {
+                Command::new("nasm")
+                    .args(["-f", format, "-O0", "-o"])
+                    .arg(obj_path.to_string_lossy().as_ref())
+                    .arg(src.to_string_lossy().as_ref())
+                    .output()
+            };
+            match result {
+                Ok(out) => {
+                    if out.status.success() {
+                        obj_files.push(obj_path);
+                    } else {
+                        eprintln!("{} ({}) failed: {}", rf.lang, rf.name, String::from_utf8_lossy(&out.stderr));
+                    }
                 }
+                Err(e) => eprintln!("Failed to run {} on {}: {e}", rf.lang, rf.name),
             }
         }
 
