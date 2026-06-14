@@ -332,10 +332,25 @@ def process_client(slot of int) {
     }else if(strcmp(cmd_buf,"RETR")==0){
         dfd=accept_data(slot_get(s_plsn,slot));
         if(dfd>=0&&args_buf[0]!=0){send_resp(cfd,150,"Opening data connection");
-            // Extract basename (last component after /)
-            i=0;last=0;while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
-            j=0;while(args_buf[last+j]!=0){cmd_buf[j]=args_buf[last+j];j=j+1;}cmd_buf[j]=0;
-            do_retr(dfd,slot_get(s_cwd,slot),cmd_buf);
+            // Resolve the file path to find the correct directory inode
+            sdir=slot_get(s_cwd,slot); // default: current cwd
+            if(args_buf[0]==47){ // absolute path — resolve from root
+                sdir=2; plen=0; while(args_buf[plen]!=0){plen=plen+1;}
+                pos=1; // skip leading /
+                while(pos<plen){
+                    cp=0;while(pos<plen&&args_buf[pos]!=47){cmd_buf[cp]=args_buf[pos];cp=cp+1;pos=pos+1;}
+                    cmd_buf[cp]=0;
+                    if(pos<plen){ // directory component
+                        if(cp>0){ib=malloc(inode_size);
+                            if(ib!=0&&read_inode(ib,sdir)>=0){ni=find_entry(ib,cmd_buf);if(ni!=0){sdir=ni;}}
+                            free(ib);
+                        }pos=pos+1;
+                    }else{ // last component = filename
+                        strcpy(line_buf,cmd_buf);
+                    }
+                }
+                do_retr(dfd,sdir,line_buf);
+            }else{strcpy(cmd_buf,args_buf);do_retr(dfd,sdir,cmd_buf);}
             close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
             send_resp(cfd,226,"Transfer complete");
         }else{if(args_buf[0]==0){send_resp(cfd,550,"File name required");}else{send_resp(cfd,425,"Data connection failed");}}
