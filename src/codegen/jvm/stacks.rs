@@ -69,7 +69,10 @@ impl JvmGenerator {
             | Instruction::Dup_x1
             | Instruction::Dup_x2
             | Instruction::Getstatic(_)
-            | Instruction::New(_) => 1,
+            | Instruction::New(_)
+            | Instruction::Invokestatic(_)
+            | Instruction::Invokeinterface(_, _)
+            | Instruction::Invokedynamic(_) => 1,
             Instruction::Iastore
             | Instruction::Lastore
             | Instruction::Fastore
@@ -181,9 +184,6 @@ impl JvmGenerator {
             | Instruction::Baload
             | Instruction::Caload
             | Instruction::Saload => -1,
-            // Invokestatic/Invokeinterface/Invokedynamic:
-            // conservative +1 to avoid underestimation (they may push a return value)
-            Instruction::Invokestatic(_) | Instruction::Invokeinterface(_, _) | Instruction::Invokedynamic(_) => 1,
             _ => 0,
         }
     }

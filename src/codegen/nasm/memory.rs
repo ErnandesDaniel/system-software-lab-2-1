@@ -88,7 +88,7 @@ impl AsmGenerator {
         let is_struct_base = inst
             .operands
             .first()
-            .map_or(false, |op| matches!(op, IrOperand::Variable(_, IrType::Struct { .. })));
+            .is_some_and(|op| matches!(op, IrOperand::Variable(_, IrType::Struct { .. })));
         let base_name_l = inst
             .operands
             .first()

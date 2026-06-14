@@ -91,7 +91,7 @@ impl AsmGenerator {
             if self.global_names.contains(&local.name) {
                 continue;
             }
-            let raw_size = local.ty.size().max(8) as u32;
+            let raw_size = local.ty.size().max(8);
             let aligned = raw_size.next_power_of_two() as i32;
             self.alloc_slot(&local.name, raw_size);
             stack_size += aligned;
@@ -123,7 +123,7 @@ impl AsmGenerator {
                             } else if matches!(t, IrType::Closure(_, _)) {
                                 16u32
                             } else {
-                                t.size().max(8) as u32
+                                t.size().max(8)
                             }
                         });
                         self.alloc_slot(result, slot_size);
@@ -145,14 +145,10 @@ impl AsmGenerator {
             let reg = match (self.os, i) {
                 (crate::OsTarget::Linux, 0) => "rdi",
                 (crate::OsTarget::Linux, 1) => "rsi",
-                (crate::OsTarget::Linux, 2) => "rdx",
-                (crate::OsTarget::Linux, 3) => "rcx",
-                (crate::OsTarget::Linux, 4) => "r8",
-                (crate::OsTarget::Linux, 5) => "r9",
-                (_, 0) => "rcx",
-                (_, 1) => "rdx",
-                (_, 2) => "r8",
-                (_, 3) => "r9",
+                (crate::OsTarget::Linux, 2) | (_, 1) => "rdx",
+                (crate::OsTarget::Linux, 3) | (_, 0) => "rcx",
+                (crate::OsTarget::Linux, 4) | (_, 2) => "r8",
+                (crate::OsTarget::Linux, 5) | (_, 3) => "r9",
                 _ => "rax",
             };
             let mem = self.mem_for(param_name);

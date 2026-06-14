@@ -199,6 +199,7 @@ impl AsmGenerator {
     }
 
     fn emit_alloc_array(&mut self, _inst: &IrInstruction) {
+        let _ = self;
         // Stack-based array allocation: the slot holds inline array data.
         // No code generation needed here since the slot was already allocated
         // in the prologue.
