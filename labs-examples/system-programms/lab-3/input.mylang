@@ -195,19 +195,20 @@ def tcp_send_str(fd of int, str of string) of int {
 }
 
 def tcp_read_line(fd of int, buf of string, maxlen of int) of int {
+    read_buf = malloc(256);
+    if (read_buf == 0) { buf[0] = 0; return 0; }
+    n = recv_nasm(fd, read_buf, 256, 0);
+    if (n <= 0) { free(read_buf); buf[0] = 0; return 0; }
     i = 0;
-    while (i < maxlen - 1) {
-        cbuf = malloc(1);
-        if (cbuf == 0) { buf[i] = 0; return i; }
-        n = recv_nasm(fd, cbuf, 1, 0);
-        if (n <= 0) { buf[i] = 0; free(cbuf); return i; }
-        c = cbuf[0];
-        free(cbuf);
-        if (c == 10) { buf[i] = 0; return i; }
-        if (c != 13) { buf[i] = c; i = i + 1; }
+    j = 0;
+    while (i < n && j < maxlen - 1) {
+        c = read_buf[i]; i = i + 1;
+        if (c == 10) { buf[j] = 0; free(read_buf); return j; }
+        if (c != 13) { buf[j] = c; j = j + 1; }
     }
-    buf[i] = 0;
-    return i;
+    buf[j] = 0;
+    free(read_buf);
+    return j;
 }
 
 def pasv_open() of int {

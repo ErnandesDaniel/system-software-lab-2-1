@@ -326,6 +326,7 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     let inode_table_start = 5120usize;
     let it = &mut img[inode_table_start..inode_table_start + (inodes_total as usize * inode_size as usize)];
     write_inode(it, 2, 0x41ED, block_size, root_data_block, 3);
+    write_inode(it, 11, 0x41ED, block_size, subdir_data_block, 2);
     write_inode(it, 12, 0x41ED, block_size, subdir_data_block, 2);
     write_inode(it, 13, 0x81A4, 6, file_data_block, 1);
     write_inode(it, 14, 0x81A4, 5, subdir_file_block, 1);
@@ -376,12 +377,18 @@ fn read_line(stream: &mut std::net::TcpStream) -> String {
 fn parse_pasv(resp: &str) -> u16 {
     let start = resp.find('(').unwrap();
     let end = resp.find(')').unwrap();
-    let nums: Vec<u16> = resp[start + 1..end]
-        .split(',')
-        .map(|s| s.trim().parse().unwrap())
-        .collect();
-    assert_eq!(nums.len(), 6);
-    nums[4] * 256 + nums[5]
+    let body = &resp[start + 1..end];
+    if body.contains(',') {
+        // PASV: (h1,h2,h3,h4,p1,p2)
+        let nums: Vec<u16> = body.split(',').map(|s| s.trim().parse().unwrap()).collect();
+        assert_eq!(nums.len(), 6);
+        nums[4] * 256 + nums[5]
+    } else {
+        // EPSV: (|||port|)
+        let parts: Vec<&str> = body.split('|').collect();
+        assert!(parts.len() >= 4, "bad EPSV: {resp}");
+        parts[3].trim().parse().unwrap()
+    }
 }
 
 fn connect_data(data_port: u16) -> std::net::TcpStream {
@@ -403,6 +410,28 @@ fn read_data(data: &mut std::net::TcpStream) -> Vec<u8> {
         }
     }
     buf
+}
+
+fn do_list(stream: &mut std::net::TcpStream) -> String {
+    let r = read_line(stream);
+    assert!(r.contains("150"), "LIST 150: {r:?}");
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    r
+}
+
+fn pasv_and_list(stream: &mut std::net::TcpStream) -> (Vec<u8>, String, String) {
+    let r = read_line(stream);
+    assert!(r.contains("227"), "PASV: {r:?}");
+    let dp = parse_pasv(&r);
+    let mut data = connect_data(dp);
+
+    stream.write_all(b"LIST\r\n").ok();
+    let _ = do_list(stream);
+
+    let list_data = read_data(&mut data);
+    let r226 = read_line(stream);
+    assert!(r226.contains("226"), "LIST 226: {r226:?}");
+    (list_data, r, r226)
 }
 
 #[test]
@@ -452,135 +481,109 @@ fn test_sys_lab3_ftp_nasm() {
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
     stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
-    // 220 greeting
-    let r = read_line(&mut stream);
-    assert!(r.contains("220"), "got: {r:?}");
-
-    // send helper
     let mut send = |c: &[u8]| { stream.write_all(c).ok(); };
 
-    // USER
+    // 220
+    let r = read_line(&mut stream);
+    assert!(r.contains("220"), "greeting: {r:?}");
+
+    // USER / PASS / SYST / TYPE / PWD
     send(b"USER ftp\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("331"), "USER: {r:?}");
-
-    // PASS
+    assert!(read_line(&mut stream).contains("331"));
     send(b"PASS test\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("230"), "PASS: {r:?}");
-
-    // SYST
+    assert!(read_line(&mut stream).contains("230"));
     send(b"SYST\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("215"), "SYST: {r:?}");
-
-    // TYPE
+    assert!(read_line(&mut stream).contains("215"));
     send(b"TYPE I\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("200"), "TYPE: {r:?}");
-
-    // PWD
+    assert!(read_line(&mut stream).contains("200"));
     send(b"PWD\r\n");
     let r = read_line(&mut stream);
     assert!(r.contains("257") && r.contains("/"), "PWD: {r:?}");
 
-    // ======== LIST ========
-    send(b"PASV\r\n");
+    // FEAT
+    send(b"FEAT\r\n");
     let r = read_line(&mut stream);
-    assert!(r.contains("227"), "PASV: {r:?}");
-    let data_port = parse_pasv(&r);
-    let mut data = connect_data(data_port);
+    assert!(r.contains("211"), "FEAT: {r:?}");
 
+    // EPSV
+    send(b"EPSV\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("229"), "EPSV: {r:?}");
+    let dp = parse_pasv(&r);
+    let mut data = connect_data(dp);
     send(b"LIST\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("150"), "LIST 150: {r:?}");
-
-    std::thread::sleep(Duration::from_millis(200));
+    let _ = do_list(&mut stream);
     let list_data = read_data(&mut data);
+    assert!(String::from_utf8_lossy(&list_data).contains("a.txt"), "EPSV LIST");
+    assert!(read_line(&mut stream).contains("226"));
+
+    // PASV + LIST
+    let (list_data, _, _) = pasv_and_list(&mut stream);
     let listing = String::from_utf8_lossy(&list_data);
-    assert!(listing.contains("a.txt"), "LIST data: {listing}");
-    assert!(listing.contains("subdir"), "LIST data: {listing}");
+    assert!(listing.contains("a.txt"));
+    assert!(listing.contains("subdir"));
+    assert!(listing.contains("drwx"), "dirs should be drwx:\n{listing}");
 
-    let r = read_line(&mut stream);
-    assert!(r.contains("226"), "LIST 226: {r:?}");
-
-    // ======== RETR a.txt ========
-    send(b"PASV\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("227"), "PASV2: {r:?}");
-    let data_port = parse_pasv(&r);
-    let mut data = connect_data(data_port);
-
-    send(b"RETR a.txt\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("150"), "RETR 150: {r:?}");
-
-    std::thread::sleep(Duration::from_millis(200));
-    let file_data = read_data(&mut data);
-    assert_eq!(String::from_utf8_lossy(&file_data), "Hello\n", "a.txt content");
-
-    let r = read_line(&mut stream);
-    assert!(r.contains("226"), "RETR 226: {r:?}");
-
-    // ======== CWD subdir ========
+    // CWD subdir + LIST
     send(b"CWD subdir\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("250"), "CWD: {r:?}");
+    assert!(read_line(&mut stream).contains("250"));
+    let (list_data, _, _) = pasv_and_list(&mut stream);
+    assert!(String::from_utf8_lossy(&list_data).contains("b.txt"));
 
-    send(b"PWD\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("/subdir"), "PWD after CWD: {r:?}");
+    // CWD .. + LIST
+    send(b"CWD ..\r\n");
+    assert!(read_line(&mut stream).contains("250"));
 
-    // ======== RETR b.txt from subdir ========
+    // SIZE a.txt
+    send(b"SIZE a.txt\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("213 6"), "SIZE: {r:?}");
+
+    // RETR a.txt (download!)
     send(b"PASV\r\n");
     let r = read_line(&mut stream);
     assert!(r.contains("227"));
-    let data_port = parse_pasv(&r);
-    let mut data = connect_data(data_port);
+    let dp = parse_pasv(&r);
+    let mut data = connect_data(dp);
+    send(b"RETR a.txt\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("150"), "RETR 150: {r:?}");
+    std::thread::sleep(Duration::from_millis(200));
+    let file_data = read_data(&mut data);
+    assert_eq!(String::from_utf8_lossy(&file_data), "Hello\n", "a.txt content");
+    let r = read_line(&mut stream);
+    assert!(r.contains("226"), "RETR 226: {r:?}");
 
+    // RETR b.txt from subdir
+    send(b"CWD subdir\r\n");
+    assert!(read_line(&mut stream).contains("250"));
+    send(b"PASV\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("227"));
+    let dp = parse_pasv(&r);
+    let mut data = connect_data(dp);
     send(b"RETR b.txt\r\n");
     let r = read_line(&mut stream);
     assert!(r.contains("150"), "RETR b.txt 150: {r:?}");
-
     std::thread::sleep(Duration::from_millis(200));
     let file_data = read_data(&mut data);
     assert_eq!(String::from_utf8_lossy(&file_data), "Data\n", "b.txt content");
-
     let r = read_line(&mut stream);
     assert!(r.contains("226"), "RETR b.txt 226: {r:?}");
 
-    // ======== CWD .. ========
-    send(b"CWD ..\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("250"));
-
-    send(b"PWD\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("/"), "CWD .. PWD: {r:?}");
-
-    // ======== NOOP ========
+    // NOOP + QUIT
     send(b"NOOP\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("200"), "NOOP: {r:?}");
-
-    // ======== QUIT ========
+    assert!(read_line(&mut stream).contains("200"));
     send(b"QUIT\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("221"), "QUIT: {r:?}");
+    assert!(read_line(&mut stream).contains("221"));
 
     // Wait for clean exit
     let deadline = Instant::now() + Duration::from_secs(5);
     let exited = loop {
         match child.try_wait() {
-            Ok(Some(status)) => {
-                assert!(status.success(), "exit: {status}");
-                break true;
-            }
+            Ok(Some(status)) => { assert!(status.success(), "exit: {status}"); break true; }
             Ok(None) => {
-                if Instant::now() >= deadline {
-                    let _ = child.kill();
-                    break false;
-                }
+                if Instant::now() >= deadline { let _ = child.kill(); break false; }
                 std::thread::sleep(Duration::from_millis(50));
             }
             Err(e) => { child.kill().ok(); panic!("{e}"); }
