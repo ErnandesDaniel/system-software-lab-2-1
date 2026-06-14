@@ -308,7 +308,7 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
         let bit_idx = b % 8;
         img[3072 + byte_idx] |= 1 << bit_idx;
     }
-    for &ino in &[1u32, 2, 11, 12, 13, 14] {
+    for &ino in &[1u32, 2, 12, 13, 14] {
         let byte_idx = (ino / 8) as usize;
         let bit_idx = ino % 8;
         img[4096 + byte_idx] |= 1 << bit_idx;
@@ -325,8 +325,7 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
 
     let inode_table_start = 5120usize;
     let it = &mut img[inode_table_start..inode_table_start + (inodes_total as usize * inode_size as usize)];
-    write_inode(it, 2, 0x41ED, block_size, root_data_block, 3);
-    write_inode(it, 11, 0x41ED, block_size, subdir_data_block, 2);
+    write_inode(it, 2, 0x41ED, block_size, root_data_block, 2);
     write_inode(it, 12, 0x41ED, block_size, subdir_data_block, 2);
     write_inode(it, 13, 0x81A4, 6, file_data_block, 1);
     write_inode(it, 14, 0x81A4, 5, subdir_file_block, 1);
@@ -342,9 +341,8 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     let root_data = &mut img[(root_data_block * block_size) as usize..][..block_size as usize];
     write_dirent(root_data, 0, 2, 12, 1, 2, b".");
     write_dirent(root_data, 12, 2, 12, 2, 2, b"..");
-    write_dirent(root_data, 24, 11, 20, 10, 2, b"lost+found");
-    write_dirent(root_data, 44, 12, 16, 6, 2, b"subdir");
-    write_dirent(root_data, 60, 13, 964, 5, 1, b"a.txt");
+    write_dirent(root_data, 24, 12, 16, 6, 2, b"subdir");
+    write_dirent(root_data, 40, 13, 984, 5, 1, b"a.txt");
 
     let subdir_data = &mut img[(subdir_data_block * block_size) as usize..][..block_size as usize];
     write_dirent(subdir_data, 0, 12, 12, 1, 2, b".");
