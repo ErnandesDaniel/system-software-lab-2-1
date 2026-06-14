@@ -15,6 +15,7 @@ import strcat;
 import strlen;
 import sprintf;
 import socket_nasm;
+import setsockopt_nasm;
 import bind_nasm;
 import listen_nasm;
 import accept_nasm;
@@ -167,6 +168,8 @@ def make_addr(port of int) of string {
 def tcp_listen(port of int) of int {
     fd = socket_nasm(2, 1, 0);
     if (fd < 0) { return -1; }
+    optval = malloc(4);
+    if (optval != 0) { optval[0] = 1; optval[1] = 0; optval[2] = 0; optval[3] = 0; setsockopt_nasm(fd, 1, 2, optval, 4); free(optval); }
     addr = make_addr(port);
     if (addr == 0) { close_nasm(fd); return -1; }
     r = bind_nasm(fd, addr, 16);
@@ -211,6 +214,8 @@ def pasv_open() of int {
     if (pasv_listener >= 0) { close_nasm(pasv_listener); pasv_listener = -1; }
     fd = socket_nasm(2, 1, 0);
     if (fd < 0) { return -1; }
+    optval = malloc(4);
+    if (optval != 0) { optval[0] = 1; optval[1] = 0; optval[2] = 0; optval[3] = 0; setsockopt_nasm(fd, 1, 2, optval, 4); free(optval); }
     addr = make_addr(0);
     if (addr == 0) { close_nasm(fd); return -1; }
     r = bind_nasm(fd, addr, 16);
@@ -556,9 +561,17 @@ def main() of int {
             handle_pwd();
         } else if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "XCWD") == 0) {
             handle_cwd(args_buf);
-        } else if (strcmp(cmd_buf, "PASV") == 0) {
+        } else if (strcmp(cmd_buf, "PASV") == 0 || strcmp(cmd_buf, "EPSV") == 0) {
             if (pasv_open() >= 0) {
-                send_pasv_response();
+                if (strcmp(cmd_buf, "EPSV") == 0) {
+                    strcpy(resp_buf, "229 Entering Extended Passive Mode (|||");
+                    sprintf(line_buf, "%d", pasv_port);
+                    strcat(resp_buf, line_buf);
+                    strcat(resp_buf, "|)\r\n");
+                    send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+                } else {
+                    send_pasv_response();
+                }
             } else {
                 send_response(425, "Can't open passive connection");
             }
@@ -591,7 +604,28 @@ def main() of int {
         } else if (strcmp(cmd_buf, "OPTS") == 0) {
             send_response(200, "OK");
         } else if (strcmp(cmd_buf, "SIZE") == 0) {
-            send_response(213, "0");
+            fsize = 0;
+            finode = malloc(inode_size);
+            if (finode != 0) {
+                if (read_inode(finode, cwd_inode) >= 0) {
+                    fino = find_entry(finode, args_buf);
+                    if (fino != 0) {
+                        free(finode);
+                        finode = malloc(inode_size);
+                        if (finode != 0) {
+                            if (read_inode(finode, fino) >= 0) {
+                                fsize = read_le32(finode, 4);
+                            }
+                        }
+                    }
+                }
+                free(finode);
+            }
+            sprintf(line_buf, "%d", fsize);
+            strcpy(resp_buf, "213 ");
+            strcat(resp_buf, line_buf);
+            strcat(resp_buf, "\r\n");
+            send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
         } else if (strcmp(cmd_buf, "EPSV") == 0) {
             send_response(500, "EPSV not supported, use PASV");
         } else {

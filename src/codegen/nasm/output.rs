@@ -44,6 +44,7 @@ impl AsmGenerator {
             "fwrite_nasm" => "fwrite".to_string(),
             "fseek_nasm" => "fseek".to_string(),
             "socket_nasm" => "socket".to_string(),
+            "setsockopt_nasm" => "setsockopt".to_string(),
             "bind_nasm" => "bind".to_string(),
             "listen_nasm" => "listen".to_string(),
             "accept_nasm" => "accept".to_string(),
