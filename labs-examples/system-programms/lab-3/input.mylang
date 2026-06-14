@@ -116,9 +116,14 @@ def try_accept(fd of int) of int {
 }
 
 def accept_data(lst of int) of int {
-    // retry a few times (client connects shortly after PASV)
-    i=0;while(i<100){fd=try_accept(lst);if(fd>=0){return fd;}i=i+1;}
-    return -1;
+    ab=malloc(16);lb=malloc(4);if(ab==0||lb==0){return -1;}
+    lb[0]=16;lb[1]=0;lb[2]=0;lb[3]=0;
+    i=0;while(i<50000000){
+        fd=accept_nasm(lst,ab,lb);
+        if(fd>=0){free(ab);free(lb);fcntl_nasm(fd,4,0);return fd;}
+        i=i+1;
+    }
+    free(ab);free(lb);return -1;
 }
 
 def listen_sock(port of int) of int {
@@ -218,7 +223,7 @@ def do_retr(dfd of int, cwd of int, name of string) {
     fsz=read_le32(fb,4);rem=fsz;bi=0;
     while(bi<12&&rem>0){blk=read_le32(fb,40+bi*4);if(blk==0){break;}
         bb=malloc(block_size);if(bb==0){break;}if(read_block(bb,blk)>=0){ts=block_size;if(rem<block_size){ts=rem;}
-        send_nasm(dfd,bb,ts,0);rem=rem-ts;}free(bb);bi=bi+1;
+        send_all(dfd,bb,ts);rem=rem-ts;}free(bb);bi=bi+1;
     }free(fb);
 }
 
