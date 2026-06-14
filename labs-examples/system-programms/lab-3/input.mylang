@@ -575,6 +575,11 @@ def main() of int {
         if (client_fd < 0) { break; }
         puts("Client connected.\n");
 
+        cwd_inode = 2;
+        strcpy(cwd_path, "/");
+        if (pasv_listener >= 0) { close_nasm(pasv_listener); pasv_listener = -1; }
+        if (data_fd >= 0) { close_nasm(data_fd); data_fd = -1; }
+
         send_response(220, "Ext3 FTP Server ready");
 
         while (true) {

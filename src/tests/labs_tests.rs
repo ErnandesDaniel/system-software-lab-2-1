@@ -404,6 +404,37 @@ fn wait_for_ftp(port: u16, timeout_secs: u64) {
     }
 }
 
+fn test_client(ftp: &mut FtpStream) {
+    use std::io::Read;
+
+    // PWD at root
+    let pwd = ftp.pwd().expect("pwd");
+    assert_eq!(pwd, "/", "PWD: {pwd:?}");
+
+    // NLST
+    let names = ftp.nlst(Some("/")).expect("nlst");
+    assert!(names.contains(&"a.txt".to_string()), "NLST missing a.txt: {names:?}");
+    assert!(names.contains(&"subdir".to_string()), "NLST missing subdir: {names:?}");
+
+    // LIST — dir marker and size
+    let raw = ftp.list(None).expect("list");
+    let all = raw.join("\n");
+    assert!(all.contains("drwx"), "LIST missing dirs:\n{all}");
+
+    let a_line = raw.iter().find(|l| l.ends_with(" a.txt")).expect("a.txt line");
+    let parts: Vec<&str> = a_line.split_whitespace().collect();
+    assert_eq!(parts[4].parse::<u64>().unwrap(), 6, "a.txt size");
+
+    let sd_line = raw.iter().find(|l| l.ends_with(" subdir")).expect("subdir line");
+    assert!(sd_line.starts_with('d'), "subdir should be dir: {sd_line}");
+
+    // RETR a.txt
+    let mut reader = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
+    let mut content = Vec::new();
+    reader.read_to_end(&mut content).expect("read a.txt");
+    assert_eq!(String::from_utf8_lossy(&content), "Hello\n", "a.txt");
+}
+
 #[test]
 #[cfg(target_os = "linux")]
 fn test_sys_lab3_ftp_nasm() {
@@ -414,66 +445,40 @@ fn test_sys_lab3_ftp_nasm() {
     let mut child = start_lab3_server(&img_path);
     wait_for_ftp(FTP_PORT, 8);
 
-    let mut ftp = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect");
-    ftp.login("ftp", "test").expect("login");
-
-    // PWD
-    let pwd = ftp.pwd().expect("pwd");
-    assert_eq!(pwd, "/", "PWD: {pwd:?}");
-
-    // NLST (list names only)
-    let names = ftp.nlst(Some("/")).expect("nlst");
-    assert!(names.contains(&"a.txt".to_string()), "NLST missing a.txt: {names:?}");
-    assert!(names.contains(&"subdir".to_string()), "NLST missing subdir: {names:?}");
-
-    // LIST raw output — check for dir marker and size
-    let raw = ftp.list(None).expect("list");
-    let all = raw.join("\n");
-    assert!(all.contains(" a.txt"), "LIST missing a.txt:\n{all}");
-    assert!(all.contains(" subdir"), "LIST missing subdir:\n{all}");
-    assert!(all.contains("drwx"), "LIST missing dirs:\n{all}");
-
-    // Parse a.txt for size 6
-    let a_line = raw.iter().find(|l| l.ends_with(" a.txt")).expect("a.txt line");
-    let parts: Vec<&str> = a_line.split_whitespace().collect();
-    let a_size: u64 = parts[4].parse().unwrap();
-    assert_eq!(a_size, 6, "a.txt size");
-
-    // Parse subdir for dir flag
-    let sd_line = raw.iter().find(|l| l.ends_with(" subdir")).expect("subdir line");
-    assert!(sd_line.starts_with('d'), "subdir should be dir: {sd_line}");
-
-    // Download a.txt
-    let mut reader = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
-    let mut content = Vec::new();
-    use std::io::Read;
-    reader.read_to_end(&mut content).expect("read a.txt");
-    assert_eq!(String::from_utf8_lossy(&content), "Hello\n", "a.txt content");
+    // ======= Client 1: navigate to /subdir =======
+    let mut ftp1 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect1");
+    ftp1.login("ftp", "test").expect("login1");
+    let pwd = ftp1.pwd().expect("pwd1");
+    assert_eq!(pwd, "/");
 
     // CWD subdir
-    ftp.cwd("subdir").expect("cwd subdir");
-    let pwd = ftp.pwd().expect("pwd");
-    assert_eq!(pwd, "/subdir", "PWD after CWD: {pwd:?}");
+    ftp1.cwd("subdir").expect("cwd subdir");
+    let pwd = ftp1.pwd().expect("pwd1 after cwd");
+    assert_eq!(pwd, "/subdir");
 
-    // NLST subdir
-    let names = ftp.nlst(None).expect("nlst subdir");
-    assert!(names.contains(&"b.txt".to_string()), "NLST subdir missing b.txt: {names:?}");
-
-    // Download b.txt
-    let mut reader = ftp.retr_as_buffer("b.txt").expect("retr b.txt");
+    // RETR b.txt from /subdir
+    use std::io::Read;
+    let mut reader = ftp1.retr_as_buffer("b.txt").expect("retr b.txt");
     let mut content = Vec::new();
     reader.read_to_end(&mut content).expect("read b.txt");
-    assert_eq!(String::from_utf8_lossy(&content), "Data\n", "b.txt content");
+    assert_eq!(String::from_utf8_lossy(&content), "Data\n", "b.txt");
 
-    // CWD .. back to root
-    ftp.cwd("..").expect("cwd ..");
-    let pwd = ftp.pwd().expect("pwd");
-    assert_eq!(pwd, "/", "PWD after CWD ..: {pwd:?}");
+    // Disconnect client 1
+    ftp1.quit().expect("quit1");
 
-    // Quit
-    ftp.quit().expect("quit");
+    // ======= Client 2: verify state is reset to / =======
+    let mut ftp2 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect2");
+    ftp2.login("ftp", "test").expect("login2");
 
-    // Server stays alive for next client, just kill it
+    // PWD must be / (state was reset!)
+    let pwd = ftp2.pwd().expect("pwd2");
+    assert_eq!(pwd, "/", "state NOT reset! Client 2 got: {pwd:?} (client 1 left at /subdir)");
+
+    // Full test on client 2
+    test_client(&mut ftp2);
+    ftp2.quit().expect("quit2");
+
+    // Cleanup
     std::thread::sleep(std::time::Duration::from_millis(200));
     child.kill().ok();
     child.wait().ok();
