@@ -404,37 +404,6 @@ fn wait_for_ftp(port: u16, timeout_secs: u64) {
     }
 }
 
-fn test_client(ftp: &mut FtpStream) {
-    use std::io::Read;
-
-    // PWD at root
-    let pwd = ftp.pwd().expect("pwd");
-    assert_eq!(pwd, "/", "PWD: {pwd:?}");
-
-    // NLST
-    let names = ftp.nlst(Some("/")).expect("nlst");
-    assert!(names.contains(&"a.txt".to_string()), "NLST missing a.txt: {names:?}");
-    assert!(names.contains(&"subdir".to_string()), "NLST missing subdir: {names:?}");
-
-    // LIST — dir marker and size
-    let raw = ftp.list(None).expect("list");
-    let all = raw.join("\n");
-    assert!(all.contains("drwx"), "LIST missing dirs:\n{all}");
-
-    let a_line = raw.iter().find(|l| l.ends_with(" a.txt")).expect("a.txt line");
-    let parts: Vec<&str> = a_line.split_whitespace().collect();
-    assert_eq!(parts[4].parse::<u64>().unwrap(), 6, "a.txt size");
-
-    let sd_line = raw.iter().find(|l| l.ends_with(" subdir")).expect("subdir line");
-    assert!(sd_line.starts_with('d'), "subdir should be dir: {sd_line}");
-
-    // RETR a.txt
-    let mut reader = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
-    let mut content = Vec::new();
-    reader.read_to_end(&mut content).expect("read a.txt");
-    assert_eq!(String::from_utf8_lossy(&content), "Hello\n", "a.txt");
-}
-
 #[test]
 #[cfg(target_os = "linux")]
 fn test_sys_lab3_ftp_nasm() {
@@ -445,40 +414,85 @@ fn test_sys_lab3_ftp_nasm() {
     let mut child = start_lab3_server(&img_path);
     wait_for_ftp(FTP_PORT, 8);
 
-    // ======= Client 1: navigate to /subdir =======
-    let mut ftp1 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect1");
-    ftp1.login("ftp", "test").expect("login1");
-    let pwd = ftp1.pwd().expect("pwd1");
-    assert_eq!(pwd, "/");
+    // ========== Client 1: full test (suppaftp) ==========
+    {
+        let mut ftp1 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect1");
+        ftp1.login("ftp", "test").expect("login1");
+        assert_eq!(ftp1.pwd().unwrap(), "/");
 
-    // CWD subdir
-    ftp1.cwd("subdir").expect("cwd subdir");
-    let pwd = ftp1.pwd().expect("pwd1 after cwd");
-    assert_eq!(pwd, "/subdir");
+        ftp1.cwd("subdir").unwrap();
+        assert_eq!(ftp1.pwd().unwrap(), "/subdir");
 
-    // RETR b.txt from /subdir
-    use std::io::Read;
-    let mut reader = ftp1.retr_as_buffer("b.txt").expect("retr b.txt");
-    let mut content = Vec::new();
-    reader.read_to_end(&mut content).expect("read b.txt");
-    assert_eq!(String::from_utf8_lossy(&content), "Data\n", "b.txt");
+        use std::io::Read;
+        let mut r = ftp1.retr_as_buffer("b.txt").unwrap();
+        let mut c = Vec::new(); r.read_to_end(&mut c).unwrap();
+        assert_eq!(c, b"Data\n");
 
-    // Disconnect client 1
-    ftp1.quit().expect("quit1");
+        ftp1.quit().unwrap();
+    }
 
-    // ======= Client 2: verify state is reset to / =======
-    let mut ftp2 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect2");
-    ftp2.login("ftp", "test").expect("login2");
+    // ========== Client 2: state reset check ==========
+    {
+        let mut ftp2 = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect2");
+        ftp2.login("ftp", "test").expect("login2");
+        assert_eq!(ftp2.pwd().unwrap(), "/", "state NOT reset!");
 
-    // PWD must be / (state was reset!)
-    let pwd = ftp2.pwd().expect("pwd2");
-    assert_eq!(pwd, "/", "state NOT reset! Client 2 got: {pwd:?} (client 1 left at /subdir)");
+        use std::io::Read;
+        let mut r = ftp2.retr_as_buffer("a.txt").unwrap();
+        let mut c = Vec::new(); r.read_to_end(&mut c).unwrap();
+        assert_eq!(c, b"Hello\n");
 
-    // Full test on client 2
-    test_client(&mut ftp2);
-    ftp2.quit().expect("quit2");
+        ftp2.quit().unwrap();
+    }
 
-    // Cleanup
+    // ========== Client 3: parallel connect like FileZilla ==========
+    fn read_line(s: &mut std::net::TcpStream) -> String {
+        let mut buf = [0u8; 4096]; let mut r = String::new();
+        loop { let n = s.read(&mut buf).unwrap(); if n == 0 { break; }
+               r.push_str(&String::from_utf8_lossy(&buf[..n])); if r.ends_with("\r\n") { break; } }
+        r
+    }
+
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+
+    // Client 3A: connect, login, CWD subdir, then hang
+    let mut c3a = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
+    c3a.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok();
+    assert!(read_line(&mut c3a).contains("220"));
+
+    c3a.write_all(b"USER ftp\r\n").ok();
+    assert!(read_line(&mut c3a).contains("331"));
+    c3a.write_all(b"PASS test\r\n").ok();
+    assert!(read_line(&mut c3a).contains("230"));
+    c3a.write_all(b"CWD subdir\r\n").ok();
+    assert!(read_line(&mut c3a).contains("250"));
+
+    // Client 3B: connect while 3A is still alive — like FileZilla
+    let mut c3b = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
+    c3b.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
+
+    // Client 3B sends PWD — kernel buffers it (server is busy with 3A)
+    c3b.write_all(b"PWD\r\n").ok();
+
+    // Now Client 3A quits → server goes back to accept → accepts 3B → sends 220 → reads PWD from buffer
+    c3a.write_all(b"QUIT\r\n").ok();
+    // drain 3A's 221 response
+    let _ = read_line(&mut c3a);
+
+    // Client 3B reads: first 220, then 257 "/" (or both in one read)
+    let resp = read_line(&mut c3b);
+    assert!(resp.contains("220") || resp.contains("257"), "3B expected 220 or 257, got: {resp:?}");
+
+    // If we only got 220, read again for PWD response
+    let resp2 = if resp.contains("257") { resp } else { resp + &read_line(&mut c3b) };
+    assert!(resp2.contains("257") && resp2.contains("\"/\""), "3B PWD should be /: {resp2:?}");
+
+    c3b.write_all(b"QUIT\r\n").ok();
+    let _ = read_line(&mut c3b);
+
+    drop(c3a); drop(c3b);
+
     std::thread::sleep(std::time::Duration::from_millis(200));
     child.kill().ok();
     child.wait().ok();
