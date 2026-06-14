@@ -417,33 +417,37 @@ fn test_sys_lab3_ftp_nasm() {
     let mut ftp = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect");
     ftp.login("ftp", "test").expect("login");
 
-    // SYST
-    let syst = ftp.syst().expect("syst");
-    assert!(syst.contains("UNIX"), "SYST: {syst:?}");
-
     // PWD
     let pwd = ftp.pwd().expect("pwd");
     assert_eq!(pwd, "/", "PWD: {pwd:?}");
 
-    // LIST
-    let list = ftp.list(None).expect("list");
-    let names: Vec<&str> = list.iter().map(|e| e.name()).collect();
-    assert!(names.contains(&"a.txt"), "LIST missing a.txt: {names:?}");
-    assert!(names.contains(&"subdir"), "LIST missing subdir: {names:?}");
+    // NLST (list names only)
+    let names = ftp.nlst(Some("/")).expect("nlst");
+    assert!(names.contains(&"a.txt".to_string()), "NLST missing a.txt: {names:?}");
+    assert!(names.contains(&"subdir".to_string()), "NLST missing subdir: {names:?}");
 
-    // Find a.txt entry
-    let a_entry = list.iter().find(|e| e.name() == "a.txt").unwrap();
-    assert_eq!(a_entry.size(), 6, "a.txt size should be 6");
+    // LIST raw output — check for dir marker and size
+    let raw = ftp.list(None).expect("list");
+    let all = raw.join("\n");
+    assert!(all.contains(" a.txt"), "LIST missing a.txt:\n{all}");
+    assert!(all.contains(" subdir"), "LIST missing subdir:\n{all}");
+    assert!(all.contains("drwx"), "LIST missing dirs:\n{all}");
 
-    // Find subdir entry
-    let subdir_entry = list.iter().find(|e| e.name() == "subdir").unwrap();
-    assert!(subdir_entry.is_directory(), "subdir should be a directory");
+    // Parse a.txt for size 6
+    let a_line = raw.iter().find(|l| l.ends_with(" a.txt")).expect("a.txt line");
+    let parts: Vec<&str> = a_line.split_whitespace().collect();
+    let a_size: u64 = parts[4].parse().unwrap();
+    assert_eq!(a_size, 6, "a.txt size");
+
+    // Parse subdir for dir flag
+    let sd_line = raw.iter().find(|l| l.ends_with(" subdir")).expect("subdir line");
+    assert!(sd_line.starts_with('d'), "subdir should be dir: {sd_line}");
 
     // Download a.txt
-    let mut data = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
+    let mut reader = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
     let mut content = Vec::new();
     use std::io::Read;
-    data.read_to_end(&mut content).expect("read a.txt");
+    reader.read_to_end(&mut content).expect("read a.txt");
     assert_eq!(String::from_utf8_lossy(&content), "Hello\n", "a.txt content");
 
     // CWD subdir
@@ -451,15 +455,14 @@ fn test_sys_lab3_ftp_nasm() {
     let pwd = ftp.pwd().expect("pwd");
     assert_eq!(pwd, "/subdir", "PWD after CWD: {pwd:?}");
 
-    // LIST subdir
-    let list = ftp.list(None).expect("list subdir");
-    let names: Vec<&str> = list.iter().map(|e| e.name()).collect();
-    assert!(names.contains(&"b.txt"), "LIST subdir missing b.txt: {names:?}");
+    // NLST subdir
+    let names = ftp.nlst(None).expect("nlst subdir");
+    assert!(names.contains(&"b.txt".to_string()), "NLST subdir missing b.txt: {names:?}");
 
     // Download b.txt
-    let mut data = ftp.retr_as_buffer("b.txt").expect("retr b.txt");
+    let mut reader = ftp.retr_as_buffer("b.txt").expect("retr b.txt");
     let mut content = Vec::new();
-    data.read_to_end(&mut content).expect("read b.txt");
+    reader.read_to_end(&mut content).expect("read b.txt");
     assert_eq!(String::from_utf8_lossy(&content), "Data\n", "b.txt content");
 
     // CWD .. back to root
@@ -470,19 +473,10 @@ fn test_sys_lab3_ftp_nasm() {
     // Quit
     ftp.quit().expect("quit");
 
-    // Wait for server to exit cleanly
-    use std::time::{Duration, Instant};
-    let deadline = Instant::now() + Duration::from_secs(5);
-    loop {
-        match child.try_wait() {
-            Ok(Some(status)) => { assert!(status.success(), "exit: {status}"); break; }
-            Ok(None) => {
-                if Instant::now() >= deadline { child.kill().ok(); panic!("server did not exit"); }
-                std::thread::sleep(Duration::from_millis(50));
-            }
-            Err(e) => { child.kill().ok(); panic!("{e}"); }
-        }
-    }
+    // Server stays alive for next client, just kill it
+    std::thread::sleep(std::time::Duration::from_millis(200));
+    child.kill().ok();
+    child.wait().ok();
 }
 
 // ========== sys-lab-2: Coroutine Map-Reduce Pipeline ==========

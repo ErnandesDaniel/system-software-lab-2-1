@@ -277,6 +277,44 @@ def send_char(c of int) {
     send_nasm(data_fd, char_buf, 1, 0);
 }
 
+// ---------- NLST handler ----------
+
+def nlst_dir() {
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { return; }
+    if (read_inode(inode_buf, cwd_inode) < 0) { free(inode_buf); return; }
+    blk0 = read_le32(inode_buf, 40);
+    if (blk0 == 0) { free(inode_buf); return; }
+    dir_buf = malloc(block_size);
+    if (dir_buf == 0) { free(inode_buf); return; }
+    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); free(inode_buf); return; }
+
+    pos = 0;
+    while (pos < block_size) {
+        ino = read_le32(dir_buf, pos);
+        if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
+        rec_len = read_le16(dir_buf, pos + 4);
+        name_len = read_i8(dir_buf, pos + 6);
+        if (rec_len == 0) { break; }
+        if (name_len > 0) {
+            // skip . and ..
+            first = read_i8(dir_buf, pos + 8);
+            if (first != 46) {
+                j = 0;
+                while (j < name_len) {
+                    c = read_i8(dir_buf, pos + 8 + j);
+                    send_char(c);
+                    j = j + 1;
+                }
+                send_char(13); send_char(10);
+            }
+        }
+        pos = pos + rec_len;
+    }
+    free(dir_buf);
+    free(inode_buf);
+}
+
 // ---------- LIST handler ----------
 
 def send_list_entry(ino of int, dir_buf of string, entry_pos of int, name_len of int) {
@@ -591,7 +629,17 @@ def main() of int {
             } else if (strcmp(cmd_buf, "OPTS") == 0) { send_response(200, "OK"); }
             else if (strcmp(cmd_buf, "EPSV") == 0) {
                 send_response(500, "EPSV not supported, use PASV");
-            } else if (strcmp(cmd_buf, "PORT") == 0) {
+            } else if (strcmp(cmd_buf, "NLST") == 0) {
+            data_fd = pasv_accept();
+            if (data_fd >= 0) {
+                send_response(150, "Opening data connection");
+                nlst_dir();
+                send_response(226, "Directory send OK");
+                close_nasm(data_fd); data_fd = -1;
+            } else {
+                send_response(425, "Can't open data connection");
+            }
+        } else if (strcmp(cmd_buf, "PORT") == 0) {
                 send_response(200, "PORT OK (ignored)");
             } else if (strcmp(cmd_buf, "SIZE") == 0) {
                 fsize = 0; finode = malloc(inode_size);
