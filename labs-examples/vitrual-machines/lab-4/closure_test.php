@@ -71,12 +71,12 @@ class Pair {
         $this->session = $session;
     }
 
-    public function getItem(int $idx): Closure {
-        return new Closure($this->id, $idx, $this->session);
+    public function getItem(int $idx): MyLangClosure {
+        return new MyLangClosure($this->id, $idx, $this->session);
     }
 }
 
-class Closure {
+class MyLangClosure {
     private $id;
     private $idx;
     private $session;

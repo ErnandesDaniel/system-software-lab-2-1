@@ -68,3 +68,14 @@ php labs-examples/vitrual-machines/lab-4/input.php --target jvm
 > exit
 Bye!
 ```
+
+
+## Быстрая проверка closure_test
+
+```powershell
+# 1. Компиляция (JVM)
+cargo run -- labs-examples/vitrual-machines/lab-4/closure_test.mylang -o output -t jvm
+
+# 2. Запуск демона и проверка команд
+php labs-examples/vitrual-machines/lab-4/closure_test.php --target jvm
+```
