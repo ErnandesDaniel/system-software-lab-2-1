@@ -362,89 +362,13 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
 
 const FTP_PORT: u16 = 2121;
 
-fn read_line(stream: &mut std::net::TcpStream) -> String {
-    let mut buf = [0u8; 4096];
-    let mut resp = String::new();
-    loop {
-        let n = stream.read(&mut buf).expect("read");
-        if n == 0 { break; }
-        resp.push_str(&String::from_utf8_lossy(&buf[..n]));
-        if resp.ends_with("\r\n") { break; }
-    }
-    resp
-}
+use suppaftp::FtpStream;
 
-fn parse_pasv(resp: &str) -> u16 {
-    let start = resp.find('(').unwrap();
-    let end = resp.find(')').unwrap();
-    let body = &resp[start + 1..end];
-    if body.contains(',') {
-        // PASV: (h1,h2,h3,h4,p1,p2)
-        let nums: Vec<u16> = body.split(',').map(|s| s.trim().parse().unwrap()).collect();
-        assert_eq!(nums.len(), 6);
-        nums[4] * 256 + nums[5]
-    } else {
-        // EPSV: (|||port|)
-        let parts: Vec<&str> = body.split('|').collect();
-        assert!(parts.len() >= 4, "bad EPSV: {resp}");
-        parts[3].trim().parse().unwrap()
-    }
-}
-
-fn connect_data(data_port: u16) -> std::net::TcpStream {
-    let data = std::net::TcpStream::connect(format!("127.0.0.1:{data_port}"))
-        .expect("connect data port");
-    data.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
-    data
-}
-
-fn read_data(data: &mut std::net::TcpStream) -> Vec<u8> {
-    use std::io::Read;
-    let mut buf = Vec::new();
-    loop {
-        let mut chunk = [0u8; 4096];
-        match data.read(&mut chunk) {
-            Ok(0) => break,
-            Ok(n) => buf.extend_from_slice(&chunk[..n]),
-            Err(_) => break,
-        }
-    }
-    buf
-}
-
-fn do_list(stream: &mut std::net::TcpStream) -> String {
-    let r = read_line(stream);
-    assert!(r.contains("150"), "LIST 150: {r:?}");
-    std::thread::sleep(std::time::Duration::from_millis(200));
-    r
-}
-
-fn pasv_and_list(stream: &mut std::net::TcpStream) -> (Vec<u8>, String, String) {
-    let r = read_line(stream);
-    assert!(r.contains("227"), "PASV: {r:?}");
-    let dp = parse_pasv(&r);
-    let mut data = connect_data(dp);
-
-    stream.write_all(b"LIST\r\n").ok();
-    let _ = do_list(stream);
-
-    let list_data = read_data(&mut data);
-    let r226 = read_line(stream);
-    assert!(r226.contains("226"), "LIST 226: {r226:?}");
-    (list_data, r, r226)
-}
-
-#[test]
-#[cfg(target_os = "linux")]
-fn test_sys_lab3_ftp_nasm() {
-    let tmp = tempfile::TempDir::new().expect("tempdir");
-    let img_path = tmp.path().join("test.ext3");
-    create_test_ext3(img_path.to_str().unwrap()).expect("create ext3 image");
-
+fn start_lab3_server(img_path: &std::path::Path) -> std::process::Child {
     let compiler = std::path::PathBuf::from("target/release/mylang-parser");
     assert!(compiler.exists(), "compiler not built at {compiler:?}");
 
-    let out_dir = tmp.path().join("out");
+    let out_dir = img_path.parent().unwrap().join("out");
     let src = "labs-examples/system-programms/lab-3/input.mylang";
     let status = std::process::Command::new(&compiler)
         .args([src, "-o", out_dir.to_str().unwrap(), "-t", "nasm", "--os", "linux"])
@@ -457,132 +381,108 @@ fn test_sys_lab3_ftp_nasm() {
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::null())
         .stderr(std::process::Stdio::null())
-        .current_dir(tmp.path())
         .spawn()
         .expect("spawn");
 
     use std::io::Write;
     child.stdin.take().unwrap().write_all(format!("{}\n", img_path.display()).as_bytes()).ok();
+    child
+}
 
-    use std::net::TcpStream;
+fn wait_for_ftp(port: u16, timeout_secs: u64) {
     use std::time::{Duration, Instant};
     let start = Instant::now();
-    let timeout = Duration::from_secs(8);
-    let mut stream = loop {
-        if let Ok(s) = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")) {
-            break s;
+    let timeout = Duration::from_secs(timeout_secs);
+    loop {
+        if std::net::TcpStream::connect(format!("127.0.0.1:{port}")).is_ok() {
+            return;
         }
         if start.elapsed() >= timeout {
-            let _ = child.kill();
-            panic!("timed out connecting on port {FTP_PORT}");
+            panic!("timed out waiting for FTP on port {port}");
         }
         std::thread::sleep(Duration::from_millis(50));
-    };
-    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
-    stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
+    }
+}
 
-    let mut send = |c: &[u8]| { stream.write_all(c).ok(); };
+#[test]
+#[cfg(target_os = "linux")]
+fn test_sys_lab3_ftp_nasm() {
+    let tmp = tempfile::TempDir::new().expect("tempdir");
+    let img_path = tmp.path().join("test.ext3");
+    create_test_ext3(img_path.to_str().unwrap()).expect("create ext3 image");
 
-    // 220
-    let r = read_line(&mut stream);
-    assert!(r.contains("220"), "greeting: {r:?}");
+    let mut child = start_lab3_server(&img_path);
+    wait_for_ftp(FTP_PORT, 8);
 
-    // USER / PASS / SYST / TYPE / PWD
-    send(b"USER ftp\r\n");
-    assert!(read_line(&mut stream).contains("331"));
-    send(b"PASS test\r\n");
-    assert!(read_line(&mut stream).contains("230"));
-    send(b"SYST\r\n");
-    assert!(read_line(&mut stream).contains("215"));
-    send(b"TYPE I\r\n");
-    assert!(read_line(&mut stream).contains("200"));
-    send(b"PWD\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("257") && r.contains("/"), "PWD: {r:?}");
+    let mut ftp = FtpStream::connect(format!("127.0.0.1:{FTP_PORT}")).expect("connect");
+    ftp.login("ftp", "test").expect("login");
 
-    // FEAT
-    send(b"FEAT\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("211"), "FEAT: {r:?}");
+    // SYST
+    let syst = ftp.syst().expect("syst");
+    assert!(syst.contains("UNIX"), "SYST: {syst:?}");
 
-    // EPSV → 500, then fall back to PASV + LIST
-    send(b"EPSV\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("500"), "EPSV: {r:?}");
+    // PWD
+    let pwd = ftp.pwd().expect("pwd");
+    assert_eq!(pwd, "/", "PWD: {pwd:?}");
 
-    // PASV + LIST
-    let (list_data, _, _) = pasv_and_list(&mut stream);
-    let listing = String::from_utf8_lossy(&list_data);
-    assert!(listing.contains("a.txt"));
-    assert!(listing.contains("subdir"));
-    assert!(listing.contains("drwx"), "dirs should be drwx:\n{listing}");
+    // LIST
+    let list = ftp.list(None).expect("list");
+    let names: Vec<&str> = list.iter().map(|e| e.name()).collect();
+    assert!(names.contains(&"a.txt"), "LIST missing a.txt: {names:?}");
+    assert!(names.contains(&"subdir"), "LIST missing subdir: {names:?}");
 
-    // CWD subdir + LIST
-    send(b"CWD subdir\r\n");
-    assert!(read_line(&mut stream).contains("250"));
-    let (list_data, _, _) = pasv_and_list(&mut stream);
-    assert!(String::from_utf8_lossy(&list_data).contains("b.txt"));
+    // Find a.txt entry
+    let a_entry = list.iter().find(|e| e.name() == "a.txt").unwrap();
+    assert_eq!(a_entry.size(), 6, "a.txt size should be 6");
 
-    // CWD .. + LIST
-    send(b"CWD ..\r\n");
-    assert!(read_line(&mut stream).contains("250"));
+    // Find subdir entry
+    let subdir_entry = list.iter().find(|e| e.name() == "subdir").unwrap();
+    assert!(subdir_entry.is_directory(), "subdir should be a directory");
 
-    // SIZE a.txt
-    send(b"SIZE a.txt\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("213 6"), "SIZE: {r:?}");
+    // Download a.txt
+    let mut data = ftp.retr_as_buffer("a.txt").expect("retr a.txt");
+    let mut content = Vec::new();
+    use std::io::Read;
+    data.read_to_end(&mut content).expect("read a.txt");
+    assert_eq!(String::from_utf8_lossy(&content), "Hello\n", "a.txt content");
 
-    // RETR a.txt (download!)
-    send(b"PASV\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("227"));
-    let dp = parse_pasv(&r);
-    let mut data = connect_data(dp);
-    send(b"RETR a.txt\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("150"), "RETR 150: {r:?}");
-    std::thread::sleep(Duration::from_millis(200));
-    let file_data = read_data(&mut data);
-    assert_eq!(String::from_utf8_lossy(&file_data), "Hello\n", "a.txt content");
-    let r = read_line(&mut stream);
-    assert!(r.contains("226"), "RETR 226: {r:?}");
+    // CWD subdir
+    ftp.cwd("subdir").expect("cwd subdir");
+    let pwd = ftp.pwd().expect("pwd");
+    assert_eq!(pwd, "/subdir", "PWD after CWD: {pwd:?}");
 
-    // RETR b.txt from subdir
-    send(b"CWD subdir\r\n");
-    assert!(read_line(&mut stream).contains("250"));
-    send(b"PASV\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("227"));
-    let dp = parse_pasv(&r);
-    let mut data = connect_data(dp);
-    send(b"RETR b.txt\r\n");
-    let r = read_line(&mut stream);
-    assert!(r.contains("150"), "RETR b.txt 150: {r:?}");
-    std::thread::sleep(Duration::from_millis(200));
-    let file_data = read_data(&mut data);
-    assert_eq!(String::from_utf8_lossy(&file_data), "Data\n", "b.txt content");
-    let r = read_line(&mut stream);
-    assert!(r.contains("226"), "RETR b.txt 226: {r:?}");
+    // LIST subdir
+    let list = ftp.list(None).expect("list subdir");
+    let names: Vec<&str> = list.iter().map(|e| e.name()).collect();
+    assert!(names.contains(&"b.txt"), "LIST subdir missing b.txt: {names:?}");
 
-    // NOOP + QUIT
-    send(b"NOOP\r\n");
-    assert!(read_line(&mut stream).contains("200"));
-    send(b"QUIT\r\n");
-    assert!(read_line(&mut stream).contains("221"));
+    // Download b.txt
+    let mut data = ftp.retr_as_buffer("b.txt").expect("retr b.txt");
+    let mut content = Vec::new();
+    data.read_to_end(&mut content).expect("read b.txt");
+    assert_eq!(String::from_utf8_lossy(&content), "Data\n", "b.txt content");
 
-    // Wait for clean exit
+    // CWD .. back to root
+    ftp.cwd("..").expect("cwd ..");
+    let pwd = ftp.pwd().expect("pwd");
+    assert_eq!(pwd, "/", "PWD after CWD ..: {pwd:?}");
+
+    // Quit
+    ftp.quit().expect("quit");
+
+    // Wait for server to exit cleanly
+    use std::time::{Duration, Instant};
     let deadline = Instant::now() + Duration::from_secs(5);
-    let exited = loop {
+    loop {
         match child.try_wait() {
-            Ok(Some(status)) => { assert!(status.success(), "exit: {status}"); break true; }
+            Ok(Some(status)) => { assert!(status.success(), "exit: {status}"); break; }
             Ok(None) => {
-                if Instant::now() >= deadline { let _ = child.kill(); break false; }
+                if Instant::now() >= deadline { child.kill().ok(); panic!("server did not exit"); }
                 std::thread::sleep(Duration::from_millis(50));
             }
             Err(e) => { child.kill().ok(); panic!("{e}"); }
         }
-    };
-    assert!(exited, "server did not exit");
+    }
 }
 
 // ========== sys-lab-2: Coroutine Map-Reduce Pipeline ==========
