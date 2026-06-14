@@ -361,18 +361,48 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
 
 const FTP_PORT: u16 = 2121;
 
-fn read_ftp_response(stream: &mut std::net::TcpStream) -> String {
+fn read_line(stream: &mut std::net::TcpStream) -> String {
     let mut buf = [0u8; 4096];
     let mut resp = String::new();
     loop {
-        let n = stream.read(&mut buf).expect("read ftp response");
+        let n = stream.read(&mut buf).expect("read");
         if n == 0 { break; }
         resp.push_str(&String::from_utf8_lossy(&buf[..n]));
-        if resp.ends_with("\r\n") {
-            break;
-        }
+        if resp.ends_with("\r\n") { break; }
     }
     resp
+}
+
+fn parse_pasv(resp: &str) -> u16 {
+    let start = resp.find('(').unwrap();
+    let end = resp.find(')').unwrap();
+    let nums: Vec<u16> = resp[start + 1..end]
+        .split(',')
+        .map(|s| s.trim().parse().unwrap())
+        .collect();
+    assert_eq!(nums.len(), 6);
+    nums[4] * 256 + nums[5]
+}
+
+fn connect_data(data_port: u16) -> std::net::TcpStream {
+    let data = std::net::TcpStream::connect(format!("127.0.0.1:{data_port}"))
+        .expect("connect data port");
+    data.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
+    data
+}
+
+fn read_data(data: &mut std::net::TcpStream) -> Vec<u8> {
+    use std::io::Read;
+    let mut buf = Vec::new();
+    loop {
+        let mut chunk = [0u8; 4096];
+        match data.read(&mut chunk) {
+            Ok(0) => break,
+            Ok(n) => buf.extend_from_slice(&chunk[..n]),
+            Err(_) => break,
+        }
+    }
+    buf
 }
 
 #[test]
@@ -382,7 +412,6 @@ fn test_sys_lab3_ftp_nasm() {
     let img_path = tmp.path().join("test.ext3");
     create_test_ext3(img_path.to_str().unwrap()).expect("create ext3 image");
 
-    // Use the pre-built compiler binary
     let compiler = std::path::PathBuf::from("target/release/mylang-parser");
     assert!(compiler.exists(), "compiler not built at {compiler:?}");
 
@@ -394,7 +423,6 @@ fn test_sys_lab3_ftp_nasm() {
         .expect("compiler failed to start");
     assert!(status.success(), "compilation failed");
 
-    // Start the FTP server binary
     let exe = out_dir.join(exe_name());
     let mut child = std::process::Command::new(&exe)
         .stdin(std::process::Stdio::piped())
@@ -404,11 +432,9 @@ fn test_sys_lab3_ftp_nasm() {
         .spawn()
         .expect("spawn");
 
-    // Send the ext3 image path to stdin
-use std::io::{Read, Write};
+    use std::io::Write;
     child.stdin.take().unwrap().write_all(format!("{}\n", img_path.display()).as_bytes()).ok();
 
-    // Connect to the FTP server with retries
     use std::net::TcpStream;
     use std::time::{Duration, Instant};
     let start = Instant::now();
@@ -419,153 +445,135 @@ use std::io::{Read, Write};
         }
         if start.elapsed() >= timeout {
             let _ = child.kill();
-            panic!("timed out connecting to FTP server on port {FTP_PORT}");
+            panic!("timed out connecting on port {FTP_PORT}");
         }
         std::thread::sleep(Duration::from_millis(50));
     };
     stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
     stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
-    // Read 220 greeting
-    let resp = read_ftp_response(&mut stream);
-    assert!(resp.contains("220"), "expected 220 greeting, got: {resp:?}");
+    // 220 greeting
+    let r = read_line(&mut stream);
+    assert!(r.contains("220"), "got: {r:?}");
 
-    // Helper to send command and read response
-    let mut cmd = |c: &[u8]| -> String {
-        stream.write_all(c).ok();
-        read_ftp_response(&mut stream)
-    };
+    // send helper
+    let mut send = |c: &[u8]| { stream.write_all(c).ok(); };
 
     // USER
-    let r = cmd(b"USER ftp\r\n");
-    assert!(r.contains("331"), "USER should get 331, got: {r:?}");
+    send(b"USER ftp\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("331"), "USER: {r:?}");
 
     // PASS
-    let r = cmd(b"PASS test\r\n");
-    assert!(r.contains("230"), "PASS should get 230, got: {r:?}");
+    send(b"PASS test\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("230"), "PASS: {r:?}");
 
     // SYST
-    let r = cmd(b"SYST\r\n");
-    assert!(r.contains("215"), "SYST should get 215, got: {r:?}");
+    send(b"SYST\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("215"), "SYST: {r:?}");
 
     // TYPE
-    let r = cmd(b"TYPE I\r\n");
-    assert!(r.contains("200"), "TYPE should get 200, got: {r:?}");
+    send(b"TYPE I\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("200"), "TYPE: {r:?}");
 
     // PWD
-    let r = cmd(b"PWD\r\n");
-    assert!(r.contains("257"), "PWD should get 257, got: {r:?}");
-    assert!(r.contains("/"), "PWD should contain root path");
+    send(b"PWD\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("257") && r.contains("/"), "PWD: {r:?}");
 
-    // PASV
-    let r = cmd(b"PASV\r\n");
-    assert!(r.contains("227"), "PASV should get 227, got: {r:?}");
+    // ======== LIST ========
+    send(b"PASV\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("227"), "PASV: {r:?}");
+    let data_port = parse_pasv(&r);
+    let mut data = connect_data(data_port);
 
-    // Parse PASV response: "227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
-    let pasv = r.clone();
-    let paren_start = pasv.find('(').unwrap();
-    let paren_end = pasv.find(')').unwrap();
-    let nums: Vec<u16> = pasv[paren_start + 1..paren_end]
-        .split(',')
-        .map(|s| s.trim().parse().unwrap())
-        .collect();
-    assert_eq!(nums.len(), 6, "PASV should have 6 numbers");
-    let data_port = nums[4] * 256 + nums[5];
+    send(b"LIST\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("150"), "LIST 150: {r:?}");
 
-    // Open data connection
-    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
-        .expect("connect data port");
-    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    std::thread::sleep(Duration::from_millis(200));
+    let list_data = read_data(&mut data);
+    let listing = String::from_utf8_lossy(&list_data);
+    assert!(listing.contains("a.txt"), "LIST data: {listing}");
+    assert!(listing.contains("subdir"), "LIST data: {listing}");
 
-    // LIST
-    let r = cmd(b"LIST\r\n");
-    assert!(r.contains("150"), "LIST should get 150, got: {r:?}");
-    assert!(r.contains("226"), "LIST should complete with 226, got: {r:?}");
+    let r = read_line(&mut stream);
+    assert!(r.contains("226"), "LIST 226: {r:?}");
 
-    // Read directory listing from data connection
-    let mut list_buf = Vec::new();
-    data.read_to_end(&mut list_buf).ok();
-    let listing = String::from_utf8_lossy(&list_buf);
-    assert!(listing.contains("a.txt"), "LIST should contain a.txt:\n{listing}");
-    assert!(listing.contains("subdir"), "LIST should contain subdir:\n{listing}");
+    // ======== RETR a.txt ========
+    send(b"PASV\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("227"), "PASV2: {r:?}");
+    let data_port = parse_pasv(&r);
+    let mut data = connect_data(data_port);
 
-    // --- RETR a.txt ---
-    // PASV again
-    let r = cmd(b"PASV\r\n");
-    assert!(r.contains("227"), "PASV should get 227");
+    send(b"RETR a.txt\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("150"), "RETR 150: {r:?}");
 
-    let paren_start = r.find('(').unwrap();
-    let paren_end = r.find(')').unwrap();
-    let nums: Vec<u16> = r[paren_start + 1..paren_end]
-        .split(',')
-        .map(|s| s.trim().parse().unwrap())
-        .collect();
-    let data_port = nums[4] * 256 + nums[5];
+    std::thread::sleep(Duration::from_millis(200));
+    let file_data = read_data(&mut data);
+    assert_eq!(String::from_utf8_lossy(&file_data), "Hello\n", "a.txt content");
 
-    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
-        .expect("connect data port");
-    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    let r = read_line(&mut stream);
+    assert!(r.contains("226"), "RETR 226: {r:?}");
 
-    let r = cmd(b"RETR a.txt\r\n");
-    assert!(r.contains("150"), "RETR should get 150, got: {r:?}");
-    assert!(r.contains("226"), "RETR should complete with 226, got: {r:?}");
+    // ======== CWD subdir ========
+    send(b"CWD subdir\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("250"), "CWD: {r:?}");
 
-    let mut file_buf = Vec::new();
-    data.read_to_end(&mut file_buf).ok();
-    assert_eq!(String::from_utf8_lossy(&file_buf), "Hello\n");
+    send(b"PWD\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("/subdir"), "PWD after CWD: {r:?}");
 
-    // --- CWD subdir ---
-    let r = cmd(b"CWD subdir\r\n");
-    assert!(r.contains("250"), "CWD should get 250, got: {r:?}");
-
-    let r = cmd(b"PWD\r\n");
-    assert!(r.contains("/subdir"), "PWD should show /subdir, got: {r:?}");
-
-    // --- RETR b.txt from subdir ---
-    let r = cmd(b"PASV\r\n");
+    // ======== RETR b.txt from subdir ========
+    send(b"PASV\r\n");
+    let r = read_line(&mut stream);
     assert!(r.contains("227"));
+    let data_port = parse_pasv(&r);
+    let mut data = connect_data(data_port);
 
-    let paren_start = r.find('(').unwrap();
-    let paren_end = r.find(')').unwrap();
-    let nums: Vec<u16> = r[paren_start + 1..paren_end]
-        .split(',')
-        .map(|s| s.trim().parse().unwrap())
-        .collect();
-    let data_port = nums[4] * 256 + nums[5];
+    send(b"RETR b.txt\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("150"), "RETR b.txt 150: {r:?}");
 
-    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
-        .expect("connect data port");
-    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    std::thread::sleep(Duration::from_millis(200));
+    let file_data = read_data(&mut data);
+    assert_eq!(String::from_utf8_lossy(&file_data), "Data\n", "b.txt content");
 
-    let r = cmd(b"RETR b.txt\r\n");
-    assert!(r.contains("150"), "RETR b.txt should get 150, got: {r:?}");
-    assert!(r.contains("226"), "RETR b.txt should complete, got: {r:?}");
+    let r = read_line(&mut stream);
+    assert!(r.contains("226"), "RETR b.txt 226: {r:?}");
 
-    let mut file_buf = Vec::new();
-    data.read_to_end(&mut file_buf).ok();
-    assert_eq!(String::from_utf8_lossy(&file_buf), "Data\n");
-
-    // --- CWD .. ---
-    let r = cmd(b"CWD ..\r\n");
+    // ======== CWD .. ========
+    send(b"CWD ..\r\n");
+    let r = read_line(&mut stream);
     assert!(r.contains("250"));
 
-    let r = cmd(b"PWD\r\n");
-    assert!(r.contains("/"), "PWD should show / after CWD ..");
+    send(b"PWD\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("/"), "CWD .. PWD: {r:?}");
 
-    // --- NOOP ---
-    let r = cmd(b"NOOP\r\n");
-    assert!(r.contains("200"), "NOOP should get 200");
+    // ======== NOOP ========
+    send(b"NOOP\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("200"), "NOOP: {r:?}");
 
-    // --- QUIT ---
-    let r = cmd(b"QUIT\r\n");
-    assert!(r.contains("221"), "QUIT should get 221");
+    // ======== QUIT ========
+    send(b"QUIT\r\n");
+    let r = read_line(&mut stream);
+    assert!(r.contains("221"), "QUIT: {r:?}");
 
-    // Wait for the binary to exit cleanly
+    // Wait for clean exit
     let deadline = Instant::now() + Duration::from_secs(5);
     let exited = loop {
         match child.try_wait() {
             Ok(Some(status)) => {
-                assert!(status.success(), "server should exit with 0, got {status}");
+                assert!(status.success(), "exit: {status}");
                 break true;
             }
             Ok(None) => {
@@ -575,13 +583,10 @@ use std::io::{Read, Write};
                 }
                 std::thread::sleep(Duration::from_millis(50));
             }
-            Err(e) => {
-                child.kill().ok();
-                panic!("child wait error: {e}");
-            }
+            Err(e) => { child.kill().ok(); panic!("{e}"); }
         }
     };
-    assert!(exited, "server did not exit after QUIT");
+    assert!(exited, "server did not exit");
 }
 
 // ========== sys-lab-2: Coroutine Map-Reduce Pipeline ==========
