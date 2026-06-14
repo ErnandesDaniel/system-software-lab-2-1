@@ -3,7 +3,7 @@ mod nasm_extra;
 
 use crate::codegen::jvm::JvmGenerator;
 use crate::codegen::nasm::AsmGenerator;
-use crate::ir::IrOpcode;
+
 use crate::ir_generator::IrGenerator;
 use crate::tests::parse;
 use std::fs;
@@ -58,7 +58,7 @@ pub fn compile_and_run_nasm(source: &str) -> std::process::Output {
     }
 
     let exe_path = temp_dir.path().join(exe_name);
-    let mut extra_objs: Vec<std::path::PathBuf> = Vec::new();
+    let extra_objs: Vec<std::path::PathBuf> = Vec::new();
 
     let mut gcc_cmd = Command::new("gcc");
     if cfg!(target_os = "linux") {

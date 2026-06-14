@@ -11,7 +11,7 @@ mod stdlib;
 mod types;
 
 use crate::codegen::nasm::AsmGenerator;
-use crate::ir::IrOpcode;
+
 use crate::ir_generator::IrGenerator;
 use crate::parser::Parser;
 use crate::OsTarget;

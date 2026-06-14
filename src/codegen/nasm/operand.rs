@@ -31,7 +31,10 @@ impl AsmGenerator {
                 } else if is_struct_ptr {
                     let wide_reg = Self::to_wide(reg);
                     self.line(&format!("lea {wide_reg}, {mem}"));
-                } else if self.heap_allocated.contains(name) || matches!(ty, IrType::Closure(_, _)) || Self::is_wide_type(ty) {
+                } else if self.heap_allocated.contains(name)
+                    || matches!(ty, IrType::Closure(_, _))
+                    || Self::is_wide_type(ty)
+                {
                     let wide_reg = Self::to_wide(reg);
                     self.line(&format!("mov {wide_reg}, {mem}"));
                 } else {

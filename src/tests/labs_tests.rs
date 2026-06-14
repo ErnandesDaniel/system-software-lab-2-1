@@ -1,9 +1,10 @@
 /// Integration tests for VM labs.
 /// Runs the exact commands from each lab's README.md,
 /// then verifies expected output.
-use std::io::{Read, Write};
+use std::io::Write;
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
+#[cfg(target_os = "linux")]
 use std::time::{Duration, Instant};
 
 static CARGO_LOCK: Mutex<()> = Mutex::new(());
@@ -175,6 +176,7 @@ fn test_lab_vm4_jvm() {
     assert!(out.contains("age"));
 }
 
+#[cfg(target_os = "linux")]
 fn compile_sys_file_timeout(file: &str, timeout_secs: u64) -> Option<String> {
     let out = "target/tmp-sys";
     let src = format!("labs-examples/system-programms/{file}");
@@ -268,6 +270,7 @@ fn test_sys_lab1_metrics_srt_nasm() {
 // ========== sys-lab-3: Ext3 FTP Server ==========
 
 /// Build a minimal ext3 filesystem image for testing.
+#[cfg(target_os = "linux")]
 fn create_test_ext3(path: &str) -> std::io::Result<()> {
     let block_size: u32 = 1024;
     let blocks_total: u32 = 256;
@@ -358,10 +361,13 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     std::fs::write(path, img)
 }
 
+#[cfg(target_os = "linux")]
 const FTP_PORT: u16 = 2121;
 
+#[cfg(target_os = "linux")]
 use suppaftp::FtpStream;
 
+#[cfg(target_os = "linux")]
 fn start_lab3_server(img_path: &std::path::Path) -> std::process::Child {
     let compiler = std::path::PathBuf::from("target/release/mylang-parser");
     assert!(compiler.exists(), "compiler not built at {compiler:?}");
@@ -392,8 +398,10 @@ fn start_lab3_server(img_path: &std::path::Path) -> std::process::Child {
     child
 }
 
+#[cfg(target_os = "linux")]
 fn wait_for_ftp(port: u16, timeout_secs: u64) {
-    use std::time::{Duration, Instant};
+#[cfg(target_os = "linux")]
+use std::time::{Duration, Instant};
     let start = Instant::now();
     let timeout = Duration::from_secs(timeout_secs);
     loop {
@@ -451,7 +459,7 @@ fn test_sys_lab3_ftp_nasm() {
     }
 
     // ========== Clients 3 & 4: simultaneous (event loop test) ==========
-    use std::io::{Read, Write};
+use std::io::Write;
     use std::net::TcpStream;
 
     fn read_line(s: &mut TcpStream) -> String {
