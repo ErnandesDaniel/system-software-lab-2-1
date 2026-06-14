@@ -1,7 +1,7 @@
 /// Integration tests for VM labs.
 /// Runs the exact commands from each lab's README.md,
 /// then verifies expected output.
-use std::io::Write;
+use std::io::{Read, Write};
 use std::process::{Command, Stdio};
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
@@ -265,7 +265,7 @@ fn test_sys_lab1_metrics_srt_nasm() {
     assert!(out.contains('C'), "worker C should print");
 }
 
-// ========== sys-lab-3: Ext3 FTP-like CLI ==========
+// ========== sys-lab-3: Ext3 FTP Server ==========
 
 /// Build a minimal ext3 filesystem image for testing.
 fn create_test_ext3(path: &str) -> std::io::Result<()> {
@@ -285,7 +285,6 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
 
     let mut img = vec![0u8; (blocks_total * block_size) as usize];
 
-    // Block 1: Superblock at byte offset 1024
     let sb = &mut img[1024..2048];
     sb[0..4].copy_from_slice(&inodes_total.to_le_bytes());
     sb[4..8].copy_from_slice(&blocks_total.to_le_bytes());
@@ -296,7 +295,6 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     sb[56..58].copy_from_slice(&0xEF53u16.to_le_bytes());
     sb[88..90].copy_from_slice(&(inode_size as u16).to_le_bytes());
 
-    // Block 2: BGDT
     let bgdt = &mut img[2048..2080];
     bgdt[0..4].copy_from_slice(&bgdt_block_bitmap.to_le_bytes());
     bgdt[4..8].copy_from_slice(&bgdt_inode_bitmap.to_le_bytes());
@@ -305,21 +303,17 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     bgdt[14..16].copy_from_slice(&((inodes_total - 6) as u16).to_le_bytes());
     bgdt[16..18].copy_from_slice(&3u16.to_le_bytes());
 
-    // Block 3: Block bitmap
     for b in 0..=last_used_block {
         let byte_idx = (b / 8) as usize;
         let bit_idx = b % 8;
         img[3072 + byte_idx] |= 1 << bit_idx;
     }
-
-    // Block 4: Inode bitmap — inodes 1,2,11,12,13,14 used
     for &ino in &[1u32, 2, 11, 12, 13, 14] {
         let byte_idx = (ino / 8) as usize;
         let bit_idx = ino % 8;
         img[4096 + byte_idx] |= 1 << bit_idx;
     }
 
-    // Blocks 5-8: Inode table
     fn write_inode(table: &mut [u8], inum: u32, mode: u16, size: u32, block0: u32, links: u16) {
         let offset = ((inum - 1) * 128) as usize;
         table[offset..offset + 2].copy_from_slice(&mode.to_le_bytes());
@@ -344,7 +338,6 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
         data[offset + 8..offset + 8 + name.len()].copy_from_slice(name);
     }
 
-    // rec_len must be 4-byte aligned and at least 8 + name_len
     let root_data = &mut img[(root_data_block * block_size) as usize..][..block_size as usize];
     write_dirent(root_data, 0, 2, 12, 1, 2, b".");
     write_dirent(root_data, 12, 2, 12, 2, 2, b"..");
@@ -366,14 +359,30 @@ fn create_test_ext3(path: &str) -> std::io::Result<()> {
     std::fs::write(path, img)
 }
 
+const FTP_PORT: u16 = 2121;
+
+fn read_ftp_response(stream: &mut std::net::TcpStream) -> String {
+    let mut buf = [0u8; 4096];
+    let mut resp = String::new();
+    loop {
+        let n = stream.read(&mut buf).expect("read ftp response");
+        if n == 0 { break; }
+        resp.push_str(&String::from_utf8_lossy(&buf[..n]));
+        if resp.ends_with("\r\n") {
+            break;
+        }
+    }
+    resp
+}
+
 #[test]
 #[cfg(target_os = "linux")]
-fn test_sys_lab3_ext3_nasm() {
+fn test_sys_lab3_ftp_nasm() {
     let tmp = tempfile::TempDir::new().expect("tempdir");
     let img_path = tmp.path().join("test.ext3");
     create_test_ext3(img_path.to_str().unwrap()).expect("create ext3 image");
 
-    // Use the pre-built compiler binary directly instead of cargo run
+    // Use the pre-built compiler binary
     let compiler = std::path::PathBuf::from("target/release/mylang-parser");
     assert!(compiler.exists(), "compiler not built at {compiler:?}");
 
@@ -385,65 +394,194 @@ fn test_sys_lab3_ext3_nasm() {
         .expect("compiler failed to start");
     assert!(status.success(), "compilation failed");
 
+    // Start the FTP server binary
     let exe = out_dir.join(exe_name());
-    let input = format!(
-        "{}\nPWD\nLIST\nRETR a.txt\nCWD subdir\nPWD\nLIST\nRETR b.txt\nQUIT\n",
-        img_path.to_str().unwrap()
-    );
-
     let mut child = std::process::Command::new(&exe)
         .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
         .current_dir(tmp.path())
         .spawn()
         .expect("spawn");
 
-    use std::io::Write;
-    child.stdin.take().unwrap().write_all(input.as_bytes()).ok();
+    // Send the ext3 image path to stdin
+use std::io::{Read, Write};
+    child.stdin.take().unwrap().write_all(format!("{}\n", img_path.display()).as_bytes()).ok();
 
-    use std::time::Duration;
-    let start = std::time::Instant::now();
-    let timeout = Duration::from_secs(10);
+    // Connect to the FTP server with retries
+    use std::net::TcpStream;
+    use std::time::{Duration, Instant};
+    let start = Instant::now();
+    let timeout = Duration::from_secs(8);
+    let mut stream = loop {
+        if let Ok(s) = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")) {
+            break s;
+        }
+        if start.elapsed() >= timeout {
+            let _ = child.kill();
+            panic!("timed out connecting to FTP server on port {FTP_PORT}");
+        }
+        std::thread::sleep(Duration::from_millis(50));
+    };
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok();
+    stream.set_write_timeout(Some(Duration::from_secs(5))).ok();
 
-    let output = loop {
+    // Read 220 greeting
+    let resp = read_ftp_response(&mut stream);
+    assert!(resp.contains("220"), "expected 220 greeting, got: {resp:?}");
+
+    // Helper to send command and read response
+    let mut cmd = |c: &[u8]| -> String {
+        stream.write_all(c).ok();
+        read_ftp_response(&mut stream)
+    };
+
+    // USER
+    let r = cmd(b"USER ftp\r\n");
+    assert!(r.contains("331"), "USER should get 331, got: {r:?}");
+
+    // PASS
+    let r = cmd(b"PASS test\r\n");
+    assert!(r.contains("230"), "PASS should get 230, got: {r:?}");
+
+    // SYST
+    let r = cmd(b"SYST\r\n");
+    assert!(r.contains("215"), "SYST should get 215, got: {r:?}");
+
+    // TYPE
+    let r = cmd(b"TYPE I\r\n");
+    assert!(r.contains("200"), "TYPE should get 200, got: {r:?}");
+
+    // PWD
+    let r = cmd(b"PWD\r\n");
+    assert!(r.contains("257"), "PWD should get 257, got: {r:?}");
+    assert!(r.contains("/"), "PWD should contain root path");
+
+    // PASV
+    let r = cmd(b"PASV\r\n");
+    assert!(r.contains("227"), "PASV should get 227, got: {r:?}");
+
+    // Parse PASV response: "227 Entering Passive Mode (h1,h2,h3,h4,p1,p2)"
+    let pasv = r.clone();
+    let paren_start = pasv.find('(').unwrap();
+    let paren_end = pasv.find(')').unwrap();
+    let nums: Vec<u16> = pasv[paren_start + 1..paren_end]
+        .split(',')
+        .map(|s| s.trim().parse().unwrap())
+        .collect();
+    assert_eq!(nums.len(), 6, "PASV should have 6 numbers");
+    let data_port = nums[4] * 256 + nums[5];
+
+    // Open data connection
+    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
+        .expect("connect data port");
+    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+
+    // LIST
+    let r = cmd(b"LIST\r\n");
+    assert!(r.contains("150"), "LIST should get 150, got: {r:?}");
+    assert!(r.contains("226"), "LIST should complete with 226, got: {r:?}");
+
+    // Read directory listing from data connection
+    let mut list_buf = Vec::new();
+    data.read_to_end(&mut list_buf).ok();
+    let listing = String::from_utf8_lossy(&list_buf);
+    assert!(listing.contains("a.txt"), "LIST should contain a.txt:\n{listing}");
+    assert!(listing.contains("subdir"), "LIST should contain subdir:\n{listing}");
+
+    // --- RETR a.txt ---
+    // PASV again
+    let r = cmd(b"PASV\r\n");
+    assert!(r.contains("227"), "PASV should get 227");
+
+    let paren_start = r.find('(').unwrap();
+    let paren_end = r.find(')').unwrap();
+    let nums: Vec<u16> = r[paren_start + 1..paren_end]
+        .split(',')
+        .map(|s| s.trim().parse().unwrap())
+        .collect();
+    let data_port = nums[4] * 256 + nums[5];
+
+    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
+        .expect("connect data port");
+    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+
+    let r = cmd(b"RETR a.txt\r\n");
+    assert!(r.contains("150"), "RETR should get 150, got: {r:?}");
+    assert!(r.contains("226"), "RETR should complete with 226, got: {r:?}");
+
+    let mut file_buf = Vec::new();
+    data.read_to_end(&mut file_buf).ok();
+    assert_eq!(String::from_utf8_lossy(&file_buf), "Hello\n");
+
+    // --- CWD subdir ---
+    let r = cmd(b"CWD subdir\r\n");
+    assert!(r.contains("250"), "CWD should get 250, got: {r:?}");
+
+    let r = cmd(b"PWD\r\n");
+    assert!(r.contains("/subdir"), "PWD should show /subdir, got: {r:?}");
+
+    // --- RETR b.txt from subdir ---
+    let r = cmd(b"PASV\r\n");
+    assert!(r.contains("227"));
+
+    let paren_start = r.find('(').unwrap();
+    let paren_end = r.find(')').unwrap();
+    let nums: Vec<u16> = r[paren_start + 1..paren_end]
+        .split(',')
+        .map(|s| s.trim().parse().unwrap())
+        .collect();
+    let data_port = nums[4] * 256 + nums[5];
+
+    let mut data = TcpStream::connect(format!("127.0.0.1:{data_port}"))
+        .expect("connect data port");
+    data.set_read_timeout(Some(Duration::from_secs(5))).ok();
+
+    let r = cmd(b"RETR b.txt\r\n");
+    assert!(r.contains("150"), "RETR b.txt should get 150, got: {r:?}");
+    assert!(r.contains("226"), "RETR b.txt should complete, got: {r:?}");
+
+    let mut file_buf = Vec::new();
+    data.read_to_end(&mut file_buf).ok();
+    assert_eq!(String::from_utf8_lossy(&file_buf), "Data\n");
+
+    // --- CWD .. ---
+    let r = cmd(b"CWD ..\r\n");
+    assert!(r.contains("250"));
+
+    let r = cmd(b"PWD\r\n");
+    assert!(r.contains("/"), "PWD should show / after CWD ..");
+
+    // --- NOOP ---
+    let r = cmd(b"NOOP\r\n");
+    assert!(r.contains("200"), "NOOP should get 200");
+
+    // --- QUIT ---
+    let r = cmd(b"QUIT\r\n");
+    assert!(r.contains("221"), "QUIT should get 221");
+
+    // Wait for the binary to exit cleanly
+    let deadline = Instant::now() + Duration::from_secs(5);
+    let exited = loop {
         match child.try_wait() {
-            Ok(Some(_)) => break child.wait_with_output().expect("wait"),
+            Ok(Some(status)) => {
+                assert!(status.success(), "server should exit with 0, got {status}");
+                break true;
+            }
             Ok(None) => {
-                if start.elapsed() >= timeout {
+                if Instant::now() >= deadline {
                     let _ = child.kill();
-                    panic!("child process timed out after 10s");
+                    break false;
                 }
                 std::thread::sleep(Duration::from_millis(50));
             }
-            Err(e) => panic!("child wait error: {e}"),
+            Err(e) => {
+                child.kill().ok();
+                panic!("child wait error: {e}");
+            }
         }
     };
-
-    let stdout = clean(&String::from_utf8_lossy(&output.stdout));
-    let stderr = clean(&String::from_utf8_lossy(&output.stderr));
-    if !stderr.is_empty() {
-        eprintln!("child stderr:\n{stderr}");
-    }
-
-    assert!(stdout.contains("Ext3 filesystem detected"), "should detect ext3:\n{stdout}");
-    assert!(stdout.contains("subdir"), "should list subdir:\n{stdout}");
-    assert!(stdout.contains("a.txt"), "should list a.txt:\n{stdout}");
-    assert!(stdout.contains("226 Transfer complete"), "RETR should complete:\n{stdout}");
-    assert!(stdout.contains("/subdir"), "should change to subdir:\n{stdout}");
-    assert!(stdout.contains("b.txt"), "should list b.txt in subdir:\n{stdout}");
-    assert!(stdout.contains("226 Transfer"), "second RETR should complete:\n{stdout}");
-    assert!(stdout.contains("221 Goodbye"), "should quit cleanly:\n{stdout}");
-
-    let extracted_root = tmp.path().join("a.txt");
-    assert!(extracted_root.exists(), "a.txt should be extracted");
-    assert_eq!(std::fs::read_to_string(&extracted_root).unwrap_or_default(), "Hello\n");
-    let _ = std::fs::remove_file(&extracted_root);
-
-    let extracted_sub = tmp.path().join("b.txt");
-    assert!(extracted_sub.exists(), "b.txt should be extracted");
-    assert_eq!(std::fs::read_to_string(&extracted_sub).unwrap_or_default(), "Data\n");
-    let _ = std::fs::remove_file(&extracted_sub);
+    assert!(exited, "server did not exit after QUIT");
 }
 
 // ========== sys-lab-2: Coroutine Map-Reduce Pipeline ==========

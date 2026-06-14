@@ -60,6 +60,15 @@ impl StdLib {
         funcs.insert("fwrite_nasm");
         funcs.insert("fseek_nasm");
 
+        // POSIX socket functions (NASM-only, Linux)
+        funcs.insert("socket_nasm");
+        funcs.insert("bind_nasm");
+        funcs.insert("listen_nasm");
+        funcs.insert("accept_nasm");
+        funcs.insert("send_nasm");
+        funcs.insert("recv_nasm");
+        funcs.insert("close_nasm");
+        funcs.insert("getsockname_nasm");
 
         // EntityStore functions (JVM daemon)
         funcs.insert("map_put_jvm");
@@ -120,7 +129,15 @@ impl StdLib {
                 ("buf: string, size: int, count: int, file: string", "int"),
             ),
             ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
-
+            // POSIX socket (NASM-only, Linux)
+            ("socket_nasm", ("domain: int, type: int, protocol: int", "int")),
+            ("bind_nasm", ("fd: int, addr: string, addrlen: int", "int")),
+            ("listen_nasm", ("fd: int, backlog: int", "int")),
+            ("accept_nasm", ("fd: int, addr: string, addrlen_ptr: string", "int")),
+            ("send_nasm", ("fd: int, buf: string, len: int, flags: int", "int")),
+            ("recv_nasm", ("fd: int, buf: string, len: int, flags: int", "int")),
+            ("close_nasm", ("fd: int", "")),
+            ("getsockname_nasm", ("fd: int, addr: string, addrlen_ptr: string", "int")),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

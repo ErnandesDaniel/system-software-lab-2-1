@@ -88,6 +88,11 @@ debugfs -w ext3.img -R "write /dev/stdin /subdir/data.txt" <<< "Inside subdir"
 
 Запускать из корня проекта.
 
+Сначала зайти в WSL (из PowerShell):
+```powershell
+wsl -d Ubuntu
+```
+
 ```bash
 cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
 

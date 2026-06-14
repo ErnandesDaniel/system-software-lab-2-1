@@ -1,4 +1,3 @@
-// Ext3 FTP-like CLI
 import puts;
 import putchar;
 import printf;
@@ -7,32 +6,51 @@ import fclose;
 import fread_nasm;
 import fwrite_nasm;
 import fseek_nasm;
-
 import malloc;
 import free;
 import getchar;
 import strcmp;
 import strcpy;
+import strcat;
+import strlen;
+import sprintf;
+import socket_nasm;
+import bind_nasm;
+import listen_nasm;
+import accept_nasm;
+import send_nasm;
+import recv_nasm;
+import close_nasm;
+import getsockname_nasm;
 
-// ---------- Globals ----------
+// ---------- Globals (Ext3) ----------
 global img_file of string;
 global block_size of int;
 global inode_size of int;
 global sb_buf of string;
 global cwd_inode of int;
+
+// ---------- Globals (FTP) ----------
+global client_fd of int;
+global data_fd of int;
+global pasv_listener of int;
+global pasv_port of int;
+global resp_buf of string;
+global line_buf of string;
 global cwd_path of string;
+global char_buf of string;
 
 // ---------- Binary helpers ----------
 
-def read_i8_nasm(buf of string, offset of int) of int {
+def read_i8(buf of string, offset of int) of int {
     return buf[offset];
 }
 
-def read_le16_nasm(buf of string, offset of int) of int {
+def read_le16(buf of string, offset of int) of int {
     return buf[offset] | (buf[offset + 1] * 256);
 }
 
-def read_le32_nasm(buf of string, offset of int) of int {
+def read_le32(buf of string, offset of int) of int {
     return buf[offset] | (buf[offset + 1] * 256) | (buf[offset + 2] * 65536) | (buf[offset + 3] * 16777216);
 }
 
@@ -50,13 +68,13 @@ def parse_superblock() of int {
     if (fseek_nasm(img_file, 1024, 0) != 0) { return -1; }
     n = fread_nasm(sb_buf, 1, 1024, img_file);
     if (n < 1024) { return -1; }
-    magic = read_le16_nasm(sb_buf, 56);
+    magic = read_le16(sb_buf, 56);
     if (magic != 61267) { return -1; }
-    lbs = read_le32_nasm(sb_buf, 24);
+    lbs = read_le32(sb_buf, 24);
     block_size = 1024;
     i = 0;
     while (i < lbs) { block_size = block_size * 2; i = i + 1; }
-    inode_size = read_le16_nasm(sb_buf, 88);
+    inode_size = read_le16(sb_buf, 88);
     if (inode_size == 0) { inode_size = 128; }
     return 0;
 }
@@ -64,7 +82,7 @@ def parse_superblock() of int {
 // ---------- Inode reading ----------
 
 def read_inode(buf of string, inum of int) of int {
-    inodes_per_group = read_le32_nasm(sb_buf, 40);
+    inodes_per_group = read_le32(sb_buf, 40);
     bg_index = (inum - 1) / inodes_per_group;
     inode_index = (inum - 1) - bg_index * inodes_per_group;
 
@@ -75,12 +93,13 @@ def read_inode(buf of string, inum of int) of int {
     if (read_block(bgdt_buf, bgdt_block) < 0) { free(bgdt_buf); return -1; }
 
     bgdt_off = bg_index * 32;
-    itable_blk = read_le32_nasm(bgdt_buf, bgdt_off + 8);
+    itable_blk = read_le32(bgdt_buf, bgdt_off + 8);
     free(bgdt_buf);
 
     inodes_per_block = block_size / inode_size;
     inode_blk_offset = inode_index / inodes_per_block;
-    inode_byte_offset = (inode_index - inode_blk_offset * inodes_per_block) * inode_size;
+    inode_byte_offset = inode_index - inode_blk_offset * inodes_per_block;
+    inode_byte_offset = inode_byte_offset * inode_size;
 
     target_blk = itable_blk + inode_blk_offset;
     blk_buf = malloc(block_size);
@@ -96,14 +115,10 @@ def read_inode(buf of string, inum of int) of int {
     return 0;
 }
 
-// ---------- Directory operations ----------
+// ---------- Directory entry lookup ----------
 
-// Find an entry by name in a directory inode buffer.
-// Returns inode number, or 0 if not found.
-// Also sets ftype_out via a trick: we can't return 2 values,
-// so caller passes a buffer and we'll write type to entry_buf[0].
 def find_entry(dir_inode of string, name of string) of int {
-    blk0 = read_le32_nasm(dir_inode, 40);
+    blk0 = read_le32(dir_inode, 40);
     if (blk0 == 0) { return 0; }
 
     dir_buf = malloc(block_size);
@@ -113,17 +128,16 @@ def find_entry(dir_inode of string, name of string) of int {
     result = 0;
     pos = 0;
     while (pos < block_size) {
-        ino = read_le32_nasm(dir_buf, pos);
+        ino = read_le32(dir_buf, pos);
         if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
-        rec_len = read_le16_nasm(dir_buf, pos + 4);
-        name_len = read_i8_nasm(dir_buf, pos + 6);
+        rec_len = read_le16(dir_buf, pos + 4);
+        name_len = read_i8(dir_buf, pos + 6);
         if (rec_len == 0) { break; }
 
-        // Compare name
         match = 1;
         j = 0;
         while (j < name_len) {
-            if (read_i8_nasm(dir_buf, pos + 8 + j) != name[j]) { match = 0; break; }
+            if (read_i8(dir_buf, pos + 8 + j) != name[j]) { match = 0; break; }
             j = j + 1;
         }
         if (match == 1 && name[name_len] == 0) {
@@ -137,225 +151,353 @@ def find_entry(dir_inode of string, name of string) of int {
     return result;
 }
 
-// List directory contents
-def list_dir(inode_buf of string) of int {
-    blk0 = read_le32_nasm(inode_buf, 40);
-    if (blk0 == 0) { return 0; }
+// ---------- POSIX socket helpers (mylang) ----------
+
+def make_addr(port of int) of string {
+    buf = malloc(16);
+    if (buf == 0) { return buf; }
+    buf[0] = 2; buf[1] = 0;
+    buf[2] = port / 256; buf[3] = port - (port / 256) * 256;
+    buf[4] = 0; buf[5] = 0; buf[6] = 0; buf[7] = 0;
+    buf[8] = 0; buf[9] = 0; buf[10] = 0; buf[11] = 0;
+    buf[12] = 0; buf[13] = 0; buf[14] = 0; buf[15] = 0;
+    return buf;
+}
+
+def tcp_listen(port of int) of int {
+    fd = socket_nasm(2, 1, 0);
+    if (fd < 0) { return -1; }
+    addr = make_addr(port);
+    if (addr == 0) { close_nasm(fd); return -1; }
+    r = bind_nasm(fd, addr, 16);
+    free(addr);
+    if (r < 0) { close_nasm(fd); return -1; }
+    if (listen_nasm(fd, 5) < 0) { close_nasm(fd); return -1; }
+    return fd;
+}
+
+def tcp_accept(server_fd of int) of int {
+    addr_buf = malloc(16);
+    len_buf = malloc(4);
+    if (addr_buf == 0 || len_buf == 0) { return -1; }
+    len_buf[0] = 16; len_buf[1] = 0; len_buf[2] = 0; len_buf[3] = 0;
+    client = accept_nasm(server_fd, addr_buf, len_buf);
+    free(addr_buf);
+    free(len_buf);
+    return client;
+}
+
+def tcp_send_str(fd of int, str of string) of int {
+    return send_nasm(fd, str, strlen(str), 0);
+}
+
+def tcp_read_line(fd of int, buf of string, maxlen of int) of int {
+    i = 0;
+    while (i < maxlen - 1) {
+        cbuf = malloc(1);
+        if (cbuf == 0) { buf[i] = 0; return i; }
+        n = recv_nasm(fd, cbuf, 1, 0);
+        if (n <= 0) { buf[i] = 0; free(cbuf); return i; }
+        c = cbuf[0];
+        free(cbuf);
+        if (c == 10) { buf[i] = 0; return i; }
+        if (c != 13) { buf[i] = c; i = i + 1; }
+    }
+    buf[i] = 0;
+    return i;
+}
+
+def pasv_open() of int {
+    if (pasv_listener >= 0) { close_nasm(pasv_listener); pasv_listener = -1; }
+    fd = socket_nasm(2, 1, 0);
+    if (fd < 0) { return -1; }
+    addr = make_addr(0);
+    if (addr == 0) { close_nasm(fd); return -1; }
+    r = bind_nasm(fd, addr, 16);
+    free(addr);
+    if (r < 0) { close_nasm(fd); return -1; }
+    if (listen_nasm(fd, 1) < 0) { close_nasm(fd); return -1; }
+
+    addr_buf = malloc(16);
+    len_buf = malloc(4);
+    if (addr_buf == 0 || len_buf == 0) { close_nasm(fd); return -1; }
+    len_buf[0] = 16; len_buf[1] = 0; len_buf[2] = 0; len_buf[3] = 0;
+    if (getsockname_nasm(fd, addr_buf, len_buf) < 0) {
+        close_nasm(fd); free(addr_buf); free(len_buf); return -1;
+    }
+    pasv_port = addr_buf[2] * 256 + addr_buf[3];
+    free(addr_buf);
+    free(len_buf);
+    pasv_listener = fd;
+    return fd;
+}
+
+def pasv_accept() of int {
+    fd = tcp_accept(pasv_listener);
+    close_nasm(pasv_listener);
+    pasv_listener = -1;
+    return fd;
+}
+
+// ---------- FTP helpers ----------
+
+def send_response(code of int, msg of string) {
+    sprintf(resp_buf, "%d", code);
+    strcat(resp_buf, " ");
+    strcat(resp_buf, msg);
+    strcat(resp_buf, "\r\n");
+    send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+}
+
+// ---------- PASV data connection ----------
+
+def send_pasv_response() {
+    p1 = pasv_port / 256;
+    p2 = pasv_port - p1 * 256;
+    strcpy(resp_buf, "227 Entering Passive Mode (127,0,0,1,");
+    sprintf(line_buf, "%d", p1);
+    strcat(resp_buf, line_buf);
+    strcat(resp_buf, ",");
+    sprintf(line_buf, "%d", p2);
+    strcat(resp_buf, line_buf);
+    strcat(resp_buf, ")\r\n");
+    send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+}
+
+// ---------- Character sender helper ----------
+
+def send_char(c of int) {
+    char_buf[0] = c;
+    send_nasm(data_fd, char_buf, 1, 0);
+}
+
+// ---------- LIST handler ----------
+
+def send_list_entry(ino of int, dir_buf of string, entry_pos of int, name_len of int, ftype of int) {
+    if (ftype == 2) {
+        tcp_send_str(data_fd, "drwxr-xr-x 1 ftp ftp 4096 Jan 1 00:00 ");
+    } else {
+        file_inode = malloc(inode_size);
+        file_size = 0;
+        if (file_inode != 0) {
+            if (read_inode(file_inode, ino) >= 0) {
+                file_size = read_le32(file_inode, 4);
+            }
+            free(file_inode);
+        }
+        tcp_send_str(data_fd, "-rw-r--r-- 1 ftp ftp ");
+        sprintf(resp_buf, "%d", file_size);
+        tcp_send_str(data_fd, resp_buf);
+        tcp_send_str(data_fd, " Jan 1 00:00 ");
+    }
+
+    j = 0;
+    while (j < name_len) {
+        c = read_i8(dir_buf, entry_pos + 8 + j);
+        send_char(c);
+        j = j + 1;
+    }
+    send_char(13); send_char(10);
+}
+
+def handle_list() of int {
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { send_response(550, "Error"); return -1; }
+    r = read_inode(inode_buf, cwd_inode);
+    if (r < 0) { free(inode_buf); send_response(550, "Error"); return -1; }
+
+    blk0 = read_le32(inode_buf, 40);
+    if (blk0 == 0) { free(inode_buf); send_response(550, "Error"); return -1; }
 
     dir_buf = malloc(block_size);
-    if (dir_buf == 0) { return -1; }
-    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); return -1; }
+    if (dir_buf == 0) { free(inode_buf); send_response(550, "Error"); return -1; }
+    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); free(inode_buf); send_response(550, "Error"); return -1; }
+
+    send_response(150, "Opening data connection");
+
+    tcp_send_str(data_fd, "total 0\r\n");
 
     pos = 0;
     while (pos < block_size) {
-        ino = read_le32_nasm(dir_buf, pos);
+        ino = read_le32(dir_buf, pos);
         if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
-        rec_len = read_le16_nasm(dir_buf, pos + 4);
-        name_len = read_i8_nasm(dir_buf, pos + 6);
-        ftype = read_i8_nasm(dir_buf, pos + 7);
+        rec_len = read_le16(dir_buf, pos + 4);
+        name_len = read_i8(dir_buf, pos + 6);
+        ftype = read_i8(dir_buf, pos + 7);
         if (rec_len == 0) { break; }
-
-        if (ftype == 2) { printf("  [DIR]  ", 0); }
-        else { printf("  [FILE] ", 0); }
-
-        j = 0;
-        while (j < name_len) {
-            putchar(read_i8_nasm(dir_buf, pos + 8 + j));
-            j = j + 1;
+        if (name_len > 0) {
+            send_list_entry(ino, dir_buf, pos, name_len, ftype);
         }
-        putchar(10);
-
         pos = pos + rec_len;
     }
+
     free(dir_buf);
+    free(inode_buf);
+
+    send_response(226, "Directory send OK");
     return 0;
 }
 
-// ---------- Update path ----------
+// ---------- RETR handler ----------
+
+def handle_retr(name of string) of int {
+    if (name[0] == 0) { send_response(550, "File name required"); return -1; }
+
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0) { send_response(550, "Error"); return -1; }
+    r = read_inode(inode_buf, cwd_inode);
+    if (r < 0) { free(inode_buf); send_response(550, "Error"); return -1; }
+
+    file_ino = find_entry(inode_buf, name);
+    free(inode_buf);
+    if (file_ino == 0) { send_response(550, "File not found"); return -1; }
+
+    file_buf = malloc(inode_size);
+    if (file_buf == 0) { send_response(550, "Error"); return -1; }
+    r = read_inode(file_buf, file_ino);
+    if (r < 0) { free(file_buf); send_response(550, "Error"); return -1; }
+
+    mode = read_le16(file_buf, 0);
+    if ((mode & 0x8000) == 0) {
+        free(file_buf);
+        send_response(550, "Not a regular file");
+        return -1;
+    }
+
+    file_size = read_le32(file_buf, 4);
+
+    send_response(150, "Opening data connection");
+
+    remaining = file_size;
+    bi = 0;
+    while (bi < 12 && remaining > 0) {
+        blk = read_le32(file_buf, 40 + bi * 4);
+        if (blk == 0) { break; }
+        blk_buf = malloc(block_size);
+        if (blk_buf == 0) { break; }
+        if (read_block(blk_buf, blk) < 0) { free(blk_buf); break; }
+        to_send = block_size;
+        if (remaining < block_size) { to_send = remaining; }
+        send_nasm(data_fd, blk_buf, to_send, 0);
+        remaining = remaining - to_send;
+        free(blk_buf);
+        bi = bi + 1;
+    }
+
+    free(file_buf);
+
+    send_response(226, "Transfer complete");
+    return 0;
+}
+
+// ---------- Path helpers ----------
 
 def append_path(buf of string, name of string) of int {
     len = 0;
     while (buf[len] != 0) { len = len + 1; }
-    if (len > 0 && buf[len - 1] != 47) { buf[len] = 47; len = len + 1; }  // '/'
+    if (len > 0 && buf[len - 1] != 47) { buf[len] = 47; len = len + 1; }
     i = 0;
     while (name[i] != 0) { buf[len] = name[i]; len = len + 1; i = i + 1; }
     buf[len] = 0;
     return 0;
 }
 
-// ---------- Read line from stdin ----------
+// ---------- CWD handler ----------
 
-def read_line(buf of string) of int {
-    i = 0;
-    while (true) {
-        c = getchar();
-        if (c == 10 || c == -1) { buf[i] = 0; return i; }
-        buf[i] = c; i = i + 1;
-    }
-}
-
-// ---------- Command handlers ----------
-
-def cmd_pwd() of int {
-    puts("257 \"");
-    puts(cwd_path);
-    puts("\"\n");
-    return 0;
-}
-
-def cmd_list() of int {
-    inode_buf = malloc(inode_size);
-    if (inode_buf == 0) { return -1; }
-    r = read_inode(inode_buf, cwd_inode);
-    if (r < 0) {
-        puts("550 Failed to read directory.\n");
-        free(inode_buf);
-        return -1;
-    }
-    list_dir(inode_buf);
-    free(inode_buf);
-    return 0;
-}
-
-def cmd_cwd(target of string) of int {
-    if (target[0] == 0) {
-        puts("250 Directory successfully changed.\n");
-        return 0;
-    }
-    if (strcmp(target, ".") == 0) {
-        puts("250 Directory successfully changed.\n");
-        return 0;
-    }
+def handle_cwd(target of string) of int {
+    if (target[0] == 0) { send_response(250, "OK"); return 0; }
+    if (strcmp(target, ".") == 0) { send_response(250, "OK"); return 0; }
     if (strcmp(target, "..") == 0) {
-        if (cwd_inode == 2) {
-            puts("250 Directory successfully changed.\n");
-            return 0;
-        }
-        // Go up: scan parent dir entries for ".."
-        // For now, just reset to root
+        if (cwd_inode == 2) { send_response(250, "OK"); return 0; }
         cwd_inode = 2;
         strcpy(cwd_path, "/");
-        puts("250 Directory successfully changed.\n");
+        send_response(250, "OK");
         return 0;
     }
-    // Resolve child directory
+
     inode_buf = malloc(inode_size);
-    if (inode_buf == 0) { return -1; }
+    if (inode_buf == 0) { send_response(550, "Error"); return -1; }
     r = read_inode(inode_buf, cwd_inode);
-    if (r < 0) {
-        puts("550 Failed to read directory.\n");
-        free(inode_buf);
-        return -1;
-    }
+    if (r < 0) { free(inode_buf); send_response(550, "Error"); return -1; }
+
     child_ino = find_entry(inode_buf, target);
     if (child_ino == 0) {
-        puts("550 Directory not found.\n");
         free(inode_buf);
+        send_response(550, "Directory not found");
         return -1;
     }
-    // Read child inode to verify it's a directory
+
     child_buf = malloc(inode_size);
     if (child_buf == 0) { free(inode_buf); return -1; }
     r = read_inode(child_buf, child_ino);
-    if (r < 0) {
-        puts("550 Failed to read target.\n");
-        free(inode_buf); free(child_buf);
-        return -1;
-    }
-    mode = read_le16_nasm(child_buf, 0);
+    if (r < 0) { free(inode_buf); free(child_buf); send_response(550, "Error"); return -1; }
+
+    mode = read_le16(child_buf, 0);
     free(child_buf);
-    if ((mode & 0x4000) == 0) {  // not a directory
-        puts("550 Not a directory.\n");
+    if ((mode & 0x4000) == 0) {
         free(inode_buf);
+        send_response(550, "Not a directory");
         return -1;
     }
+
     cwd_inode = child_ino;
     append_path(cwd_path, target);
     free(inode_buf);
-    puts("250 Directory successfully changed.\n");
+    send_response(250, "OK");
     return 0;
 }
 
-def cmd_retr(name of string) of int {
-    if (name[0] == 0) {
-        puts("550 File name required.\n");
-        return -1;
-    }
-    // Find file in current directory
-    inode_buf = malloc(inode_size);
-    if (inode_buf == 0) { return -1; }
-    r = read_inode(inode_buf, cwd_inode);
-    if (r < 0) {
-        puts("550 Failed to read directory.\n");
-        free(inode_buf);
-        return -1;
-    }
-    file_ino = find_entry(inode_buf, name);
-    free(inode_buf);
-    if (file_ino == 0) {
-        puts("550 File not found.\n");
-        return -1;
-    }
-    // Read file inode
-    file_buf = malloc(inode_size);
-    if (file_buf == 0) { return -1; }
-    r = read_inode(file_buf, file_ino);
-    if (r < 0) {
-        puts("550 Failed to read file inode.\n");
-        free(file_buf);
-        return -1;
-    }
-    // Get file size and block pointers
-    file_size = read_le32_nasm(file_buf, 4);
-    mode = read_le16_nasm(file_buf, 0);
-    if ((mode & 0x8000) == 0) {  // not a regular file
-        puts("550 Not a regular file.\n");
-        free(file_buf);
-        return -1;
-    }
-    // Open local file for writing
-    local = fopen(name, "wb");
-    if (local == 0) {
-        puts("550 Cannot create local file.\n");
-        free(file_buf);
-        return -1;
-    }
-    // Read and write direct data blocks (i_block[0..11])
-    remaining = file_size;
-    bi = 0;
-    while (bi < 12 && remaining > 0) {
-        blk = read_le32_nasm(file_buf, 40 + bi * 4);
-        if (blk == 0) { break; }
-        blk_buf = malloc(block_size);
-        if (blk_buf == 0) { break; }
-        if (read_block(blk_buf, blk) < 0) { free(blk_buf); break; }
-        to_write = block_size;
-        if (remaining < block_size) { to_write = remaining; }
-        fwrite_nasm(blk_buf, 1, to_write, local);
-        remaining = remaining - to_write;
-        free(blk_buf);
-        bi = bi + 1;
-    }
-    fclose(local);
-    free(file_buf);
-    puts("226 Transfer complete.\n");
+// ---------- PWD handler ----------
+
+def handle_pwd() of int {
+    strcpy(resp_buf, "257 \"");
+    strcat(resp_buf, cwd_path);
+    strcat(resp_buf, "\"\r\n");
+    send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
     return 0;
+}
+
+// ---------- Command parsing ----------
+
+def parse_cmd(line of string, cmd_buf of string, args_buf of string) {
+    i = 0;
+    while (line[i] != 0 && line[i] != ' ') {
+        cmd_buf[i] = line[i];
+        i = i + 1;
+    }
+    cmd_buf[i] = 0;
+
+    if (line[i] == ' ') {
+        i = i + 1;
+        j = 0;
+        while (line[i] != 0) {
+            args_buf[j] = line[i];
+            i = i + 1;
+            j = j + 1;
+        }
+        args_buf[j] = 0;
+    } else {
+        args_buf[0] = 0;
+    }
 }
 
 // ---------- Main ----------
 
 def main() of int {
     sb_buf = malloc(1024);
-    if (sb_buf == 0) { return 1; }
     cwd_path = malloc(256);
-    if (cwd_path == 0) { return 1; }
-    strcpy(cwd_path, "/");
+    resp_buf = malloc(256);
+    line_buf = malloc(256);
+    cmd_buf = malloc(64);
+    args_buf = malloc(128);
+    char_buf = malloc(4);
+    pasv_listener = -1;
+    data_fd = -1;
 
-    puts("=== Ext3 FTP-like Client ===\n");
+    puts("=== Ext3 FTP Server ===\n");
     puts("Enter Ext3 image path: ");
 
     path_buf = malloc(256);
-    if (path_buf == 0) { return 1; }
     read_line(path_buf);
 
     img_file = fopen(path_buf, "rb");
@@ -372,65 +514,88 @@ def main() of int {
     puts("Ext3 filesystem detected.\n");
 
     cwd_inode = 2;
+    strcpy(cwd_path, "/");
 
-    cmd_buf = malloc(64);
-    args_buf = malloc(128);
+    port = 2121;
+    server_fd = tcp_listen(port);
+    if (server_fd < 0) {
+        puts("Failed to listen on port 2121.\n");
+        return 1;
+    }
+    puts("FTP server listening on port 2121.\n");
+
+    client_fd = tcp_accept(server_fd);
+    if (client_fd < 0) {
+        puts("Accept failed.\n");
+        return 1;
+    }
+    puts("Client connected.\n");
+
+    send_response(220, "Ext3 FTP Server ready");
 
     while (true) {
-        printf("ftp> ", 0);
+        n = tcp_read_line(client_fd, line_buf, 255);
+        if (n <= 0) { break; }
 
-        c = 0;
-        ci = 0;
-        while (true) {
-            c = getchar();
-            if (c == 10 || c == -1) { cmd_buf[ci] = 0; args_buf[0] = 0; break; }
-            if (c == 32) { cmd_buf[ci] = 0; break; }
-            cmd_buf[ci] = c; ci = ci + 1;
+        parse_cmd(line_buf, cmd_buf, args_buf);
+
+        if (cmd_buf[0] == 0) { break; }
+
+        if (strcmp(cmd_buf, "QUIT") == 0) {
+            send_response(221, "Goodbye");
+            break;
         }
 
-        if (c == 32) {
-            ai = 0;
-            while (true) {
-                c = getchar();
-                if (c == 10 || c == -1) { break; }
-                args_buf[ai] = c; ai = ai + 1;
-            }
-            args_buf[ai] = 0;
-        }
-
-        if (cmd_buf[0] == 0) {}
-
-        if (strcmp(cmd_buf, "LIST") == 0 || strcmp(cmd_buf, "list") == 0) {
-            cmd_list();
-        } else {
-            if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "pwd") == 0) {
-                cmd_pwd();
+        if (strcmp(cmd_buf, "USER") == 0) { send_response(331, "OK"); }
+        else if (strcmp(cmd_buf, "PASS") == 0) { send_response(230, "OK"); }
+        else if (strcmp(cmd_buf, "SYST") == 0) { send_response(215, "UNIX Type: L8"); }
+        else if (strcmp(cmd_buf, "TYPE") == 0) { send_response(200, "OK"); }
+        else if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "XPWD") == 0) {
+            handle_pwd();
+        } else if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "XCWD") == 0) {
+            handle_cwd(args_buf);
+        } else if (strcmp(cmd_buf, "PASV") == 0) {
+            if (pasv_open() >= 0) {
+                send_pasv_response();
             } else {
-                if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "cwd") == 0) {
-                    cmd_cwd(args_buf);
-                } else {
-                    if (strcmp(cmd_buf, "RETR") == 0 || strcmp(cmd_buf, "retr") == 0) {
-                        cmd_retr(args_buf);
-                    } else {
-                        if (strcmp(cmd_buf, "QUIT") == 0 || strcmp(cmd_buf, "quit") == 0) {
-                            puts("221 Goodbye.\n");
-                            break;
-                        } else {
-                            if (cmd_buf[0] != 0) {
-                                puts("500 Unknown command.\n");
-                            }
-                        }
-                    }
-                }
+                send_response(425, "Can't open passive connection");
             }
+        } else if (strcmp(cmd_buf, "LIST") == 0) {
+            data_fd = pasv_accept();
+            if (data_fd >= 0) {
+                handle_list();
+                close_nasm(data_fd);
+            } else {
+                send_response(425, "Can't open data connection");
+            }
+        } else if (strcmp(cmd_buf, "RETR") == 0) {
+            data_fd = pasv_accept();
+            if (data_fd >= 0) {
+                handle_retr(args_buf);
+                close_nasm(data_fd);
+            } else {
+                send_response(425, "Can't open data connection");
+            }
+        } else if (strcmp(cmd_buf, "NOOP") == 0) {
+            send_response(200, "OK");
+        } else {
+            send_response(500, "Unknown command");
         }
     }
 
+    if (pasv_listener >= 0) { close_nasm(pasv_listener); }
+    if (data_fd >= 0) { close_nasm(data_fd); }
+    close_nasm(client_fd);
+    close_nasm(server_fd);
     fclose(img_file);
-    free(sb_buf);
-    free(cwd_path);
-    free(path_buf);
-    free(cmd_buf);
-    free(args_buf);
     return 0;
+}
+
+def read_line(buf of string) of int {
+    i = 0;
+    while (true) {
+        c = getchar();
+        if (c == 10 || c == -1) { buf[i] = 0; return i; }
+        buf[i] = c; i = i + 1;
+    }
 }
