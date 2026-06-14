@@ -63,6 +63,7 @@ impl StdLib {
         // POSIX socket functions (NASM-only, Linux)
         funcs.insert("socket_nasm");
         funcs.insert("setsockopt_nasm");
+        funcs.insert("fcntl_nasm");
         funcs.insert("bind_nasm");
         funcs.insert("listen_nasm");
         funcs.insert("accept_nasm");
@@ -133,6 +134,7 @@ impl StdLib {
             // POSIX socket (NASM-only, Linux)
             ("socket_nasm", ("domain: int, type: int, protocol: int", "int")),
             ("setsockopt_nasm", ("fd: int, level: int, optname: int, optval: string, optlen: int", "int")),
+            ("fcntl_nasm", ("fd: int, cmd: int, arg: int", "int")),
             ("bind_nasm", ("fd: int, addr: string, addrlen: int", "int")),
             ("listen_nasm", ("fd: int, backlog: int", "int")),
             ("accept_nasm", ("fd: int, addr: string, addrlen_ptr: string", "int")),
