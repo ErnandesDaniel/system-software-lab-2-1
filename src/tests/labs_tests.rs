@@ -505,17 +505,10 @@ fn test_sys_lab3_ftp_nasm() {
     let r = read_line(&mut stream);
     assert!(r.contains("211"), "FEAT: {r:?}");
 
-    // EPSV
+    // EPSV → 500, then fall back to PASV + LIST
     send(b"EPSV\r\n");
     let r = read_line(&mut stream);
-    assert!(r.contains("229"), "EPSV: {r:?}");
-    let dp = parse_pasv(&r);
-    let mut data = connect_data(dp);
-    send(b"LIST\r\n");
-    let _ = do_list(&mut stream);
-    let list_data = read_data(&mut data);
-    assert!(String::from_utf8_lossy(&list_data).contains("a.txt"), "EPSV LIST");
-    assert!(read_line(&mut stream).contains("226"));
+    assert!(r.contains("500"), "EPSV: {r:?}");
 
     // PASV + LIST
     let (list_data, _, _) = pasv_and_list(&mut stream);

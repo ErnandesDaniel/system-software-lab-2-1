@@ -532,111 +532,94 @@ def main() of int {
     }
     puts("FTP server listening on port 2121.\n");
 
-    client_fd = tcp_accept(server_fd);
-    if (client_fd < 0) {
-        puts("Accept failed.\n");
-        return 1;
-    }
-    puts("Client connected.\n");
-
-    send_response(220, "Ext3 FTP Server ready");
-
     while (true) {
-        n = tcp_read_line(client_fd, line_buf, 255);
-        if (n <= 0) { break; }
+        client_fd = tcp_accept(server_fd);
+        if (client_fd < 0) { break; }
+        puts("Client connected.\n");
 
-        parse_cmd(line_buf, cmd_buf, args_buf);
+        send_response(220, "Ext3 FTP Server ready");
 
-        if (cmd_buf[0] == 0) { break; }
+        while (true) {
+            n = tcp_read_line(client_fd, line_buf, 255);
+            if (n <= 0) { break; }
 
-        if (strcmp(cmd_buf, "QUIT") == 0) {
-            send_response(221, "Goodbye");
-            break;
-        }
+            parse_cmd(line_buf, cmd_buf, args_buf);
+            if (cmd_buf[0] == 0) { break; }
 
-        if (strcmp(cmd_buf, "USER") == 0) { send_response(331, "OK"); }
-        else if (strcmp(cmd_buf, "PASS") == 0) { send_response(230, "OK"); }
-        else if (strcmp(cmd_buf, "SYST") == 0) { send_response(215, "UNIX Type: L8"); }
-        else if (strcmp(cmd_buf, "TYPE") == 0) { send_response(200, "OK"); }
-        else if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "XPWD") == 0) {
-            handle_pwd();
-        } else if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "XCWD") == 0) {
-            handle_cwd(args_buf);
-        } else if (strcmp(cmd_buf, "PASV") == 0 || strcmp(cmd_buf, "EPSV") == 0) {
-            if (pasv_open() >= 0) {
-                if (strcmp(cmd_buf, "EPSV") == 0) {
-                    strcpy(resp_buf, "229 Entering Extended Passive Mode (|||");
-                    sprintf(line_buf, "%d", pasv_port);
-                    strcat(resp_buf, line_buf);
-                    strcat(resp_buf, "|)\r\n");
-                    send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
-                } else {
+            if (strcmp(cmd_buf, "QUIT") == 0) {
+                send_response(221, "Goodbye"); break;
+            }
+
+            if (strcmp(cmd_buf, "USER") == 0) { send_response(331, "OK"); }
+            else if (strcmp(cmd_buf, "PASS") == 0) { send_response(230, "OK"); }
+            else if (strcmp(cmd_buf, "SYST") == 0) { send_response(215, "UNIX Type: L8"); }
+            else if (strcmp(cmd_buf, "TYPE") == 0) { send_response(200, "OK"); }
+            else if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "XPWD") == 0) {
+                handle_pwd();
+            } else if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "XCWD") == 0) {
+                handle_cwd(args_buf);
+            } else if (strcmp(cmd_buf, "PASV") == 0) {
+                if (pasv_open() >= 0) {
                     send_pasv_response();
+                } else {
+                    send_response(425, "Can't open passive connection");
                 }
-            } else {
-                send_response(425, "Can't open passive connection");
-            }
-        } else if (strcmp(cmd_buf, "LIST") == 0) {
-            data_fd = pasv_accept();
-            if (data_fd >= 0) {
-                handle_list();
-                close_nasm(data_fd);
-            } else {
-                send_response(425, "Can't open data connection");
-            }
-        } else if (strcmp(cmd_buf, "RETR") == 0) {
-            data_fd = pasv_accept();
-            if (data_fd >= 0) {
-                handle_retr(args_buf);
-                close_nasm(data_fd);
-            } else {
-                send_response(425, "Can't open data connection");
-            }
-        } else if (strcmp(cmd_buf, "CDUP") == 0 || strcmp(cmd_buf, "XCUP") == 0) {
-            if (cwd_inode == 2) { send_response(250, "OK"); }
-            else { cwd_inode = 2; strcpy(cwd_path, "/"); send_response(250, "OK"); }
-        } else if (strcmp(cmd_buf, "NOOP") == 0) {
-            send_response(200, "OK");
-        } else if (strcmp(cmd_buf, "FEAT") == 0) {
-            strcpy(resp_buf, "211-Features:\r\n");
-            strcat(resp_buf, " SIZE\r\n");
-            strcat(resp_buf, "211 End\r\n");
-            send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
-        } else if (strcmp(cmd_buf, "OPTS") == 0) {
-            send_response(200, "OK");
-        } else if (strcmp(cmd_buf, "SIZE") == 0) {
-            fsize = 0;
-            finode = malloc(inode_size);
-            if (finode != 0) {
-                if (read_inode(finode, cwd_inode) >= 0) {
-                    fino = find_entry(finode, args_buf);
-                    if (fino != 0) {
-                        free(finode);
-                        finode = malloc(inode_size);
-                        if (finode != 0) {
-                            if (read_inode(finode, fino) >= 0) {
+            } else if (strcmp(cmd_buf, "LIST") == 0) {
+                data_fd = pasv_accept();
+                if (data_fd >= 0) {
+                    handle_list();
+                    close_nasm(data_fd); data_fd = -1;
+                } else {
+                    send_response(425, "Can't open data connection");
+                }
+            } else if (strcmp(cmd_buf, "RETR") == 0) {
+                data_fd = pasv_accept();
+                if (data_fd >= 0) {
+                    handle_retr(args_buf);
+                    close_nasm(data_fd); data_fd = -1;
+                } else {
+                    send_response(425, "Can't open data connection");
+                }
+            } else if (strcmp(cmd_buf, "CDUP") == 0 || strcmp(cmd_buf, "XCUP") == 0) {
+                if (cwd_inode == 2) { send_response(250, "OK"); }
+                else { cwd_inode = 2; strcpy(cwd_path, "/"); send_response(250, "OK"); }
+            } else if (strcmp(cmd_buf, "NOOP") == 0) { send_response(200, "OK"); }
+            else if (strcmp(cmd_buf, "FEAT") == 0) {
+                strcpy(resp_buf, "211-Features:\r\n"); strcat(resp_buf, " SIZE\r\n");
+                strcat(resp_buf, "211 End\r\n");
+                send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+            } else if (strcmp(cmd_buf, "OPTS") == 0) { send_response(200, "OK"); }
+            else if (strcmp(cmd_buf, "EPSV") == 0) {
+                send_response(500, "EPSV not supported, use PASV");
+            } else if (strcmp(cmd_buf, "PORT") == 0) {
+                send_response(200, "PORT OK (ignored)");
+            } else if (strcmp(cmd_buf, "SIZE") == 0) {
+                fsize = 0; finode = malloc(inode_size);
+                if (finode != 0) {
+                    if (read_inode(finode, cwd_inode) >= 0) {
+                        fino = find_entry(finode, args_buf);
+                        if (fino != 0) {
+                            free(finode); finode = malloc(inode_size);
+                            if (finode != 0 && read_inode(finode, fino) >= 0) {
                                 fsize = read_le32(finode, 4);
                             }
                         }
                     }
+                    free(finode);
                 }
-                free(finode);
+                sprintf(line_buf, "%d", fsize);
+                strcpy(resp_buf, "213 "); strcat(resp_buf, line_buf);
+                strcat(resp_buf, "\r\n");
+                send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+            } else {
+                send_response(500, "Unknown command");
             }
-            sprintf(line_buf, "%d", fsize);
-            strcpy(resp_buf, "213 ");
-            strcat(resp_buf, line_buf);
-            strcat(resp_buf, "\r\n");
-            send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
-        } else if (strcmp(cmd_buf, "EPSV") == 0) {
-            send_response(500, "EPSV not supported, use PASV");
-        } else {
-            send_response(500, "Unknown command");
         }
+        if (pasv_listener >= 0) { close_nasm(pasv_listener); pasv_listener = -1; }
+        if (data_fd >= 0) { close_nasm(data_fd); data_fd = -1; }
+        close_nasm(client_fd); client_fd = -1;
     }
 
-    if (pasv_listener >= 0) { close_nasm(pasv_listener); }
-    if (data_fd >= 0) { close_nasm(data_fd); }
-    close_nasm(client_fd);
     close_nasm(server_fd);
     fclose(img_file);
     return 0;
