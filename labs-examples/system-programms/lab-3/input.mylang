@@ -287,6 +287,26 @@ def process_client(slot of int) {
             send_all(cfd,line_buf,strlen(line_buf));
         }else{send_resp(cfd,425,"PASV failed");}
     }else if(strcmp(cmd_buf,"LIST")==0){
+        // Handle LIST with path argument (CWD to it first, then list)
+        if(args_buf[0]!=0&&strcmp(args_buf,".")!=0&&strcmp(args_buf,"..")!=0&&strcmp(args_buf,"/")!=0){
+            if(args_buf[0]==47){// absolute path - find last component
+                i=0;last=0;while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
+                // Temporarily change cwd to the directory part
+                if(last>0){// has directory component
+                    // Find the file/dir name
+                    j=0;while(args_buf[last+j]!=0){cmd_buf[j]=args_buf[last+j];j=j+1;}cmd_buf[j]=0;
+                    // Try to CWD to this directory
+                    ib=malloc(inode_size);
+                    if(ib!=0&&read_inode(ib,slot_get(s_cwd,slot))>=0){
+                        ci=find_entry(ib,cmd_buf);
+                        if(ci!=0){cb=malloc(inode_size);if(cb!=0&&read_inode(cb,ci)>=0){
+                            md=read_le16(cb,0);free(cb);
+                            if((md&0x4000)!=0){slot_set(s_cwd,slot,ci);pathcat(slot,cmd_buf);}
+                        }}free(ib);
+                    }
+                }
+            }else{handle_cwd(slot,args_buf);}
+        }
         dfd=accept_data(slot_get(s_plsn,slot));
         if(dfd>=0){send_resp(cfd,150,"Opening data connection");do_list(dfd,slot_get(s_cwd,slot));
             close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
@@ -312,11 +332,10 @@ def process_client(slot of int) {
     }else if(strcmp(cmd_buf,"RETR")==0){
         dfd=accept_data(slot_get(s_plsn,slot));
         if(dfd>=0&&args_buf[0]!=0){send_resp(cfd,150,"Opening data connection");
-            // Strip leading slashes (FileZilla sends RETR /a.txt)
-            nm=args_buf;i=0;j=0;last=0;
-            while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
-            i=0;while(nm[last+i]!=0){args_buf[i]=nm[last+i];i=i+1;}args_buf[i]=0;
-            do_retr(dfd,slot_get(s_cwd,slot),args_buf);
+            // Extract basename (last component after /)
+            i=0;last=0;while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
+            j=0;while(args_buf[last+j]!=0){cmd_buf[j]=args_buf[last+j];j=j+1;}cmd_buf[j]=0;
+            do_retr(dfd,slot_get(s_cwd,slot),cmd_buf);
             close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
             send_resp(cfd,226,"Transfer complete");
         }else{if(args_buf[0]==0){send_resp(cfd,550,"File name required");}else{send_resp(cfd,425,"Data connection failed");}}
