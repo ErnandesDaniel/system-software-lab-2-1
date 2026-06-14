@@ -273,18 +273,21 @@ def send_char(c of int) {
 
 // ---------- LIST handler ----------
 
-def send_list_entry(ino of int, dir_buf of string, entry_pos of int, name_len of int, ftype of int) {
-    if (ftype == 2) {
+def send_list_entry(ino of int, dir_buf of string, entry_pos of int, name_len of int) {
+    file_inode = malloc(inode_size);
+    is_dir = 0;
+    file_size = 0;
+    if (file_inode != 0) {
+        if (read_inode(file_inode, ino) >= 0) {
+            mode = read_le16(file_inode, 0);
+            if ((mode & 0x4000) != 0) { is_dir = 1; }
+            file_size = read_le32(file_inode, 4);
+        }
+        free(file_inode);
+    }
+    if (is_dir != 0) {
         tcp_send_str(data_fd, "drwxr-xr-x 1 ftp ftp 4096 Jan 1 00:00 ");
     } else {
-        file_inode = malloc(inode_size);
-        file_size = 0;
-        if (file_inode != 0) {
-            if (read_inode(file_inode, ino) >= 0) {
-                file_size = read_le32(file_inode, 4);
-            }
-            free(file_inode);
-        }
         tcp_send_str(data_fd, "-rw-r--r-- 1 ftp ftp ");
         sprintf(resp_buf, "%d", file_size);
         tcp_send_str(data_fd, resp_buf);
@@ -323,10 +326,9 @@ def handle_list() of int {
         if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
         rec_len = read_le16(dir_buf, pos + 4);
         name_len = read_i8(dir_buf, pos + 6);
-        ftype = read_i8(dir_buf, pos + 7);
         if (rec_len == 0) { break; }
         if (name_len > 0) {
-            send_list_entry(ino, dir_buf, pos, name_len, ftype);
+            send_list_entry(ino, dir_buf, pos, name_len);
         }
         pos = pos + rec_len;
     }
@@ -576,8 +578,22 @@ def main() of int {
             } else {
                 send_response(425, "Can't open data connection");
             }
+        } else if (strcmp(cmd_buf, "CDUP") == 0 || strcmp(cmd_buf, "XCUP") == 0) {
+            if (cwd_inode == 2) { send_response(250, "OK"); }
+            else { cwd_inode = 2; strcpy(cwd_path, "/"); send_response(250, "OK"); }
         } else if (strcmp(cmd_buf, "NOOP") == 0) {
             send_response(200, "OK");
+        } else if (strcmp(cmd_buf, "FEAT") == 0) {
+            strcpy(resp_buf, "211-Features:\r\n");
+            strcat(resp_buf, " SIZE\r\n");
+            strcat(resp_buf, "211 End\r\n");
+            send_nasm(client_fd, resp_buf, strlen(resp_buf), 0);
+        } else if (strcmp(cmd_buf, "OPTS") == 0) {
+            send_response(200, "OK");
+        } else if (strcmp(cmd_buf, "SIZE") == 0) {
+            send_response(213, "0");
+        } else if (strcmp(cmd_buf, "EPSV") == 0) {
+            send_response(500, "EPSV not supported, use PASV");
         } else {
             send_response(500, "Unknown command");
         }
