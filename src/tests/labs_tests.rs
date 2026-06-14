@@ -383,7 +383,12 @@ fn start_lab3_server(img_path: &std::path::Path) -> std::process::Child {
         .expect("spawn");
 
     use std::io::Write;
-    child.stdin.take().unwrap().write_all(format!("{}\n", img_path.display()).as_bytes()).ok();
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(format!("{}\n", img_path.display()).as_bytes())
+        .ok();
     child
 }
 
@@ -423,7 +428,8 @@ fn test_sys_lab3_ftp_nasm() {
 
         use std::io::Read;
         let mut r = ftp1.retr_as_buffer("b.txt").unwrap();
-        let mut c = Vec::new(); r.read_to_end(&mut c).unwrap();
+        let mut c = Vec::new();
+        r.read_to_end(&mut c).unwrap();
         assert_eq!(c, b"Data\n");
 
         ftp1.quit().unwrap();
@@ -437,7 +443,8 @@ fn test_sys_lab3_ftp_nasm() {
 
         use std::io::Read;
         let mut r = ftp2.retr_as_buffer("a.txt").unwrap();
-        let mut c = Vec::new(); r.read_to_end(&mut c).unwrap();
+        let mut c = Vec::new();
+        r.read_to_end(&mut c).unwrap();
         assert_eq!(c, b"Hello\n");
 
         ftp2.quit().unwrap();
@@ -448,9 +455,18 @@ fn test_sys_lab3_ftp_nasm() {
     use std::net::TcpStream;
 
     fn read_line(s: &mut TcpStream) -> String {
-        let mut buf = [0u8; 4096]; let mut r = String::new();
-        loop { let n = s.read(&mut buf).unwrap(); if n == 0 { break; }
-               r.push_str(&String::from_utf8_lossy(&buf[..n])); if r.ends_with("\r\n") { break; } }
+        let mut buf = [0u8; 4096];
+        let mut r = String::new();
+        loop {
+            let n = s.read(&mut buf).unwrap();
+            if n == 0 {
+                break;
+            }
+            r.push_str(&String::from_utf8_lossy(&buf[..n]));
+            if r.ends_with("\r\n") {
+                break;
+            }
+        }
         r
     }
 
@@ -461,8 +477,10 @@ fn test_sys_lab3_ftp_nasm() {
     c4.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
 
     // Read 220 from both (server processes them in event loop)
-    let r3 = read_line(&mut c3); assert!(r3.contains("220"), "c3 220: {r3:?}");
-    let r4 = read_line(&mut c4); assert!(r4.contains("220"), "c4 220: {r4:?}");
+    let r3 = read_line(&mut c3);
+    assert!(r3.contains("220"), "c3 220: {r3:?}");
+    let r4 = read_line(&mut c4);
+    assert!(r4.contains("220"), "c4 220: {r4:?}");
 
     // Login both
     c3.write_all(b"USER ftp\r\n").ok();
@@ -496,7 +514,8 @@ fn test_sys_lab3_ftp_nasm() {
     c4.write_all(b"QUIT\r\n").ok();
     assert!(read_line(&mut c4).contains("221"));
 
-    drop(c3); drop(c4);
+    drop(c3);
+    drop(c4);
 
     std::thread::sleep(std::time::Duration::from_millis(200));
     child.kill().ok();

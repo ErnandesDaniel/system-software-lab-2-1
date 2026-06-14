@@ -101,19 +101,79 @@ impl AsmGenerator {
             let wide = AsmGenerator::is_wide_type(&arg_ty);
             let reg = if self.os == OsTarget::Linux {
                 match i - 1 {
-                    0 => { if wide { "rsi" } else { "esi" } }
-                    1 => { if wide { "rdx" } else { "edx" } }
-                    2 => { if wide { "rcx" } else { "ecx" } }
-                    3 => { if wide { "r8" } else { "r8d" } }
-                    4 => { if wide { "r9" } else { "r9d" } }
-                    _ => { if wide { "rax" } else { "eax" } }
+                    0 => {
+                        if wide {
+                            "rsi"
+                        } else {
+                            "esi"
+                        }
+                    }
+                    1 => {
+                        if wide {
+                            "rdx"
+                        } else {
+                            "edx"
+                        }
+                    }
+                    2 => {
+                        if wide {
+                            "rcx"
+                        } else {
+                            "ecx"
+                        }
+                    }
+                    3 => {
+                        if wide {
+                            "r8"
+                        } else {
+                            "r8d"
+                        }
+                    }
+                    4 => {
+                        if wide {
+                            "r9"
+                        } else {
+                            "r9d"
+                        }
+                    }
+                    _ => {
+                        if wide {
+                            "rax"
+                        } else {
+                            "eax"
+                        }
+                    }
                 }
             } else {
                 match i - 1 {
-                    0 => { if wide { "rdx" } else { "edx" } }
-                    1 => { if wide { "r8" } else { "r8d" } }
-                    2 => { if wide { "r9" } else { "r9d" } }
-                    _ => { if wide { "rax" } else { "eax" } }
+                    0 => {
+                        if wide {
+                            "rdx"
+                        } else {
+                            "edx"
+                        }
+                    }
+                    1 => {
+                        if wide {
+                            "r8"
+                        } else {
+                            "r8d"
+                        }
+                    }
+                    2 => {
+                        if wide {
+                            "r9"
+                        } else {
+                            "r9d"
+                        }
+                    }
+                    _ => {
+                        if wide {
+                            "rax"
+                        } else {
+                            "eax"
+                        }
+                    }
                 }
             };
             self.load_operand(arg, reg);
@@ -129,7 +189,11 @@ impl AsmGenerator {
 
         if let Some(ref result) = inst.result {
             let ret_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-            let r = if AsmGenerator::is_wide_type(ret_ty) { "rax" } else { "eax" };
+            let r = if AsmGenerator::is_wide_type(ret_ty) {
+                "rax"
+            } else {
+                "eax"
+            };
             self.store_result(result, r, ret_ty);
         }
     }
@@ -147,7 +211,11 @@ impl AsmGenerator {
             self.load_operand(env_op, "rax");
             self.line(&format!("mov rax, [rax + {}]", slot * 8));
             let result_ty = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-            let ptr_reg = if AsmGenerator::is_wide_type(result_ty) { "rax" } else { "eax" };
+            let ptr_reg = if AsmGenerator::is_wide_type(result_ty) {
+                "rax"
+            } else {
+                "eax"
+            };
             self.line(&format!("mov {ptr_reg}, [rax]"));
             self.store_result(&result, ptr_reg, result_ty);
         }

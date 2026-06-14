@@ -17,7 +17,7 @@ fn jvm_desc_to_java_type(desc: &str) -> String {
         _ => {
             if base.starts_with('L') && base.ends_with(';') {
                 // Custom class descriptor: strip L and ;
-                &base[1..base.len()-1]
+                &base[1..base.len() - 1]
             } else {
                 "int"
             }

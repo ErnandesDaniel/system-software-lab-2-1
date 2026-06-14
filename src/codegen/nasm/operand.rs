@@ -91,7 +91,9 @@ impl AsmGenerator {
 
     fn to_wide(reg: &str) -> &'static str {
         Self::reg_name(
-            REGS_32.iter().position(|r| *r == reg)
+            REGS_32
+                .iter()
+                .position(|r| *r == reg)
                 .or_else(|| REGS_64.iter().position(|r| *r == reg))
                 .unwrap_or(0),
             true,

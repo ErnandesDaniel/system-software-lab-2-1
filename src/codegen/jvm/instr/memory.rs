@@ -43,7 +43,10 @@ impl JvmGenerator {
                     } else {
                         0
                     };
-                    if matches!(vt, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+                    if matches!(
+                        vt,
+                        IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)
+                    ) {
                         self.emit_load_operand(code, base);
                         if byte_off > 0 {
                             let base_idx = byte_off / 4;
@@ -90,7 +93,10 @@ impl JvmGenerator {
                         let vt = value.get_type();
                         self.emit_load_constant(code, &Constant::Int(byte_off / 4));
                         self.emit_load_operand(code, value);
-                        if matches!(vt, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+                        if matches!(
+                            vt,
+                            IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)
+                        ) {
                             code.push(Instruction::Aastore);
                         } else {
                             code.push(Instruction::Iastore);
@@ -191,7 +197,10 @@ impl JvmGenerator {
                                     code.push(Instruction::Iadd);
                                 }
                                 let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
-                                if matches!(elem_type, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+                                if matches!(
+                                    elem_type,
+                                    IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)
+                                ) {
                                     code.push(Instruction::Aaload);
                                 } else {
                                     code.push(Instruction::Iaload);
@@ -200,7 +209,10 @@ impl JvmGenerator {
                         } else {
                             let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
                             self.emit_load_constant(code, &Constant::Int(base_idx));
-                            if matches!(elem_type, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+                            if matches!(
+                                elem_type,
+                                IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)
+                            ) {
                                 code.push(Instruction::Aaload);
                             } else {
                                 code.push(Instruction::Iaload);
@@ -215,7 +227,10 @@ impl JvmGenerator {
             let elem_type = inst.result_type.as_ref().unwrap_or(&IrType::Int);
             self.emit_load_operand(code, array);
             self.emit_load_operand(code, index);
-            if matches!(elem_type, IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)) {
+            if matches!(
+                elem_type,
+                IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..)
+            ) {
                 code.push(Instruction::Aaload);
             } else {
                 code.push(Instruction::Iaload);

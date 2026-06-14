@@ -241,7 +241,11 @@ def main() of int {
 #[test]
 fn test_jvm_runtime_mutating_closure_array_return() {
     let output = compile_and_run_jvm(JVM_MUTATING_CLOSURE_ARRAY_RETURN);
-    assert_eq!(output.status.code(), Some(31213), "mutating closures sharing captured y via returned array");
+    assert_eq!(
+        output.status.code(),
+        Some(31213),
+        "mutating closures sharing captured y via returned array"
+    );
 }
 
 #[test]

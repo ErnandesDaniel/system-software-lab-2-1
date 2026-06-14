@@ -78,7 +78,10 @@ impl IrType {
 
     #[must_use]
     pub fn is_pointer(&self) -> bool {
-        matches!(self, IrType::String | IrType::Function(_, _) | IrType::Closure(_, _) | IrType::Array(_, _))
+        matches!(
+            self,
+            IrType::String | IrType::Function(_, _) | IrType::Closure(_, _) | IrType::Array(_, _)
+        )
     }
 
     #[must_use]

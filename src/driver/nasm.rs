@@ -97,8 +97,16 @@ impl CompilerDriver {
             enabled: bool,
         }
         let runtimes: [RuntimeFile; 2] = [
-            RuntimeFile { name: "coro_linux.c", lang: "c", enabled: os == OsTarget::Linux },
-            RuntimeFile { name: "context.asm", lang: "asm", enabled: os == OsTarget::Linux },
+            RuntimeFile {
+                name: "coro_linux.c",
+                lang: "c",
+                enabled: os == OsTarget::Linux,
+            },
+            RuntimeFile {
+                name: "context.asm",
+                lang: "asm",
+                enabled: os == OsTarget::Linux,
+            },
         ];
         for rf in &runtimes {
             if !rf.enabled {
@@ -127,7 +135,12 @@ impl CompilerDriver {
                     if out.status.success() {
                         obj_files.push(obj_path);
                     } else {
-                        eprintln!("{} ({}) failed: {}", rf.lang, rf.name, String::from_utf8_lossy(&out.stderr));
+                        eprintln!(
+                            "{} ({}) failed: {}",
+                            rf.lang,
+                            rf.name,
+                            String::from_utf8_lossy(&out.stderr)
+                        );
                     }
                 }
                 Err(e) => eprintln!("Failed to run {} on {}: {e}", rf.lang, rf.name),

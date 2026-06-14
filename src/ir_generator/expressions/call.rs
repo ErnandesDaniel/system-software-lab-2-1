@@ -9,9 +9,10 @@ impl IrGenerator {
             _ => String::new(),
         };
 
-        let is_closure_var = !func_name.is_empty()
-            && matches!(self.symbols.get_type(&func_name), IrType::Closure(_, _));
-        let is_direct = !func_name.is_empty() && !is_closure_var
+        let is_closure_var =
+            !func_name.is_empty() && matches!(self.symbols.get_type(&func_name), IrType::Closure(_, _));
+        let is_direct = !func_name.is_empty()
+            && !is_closure_var
             && (self.symbols.function_return_types.contains_key(&func_name) || self.is_external_function(&func_name));
 
         if is_direct {

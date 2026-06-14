@@ -124,57 +124,61 @@ impl JvmGenerator {
         for (gname, gty) in &self.global.global_vars {
             let runtime_stub_class = self.pool.runtime_stub_class_ref;
             let desc = self.global_jvm_descriptor(gname, gty);
-            let fr = self.pool.constant_pool.add_field_ref(runtime_stub_class, gname, &desc).unwrap();
+            let fr = self
+                .pool
+                .constant_pool
+                .add_field_ref(runtime_stub_class, gname, &desc)
+                .unwrap();
             self.global.global_field_refs.insert(gname.clone(), fr);
-                if self.global.global_uses_object_array.contains(gname) {
-                    let size = self.get_global_object_array_inner_size(gname) as i8;
-                    if self.pool.object_class_idx == 0 {
-                        self.pool.object_class_idx = self.pool.constant_pool.add_class("java/lang/Object").unwrap();
-                    }
-                    clinit_code.push(Instruction::Bipush(size));
-                    clinit_code.push(Instruction::Anewarray(self.pool.object_class_idx));
-                    clinit_code.push(Instruction::Putstatic(fr));
-                } else if let IrType::Array(elem, n) = gty {
-                    if *n > 0 {
-                        let sz = *n as i16;
-                        clinit_code.push(if sz <= 127 {
-                            Instruction::Bipush(sz as i8)
-                        } else {
-                            Instruction::Sipush(sz)
-                        });
-                        match elem.as_ref() {
-                            IrType::Int | IrType::Bool => {
-                                let at = if matches!(elem.as_ref(), IrType::Bool) {
-                                    ristretto_classfile::attributes::ArrayType::Boolean
-                                } else {
-                                    ristretto_classfile::attributes::ArrayType::Int
-                                };
-                                clinit_code.push(Instruction::Newarray(at));
-                            }
-                            IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..) => {
-                                let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem);
-                                let class_name = desc.trim_start_matches('L').trim_end_matches(';');
-                                if let Ok(class_idx) = self.pool.constant_pool.add_class(class_name) {
-                                    clinit_code.push(Instruction::Anewarray(class_idx));
-                                }
-                            }
-                            _ => {
-                                clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+            if self.global.global_uses_object_array.contains(gname) {
+                let size = self.get_global_object_array_inner_size(gname) as i8;
+                if self.pool.object_class_idx == 0 {
+                    self.pool.object_class_idx = self.pool.constant_pool.add_class("java/lang/Object").unwrap();
+                }
+                clinit_code.push(Instruction::Bipush(size));
+                clinit_code.push(Instruction::Anewarray(self.pool.object_class_idx));
+                clinit_code.push(Instruction::Putstatic(fr));
+            } else if let IrType::Array(elem, n) = gty {
+                if *n > 0 {
+                    let sz = *n as i16;
+                    clinit_code.push(if sz <= 127 {
+                        Instruction::Bipush(sz as i8)
+                    } else {
+                        Instruction::Sipush(sz)
+                    });
+                    match elem.as_ref() {
+                        IrType::Int | IrType::Bool => {
+                            let at = if matches!(elem.as_ref(), IrType::Bool) {
+                                ristretto_classfile::attributes::ArrayType::Boolean
+                            } else {
+                                ristretto_classfile::attributes::ArrayType::Int
+                            };
+                            clinit_code.push(Instruction::Newarray(at));
+                        }
+                        IrType::Function(_, _) | IrType::Closure(_, _) | IrType::String | IrType::Array(..) => {
+                            let desc = crate::codegen::jvm::types::ir_type_to_jvm_descriptor(elem);
+                            let class_name = desc.trim_start_matches('L').trim_end_matches(';');
+                            if let Ok(class_idx) = self.pool.constant_pool.add_class(class_name) {
+                                clinit_code.push(Instruction::Anewarray(class_idx));
                             }
                         }
-                        clinit_code.push(Instruction::Putstatic(fr));
+                        _ => {
+                            clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+                        }
                     }
-                } else if self.global.global_struct_offset_sets.contains_key(gname) {
-                    let offsets = self.global.global_struct_offset_sets.get(gname).unwrap();
-                    let size = (offsets.iter().max().unwrap_or(&0) / 4 + 1) as i16;
-                    clinit_code.push(if size <= 127 {
-                        Instruction::Bipush(size as i8)
-                    } else {
-                        Instruction::Sipush(size)
-                    });
-                    clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
                     clinit_code.push(Instruction::Putstatic(fr));
                 }
+            } else if self.global.global_struct_offset_sets.contains_key(gname) {
+                let offsets = self.global.global_struct_offset_sets.get(gname).unwrap();
+                let size = (offsets.iter().max().unwrap_or(&0) / 4 + 1) as i16;
+                clinit_code.push(if size <= 127 {
+                    Instruction::Bipush(size as i8)
+                } else {
+                    Instruction::Sipush(size)
+                });
+                clinit_code.push(Instruction::Newarray(ristretto_classfile::attributes::ArrayType::Int));
+                clinit_code.push(Instruction::Putstatic(fr));
+            }
         }
         clinit_code.push(Instruction::Return);
 

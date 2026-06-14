@@ -133,7 +133,10 @@ impl StdLib {
             ("fseek_nasm", ("file: string, offset: int, whence: int", "int")),
             // POSIX socket (NASM-only, Linux)
             ("socket_nasm", ("domain: int, type: int, protocol: int", "int")),
-            ("setsockopt_nasm", ("fd: int, level: int, optname: int, optval: string, optlen: int", "int")),
+            (
+                "setsockopt_nasm",
+                ("fd: int, level: int, optname: int, optval: string, optlen: int", "int"),
+            ),
             ("fcntl_nasm", ("fd: int, cmd: int, arg: int", "int")),
             ("bind_nasm", ("fd: int, addr: string, addrlen: int", "int")),
             ("listen_nasm", ("fd: int, backlog: int", "int")),
@@ -141,7 +144,10 @@ impl StdLib {
             ("send_nasm", ("fd: int, buf: string, len: int, flags: int", "int")),
             ("recv_nasm", ("fd: int, buf: string, len: int, flags: int", "int")),
             ("close_nasm", ("fd: int", "")),
-            ("getsockname_nasm", ("fd: int, addr: string, addrlen_ptr: string", "int")),
+            (
+                "getsockname_nasm",
+                ("fd: int, addr: string, addrlen_ptr: string", "int"),
+            ),
         ];
         decls.into_iter().find(|(n, _)| *n == name).map(|(_, sig)| sig)
     }

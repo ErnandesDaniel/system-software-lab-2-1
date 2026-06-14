@@ -118,14 +118,14 @@ impl AsmGenerator {
                         && !self.global_names.contains(result.as_str())
                     {
                         let slot_size = inst.result_type.as_ref().map_or(8, |t| {
-                        if matches!(t, IrType::Array(_, _)) {
-                            8u32
-                        } else if matches!(t, IrType::Closure(_, _)) {
-                            16u32
-                        } else {
-                            t.size().max(8) as u32
-                        }
-                    });
+                            if matches!(t, IrType::Array(_, _)) {
+                                8u32
+                            } else if matches!(t, IrType::Closure(_, _)) {
+                                16u32
+                            } else {
+                                t.size().max(8) as u32
+                            }
+                        });
                         self.alloc_slot(result, slot_size);
                         stack_size += slot_size as i32;
                     }

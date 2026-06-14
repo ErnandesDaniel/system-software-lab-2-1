@@ -72,7 +72,7 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         let mut gen = AsmGenerator::with_os(test_os());
         gen.set_global_names(&global_names);
         let mut asm = gen.generate_single_function(func);
-    if !ir.globals.is_empty() {
+        if !ir.globals.is_empty() {
             let mut externs = String::new();
             for g in &ir.globals {
                 externs.push_str(&format!("extern {}\n", g.name));
@@ -98,8 +98,6 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
         }
         obj_files.push(obj_path);
     }
-
-
 
     if !ir.globals.is_empty() {
         let globals_asm = format!(
@@ -139,7 +137,11 @@ pub fn compile_only(source: &str) -> (TempDir, String) {
     if !gcc_result.as_ref().map(|o| o.status.success()).unwrap_or(false) {
         panic!(
             "GCC error (args={}): {}",
-            gcc_args.iter().map(|a| a.to_string_lossy()).collect::<Vec<_>>().join(" "),
+            gcc_args
+                .iter()
+                .map(|a| a.to_string_lossy())
+                .collect::<Vec<_>>()
+                .join(" "),
             String::from_utf8_lossy(&gcc_result.unwrap().stderr)
         );
     }

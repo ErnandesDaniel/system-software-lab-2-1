@@ -183,9 +183,7 @@ impl JvmGenerator {
             | Instruction::Saload => -1,
             // Invokestatic/Invokeinterface/Invokedynamic:
             // conservative +1 to avoid underestimation (they may push a return value)
-            | Instruction::Invokestatic(_)
-            | Instruction::Invokeinterface(_, _)
-            | Instruction::Invokedynamic(_) => 1,
+            Instruction::Invokestatic(_) | Instruction::Invokeinterface(_, _) | Instruction::Invokedynamic(_) => 1,
             _ => 0,
         }
     }

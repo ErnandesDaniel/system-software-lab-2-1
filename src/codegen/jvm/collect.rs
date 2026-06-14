@@ -24,7 +24,11 @@ impl JvmGenerator {
                 continue;
             }
             let desc = self.global_jvm_descriptor(gname, gty);
-            let field_ref = self.pool.constant_pool.add_field_ref(runtime_stub_class, gname, &desc).unwrap();
+            let field_ref = self
+                .pool
+                .constant_pool
+                .add_field_ref(runtime_stub_class, gname, &desc)
+                .unwrap();
             self.global.global_field_refs.insert(gname.clone(), field_ref);
         }
     }

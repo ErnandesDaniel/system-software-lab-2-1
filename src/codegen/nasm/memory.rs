@@ -20,7 +20,8 @@ impl AsmGenerator {
             _ => return,
         };
 
-        let is_heap_ptr = self.heap_allocated.contains(&base_name) || (matches!(base_type, IrType::Struct { .. }) && self.param_names.contains(&base_name));
+        let is_heap_ptr = self.heap_allocated.contains(&base_name)
+            || (matches!(base_type, IrType::Struct { .. }) && self.param_names.contains(&base_name));
 
         if inst.operands.len() >= 4 {
             let index = &inst.operands[3];
@@ -84,12 +85,20 @@ impl AsmGenerator {
         let result_ty = inst.result_type.as_ref().cloned().unwrap_or(IrType::Int);
         let result_wide = AsmGenerator::is_wide_type(&result_ty);
 
-                    let is_struct_base = inst
+        let is_struct_base = inst
             .operands
             .first()
             .map_or(false, |op| matches!(op, IrOperand::Variable(_, IrType::Struct { .. })));
-        let base_name_l = inst.operands.first().and_then(|op| match op { IrOperand::Variable(n, _) => Some(n.as_str()), _ => None }).unwrap_or("");
-        let is_heap_base = self.heap_allocated.contains(base_name_l) || (is_struct_base && self.param_names.contains(base_name_l));
+        let base_name_l = inst
+            .operands
+            .first()
+            .and_then(|op| match op {
+                IrOperand::Variable(n, _) => Some(n.as_str()),
+                _ => None,
+            })
+            .unwrap_or("");
+        let is_heap_base =
+            self.heap_allocated.contains(base_name_l) || (is_struct_base && self.param_names.contains(base_name_l));
 
         match inst.operands.len() {
             1 => {
@@ -150,7 +159,9 @@ impl AsmGenerator {
                     let res_reg = self.alloc_scratch(result_wide);
                     let base_reg = self.alloc_scratch(true);
                     let mem = self.mem_for(&array_name);
-                    if self.heap_allocated.contains(&array_name) || (is_arr_struct && self.param_names.contains(&array_name)) {
+                    if self.heap_allocated.contains(&array_name)
+                        || (is_arr_struct && self.param_names.contains(&array_name))
+                    {
                         self.line(&format!("mov {base_reg}, {mem}"));
                     } else {
                         self.line(&format!("lea {base_reg}, {mem}"));
@@ -181,7 +192,8 @@ impl AsmGenerator {
                 let res_reg = self.alloc_scratch(result_wide);
                 let base_reg = self.alloc_scratch(true);
                 let mem = self.mem_for(&base_name);
-                if self.heap_allocated.contains(&base_name) || (is_arr_struct && self.param_names.contains(&base_name)) {
+                if self.heap_allocated.contains(&base_name) || (is_arr_struct && self.param_names.contains(&base_name))
+                {
                     self.line(&format!("mov {base_reg}, {mem}"));
                 } else {
                     self.line(&format!("lea {base_reg}, {mem}"));
