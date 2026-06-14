@@ -44,9 +44,12 @@ global args_buf of string;
 global char_buf of string;
 
 // ---------- Binary helpers ----------
-def read_i8(buf of string, off of int) of int { return buf[off]; }
-def read_le16(buf of string, off of int) of int { return buf[off] | (buf[off+1]*256); }
-def read_le32(buf of string, off of int) of int { return buf[off]|(buf[off+1]*256)|(buf[off+2]*65536)|(buf[off+3]*16777216); }
+def read_i8(buf of string, off of int) of int { return buf[off] & 255; }
+def read_le16(buf of string, off of int) of int { return (buf[off]&255) | ((buf[off+1]&255)*256); }
+def read_le32(buf of string, off of int) of int {
+    b0=buf[off]&255;b1=buf[off+1]&255;b2=buf[off+2]&255;b3=buf[off+3]&255;
+    return b0|(b1*256)|(b2*65536)|(b3*16777216);
+}
 def write_le32(buf of string, off of int, v of int) { buf[off]=v&255;buf[off+1]=(v/256)&255;buf[off+2]=(v/65536)&255;buf[off+3]=(v/16777216)&255; }
 
 // ---------- Block I/O ----------
@@ -309,6 +312,10 @@ def process_client(slot of int) {
     }else if(strcmp(cmd_buf,"RETR")==0){
         dfd=accept_data(slot_get(s_plsn,slot));
         if(dfd>=0&&args_buf[0]!=0){send_resp(cfd,150,"Opening data connection");
+            // Strip leading slashes (FileZilla sends RETR /a.txt)
+            nm=args_buf;i=0;j=0;last=0;
+            while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
+            i=0;while(nm[last+i]!=0){args_buf[i]=nm[last+i];i=i+1;}args_buf[i]=0;
             do_retr(dfd,slot_get(s_cwd,slot),args_buf);
             close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
             send_resp(cfd,226,"Transfer complete");
