@@ -443,53 +443,60 @@ fn test_sys_lab3_ftp_nasm() {
         ftp2.quit().unwrap();
     }
 
-    // ========== Client 3: parallel connect like FileZilla ==========
-    fn read_line(s: &mut std::net::TcpStream) -> String {
+    // ========== Clients 3 & 4: simultaneous (event loop test) ==========
+    use std::io::{Read, Write};
+    use std::net::TcpStream;
+
+    fn read_line(s: &mut TcpStream) -> String {
         let mut buf = [0u8; 4096]; let mut r = String::new();
         loop { let n = s.read(&mut buf).unwrap(); if n == 0 { break; }
                r.push_str(&String::from_utf8_lossy(&buf[..n])); if r.ends_with("\r\n") { break; } }
         r
     }
 
-    use std::io::{Read, Write};
-    use std::net::TcpStream;
+    // Open both connections SIMULTANEOUSLY
+    let mut c3 = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
+    let mut c4 = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
+    c3.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
+    c4.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
 
-    // Client 3A: connect, login, CWD subdir, then hang
-    let mut c3a = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
-    c3a.set_read_timeout(Some(std::time::Duration::from_secs(2))).ok();
-    assert!(read_line(&mut c3a).contains("220"));
+    // Read 220 from both (server processes them in event loop)
+    let r3 = read_line(&mut c3); assert!(r3.contains("220"), "c3 220: {r3:?}");
+    let r4 = read_line(&mut c4); assert!(r4.contains("220"), "c4 220: {r4:?}");
 
-    c3a.write_all(b"USER ftp\r\n").ok();
-    assert!(read_line(&mut c3a).contains("331"));
-    c3a.write_all(b"PASS test\r\n").ok();
-    assert!(read_line(&mut c3a).contains("230"));
-    c3a.write_all(b"CWD subdir\r\n").ok();
-    assert!(read_line(&mut c3a).contains("250"));
+    // Login both
+    c3.write_all(b"USER ftp\r\n").ok();
+    assert!(read_line(&mut c3).contains("331"));
+    c3.write_all(b"PASS test\r\n").ok();
+    assert!(read_line(&mut c3).contains("230"));
 
-    // Client 3B: connect while 3A is still alive — like FileZilla
-    let mut c3b = TcpStream::connect(format!("127.0.0.1:{FTP_PORT}")).unwrap();
-    c3b.set_read_timeout(Some(std::time::Duration::from_secs(5))).ok();
+    c4.write_all(b"USER ftp\r\n").ok();
+    assert!(read_line(&mut c4).contains("331"));
+    c4.write_all(b"PASS test\r\n").ok();
+    assert!(read_line(&mut c4).contains("230"));
 
-    // Client 3B sends PWD — kernel buffers it (server is busy with 3A)
-    c3b.write_all(b"PWD\r\n").ok();
+    // CWD on c3, PWD on c4 — simultaneously
+    c3.write_all(b"CWD subdir\r\n").ok();
+    c4.write_all(b"PWD\r\n").ok();
 
-    // Now Client 3A quits → server goes back to accept → accepts 3B → sends 220 → reads PWD from buffer
-    c3a.write_all(b"QUIT\r\n").ok();
-    // drain 3A's 221 response
-    let _ = read_line(&mut c3a);
+    let r3 = read_line(&mut c3);
+    assert!(r3.contains("250"), "c3 CWD: {r3:?}");
 
-    // Client 3B reads: first 220, then 257 "/" (or both in one read)
-    let resp = read_line(&mut c3b);
-    assert!(resp.contains("220") || resp.contains("257"), "3B expected 220 or 257, got: {resp:?}");
+    let r4 = read_line(&mut c4);
+    assert!(r4.contains("257") && r4.contains("/"), "c4 PWD: {r4:?}");
 
-    // If we only got 220, read again for PWD response
-    let resp2 = if resp.contains("257") { resp } else { resp + &read_line(&mut c3b) };
-    assert!(resp2.contains("257") && resp2.contains("\"/\""), "3B PWD should be /: {resp2:?}");
+    // Verify c3 is in /subdir
+    c3.write_all(b"PWD\r\n").ok();
+    let r3 = read_line(&mut c3);
+    assert!(r3.contains("/subdir"), "c3 PWD after CWD: {r3:?}");
 
-    c3b.write_all(b"QUIT\r\n").ok();
-    let _ = read_line(&mut c3b);
+    // Quit both
+    c3.write_all(b"QUIT\r\n").ok();
+    assert!(read_line(&mut c3).contains("221"));
+    c4.write_all(b"QUIT\r\n").ok();
+    assert!(read_line(&mut c4).contains("221"));
 
-    drop(c3a); drop(c3b);
+    drop(c3); drop(c4);
 
     std::thread::sleep(std::time::Duration::from_millis(200));
     child.kill().ok();
