@@ -45,102 +45,7 @@ global char_buf of string;
 global retr_rem of int;
 global retr_dfd of int;
 
-// ---------- Binary helpers ----------
-def read_i8(buf of string, off of int) of int { return buf[off] & 255; }
-def read_le16(buf of string, off of int) of int { return (buf[off]&255) | ((buf[off+1]&255)*256); }
-def read_le32(buf of string, off of int) of int {
-    b0=buf[off]&255;b1=buf[off+1]&255;b2=buf[off+2]&255;b3=buf[off+3]&255;
-    return b0|(b1*256)|(b2*65536)|(b3*16777216);
-}
-def write_le32(buf of string, off of int, v of int) { buf[off]=v&255;buf[off+1]=(v/256)&255;buf[off+2]=(v/65536)&255;buf[off+3]=(v/16777216)&255; }
-
-// ---------- Block I/O ----------
-def read_block(buf of string, blk of int) of int {
-    off = blk * block_size; if (fseek_nasm(img_file, off, 0) != 0) { return -1; }
-    return fread_nasm(buf, 1, block_size, img_file);
-}
-
-// ---------- Superblock ----------
-def parse_superblock() of int {
-    if (fseek_nasm(img_file, 1024, 0) != 0) { return -1; }
-    n = fread_nasm(sb_buf, 1, 1024, img_file); if (n < 1024) { return -1; }
-    magic = read_le16(sb_buf, 56); if (magic != 61267) { return -1; }
-    lbs = read_le32(sb_buf, 24); block_size = 1024; i = 0;
-    while (i < lbs) { block_size = block_size * 2; i = i + 1; }
-    inode_size = read_le16(sb_buf, 88); if (inode_size == 0) { inode_size = 128; }
-    return 0;
-}
-
-// ---------- Inode reading ----------
-def read_inode(buf of string, inum of int) of int {
-    inodes_per_group = read_le32(sb_buf, 40);
-    bg_index = (inum - 1) / inodes_per_group; inode_index = (inum - 1) - bg_index * inodes_per_group;
-    bgdt_block = (2048 + block_size - 1) / block_size;
-    bgdt_buf = malloc(block_size); if (bgdt_buf == 0) { return -1; }
-    if (read_block(bgdt_buf, bgdt_block) < 0) { free(bgdt_buf); return -1; }
-    itable_blk = read_le32(bgdt_buf, bg_index * 32 + 8); free(bgdt_buf);
-    inodes_per_block = block_size / inode_size;
-    inode_blk_offset = inode_index / inodes_per_block;
-    byte_off = (inode_index - inode_blk_offset * inodes_per_block) * inode_size;
-    blk_buf = malloc(block_size); if (blk_buf == 0) { return -1; }
-    if (read_block(blk_buf, itable_blk + inode_blk_offset) < 0) { free(blk_buf); return -1; }
-    i = 0; while (i < inode_size) { buf[i] = blk_buf[byte_off + i]; i = i + 1; }
-    free(blk_buf); return 0;
-}
-
-// ---------- Directory lookup ----------
-def find_entry(dir_inode of string, name of string) of int {
-    blk0 = read_le32(dir_inode, 40); if (blk0 == 0) { return 0; }
-    dir_buf = malloc(block_size); if (dir_buf == 0) { return 0; }
-    if (read_block(dir_buf, blk0) < 0) { free(dir_buf); return 0; }
-    result = 0; pos = 0;
-    while (pos < block_size) {
-        ino = read_le32(dir_buf, pos); rec_len = read_le16(dir_buf, pos + 4); name_len = read_i8(dir_buf, pos + 6);
-        if (rec_len == 0) { break; }
-        if (ino != 0) {
-            match = 1; j = 0;
-            while (j < name_len) { if (read_i8(dir_buf, pos+8+j) != name[j]) { match = 0; break; } j = j + 1; }
-            if (match == 1 && name[name_len] == 0) { result = ino; break; }
-        }
-        pos = pos + rec_len;
-    }
-    free(dir_buf); return result;
-}
-
-// ---------- Socket helpers ----------
-def make_addr(port of int) of string {
-    buf = malloc(16); if (buf == 0) { return buf; }
-    buf[0]=2;buf[1]=0; buf[2]=port/256;buf[3]=port-(port/256)*256;
-    i=4;while(i<16){buf[i]=0;i=i+1;} return buf;
-}
-
-def try_accept(fd of int) of int {
-    ab=malloc(16);lb=malloc(4);if(ab==0||lb==0){return -1;}
-    lb[0]=16;lb[1]=0;lb[2]=0;lb[3]=0;
-    c=accept_nasm(fd,ab,lb);free(ab);free(lb);return c;
-}
-
-def accept_data(lst of int) of int {
-    ab=malloc(16);lb=malloc(4);if(ab==0||lb==0){return -1;}
-    lb[0]=16;lb[1]=0;lb[2]=0;lb[3]=0;
-    i=0;while(i<5000000){
-        fd=accept_nasm(lst,ab,lb);
-        if(fd>=0){free(ab);free(lb);fcntl_nasm(fd,4,0);return fd;}
-        i=i+1;
-    }
-    free(ab);free(lb);return -1;
-}
-
-def listen_sock(port of int) of int {
-    fd = socket_nasm(2,1,0); if (fd < 0) { return -1; }
-    optval = malloc(4); if (optval != 0) { optval[0]=1;optval[1]=0;optval[2]=0;optval[3]=0; setsockopt_nasm(fd,1,2,optval,4); free(optval); }
-    addr = make_addr(port); if (addr == 0) { close_nasm(fd); return -1; }
-    r = bind_nasm(fd,addr,16); free(addr); if (r < 0) { close_nasm(fd); return -1; }
-    if (listen_nasm(fd,10) < 0) { close_nasm(fd); return -1; }
-    fcntl_nasm(fd,4,2048); return fd;
-}
-
-// ---------- Session state (arrays stored in strings) ----------
+// ---------- Session globals ----------
 global s_occ of string;
 global s_fd of string;
 global s_cwd of string;
@@ -150,303 +55,1129 @@ global s_pport of string;
 global s_dfd of string;
 global s_line of string;
 
-def slot_get(buf of string, slot of int) of int { return read_le32(buf, slot * 4); }
-def slot_set(buf of string, slot of int, v of int) { write_le32(buf, slot * 4, v); }
+// ================================================================
+// Binary helpers
+// ================================================================
+def read_i8(buf of string, off of int) of int {
+    return buf[off] & 255;
+}
+
+def read_le16(buf of string, off of int) of int {
+    return (buf[off] & 255) | ((buf[off + 1] & 255) * 256);
+}
+
+def read_le32(buf of string, off of int) of int {
+    b0 = buf[off] & 255;
+    b1 = buf[off + 1] & 255;
+    b2 = buf[off + 2] & 255;
+    b3 = buf[off + 3] & 255;
+    return b0 | (b1 * 256) | (b2 * 65536) | (b3 * 16777216);
+}
+
+def write_le32(buf of string, off of int, v of int) {
+    buf[off]     = v & 255;
+    buf[off + 1] = (v / 256) & 255;
+    buf[off + 2] = (v / 65536) & 255;
+    buf[off + 3] = (v / 16777216) & 255;
+}
+
+// ================================================================
+// Block I/O
+// ================================================================
+def read_block(buf of string, blk of int) of int {
+    off = blk * block_size;
+    if (fseek_nasm(img_file, off, 0) != 0) {
+        return -1;
+    }
+    return fread_nasm(buf, 1, block_size, img_file);
+}
+
+// ================================================================
+// Superblock parsing
+// ================================================================
+def parse_superblock() of int {
+    if (fseek_nasm(img_file, 1024, 0) != 0) {
+        return -1;
+    }
+    n = fread_nasm(sb_buf, 1, 1024, img_file);
+    if (n < 1024) {
+        return -1;
+    }
+    magic = read_le16(sb_buf, 56);
+    if (magic != 61267) {
+        return -1;
+    }
+    lbs = read_le32(sb_buf, 24);
+    block_size = 1024;
+    i = 0;
+    while (i < lbs) {
+        block_size = block_size * 2;
+        i = i + 1;
+    }
+    inode_size = read_le16(sb_buf, 88);
+    if (inode_size == 0) {
+        inode_size = 128;
+    }
+    return 0;
+}
+
+// ================================================================
+// Inode reading
+// ================================================================
+def read_inode(buf of string, inum of int) of int {
+    inodes_per_group = read_le32(sb_buf, 40);
+    bg_index    = (inum - 1) / inodes_per_group;
+    inode_index = (inum - 1) - bg_index * inodes_per_group;
+
+    bgdt_block = (2048 + block_size - 1) / block_size;
+    bgdt_buf = malloc(block_size);
+    if (bgdt_buf == 0) {
+        return -1;
+    }
+    if (read_block(bgdt_buf, bgdt_block) < 0) {
+        free(bgdt_buf);
+        return -1;
+    }
+    itable_blk = read_le32(bgdt_buf, bg_index * 32 + 8);
+    free(bgdt_buf);
+
+    inodes_per_block  = block_size / inode_size;
+    inode_blk_offset  = inode_index / inodes_per_block;
+    byte_off = (inode_index - inode_blk_offset * inodes_per_block) * inode_size;
+
+    blk_buf = malloc(block_size);
+    if (blk_buf == 0) {
+        return -1;
+    }
+    if (read_block(blk_buf, itable_blk + inode_blk_offset) < 0) {
+        free(blk_buf);
+        return -1;
+    }
+    i = 0;
+    while (i < inode_size) {
+        buf[i] = blk_buf[byte_off + i];
+        i = i + 1;
+    }
+    free(blk_buf);
+    return 0;
+}
+
+// ================================================================
+// Directory lookup
+// ================================================================
+def find_entry(dir_inode of string, name of string) of int {
+    blk0 = read_le32(dir_inode, 40);
+    if (blk0 == 0) {
+        return 0;
+    }
+    dir_buf = malloc(block_size);
+    if (dir_buf == 0) {
+        return 0;
+    }
+    if (read_block(dir_buf, blk0) < 0) {
+        free(dir_buf);
+        return 0;
+    }
+    result = 0;
+    pos = 0;
+    while (pos < block_size) {
+        ino     = read_le32(dir_buf, pos);
+        rec_len = read_le16(dir_buf, pos + 4);
+        name_len = read_i8(dir_buf, pos + 6);
+        if (rec_len == 0) {
+            break;
+        }
+        if (ino != 0) {
+            match = 1;
+            j = 0;
+            while (j < name_len) {
+                c = read_i8(dir_buf, pos + 8 + j);
+                if (c != name[j]) {
+                    match = 0;
+                    break;
+                }
+                j = j + 1;
+            }
+            if (match == 1 && name[name_len] == 0) {
+                result = ino;
+                break;
+            }
+        }
+        pos = pos + rec_len;
+    }
+    free(dir_buf);
+    return result;
+}
+
+// ================================================================
+// Socket helpers
+// ================================================================
+def make_addr(port of int) of string {
+    buf = malloc(16);
+    if (buf == 0) {
+        return buf;
+    }
+    buf[0] = 2;
+    buf[1] = 0;
+    buf[2] = port / 256;
+    buf[3] = port - (port / 256) * 256;
+    i = 4;
+    while (i < 16) {
+        buf[i] = 0;
+        i = i + 1;
+    }
+    return buf;
+}
+
+def try_accept(fd of int) of int {
+    ab = malloc(16);
+    lb = malloc(4);
+    if (ab == 0 || lb == 0) {
+        return -1;
+    }
+    lb[0] = 16;
+    lb[1] = 0;
+    lb[2] = 0;
+    lb[3] = 0;
+    c = accept_nasm(fd, ab, lb);
+    free(ab);
+    free(lb);
+    return c;
+}
+
+def accept_data(lst of int) of int {
+    ab = malloc(16);
+    lb = malloc(4);
+    if (ab == 0 || lb == 0) {
+        return -1;
+    }
+    lb[0] = 16;
+    lb[1] = 0;
+    lb[2] = 0;
+    lb[3] = 0;
+    i = 0;
+    while (i < 5000000) {
+        fd = accept_nasm(lst, ab, lb);
+        if (fd >= 0) {
+            free(ab);
+            free(lb);
+            fcntl_nasm(fd, 4, 0);
+            return fd;
+        }
+        i = i + 1;
+    }
+    free(ab);
+    free(lb);
+    return -1;
+}
+
+def listen_sock(port of int) of int {
+    fd = socket_nasm(2, 1, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    optval = malloc(4);
+    if (optval != 0) {
+        optval[0] = 1;
+        optval[1] = 0;
+        optval[2] = 0;
+        optval[3] = 0;
+        setsockopt_nasm(fd, 1, 2, optval, 4);
+        free(optval);
+    }
+    addr = make_addr(port);
+    if (addr == 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    r = bind_nasm(fd, addr, 16);
+    free(addr);
+    if (r < 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    if (listen_nasm(fd, 10) < 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    fcntl_nasm(fd, 4, 2048);
+    return fd;
+}
+
+// ================================================================
+// Session management
+// ================================================================
+def slot_get(buf of string, slot of int) of int {
+    return read_le32(buf, slot * 4);
+}
+
+def slot_set(buf of string, slot of int, v of int) {
+    write_le32(buf, slot * 4, v);
+}
 
 def init_sessions(n of int) {
-    s_occ = malloc(n); s_fd = malloc(n*4); s_cwd = malloc(n*4);
-    s_path = malloc(n*256); s_plsn = malloc(n*4); s_pport = malloc(n*4);
-    s_dfd = malloc(n*4); s_line = malloc(n*256);
-    i = 0; while (i < n) { s_occ[i] = 0; slot_set(s_fd,i,-1); slot_set(s_plsn,i,-1); slot_set(s_dfd,i,-1); i = i + 1; }
+    s_occ  = malloc(n);
+    s_fd   = malloc(n * 4);
+    s_cwd  = malloc(n * 4);
+    s_path = malloc(n * 256);
+    s_plsn = malloc(n * 4);
+    s_pport = malloc(n * 4);
+    s_dfd  = malloc(n * 4);
+    s_line = malloc(n * 256);
+    i = 0;
+    while (i < n) {
+        s_occ[i] = 0;
+        slot_set(s_fd, i, -1);
+        slot_set(s_plsn, i, -1);
+        slot_set(s_dfd, i, -1);
+        i = i + 1;
+    }
 }
 
 def find_slot() of int {
-    i = 0; while (i < MC) { if (s_occ[i] == 0) { return i; } i = i + 1; } return -1;
+    i = 0;
+    while (i < MC) {
+        if (s_occ[i] == 0) {
+            return i;
+        }
+        i = i + 1;
+    }
+    return -1;
 }
 
 def pathcpy(slot of int, src of string) {
-    off = slot * 256; i = 0;
-    while (src[i] != 0) { s_path[off + i] = src[i]; i = i + 1; }
+    off = slot * 256;
+    i = 0;
+    while (src[i] != 0) {
+        s_path[off + i] = src[i];
+        i = i + 1;
+    }
     s_path[off + i] = 0;
 }
 
 def pathcat(slot of int, name of string) {
-    off = slot * 256; len = 0; while (s_path[off + len] != 0) { len = len + 1; }
-    if (len > 0 && s_path[off + len - 1] != 47) { s_path[off + len] = 47; len = len + 1; }
-    i = 0; while (name[i] != 0) { s_path[off + len] = name[i]; len = len + 1; i = i + 1; }
+    off = slot * 256;
+    len = 0;
+    while (s_path[off + len] != 0) {
+        len = len + 1;
+    }
+    if (len > 0 && s_path[off + len - 1] != 47) {
+        s_path[off + len] = 47;
+        len = len + 1;
+    }
+    i = 0;
+    while (name[i] != 0) {
+        s_path[off + len] = name[i];
+        len = len + 1;
+        i = i + 1;
+    }
     s_path[off + len] = 0;
 }
 
-// ---------- Send helpers ----------
-def send_all(fd of int, buf of string, len of int) { retry=0;while(retry<100){n=send_nasm(fd,buf,len,0);if(n>0){return;}retry=retry+1;}}
-def send_str(fd of int, s of string) { send_all(fd, s, strlen(s)); }
+// ================================================================
+// Send helpers
+// ================================================================
+def send_all(fd of int, buf of string, len of int) {
+    retry = 0;
+    while (retry < 100) {
+        n = send_nasm(fd, buf, len, 0);
+        if (n > 0) {
+            return;
+        }
+        retry = retry + 1;
+    }
+}
+
+def send_str(fd of int, s of string) {
+    send_all(fd, s, strlen(s));
+}
+
 def send_resp(fd of int, code of int, msg of string) {
-    sprintf(resp_buf,"%d",code); strcat(resp_buf," "); strcat(resp_buf,msg); strcat(resp_buf,"\r\n");
+    sprintf(resp_buf, "%d", code);
+    strcat(resp_buf, " ");
+    strcat(resp_buf, msg);
+    strcat(resp_buf, "\r\n");
     send_all(fd, resp_buf, strlen(resp_buf));
 }
 
-// ---------- PASV helpers ----------
+// ================================================================
+// PASV helpers
+// ================================================================
 def pasv_open(slot of int) of int {
-    if (slot_get(s_plsn,slot) >= 0) { close_nasm(slot_get(s_plsn,slot)); slot_set(s_plsn,slot,-1); }
-    fd = socket_nasm(2,1,0); if (fd < 0) { return -1; }
-    fcntl_nasm(fd,4,2048);
-    optval=malloc(4); if(optval!=0){optval[0]=1;optval[1]=0;optval[2]=0;optval[3]=0;setsockopt_nasm(fd,1,2,optval,4);free(optval);}
-    addr=make_addr(0); if(addr==0){close_nasm(fd);return -1;}
-    r=bind_nasm(fd,addr,16); free(addr); if(r<0){close_nasm(fd);return -1;}
-    if(listen_nasm(fd,1)<0){close_nasm(fd);return -1;}
-    ab=malloc(16);lb=malloc(4);lb[0]=16;lb[1]=0;lb[2]=0;lb[3]=0;
-    if(getsockname_nasm(fd,ab,lb)<0){close_nasm(fd);free(ab);free(lb);return -1;}
-    slot_set(s_pport,slot,ab[2]*256+ab[3]); free(ab);free(lb);
-    slot_set(s_plsn,slot,fd); return fd;
+    if (slot_get(s_plsn, slot) >= 0) {
+        close_nasm(slot_get(s_plsn, slot));
+        slot_set(s_plsn, slot, -1);
+    }
+    fd = socket_nasm(2, 1, 0);
+    if (fd < 0) {
+        return -1;
+    }
+    fcntl_nasm(fd, 4, 2048);
+    optval = malloc(4);
+    if (optval != 0) {
+        optval[0] = 1;
+        optval[1] = 0;
+        optval[2] = 0;
+        optval[3] = 0;
+        setsockopt_nasm(fd, 1, 2, optval, 4);
+        free(optval);
+    }
+    addr = make_addr(0);
+    if (addr == 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    r = bind_nasm(fd, addr, 16);
+    free(addr);
+    if (r < 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    if (listen_nasm(fd, 1) < 0) {
+        close_nasm(fd);
+        return -1;
+    }
+    ab = malloc(16);
+    lb = malloc(4);
+    lb[0] = 16;
+    lb[1] = 0;
+    lb[2] = 0;
+    lb[3] = 0;
+    if (getsockname_nasm(fd, ab, lb) < 0) {
+        close_nasm(fd);
+        free(ab);
+        free(lb);
+        return -1;
+    }
+    slot_set(s_pport, slot, ab[2] * 256 + ab[3]);
+    free(ab);
+    free(lb);
+    slot_set(s_plsn, slot, fd);
+    return fd;
 }
 
-// ---------- LIST logic ----------
-// LIST format: permissions size Jan 1 00:00 <filename>\r\n
-// Проблема: если имя файла состоит только из пробелов (напр. " "),
-// FileZilla не может отличить имя от разделителя полей и показывает
-// дату вместо имени. Решение: для имён из одних пробелов выводим " ".
+// ================================================================
+// LIST logic
+// ================================================================
 def do_list(dfd of int, cwd of int) {
-    inode_buf=malloc(inode_size); if(inode_buf==0||read_inode(inode_buf,cwd)<0){free(inode_buf);return;}
-    blk0=read_le32(inode_buf,40); if(blk0==0){free(inode_buf);return;}
-    dir_buf=malloc(block_size); if(dir_buf==0||read_block(dir_buf,blk0)<0){free(dir_buf);free(inode_buf);return;}
-    send_str(dfd,"total 0\r\n"); pos=0;
-    while(pos<block_size){
-        ino=read_le32(dir_buf,pos); rl=read_le16(dir_buf,pos+4); nl=read_i8(dir_buf,pos+6);
-        if(rl==0){break;}
-        if(ino!=0&&nl>0){
-            is_all_space=1;j=0;while(j<nl){if(read_i8(dir_buf,pos+8+j)!=32){is_all_space=0;break;}j=j+1;}
-            fb=read_i8(dir_buf,pos+8);
-            fi=malloc(inode_size);isd=0;fsz=0;
-            if(fi!=0&&read_inode(fi,ino)>=0){md=read_le16(fi,0);if((md&0x4000)!=0){isd=1;}fsz=read_le32(fi,4);}free(fi);
-            if(isd!=0){send_str(dfd,"drwxr-xr-x 1 ftp ftp 4096 Jan 1 00:00 ");}
-            else{sprintf(resp_buf,"%d",fsz);send_str(dfd,"-rw-r--r-- 1 ftp ftp ");send_str(dfd,resp_buf);send_str(dfd," Jan 1 00:00 ");}
-            // кавычки для хитрых имён: пробел, "."/"..", ". "
-            is_tricky=0;
-            if(is_all_space!=0){is_tricky=1;}
-            if(fb==46&&nl==1){is_tricky=1;}
-            if(fb==46&&nl==2&&read_i8(dir_buf,pos+9)==46){is_tricky=1;}
-            if(fb==46&&nl>1&&read_i8(dir_buf,pos+9)!=46){is_tricky=1;}
-            if(is_tricky!=0){send_str(dfd,"\"");}
-            j=0;while(j<nl){c=read_i8(dir_buf,pos+8+j);char_buf[0]=c;send_nasm(dfd,char_buf,1,0);j=j+1;}
-            if(is_tricky!=0){send_str(dfd,"\"");}
-            send_str(dfd,"\r\n");
-        }pos=pos+rl;
-    }free(dir_buf);free(inode_buf);
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0 || read_inode(inode_buf, cwd) < 0) {
+        free(inode_buf);
+        return;
+    }
+    blk0 = read_le32(inode_buf, 40);
+    if (blk0 == 0) {
+        free(inode_buf);
+        return;
+    }
+    dir_buf = malloc(block_size);
+    if (dir_buf == 0 || read_block(dir_buf, blk0) < 0) {
+        free(dir_buf);
+        free(inode_buf);
+        return;
+    }
+    send_str(dfd, "total 0\r\n");
+    pos = 0;
+    while (pos < block_size) {
+        ino = read_le32(dir_buf, pos);
+        rl = read_le16(dir_buf, pos + 4);
+        nl = read_i8(dir_buf, pos + 6);
+        if (rl == 0) {
+            break;
+        }
+        if (ino != 0 && nl > 0) {
+            // Check if name consists entirely of spaces
+            is_all_space = 1;
+            j = 0;
+            while (j < nl) {
+                if (read_i8(dir_buf, pos + 8 + j) != 32) {
+                    is_all_space = 0;
+                    break;
+                }
+                j = j + 1;
+            }
+            fb = read_i8(dir_buf, pos + 8);
+            fi = malloc(inode_size);
+            isd = 0;
+            fsz = 0;
+            if (fi != 0 && read_inode(fi, ino) >= 0) {
+                md = read_le16(fi, 0);
+                if ((md & 0x4000) != 0) {
+                    isd = 1;
+                }
+                fsz = read_le32(fi, 4);
+            }
+            free(fi);
+
+            if (isd != 0) {
+                send_str(dfd, "drwxr-xr-x 1 ftp ftp 4096 Jan 1 00:00 ");
+            } else {
+                sprintf(resp_buf, "%d", fsz);
+                send_str(dfd, "-rw-r--r-- 1 ftp ftp ");
+                send_str(dfd, resp_buf);
+                send_str(dfd, " Jan 1 00:00 ");
+            }
+
+            // Quote tricky names: all-space, ".", "..", ". "
+            is_tricky = 0;
+            if (is_all_space != 0) {
+                is_tricky = 1;
+            }
+            if (fb == 46 && nl == 1) {
+                is_tricky = 1;
+            }
+            if (fb == 46 && nl == 2 && read_i8(dir_buf, pos + 9) == 46) {
+                is_tricky = 1;
+            }
+            if (fb == 46 && nl > 1 && read_i8(dir_buf, pos + 9) != 46) {
+                is_tricky = 1;
+            }
+
+            if (is_tricky != 0) {
+                send_str(dfd, "\"");
+            }
+            j = 0;
+            while (j < nl) {
+                c = read_i8(dir_buf, pos + 8 + j);
+                char_buf[0] = c;
+                send_nasm(dfd, char_buf, 1, 0);
+                j = j + 1;
+            }
+            if (is_tricky != 0) {
+                send_str(dfd, "\"");
+            }
+            send_str(dfd, "\r\n");
+        }
+        pos = pos + rl;
+    }
+    free(dir_buf);
+    free(inode_buf);
 }
 
-// ---------- RETR logic ----------
+// ================================================================
+// RETR logic
+// ================================================================
 def retr_send_block(blk of int) {
-    bb=malloc(block_size);if(bb==0){return;}
-    ts=block_size;if(retr_rem<block_size){ts=retr_rem;}
-    if(read_block(bb,blk)>=0){send_all(retr_dfd,bb,ts);retr_rem=retr_rem-ts;}
+    bb = malloc(block_size);
+    if (bb == 0) {
+        return;
+    }
+    ts = block_size;
+    if (retr_rem < block_size) {
+        ts = retr_rem;
+    }
+    if (read_block(bb, blk) >= 0) {
+        send_all(retr_dfd, bb, ts);
+        retr_rem = retr_rem - ts;
+    }
     free(bb);
 }
+
 def retr_level(iblk of int, lvl of int) {
-    if(retr_rem<=0){return;}
-    if(lvl<0){retr_send_block(iblk);return;}
-    bb=malloc(block_size);if(bb==0){return;}
-    if(read_block(bb,iblk)<0){free(bb);return;}
-    i=0;npp=block_size/4;
-    while(i<npp){if(retr_rem<=0){break;}
-        nblk=read_le32(bb,i*4);if(nblk==0){break;}
-        retr_level(nblk,lvl-1);i=i+1;
-    }free(bb);
+    if (retr_rem <= 0) {
+        return;
+    }
+    if (lvl < 0) {
+        retr_send_block(iblk);
+        return;
+    }
+    bb = malloc(block_size);
+    if (bb == 0) {
+        return;
+    }
+    if (read_block(bb, iblk) < 0) {
+        free(bb);
+        return;
+    }
+    npp = block_size / 4;
+    i = 0;
+    while (i < npp) {
+        if (retr_rem <= 0) {
+            break;
+        }
+        nblk = read_le32(bb, i * 4);
+        if (nblk == 0) {
+            break;
+        }
+        retr_level(nblk, lvl - 1);
+        i = i + 1;
+    }
+    free(bb);
 }
+
 def do_retr(dfd of int, cwd of int, name of string) {
-    inode_buf=malloc(inode_size);if(inode_buf==0||read_inode(inode_buf,cwd)<0){free(inode_buf);return;}
-    fino=find_entry(inode_buf,name);free(inode_buf);if(fino==0){return;}
-    fb=malloc(inode_size);if(read_inode(fb,fino)<0){free(fb);return;}
-    fsz=read_le32(fb,4);retr_rem=fsz;retr_dfd=dfd;
-    bi=0;while(bi<12&&retr_rem>0){blk=read_le32(fb,40+bi*4);if(blk==0){break;}
-        retr_send_block(blk);bi=bi+1;}
-    if(retr_rem>0){blk=read_le32(fb,88);if(blk!=0){retr_level(blk,0);}}
-    if(retr_rem>0){blk=read_le32(fb,92);if(blk!=0){retr_level(blk,1);}}
-    if(retr_rem>0){blk=read_le32(fb,96);if(blk!=0){retr_level(blk,2);}}
+    inode_buf = malloc(inode_size);
+    if (inode_buf == 0 || read_inode(inode_buf, cwd) < 0) {
+        free(inode_buf);
+        return;
+    }
+    fino = find_entry(inode_buf, name);
+    free(inode_buf);
+    if (fino == 0) {
+        return;
+    }
+    fb = malloc(inode_size);
+    if (read_inode(fb, fino) < 0) {
+        free(fb);
+        return;
+    }
+    fsz = read_le32(fb, 4);
+    retr_rem = fsz;
+    retr_dfd = dfd;
+
+    // Direct blocks [0..11]
+    bi = 0;
+    while (bi < 12 && retr_rem > 0) {
+        blk = read_le32(fb, 40 + bi * 4);
+        if (blk == 0) {
+            break;
+        }
+        retr_send_block(blk);
+        bi = bi + 1;
+    }
+
+    // Singly indirect (offset 88)
+    if (retr_rem > 0) {
+        blk = read_le32(fb, 88);
+        if (blk != 0) {
+            retr_level(blk, 0);
+        }
+    }
+    // Doubly indirect (offset 92)
+    if (retr_rem > 0) {
+        blk = read_le32(fb, 92);
+        if (blk != 0) {
+            retr_level(blk, 1);
+        }
+    }
+    // Triply indirect (offset 96)
+    if (retr_rem > 0) {
+        blk = read_le32(fb, 96);
+        if (blk != 0) {
+            retr_level(blk, 2);
+        }
+    }
     free(fb);
 }
 
-// ---------- CWD logic ----------
+// ================================================================
+// CWD logic
+// ================================================================
 def handle_cwd(slot of int, target of string) of int {
-    cfd=slot_get(s_fd,slot);cwd=slot_get(s_cwd,slot);
-    // Снимаем кавычки с имени (если FileZilla прислал "name")
-    name_buf=target;
-    if(target[0]==34){
-        i=1;j=0;while(target[i]!=0&&target[i]!=34){cmd_buf[j]=target[i];j=j+1;i=i+1;}cmd_buf[j]=0;
-        name_buf=cmd_buf;
-    }
-    if(name_buf[0]==0||strcmp(name_buf,".")==0){send_resp(cfd,250,"OK");return 0;}
-    if(strcmp(name_buf,"..")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
-    // Абсолютный путь — снимаем ведущий / и ищем от корня
-    if(name_buf[0]==47){
-        i=1;j=0;while(name_buf[i]!=0){cmd_buf[j]=name_buf[i];j=j+1;i=i+1;}cmd_buf[j]=0;
-        if(cmd_buf[0]==34){i=1;j=0;while(cmd_buf[i]!=0&&cmd_buf[i]!=34){cmd_buf[j]=cmd_buf[i];j=j+1;i=i+1;}cmd_buf[j]=0;}
-        if(cmd_buf[0]==0||strcmp(cmd_buf,".")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
-        if(strcmp(cmd_buf,"..")==0){send_resp(cfd,250,"OK");return 0;}
-        ib=malloc(inode_size);if(ib==0||read_inode(ib,2)<0){free(ib);send_resp(cfd,550,"Error");return -1;}
-        ci=find_entry(ib,cmd_buf);free(ib);if(ci==0){send_resp(cfd,550,"Not found");return -1;}
-        cb=malloc(inode_size);if(cb==0||read_inode(cb,ci)<0){free(cb);send_resp(cfd,550,"Error");return -1;}
-        md=read_le16(cb,0);free(cb);
-        if((md&0x4000)==0){send_resp(cfd,550,"Not a directory");return -1;}
-        slot_set(s_cwd,slot,ci);pathcpy(slot,"/");pathcat(slot,cmd_buf);
-        send_resp(cfd,250,"OK");return 0;
-    }
-    ib=malloc(inode_size);if(ib==0||read_inode(ib,cwd)<0){free(ib);send_resp(cfd,550,"Error");return -1;}
-    ci=find_entry(ib,name_buf);free(ib);if(ci==0){send_resp(cfd,550,"Not found");return -1;}
-    cb=malloc(inode_size);if(cb==0||read_inode(cb,ci)<0){free(cb);send_resp(cfd,550,"Error");return -1;}
-    md=read_le16(cb,0);free(cb);
-    if((md&0x4000)==0){send_resp(cfd,550,"Not a directory");return -1;}
-    slot_set(s_cwd,slot,ci);pathcat(slot,name_buf);send_resp(cfd,250,"OK");return 0;
-}
+    cfd = slot_get(s_fd, slot);
+    cwd = slot_get(s_cwd, slot);
+    name_buf = target;
 
-// ---------- Process one client command ----------
-def process_client(slot of int) {
-    cfd=slot_get(s_fd,slot);cwd=slot_get(s_cwd,slot);
-    soff=slot*256;loff=slot*256;
-            // Try to read a command (non-blocking)
-    rbuf=malloc(256);n=recv_nasm(cfd,rbuf,255,0);
-    if(n<0){free(rbuf);return;}
-    if(n==0){free(rbuf);slot_set(s_dfd,slot,-1);if(slot_get(s_plsn,slot)>=0){close_nasm(slot_get(s_plsn,slot));}
-        close_nasm(cfd);s_occ[slot]=0;return;}
-    rbuf[n]=0;
-    // Parse command
-    i=0;while(i<n&&rbuf[i]!=0&&rbuf[i]!=' '&&rbuf[i]!=13&&rbuf[i]!=10){cmd_buf[i]=rbuf[i];i=i+1;}cmd_buf[i]=0;
-    if(rbuf[i]==' '){i=i+1;j=0;while(i<n&&rbuf[i]!=0&&rbuf[i]!=13&&rbuf[i]!=10){args_buf[j]=rbuf[i];i=i+1;j=j+1;}args_buf[j]=0;}
-    else{args_buf[0]=0;}
-    free(rbuf);
-    if(cmd_buf[0]==0){return;}
-
-    if(strcmp(cmd_buf,"QUIT")==0){send_resp(cfd,221,"Goodbye");slot_set(s_dfd,slot,-1);
-        if(slot_get(s_plsn,slot)>=0){close_nasm(slot_get(s_plsn,slot));}
-        close_nasm(cfd);s_occ[slot]=0;return;}
-    if(strcmp(cmd_buf,"USER")==0){send_resp(cfd,331,"OK");}
-    else if(strcmp(cmd_buf,"PASS")==0){send_resp(cfd,230,"OK");}
-    else if(strcmp(cmd_buf,"SYST")==0){send_resp(cfd,215,"UNIX Type: L8");}
-    else if(strcmp(cmd_buf,"TYPE")==0){send_resp(cfd,200,"OK");}
-    else if(strcmp(cmd_buf,"NOOP")==0){send_resp(cfd,200,"OK");}
-    else if(strcmp(cmd_buf,"FEAT")==0){strcpy(resp_buf,"211-Features:\r\n SIZE\r\n211 End\r\n");send_all(cfd,resp_buf,strlen(resp_buf));}
-    else if(strcmp(cmd_buf,"OPTS")==0){send_resp(cfd,200,"OK");}
-    else if(strcmp(cmd_buf,"EPSV")==0){send_resp(cfd,500,"EPSV not supported, use PASV");}
-    else if(strcmp(cmd_buf,"PORT")==0){send_resp(cfd,200,"PORT OK (ignored)");}
-    else if(strcmp(cmd_buf,"PWD")==0||strcmp(cmd_buf,"XPWD")==0){
-        strcpy(resp_buf,"257 \"");i=0;while(s_path[soff+i]!=0){resp_buf[5+i]=s_path[soff+i];i=i+1;}
-        resp_buf[5+i]=34;resp_buf[6+i]=13;resp_buf[7+i]=10;resp_buf[8+i]=0;
-        send_all(cfd,resp_buf,strlen(resp_buf));
-    }else if(strcmp(cmd_buf,"CWD")==0||strcmp(cmd_buf,"XCWD")==0){handle_cwd(slot,args_buf);}
-    else if(strcmp(cmd_buf,"CDUP")==0||strcmp(cmd_buf,"XCUP")==0){
-        if(slot_get(s_cwd,slot)!=2){slot_set(s_cwd,slot,2);pathcpy(slot,"/");}
-        send_resp(cfd,250,"OK");
-    }else if(strcmp(cmd_buf,"PASV")==0){
-        if(pasv_open(slot)>=0){p1=slot_get(s_pport,slot)/256;p2=slot_get(s_pport,slot)-p1*256;
-            sprintf(resp_buf,"%d",p1);strcpy(line_buf,"227 Entering Passive Mode (127,0,0,1,");strcat(line_buf,resp_buf);
-            strcat(line_buf,",");sprintf(resp_buf,"%d",p2);strcat(line_buf,resp_buf);strcat(line_buf,")\r\n");
-            send_all(cfd,line_buf,strlen(line_buf));
-        }else{send_resp(cfd,425,"PASV failed");}
-    }else if(strcmp(cmd_buf,"LIST")==0){
-        // Handle LIST with path argument (CWD to it first, then list)
-        if(args_buf[0]!=0&&args_buf[0]!=45&&strcmp(args_buf,".")!=0&&strcmp(args_buf,"..")!=0&&strcmp(args_buf,"/")!=0){
-            if(args_buf[0]==47){// absolute path - find last component
-                i=0;last=0;while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
-                // Temporarily change cwd to the directory part
-                if(last>0){// has directory component
-                    // Find the file/dir name
-                    j=0;while(args_buf[last+j]!=0){cmd_buf[j]=args_buf[last+j];j=j+1;}cmd_buf[j]=0;
-                    // Try to CWD to this directory
-                    ib=malloc(inode_size);
-                    if(ib!=0&&read_inode(ib,slot_get(s_cwd,slot))>=0){
-                        ci=find_entry(ib,cmd_buf);
-                        if(ci!=0){cb=malloc(inode_size);if(cb!=0&&read_inode(cb,ci)>=0){
-                            md=read_le16(cb,0);free(cb);
-                            if((md&0x4000)!=0){slot_set(s_cwd,slot,ci);pathcat(slot,cmd_buf);}
-                        }}free(ib);
-                    }
-                }
-            }else{handle_cwd(slot,args_buf);}
+    // Strip surrounding quotes: "name" -> name
+    if (target[0] == 34) {
+        i = 1;
+        j = 0;
+        while (target[i] != 0 && target[i] != 34) {
+            cmd_buf[j] = target[i];
+            j = j + 1;
+            i = i + 1;
         }
-        dfd=accept_data(slot_get(s_plsn,slot));
-        if(dfd>=0){send_resp(cfd,150,"Opening data connection");do_list(dfd,slot_get(s_cwd,slot));
-            close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
-            send_resp(cfd,226,"Directory send OK");
-        }else{send_resp(cfd,425,"Data connection failed");}
-    }else if(strcmp(cmd_buf,"NLST")==0){
-        dfd=accept_data(slot_get(s_plsn,slot));
-        if(dfd>=0){send_resp(cfd,150,"Opening data connection");
-            ib=malloc(inode_size);if(ib!=0&&read_inode(ib,slot_get(s_cwd,slot))>=0){
-                blk0=read_le32(ib,40);if(blk0!=0){db=malloc(block_size);if(db!=0&&read_block(db,blk0)>=0){
-                    posx=0;while(posx<block_size){
-                        ino=read_le32(db,posx);rl2=read_le16(db,posx+4);nl2=read_i8(db,posx+6);
-                        if(rl2==0){break;}
-                        if(ino!=0&&nl2>0){
-                            j2=0;while(j2<nl2){cb=read_i8(db,posx+8+j2);char_buf[0]=cb;send_nasm(dfd,char_buf,1,0);j2=j2+1;}
-                            send_str(dfd,"\r\n");
-                        }posx=posx+rl2;
-                    }free(db);
-                }}free(ib);
-            }close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
-            send_resp(cfd,226,"Directory send OK");
-        }else{send_resp(cfd,425,"Data connection failed");}
-    }else if(strcmp(cmd_buf,"RETR")==0){
-        dfd=accept_data(slot_get(s_plsn,slot));
-        if(dfd>=0&&args_buf[0]!=0){send_resp(cfd,150,"Opening data connection");
-            // Resolve the file path to find the correct directory inode
-            sdir=slot_get(s_cwd,slot); // default: current cwd
-            if(args_buf[0]==47){ // absolute path — resolve from root
-                sdir=2; plen=0; while(args_buf[plen]!=0){plen=plen+1;}
-                pos=1; // skip leading /
-                while(pos<plen){
-                    cp=0;while(pos<plen&&args_buf[pos]!=47){cmd_buf[cp]=args_buf[pos];cp=cp+1;pos=pos+1;}
-                    cmd_buf[cp]=0;
-                    if(pos<plen){ // directory component
-                        if(cp>0){ib=malloc(inode_size);
-                            if(ib!=0&&read_inode(ib,sdir)>=0){ni=find_entry(ib,cmd_buf);if(ni!=0){sdir=ni;}}
-                            free(ib);
-                        }pos=pos+1;
-                    }else{ // last component = filename
-                        strcpy(line_buf,cmd_buf);
-                    }
-                }
-                do_retr(dfd,sdir,line_buf);
-            }else{strcpy(cmd_buf,args_buf);do_retr(dfd,sdir,cmd_buf);}
-            close_nasm(dfd);close_nasm(slot_get(s_plsn,slot));slot_set(s_plsn,slot,-1);
-            send_resp(cfd,226,"Transfer complete");
-        }else{if(args_buf[0]==0){send_resp(cfd,550,"File name required");}else{send_resp(cfd,425,"Data connection failed");}}
-    }else if(strcmp(cmd_buf,"SIZE")==0){
-        fsz=0;ib=malloc(inode_size);
-        if(ib!=0&&read_inode(ib,slot_get(s_cwd,slot))>=0){fino=find_entry(ib,args_buf);
-            if(fino!=0){free(ib);ib=malloc(inode_size);if(ib!=0&&read_inode(ib,fino)>=0){fsz=read_le32(ib,4);}}
-        }free(ib);
-        sprintf(line_buf,"%d",fsz);strcpy(resp_buf,"213 ");strcat(resp_buf,line_buf);strcat(resp_buf,"\r\n");
-        send_all(cfd,resp_buf,strlen(resp_buf));
-    }else{send_resp(cfd,500,"Unknown command");}
+        cmd_buf[j] = 0;
+        name_buf = cmd_buf;
+    }
+
+    // "." and ".."
+    if (name_buf[0] == 0 || strcmp(name_buf, ".") == 0) {
+        send_resp(cfd, 250, "OK");
+        return 0;
+    }
+    if (strcmp(name_buf, "..") == 0) {
+        slot_set(s_cwd, slot, 2);
+        pathcpy(slot, "/");
+        send_resp(cfd, 250, "OK");
+        return 0;
+    }
+
+    // Absolute path: /name -> resolve from root
+    if (name_buf[0] == 47) {
+        i = 1;
+        j = 0;
+        while (name_buf[i] != 0) {
+            cmd_buf[j] = name_buf[i];
+            j = j + 1;
+            i = i + 1;
+        }
+        cmd_buf[j] = 0;
+
+        // Strip quotes from the extracted component: /"name" -> name
+        if (cmd_buf[0] == 34) {
+            i = 1;
+            j = 0;
+            while (cmd_buf[i] != 0 && cmd_buf[i] != 34) {
+                cmd_buf[j] = cmd_buf[i];
+                j = j + 1;
+                i = i + 1;
+            }
+            cmd_buf[j] = 0;
+        }
+
+        if (cmd_buf[0] == 0 || strcmp(cmd_buf, ".") == 0) {
+            slot_set(s_cwd, slot, 2);
+            pathcpy(slot, "/");
+            send_resp(cfd, 250, "OK");
+            return 0;
+        }
+        if (strcmp(cmd_buf, "..") == 0) {
+            send_resp(cfd, 250, "OK");
+            return 0;
+        }
+
+        ib = malloc(inode_size);
+        if (ib == 0 || read_inode(ib, 2) < 0) {
+            free(ib);
+            send_resp(cfd, 550, "Error");
+            return -1;
+        }
+        ci = find_entry(ib, cmd_buf);
+        free(ib);
+        if (ci == 0) {
+            send_resp(cfd, 550, "Not found");
+            return -1;
+        }
+
+        cb = malloc(inode_size);
+        if (cb == 0 || read_inode(cb, ci) < 0) {
+            free(cb);
+            send_resp(cfd, 550, "Error");
+            return -1;
+        }
+        md = read_le16(cb, 0);
+        free(cb);
+        if ((md & 0x4000) == 0) {
+            send_resp(cfd, 550, "Not a directory");
+            return -1;
+        }
+        slot_set(s_cwd, slot, ci);
+        pathcpy(slot, "/");
+        pathcat(slot, cmd_buf);
+        send_resp(cfd, 250, "OK");
+        return 0;
+    }
+
+    // Relative path
+    ib = malloc(inode_size);
+    if (ib == 0 || read_inode(ib, cwd) < 0) {
+        free(ib);
+        send_resp(cfd, 550, "Error");
+        return -1;
+    }
+    ci = find_entry(ib, name_buf);
+    free(ib);
+    if (ci == 0) {
+        send_resp(cfd, 550, "Not found");
+        return -1;
+    }
+    cb = malloc(inode_size);
+    if (cb == 0 || read_inode(cb, ci) < 0) {
+        free(cb);
+        send_resp(cfd, 550, "Error");
+        return -1;
+    }
+    md = read_le16(cb, 0);
+    free(cb);
+    if ((md & 0x4000) == 0) {
+        send_resp(cfd, 550, "Not a directory");
+        return -1;
+    }
+    slot_set(s_cwd, slot, ci);
+    pathcat(slot, name_buf);
+    send_resp(cfd, 250, "OK");
+    return 0;
 }
 
-// ---------- Main ----------
+// ================================================================
+// Command processing
+// ================================================================
+def process_client(slot of int) {
+    cfd   = slot_get(s_fd, slot);
+    cwd   = slot_get(s_cwd, slot);
+    soff  = slot * 256;
+    loff  = slot * 256;
+
+    // Read one command (non-blocking)
+    rbuf = malloc(256);
+    n = recv_nasm(cfd, rbuf, 255, 0);
+    if (n < 0) {
+        free(rbuf);
+        return;
+    }
+    if (n == 0) {
+        free(rbuf);
+        slot_set(s_dfd, slot, -1);
+        if (slot_get(s_plsn, slot) >= 0) {
+            close_nasm(slot_get(s_plsn, slot));
+        }
+        close_nasm(cfd);
+        s_occ[slot] = 0;
+        return;
+    }
+    rbuf[n] = 0;
+
+    // Split into command + arguments
+    i = 0;
+    while (i < n && rbuf[i] != 0 && rbuf[i] != ' ' && rbuf[i] != 13 && rbuf[i] != 10) {
+        cmd_buf[i] = rbuf[i];
+        i = i + 1;
+    }
+    cmd_buf[i] = 0;
+
+    if (rbuf[i] == ' ') {
+        i = i + 1;
+        j = 0;
+        while (i < n && rbuf[i] != 0 && rbuf[i] != 13 && rbuf[i] != 10) {
+            args_buf[j] = rbuf[i];
+            j = j + 1;
+            i = i + 1;
+        }
+        args_buf[j] = 0;
+    } else {
+        args_buf[0] = 0;
+    }
+    free(rbuf);
+
+    if (cmd_buf[0] == 0) {
+        return;
+    }
+
+    // ---- QUIT ----
+    if (strcmp(cmd_buf, "QUIT") == 0) {
+        send_resp(cfd, 221, "Goodbye");
+        slot_set(s_dfd, slot, -1);
+        if (slot_get(s_plsn, slot) >= 0) {
+            close_nasm(slot_get(s_plsn, slot));
+        }
+        close_nasm(cfd);
+        s_occ[slot] = 0;
+        return;
+    }
+
+    // ---- Simple text commands ----
+    if (strcmp(cmd_buf, "USER") == 0) {
+        send_resp(cfd, 331, "OK");
+    } else if (strcmp(cmd_buf, "PASS") == 0) {
+        send_resp(cfd, 230, "OK");
+    } else if (strcmp(cmd_buf, "SYST") == 0) {
+        send_resp(cfd, 215, "UNIX Type: L8");
+    } else if (strcmp(cmd_buf, "TYPE") == 0) {
+        send_resp(cfd, 200, "OK");
+    } else if (strcmp(cmd_buf, "NOOP") == 0) {
+        send_resp(cfd, 200, "OK");
+    } else if (strcmp(cmd_buf, "FEAT") == 0) {
+        strcpy(resp_buf, "211-Features:\r\n SIZE\r\n211 End\r\n");
+        send_all(cfd, resp_buf, strlen(resp_buf));
+    } else if (strcmp(cmd_buf, "OPTS") == 0) {
+        send_resp(cfd, 200, "OK");
+    } else if (strcmp(cmd_buf, "EPSV") == 0) {
+        send_resp(cfd, 500, "EPSV not supported, use PASV");
+    } else if (strcmp(cmd_buf, "PORT") == 0) {
+        send_resp(cfd, 200, "PORT OK (ignored)");
+
+    // ---- PWD ----
+    } else if (strcmp(cmd_buf, "PWD") == 0 || strcmp(cmd_buf, "XPWD") == 0) {
+        strcpy(resp_buf, "257 \"");
+        i = 0;
+        while (s_path[soff + i] != 0) {
+            resp_buf[5 + i] = s_path[soff + i];
+            i = i + 1;
+        }
+        resp_buf[5 + i] = 34;
+        resp_buf[6 + i] = 13;
+        resp_buf[7 + i] = 10;
+        resp_buf[8 + i] = 0;
+        send_all(cfd, resp_buf, strlen(resp_buf));
+
+    // ---- CWD / XCWD ----
+    } else if (strcmp(cmd_buf, "CWD") == 0 || strcmp(cmd_buf, "XCWD") == 0) {
+        handle_cwd(slot, args_buf);
+
+    // ---- CDUP / XCUP ----
+    } else if (strcmp(cmd_buf, "CDUP") == 0 || strcmp(cmd_buf, "XCUP") == 0) {
+        if (slot_get(s_cwd, slot) != 2) {
+            slot_set(s_cwd, slot, 2);
+            pathcpy(slot, "/");
+        }
+        send_resp(cfd, 250, "OK");
+
+    // ---- PASV ----
+    } else if (strcmp(cmd_buf, "PASV") == 0) {
+        if (pasv_open(slot) >= 0) {
+            p1 = slot_get(s_pport, slot) / 256;
+            p2 = slot_get(s_pport, slot) - p1 * 256;
+            sprintf(resp_buf, "%d", p1);
+            strcpy(line_buf, "227 Entering Passive Mode (127,0,0,1,");
+            strcat(line_buf, resp_buf);
+            strcat(line_buf, ",");
+            sprintf(resp_buf, "%d", p2);
+            strcat(line_buf, resp_buf);
+            strcat(line_buf, ")\r\n");
+            send_all(cfd, line_buf, strlen(line_buf));
+        } else {
+            send_resp(cfd, 425, "PASV failed");
+        }
+
+    // ---- LIST ----
+    } else if (strcmp(cmd_buf, "LIST") == 0) {
+        if (args_buf[0] != 0 && args_buf[0] != 45
+            && strcmp(args_buf, ".") != 0
+            && strcmp(args_buf, "..") != 0
+            && strcmp(args_buf, "/") != 0)
+        {
+            if (args_buf[0] == 47) {
+                // Absolute path — extract last component, CWD to the directory part
+                i = 0;
+                last = 0;
+                while (args_buf[i] != 0) {
+                    if (args_buf[i] == 47) {
+                        last = i + 1;
+                    }
+                    i = i + 1;
+                }
+                if (last > 0) {
+                    j = 0;
+                    while (args_buf[last + j] != 0) {
+                        cmd_buf[j] = args_buf[last + j];
+                        j = j + 1;
+                    }
+                    cmd_buf[j] = 0;
+
+                    ib = malloc(inode_size);
+                    if (ib != 0 && read_inode(ib, slot_get(s_cwd, slot)) >= 0) {
+                        ci = find_entry(ib, cmd_buf);
+                        if (ci != 0) {
+                            cb = malloc(inode_size);
+                            if (cb != 0 && read_inode(cb, ci) >= 0) {
+                                md = read_le16(cb, 0);
+                                free(cb);
+                                if ((md & 0x4000) != 0) {
+                                    slot_set(s_cwd, slot, ci);
+                                    pathcat(slot, cmd_buf);
+                                }
+                            }
+                        }
+                        free(ib);
+                    }
+                }
+            } else {
+                handle_cwd(slot, args_buf);
+            }
+        }
+        dfd = accept_data(slot_get(s_plsn, slot));
+        if (dfd >= 0) {
+            send_resp(cfd, 150, "Opening data connection");
+            do_list(dfd, slot_get(s_cwd, slot));
+            close_nasm(dfd);
+            close_nasm(slot_get(s_plsn, slot));
+            slot_set(s_plsn, slot, -1);
+            send_resp(cfd, 226, "Directory send OK");
+        } else {
+            send_resp(cfd, 425, "Data connection failed");
+        }
+
+    // ---- NLST ----
+    } else if (strcmp(cmd_buf, "NLST") == 0) {
+        dfd = accept_data(slot_get(s_plsn, slot));
+        if (dfd >= 0) {
+            send_resp(cfd, 150, "Opening data connection");
+            ib = malloc(inode_size);
+            if (ib != 0 && read_inode(ib, slot_get(s_cwd, slot)) >= 0) {
+                blk0 = read_le32(ib, 40);
+                if (blk0 != 0) {
+                    db = malloc(block_size);
+                    if (db != 0 && read_block(db, blk0) >= 0) {
+                        posx = 0;
+                        while (posx < block_size) {
+                            ino  = read_le32(db, posx);
+                            rl2  = read_le16(db, posx + 4);
+                            nl2  = read_i8(db, posx + 6);
+                            if (rl2 == 0) {
+                                break;
+                            }
+                            if (ino != 0 && nl2 > 0) {
+                                j2 = 0;
+                                while (j2 < nl2) {
+                                    cb = read_i8(db, posx + 8 + j2);
+                                    char_buf[0] = cb;
+                                    send_nasm(dfd, char_buf, 1, 0);
+                                    j2 = j2 + 1;
+                                }
+                                send_str(dfd, "\r\n");
+                            }
+                            posx = posx + rl2;
+                        }
+                        free(db);
+                    }
+                }
+                free(ib);
+            }
+            close_nasm(dfd);
+            close_nasm(slot_get(s_plsn, slot));
+            slot_set(s_plsn, slot, -1);
+            send_resp(cfd, 226, "Directory send OK");
+        } else {
+            send_resp(cfd, 425, "Data connection failed");
+        }
+
+    // ---- RETR ----
+    } else if (strcmp(cmd_buf, "RETR") == 0) {
+        dfd = accept_data(slot_get(s_plsn, slot));
+        if (dfd >= 0 && args_buf[0] != 0) {
+            send_resp(cfd, 150, "Opening data connection");
+            sdir = slot_get(s_cwd, slot);
+            if (args_buf[0] == 47) {
+                // Absolute path — walk the path
+                sdir = 2;
+                plen = 0;
+                while (args_buf[plen] != 0) {
+                    plen = plen + 1;
+                }
+                pos = 1;  // skip leading /
+                while (pos < plen) {
+                    cp = 0;
+                    while (pos < plen && args_buf[pos] != 47) {
+                        cmd_buf[cp] = args_buf[pos];
+                        cp = cp + 1;
+                        pos = pos + 1;
+                    }
+                    cmd_buf[cp] = 0;
+                    if (pos < plen) {
+                        // Directory component
+                        if (cp > 0) {
+                            ib = malloc(inode_size);
+                            if (ib != 0 && read_inode(ib, sdir) >= 0) {
+                                ni = find_entry(ib, cmd_buf);
+                                if (ni != 0) {
+                                    sdir = ni;
+                                }
+                            }
+                            free(ib);
+                        }
+                        pos = pos + 1;
+                    } else {
+                        // Last component = filename
+                        strcpy(line_buf, cmd_buf);
+                    }
+                }
+                do_retr(dfd, sdir, line_buf);
+            } else {
+                strcpy(cmd_buf, args_buf);
+                do_retr(dfd, sdir, cmd_buf);
+            }
+            close_nasm(dfd);
+            close_nasm(slot_get(s_plsn, slot));
+            slot_set(s_plsn, slot, -1);
+            send_resp(cfd, 226, "Transfer complete");
+        } else {
+            if (args_buf[0] == 0) {
+                send_resp(cfd, 550, "File name required");
+            } else {
+                send_resp(cfd, 425, "Data connection failed");
+            }
+        }
+
+    // ---- SIZE ----
+    } else if (strcmp(cmd_buf, "SIZE") == 0) {
+        fsz = 0;
+        ib = malloc(inode_size);
+        if (ib != 0 && read_inode(ib, slot_get(s_cwd, slot)) >= 0) {
+            fino = find_entry(ib, args_buf);
+            if (fino != 0) {
+                free(ib);
+                ib = malloc(inode_size);
+                if (ib != 0 && read_inode(ib, fino) >= 0) {
+                    fsz = read_le32(ib, 4);
+                }
+            }
+        }
+        free(ib);
+        sprintf(line_buf, "%d", fsz);
+        strcpy(resp_buf, "213 ");
+        strcat(resp_buf, line_buf);
+        strcat(resp_buf, "\r\n");
+        send_all(cfd, resp_buf, strlen(resp_buf));
+
+    } else {
+        send_resp(cfd, 500, "Unknown command");
+    }
+}
+
+// ================================================================
+// Main
+// ================================================================
 def main() of int {
-    MC=10;
-    sb_buf=malloc(1024);resp_buf=malloc(512);line_buf=malloc(512);
-    cmd_buf=malloc(64);args_buf=malloc(256);char_buf=malloc(4);
+    MC = 10;
+
+    sb_buf  = malloc(1024);
+    resp_buf = malloc(512);
+    line_buf = malloc(512);
+    cmd_buf  = malloc(64);
+    args_buf = malloc(256);
+    char_buf = malloc(4);
+
     init_sessions(MC);
 
     puts("=== Ext3 FTP Server (Event Loop) ===\n");
     puts("Enter Ext3 image path: ");
-    path_buf=malloc(256);i=0;
-    while(true){c=getchar();if(c==10||c==-1){path_buf[i]=0;break;}path_buf[i]=c;i=i+1;}
-    img_file=fopen(path_buf,"rb");if(img_file==0){puts("Failed to open.\n");return 1;}
-    if(parse_superblock()!=0){puts("Not a valid Ext3.\n");return 1;}
+
+    path_buf = malloc(256);
+    i = 0;
+    while (true) {
+        c = getchar();
+        if (c == 10 || c == -1) {
+            path_buf[i] = 0;
+            break;
+        }
+        path_buf[i] = c;
+        i = i + 1;
+    }
+
+    img_file = fopen(path_buf, "rb");
+    if (img_file == 0) {
+        puts("Failed to open.\n");
+        return 1;
+    }
+    if (parse_superblock() != 0) {
+        puts("Not a valid Ext3.\n");
+        return 1;
+    }
     puts("Ext3 detected.\n");
 
-    server_fd=listen_sock(2121);if(server_fd<0){puts("Failed to listen.\n");return 1;}
+    server_fd = listen_sock(2121);
+    if (server_fd < 0) {
+        puts("Failed to listen.\n");
+        return 1;
+    }
     puts("Listening on port 2121 (non-blocking).\n");
 
-    while(true){
+    while (true) {
         // Accept new clients (non-blocking)
-        newfd=try_accept(server_fd);
-        if(newfd>=0){fcntl_nasm(newfd,4,2048);slot=find_slot();
-            if(slot>=0){s_occ[slot]=1;slot_set(s_fd,slot,newfd);slot_set(s_cwd,slot,2);pathcpy(slot,"/");
-                send_resp(newfd,220,"Ext3 FTP Server ready");
-            }else{send_resp(newfd,421,"Server busy");close_nasm(newfd);}
+        newfd = try_accept(server_fd);
+        if (newfd >= 0) {
+            fcntl_nasm(newfd, 4, 2048);
+            slot = find_slot();
+            if (slot >= 0) {
+                s_occ[slot] = 1;
+                slot_set(s_fd, slot, newfd);
+                slot_set(s_cwd, slot, 2);
+                pathcpy(slot, "/");
+                send_resp(newfd, 220, "Ext3 FTP Server ready");
+            } else {
+                send_resp(newfd, 421, "Server busy");
+                close_nasm(newfd);
+            }
         }
-        // Process all active clients (non-blocking recv)
-        si=0;while(si<MC){if(s_occ[si]==1){process_client(si);}si=si+1;}
+        // Service all active clients (non-blocking recv)
+        si = 0;
+        while (si < MC) {
+            if (s_occ[si] == 1) {
+                process_client(si);
+            }
+            si = si + 1;
+        }
     }
     return 0;
 }
