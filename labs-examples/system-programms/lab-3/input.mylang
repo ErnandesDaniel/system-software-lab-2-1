@@ -93,13 +93,13 @@ def find_entry(dir_inode of string, name of string) of int {
     if (read_block(dir_buf, blk0) < 0) { free(dir_buf); return 0; }
     result = 0; pos = 0;
     while (pos < block_size) {
-        ino = read_le32(dir_buf, pos);
-        if (ino == 0) { pos = pos + 1; if (pos >= block_size) { break; } }
-        rec_len = read_le16(dir_buf, pos + 4); name_len = read_i8(dir_buf, pos + 6);
+        ino = read_le32(dir_buf, pos); rec_len = read_le16(dir_buf, pos + 4); name_len = read_i8(dir_buf, pos + 6);
         if (rec_len == 0) { break; }
-        match = 1; j = 0;
-        while (j < name_len) { if (read_i8(dir_buf, pos+8+j) != name[j]) { match = 0; break; } j = j + 1; }
-        if (match == 1 && name[name_len] == 0) { result = ino; break; }
+        if (ino != 0) {
+            match = 1; j = 0;
+            while (j < name_len) { if (read_i8(dir_buf, pos+8+j) != name[j]) { match = 0; break; } j = j + 1; }
+            if (match == 1 && name[name_len] == 0) { result = ino; break; }
+        }
         pos = pos + rec_len;
     }
     free(dir_buf); return result;
@@ -121,7 +121,7 @@ def try_accept(fd of int) of int {
 def accept_data(lst of int) of int {
     ab=malloc(16);lb=malloc(4);if(ab==0||lb==0){return -1;}
     lb[0]=16;lb[1]=0;lb[2]=0;lb[3]=0;
-    i=0;while(i<50000000){
+    i=0;while(i<5000000){
         fd=accept_nasm(lst,ab,lb);
         if(fd>=0){free(ab);free(lb);fcntl_nasm(fd,4,0);return fd;}
         i=i+1;
@@ -176,7 +176,7 @@ def pathcat(slot of int, name of string) {
 }
 
 // ---------- Send helpers ----------
-def send_all(fd of int, buf of string, len of int) { while (true) { n = send_nasm(fd,buf,len,0); if (n>0) { return; } } }
+def send_all(fd of int, buf of string, len of int) { retry=0;while(retry<100){n=send_nasm(fd,buf,len,0);if(n>0){return;}retry=retry+1;}}
 def send_str(fd of int, s of string) { send_all(fd, s, strlen(s)); }
 def send_resp(fd of int, code of int, msg of string) {
     sprintf(resp_buf,"%d",code); strcat(resp_buf," "); strcat(resp_buf,msg); strcat(resp_buf,"\r\n");
@@ -199,20 +199,34 @@ def pasv_open(slot of int) of int {
 }
 
 // ---------- LIST logic ----------
+// LIST format: permissions size Jan 1 00:00 <filename>\r\n
+// Проблема: если имя файла состоит только из пробелов (напр. " "),
+// FileZilla не может отличить имя от разделителя полей и показывает
+// дату вместо имени. Решение: для имён из одних пробелов выводим " ".
 def do_list(dfd of int, cwd of int) {
     inode_buf=malloc(inode_size); if(inode_buf==0||read_inode(inode_buf,cwd)<0){free(inode_buf);return;}
     blk0=read_le32(inode_buf,40); if(blk0==0){free(inode_buf);return;}
     dir_buf=malloc(block_size); if(dir_buf==0||read_block(dir_buf,blk0)<0){free(dir_buf);free(inode_buf);return;}
     send_str(dfd,"total 0\r\n"); pos=0;
     while(pos<block_size){
-        ino=read_le32(dir_buf,pos); if(ino==0){pos=pos+1;if(pos>=block_size){break;}}
-        rl=read_le16(dir_buf,pos+4);nl=read_i8(dir_buf,pos+6);if(rl==0){break;}
-        if(nl>0){
+        ino=read_le32(dir_buf,pos); rl=read_le16(dir_buf,pos+4); nl=read_i8(dir_buf,pos+6);
+        if(rl==0){break;}
+        if(ino!=0&&nl>0){
+            is_all_space=1;j=0;while(j<nl){if(read_i8(dir_buf,pos+8+j)!=32){is_all_space=0;break;}j=j+1;}
+            fb=read_i8(dir_buf,pos+8);
             fi=malloc(inode_size);isd=0;fsz=0;
             if(fi!=0&&read_inode(fi,ino)>=0){md=read_le16(fi,0);if((md&0x4000)!=0){isd=1;}fsz=read_le32(fi,4);}free(fi);
             if(isd!=0){send_str(dfd,"drwxr-xr-x 1 ftp ftp 4096 Jan 1 00:00 ");}
             else{sprintf(resp_buf,"%d",fsz);send_str(dfd,"-rw-r--r-- 1 ftp ftp ");send_str(dfd,resp_buf);send_str(dfd," Jan 1 00:00 ");}
+            // кавычки для хитрых имён: пробел, "."/"..", ". "
+            is_tricky=0;
+            if(is_all_space!=0){is_tricky=1;}
+            if(fb==46&&nl==1){is_tricky=1;}
+            if(fb==46&&nl==2&&read_i8(dir_buf,pos+9)==46){is_tricky=1;}
+            if(fb==46&&nl>1&&read_i8(dir_buf,pos+9)!=46){is_tricky=1;}
+            if(is_tricky!=0){send_str(dfd,"\"");}
             j=0;while(j<nl){c=read_i8(dir_buf,pos+8+j);char_buf[0]=c;send_nasm(dfd,char_buf,1,0);j=j+1;}
+            if(is_tricky!=0){send_str(dfd,"\"");}
             send_str(dfd,"\r\n");
         }pos=pos+rl;
     }free(dir_buf);free(inode_buf);
@@ -233,21 +247,40 @@ def do_retr(dfd of int, cwd of int, name of string) {
 // ---------- CWD logic ----------
 def handle_cwd(slot of int, target of string) of int {
     cfd=slot_get(s_fd,slot);cwd=slot_get(s_cwd,slot);
-    if(target[0]==0||strcmp(target,".")==0){send_resp(cfd,250,"OK");return 0;}
-    if(strcmp(target,"..")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
+    // Снимаем кавычки с имени (если FileZilla прислал "name")
+    name_buf=target;
+    if(target[0]==34){
+        i=1;j=0;while(target[i]!=0&&target[i]!=34){cmd_buf[j]=target[i];j=j+1;i=i+1;}cmd_buf[j]=0;
+        name_buf=cmd_buf;
+    }
+    if(name_buf[0]==0||strcmp(name_buf,".")==0){send_resp(cfd,250,"OK");return 0;}
+    if(strcmp(name_buf,"..")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
+    // Абсолютный путь — снимаем ведущий / и ищем от корня
+    if(name_buf[0]==47){
+        i=1;j=0;while(name_buf[i]!=0){cmd_buf[j]=name_buf[i];j=j+1;i=i+1;}cmd_buf[j]=0;
+        if(cmd_buf[0]==0||strcmp(cmd_buf,".")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
+        if(strcmp(cmd_buf,"..")==0){send_resp(cfd,250,"OK");return 0;}
+        ib=malloc(inode_size);if(ib==0||read_inode(ib,2)<0){free(ib);send_resp(cfd,550,"Error");return -1;}
+        ci=find_entry(ib,cmd_buf);free(ib);if(ci==0){send_resp(cfd,550,"Not found");return -1;}
+        cb=malloc(inode_size);if(cb==0||read_inode(cb,ci)<0){free(cb);send_resp(cfd,550,"Error");return -1;}
+        md=read_le16(cb,0);free(cb);
+        if((md&0x4000)==0){send_resp(cfd,550,"Not a directory");return -1;}
+        slot_set(s_cwd,slot,ci);pathcpy(slot,"/");pathcat(slot,cmd_buf);
+        send_resp(cfd,250,"OK");return 0;
+    }
     ib=malloc(inode_size);if(ib==0||read_inode(ib,cwd)<0){free(ib);send_resp(cfd,550,"Error");return -1;}
-    ci=find_entry(ib,target);free(ib);if(ci==0){send_resp(cfd,550,"Not found");return -1;}
+    ci=find_entry(ib,name_buf);free(ib);if(ci==0){send_resp(cfd,550,"Not found");return -1;}
     cb=malloc(inode_size);if(cb==0||read_inode(cb,ci)<0){free(cb);send_resp(cfd,550,"Error");return -1;}
     md=read_le16(cb,0);free(cb);
     if((md&0x4000)==0){send_resp(cfd,550,"Not a directory");return -1;}
-    slot_set(s_cwd,slot,ci);pathcat(slot,target);send_resp(cfd,250,"OK");return 0;
+    slot_set(s_cwd,slot,ci);pathcat(slot,name_buf);send_resp(cfd,250,"OK");return 0;
 }
 
 // ---------- Process one client command ----------
 def process_client(slot of int) {
     cfd=slot_get(s_fd,slot);cwd=slot_get(s_cwd,slot);
     soff=slot*256;loff=slot*256;
-    // Try to read a command (non-blocking)
+            // Try to read a command (non-blocking)
     rbuf=malloc(256);n=recv_nasm(cfd,rbuf,255,0);
     if(n<0){free(rbuf);return;}
     if(n==0){free(rbuf);slot_set(s_dfd,slot,-1);if(slot_get(s_plsn,slot)>=0){close_nasm(slot_get(s_plsn,slot));}
@@ -288,7 +321,7 @@ def process_client(slot of int) {
         }else{send_resp(cfd,425,"PASV failed");}
     }else if(strcmp(cmd_buf,"LIST")==0){
         // Handle LIST with path argument (CWD to it first, then list)
-        if(args_buf[0]!=0&&strcmp(args_buf,".")!=0&&strcmp(args_buf,"..")!=0&&strcmp(args_buf,"/")!=0){
+        if(args_buf[0]!=0&&args_buf[0]!=45&&strcmp(args_buf,".")!=0&&strcmp(args_buf,"..")!=0&&strcmp(args_buf,"/")!=0){
             if(args_buf[0]==47){// absolute path - find last component
                 i=0;last=0;while(args_buf[i]!=0){if(args_buf[i]==47){last=i+1;}i=i+1;}
                 // Temporarily change cwd to the directory part
@@ -318,9 +351,9 @@ def process_client(slot of int) {
             ib=malloc(inode_size);if(ib!=0&&read_inode(ib,slot_get(s_cwd,slot))>=0){
                 blk0=read_le32(ib,40);if(blk0!=0){db=malloc(block_size);if(db!=0&&read_block(db,blk0)>=0){
                     posx=0;while(posx<block_size){
-                        ino=read_le32(db,posx);if(ino==0){posx=posx+1;if(posx>=block_size){break;}}
-                        rl2=read_le16(db,posx+4);nl2=read_i8(db,posx+6);if(rl2==0){break;}
-                        if(nl2>0&&read_i8(db,posx+8)!=46){
+                        ino=read_le32(db,posx);rl2=read_le16(db,posx+4);nl2=read_i8(db,posx+6);
+                        if(rl2==0){break;}
+                        if(ino!=0&&nl2>0){
                             j2=0;while(j2<nl2){cb=read_i8(db,posx+8+j2);char_buf[0]=cb;send_nasm(dfd,char_buf,1,0);j2=j2+1;}
                             send_str(dfd,"\r\n");
                         }posx=posx+rl2;

@@ -102,46 +102,10 @@ cargo run --release -- labs-examples/system-programms/lab-3/input.mylang -o outp
 # Запуск
 ./output/program
 # Ввести путь к образу: ext3.img
+# Ввести путь к образу: ext3.bin
 ```
 
-## Пример сессии
 
-```
-=== Ext3 FTP-like Client ===
-Enter Ext3 image path: ext3.img
-Ext3 filesystem detected.
-
-ftp> PWD
-257 "/"
-
-ftp> LIST
-  [DIR]  .
-  [DIR]  ..
-  [DIR]  lost+found
-  [DIR]  subdir
-  [FILE] hello.txt
-  [FILE] nested.txt
-
-ftp> RETR hello.txt
-226 Transfer complete.
-
-ftp> CWD subdir
-250 Directory successfully changed.
-
-ftp> PWD
-257 "/subdir"
-
-ftp> LIST
-  [DIR]  .
-  [DIR]  ..
-  [FILE] data.txt
-
-ftp> RETR data.txt
-226 Transfer complete.
-
-ftp> QUIT
-221 Goodbye.
-```
 
 Файлы `hello.txt` и `subdir/data.txt` извлечены в текущую директорию.
 
@@ -151,4 +115,30 @@ Hello from Ext3!
 
 C:\> type data.txt
 Inside subdir
+```
+
+ls -la ext3_bin
+
+## Работа с ext3.bin через WSL
+
+Файл `ext3.bin` в корне проекта — это образ ext3. Для просмотра содержимого смонтируйте его в папку `ext3_bin/` (уже существует в проекте):
+
+```bash
+# Из корня проекта:
+cd /mnt/c/Users/Ernan/RustroverProjects/system-software-lab-2-1
+
+# 1. Создать точку монтирования
+sudo mkdir -p ext3_mnt
+
+# 2. Смонтировать образ
+sudo mount -o loop ext3.bin ext3_mnt
+
+# 3. Просмотр содержимого
+ls -la ext3_mnt
+
+# 4. После работы — отмонтировать
+sudo umount ext3_mnt
+
+# 5. Опционально — удалить точку монтирования
+sudo rmdir ext3_mnt
 ```
