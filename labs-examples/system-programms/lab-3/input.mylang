@@ -42,6 +42,8 @@ global line_buf of string;
 global cmd_buf of string;
 global args_buf of string;
 global char_buf of string;
+global retr_rem of int;
+global retr_dfd of int;
 
 // ---------- Binary helpers ----------
 def read_i8(buf of string, off of int) of int { return buf[off] & 255; }
@@ -233,15 +235,34 @@ def do_list(dfd of int, cwd of int) {
 }
 
 // ---------- RETR logic ----------
+def retr_send_block(blk of int) {
+    bb=malloc(block_size);if(bb==0){return;}
+    ts=block_size;if(retr_rem<block_size){ts=retr_rem;}
+    if(read_block(bb,blk)>=0){send_all(retr_dfd,bb,ts);retr_rem=retr_rem-ts;}
+    free(bb);
+}
+def retr_level(iblk of int, lvl of int) {
+    if(retr_rem<=0){return;}
+    if(lvl<0){retr_send_block(iblk);return;}
+    bb=malloc(block_size);if(bb==0){return;}
+    if(read_block(bb,iblk)<0){free(bb);return;}
+    i=0;npp=block_size/4;
+    while(i<npp){if(retr_rem<=0){break;}
+        nblk=read_le32(bb,i*4);if(nblk==0){break;}
+        retr_level(nblk,lvl-1);i=i+1;
+    }free(bb);
+}
 def do_retr(dfd of int, cwd of int, name of string) {
     inode_buf=malloc(inode_size);if(inode_buf==0||read_inode(inode_buf,cwd)<0){free(inode_buf);return;}
     fino=find_entry(inode_buf,name);free(inode_buf);if(fino==0){return;}
     fb=malloc(inode_size);if(read_inode(fb,fino)<0){free(fb);return;}
-    fsz=read_le32(fb,4);rem=fsz;bi=0;
-    while(bi<12&&rem>0){blk=read_le32(fb,40+bi*4);if(blk==0){break;}
-        bb=malloc(block_size);if(bb==0){break;}if(read_block(bb,blk)>=0){ts=block_size;if(rem<block_size){ts=rem;}
-        send_all(dfd,bb,ts);rem=rem-ts;}free(bb);bi=bi+1;
-    }free(fb);
+    fsz=read_le32(fb,4);retr_rem=fsz;retr_dfd=dfd;
+    bi=0;while(bi<12&&retr_rem>0){blk=read_le32(fb,40+bi*4);if(blk==0){break;}
+        retr_send_block(blk);bi=bi+1;}
+    if(retr_rem>0){blk=read_le32(fb,88);if(blk!=0){retr_level(blk,0);}}
+    if(retr_rem>0){blk=read_le32(fb,92);if(blk!=0){retr_level(blk,1);}}
+    if(retr_rem>0){blk=read_le32(fb,96);if(blk!=0){retr_level(blk,2);}}
+    free(fb);
 }
 
 // ---------- CWD logic ----------
@@ -258,6 +279,7 @@ def handle_cwd(slot of int, target of string) of int {
     // Абсолютный путь — снимаем ведущий / и ищем от корня
     if(name_buf[0]==47){
         i=1;j=0;while(name_buf[i]!=0){cmd_buf[j]=name_buf[i];j=j+1;i=i+1;}cmd_buf[j]=0;
+        if(cmd_buf[0]==34){i=1;j=0;while(cmd_buf[i]!=0&&cmd_buf[i]!=34){cmd_buf[j]=cmd_buf[i];j=j+1;i=i+1;}cmd_buf[j]=0;}
         if(cmd_buf[0]==0||strcmp(cmd_buf,".")==0){slot_set(s_cwd,slot,2);pathcpy(slot,"/");send_resp(cfd,250,"OK");return 0;}
         if(strcmp(cmd_buf,"..")==0){send_resp(cfd,250,"OK");return 0;}
         ib=malloc(inode_size);if(ib==0||read_inode(ib,2)<0){free(ib);send_resp(cfd,550,"Error");return -1;}

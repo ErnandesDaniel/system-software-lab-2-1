@@ -102,7 +102,8 @@ cargo run --release -- labs-examples/system-programms/lab-3/input.mylang -o outp
 # Запуск
 ./output/program
 # Ввести путь к образу: ext3.img
-# Ввести путь к образу: ext3.bin
+# Ввести путь к образу: 
+ext3.bin
 ```
 
 
