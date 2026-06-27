@@ -53,36 +53,3 @@ cargo run --release -- labs-examples/system-programms/lab-1/metrics-rr.mylang -o
 cargo run --release -- labs-examples/system-programms/lab-1/metrics-srt.mylang -o output -t nasm --os linux
 ./output/program
 ```
-
-## Что выводят metrics-rr и metrics-srt
-
-Обе программы запускают три корутины (A, B, C), каждая печатает свой символ. Таймер прерывает их каждые 20ms.
-
-### RR (Round Robin)
-
-```
-def rr_scheduler() of int { return (get_current_id() + 1) % 3; }
-```
-Каждая корутина получает CPU строго по очереди: A → B → C → A → ...
-
-### SRT
-
-Глобальный массив `ticks[]` считает тики каждой корутины. Шедулер выбирает корутину с минимальным числом тиков — все получают примерно равное CPU время.
-
-## Архитектура preemptive корутин
-
-```
-Таймер (20ms) → SIGALRM → tick() → swapcontext → trampoline()
-                                                    ↓
-                                            scheduler_fn() ← mylang!
-                                                    ↓
-                                            swapcontext → next coroutine
-```
-
-- `setitimer(ITIMER_REAL, 20ms)` — периодический таймер
-- `sigaction(SIGALRM)` — обработчик сигнала
-- `swapcontext()` — переключение контекстов корутин
-- `trampoline()` — вызывает mylang-функцию `scheduler_fn()`, переключает на выбранную корутину
-- Алгоритм планирования (RR, SRT, любой) — полностью на mylang
-
----
