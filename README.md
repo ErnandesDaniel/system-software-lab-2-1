@@ -166,3 +166,5 @@ expr: {
     |funcLiteral: 'def' funcSignature '{' statement* '}'; // функциональный литерал
 };
 ```
+
+Отчеты по выполненным лабораторным работам в labs-examples
